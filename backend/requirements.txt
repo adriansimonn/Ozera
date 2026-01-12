@@ -1,0 +1,57 @@
+# Phase 1: Core Model Development
+# Essential dependencies for building transformers from scratch
+
+# Core math (pure implementation)
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Data handling
+pandas>=2.0.0
+
+# Tokenization
+tokenizers>=0.15.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Code quality
+black>=23.0.0
+isort>=5.12.0
+flake8>=6.1.0
+mypy>=1.5.0
+
+# Utilities
+tqdm>=4.65.0  # Progress bars for training
+
+# Phase 2+ Dependencies (commented out for now)
+# Uncomment when needed for API/database/deployment
+
+# # API framework
+# fastapi>=0.104.0
+# uvicorn[standard]>=0.24.0
+# pydantic>=2.0.0
+# python-multipart>=0.0.6
+# websockets>=12.0
+
+# # Database
+# sqlalchemy>=2.0.0
+# alembic>=1.12.0
+# asyncpg>=0.29.0
+
+# # Job queue
+# redis>=5.0.0
+# celery>=5.3.0
+
+# # File formats
+# h5py>=3.9.0
+# safetensors>=0.4.0
+
+# # Data sources
+# datasets>=2.14.0  # HuggingFace datasets
+
+# # Logging
+# structlog>=23.2.0
+
+# # Environment
+# python-dotenv>=1.0.0
