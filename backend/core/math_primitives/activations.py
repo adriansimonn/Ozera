@@ -1,7 +1,7 @@
 """
-Activation functions implemented from first principles.
+Activation functions implemented from scratch.
 
-All functions use pure NumPy without framework dependencies.
+All functions use pure NumPy without ML frameworks.
 Includes forward and backward passes for training.
 """
 

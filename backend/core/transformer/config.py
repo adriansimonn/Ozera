@@ -2,7 +2,7 @@
 Configuration classes for transformer models.
 
 Models:
-- Ozera Dev: 542,720 parameters (development/testing only)
+- Ozera Dev: 542,720 parameters (dev/testing only)
 - Ozera Nano: 1,381,120 parameters
 - Ozera Mini: 8,669,696 parameters
 """

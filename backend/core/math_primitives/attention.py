@@ -1,10 +1,9 @@
 """
 Note for Dzmitry Bahdanau and the 8 geniuses from Google brain: how did you even come up with this??
 
-Multi-head attention mechanism from first principles.
+Multi-head attention mechanism from scratch.
 
-Implements scaled dot-product attention and multi-head attention
-without framework dependencies.
+Implements scaled dot-product attention and multi-head attention without frameworks.
 """
 
 import numpy as np
