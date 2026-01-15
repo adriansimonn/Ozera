@@ -10,6 +10,10 @@ pandas>=2.0.0
 
 # Tokenization
 tokenizers>=0.15.0
+tiktoken>=0.5.0
+
+# PyTorch (for GPU training and inference)
+torch>=2.0.0
 
 # Testing
 pytest>=7.4.0
@@ -27,12 +31,11 @@ tqdm>=4.65.0  # Progress bars for training
 # Phase 2+ Dependencies (commented out for now)
 # Uncomment when needed for API/database/deployment
 
-# # API framework
-# fastapi>=0.104.0
-# uvicorn[standard]>=0.24.0
-# pydantic>=2.0.0
-# python-multipart>=0.0.6
-# websockets>=12.0
+# API framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+python-multipart>=0.0.6
 
 # # Database
 # sqlalchemy>=2.0.0
