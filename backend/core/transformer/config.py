@@ -3,8 +3,8 @@ Configuration classes for transformer models.
 
 Models:
 - Ozera Dev: 542,720 parameters (dev/testing only)
-- Ozera Nano: 1,381,120 parameters
-- Ozera Mini: 8,669,696 parameters
+- Ozera Nano: 4,336,128 parameters
+- Ozera Mini: 51,459,584 parameters
 """
 
 from dataclasses import dataclass
@@ -13,7 +13,7 @@ from typing import Optional
 
 @dataclass
 class TransformerConfig:
-    """Configuration for transformer language model."""
+    # Configuration for transformer language model.
 
     # Model architecture
     vocab_size: int = 50257  # GPT-2 tokenizer vocab size
@@ -51,7 +51,7 @@ class TransformerConfig:
 
     @property
     def d_k(self) -> int:
-        """Dimension per attention head."""
+        # Dimension per attention head.
         return self.d_model // self.num_heads
 
     def count_parameters(self) -> int:
@@ -94,7 +94,7 @@ class TransformerConfig:
         return total
 
 
-# Predefined configurations
+# Predefined model configs
 
 # Ozera Dev - For development and testing only
 # Absolute microscopic model for rapid iteration, gradient checks, and debugging
@@ -109,21 +109,21 @@ OZERA_DEV_CONFIG = TransformerConfig(
 )
 
 OZERA_NANO_CONFIG = TransformerConfig(
-    vocab_size=4096,
-    d_model=128,
-    num_layers=4,
-    num_heads=4,
-    d_ff=512,
+    vocab_size=8192,
+    d_model=192,
+    num_layers=6,
+    num_heads=6,
+    d_ff=768,
     max_seq_len=512,
     dropout_rate=0.1,
 )
 
 OZERA_MINI_CONFIG = TransformerConfig(
-    vocab_size=8192,
-    d_model=256,
+    vocab_size=50257,
+    d_model=512,
     num_layers=8,
     num_heads=8,
-    d_ff=1024,
+    d_ff=2048,
     max_seq_len=1024,
     dropout_rate=0.1,
 )

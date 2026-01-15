@@ -237,7 +237,7 @@ class TransformerLM:
         return generated, all_attention
 
     def get_parameters(self) -> Dict[str, np.ndarray]:
-        """Get all trainable parameters."""
+        # Get all trainable parameters.
         params = {}
 
         # Token embeddings

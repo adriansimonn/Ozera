@@ -1,5 +1,5 @@
 """
-Data loading and processing for language model training.
+Data loading and processing for Ozera training.
 """
 
 import numpy as np

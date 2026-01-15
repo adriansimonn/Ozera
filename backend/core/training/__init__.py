@@ -1,5 +1,5 @@
 """
-Training infrastructure for transformer models.
+Training infrastructure for Ozera transformer models.
 """
 
 from .loss import cross_entropy_loss, cross_entropy_loss_with_smoothing, perplexity
