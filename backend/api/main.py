@@ -4,10 +4,12 @@ FastAPI application for Ozera inference API.
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional
 import sys
 import os
+import json
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -164,6 +166,66 @@ async def get_model_info(model_name: str):
             heads=config.num_heads,
             hidden_dim=config.d_model,
             vocab_size=config.vocab_size
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.post("/generate/stream")
+async def generate_stream(request: GenerateRequest):
+    """
+    Generate text from a prompt with streaming (Server-Sent Events).
+
+    Args:
+        request: Generation request parameters
+
+    Returns:
+        Stream of generated tokens
+    """
+    try:
+        # Load model if not already loaded
+        if request.model not in generators:
+            model, _ = model_loader.load_model(request.model, device='cpu')
+            device = str(next(model.parameters()).device)
+            generators[request.model] = TextGenerator(model, device=device)
+
+        generator = generators[request.model]
+
+        # Create streaming generator function
+        def event_stream():
+            try:
+                # Send initial metadata
+                yield f"data: {json.dumps({'type': 'start', 'prompt': request.prompt})}\n\n"
+
+                # Stream tokens
+                for token in generator.generate_stream(
+                    prompt=request.prompt,
+                    max_tokens=request.max_tokens,
+                    temperature=request.temperature,
+                    top_k=request.top_k,
+                    top_p=request.top_p
+                ):
+                    yield f"data: {json.dumps({'type': 'token', 'text': token})}\n\n"
+
+                # Send completion
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
         )
 
     except ValueError as e:

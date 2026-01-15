@@ -3,7 +3,7 @@ Text generation utilities for Ozera models.
 """
 
 import torch
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Iterator
 import sys
 import os
 
@@ -122,6 +122,68 @@ class TextGenerator:
             results.append(generated)
 
         return results
+
+    @torch.no_grad()
+    def generate_stream(
+        self,
+        prompt: str,
+        max_tokens: int = 200,
+        temperature: float = 0.8,
+        top_k: Optional[int] = 40,
+        top_p: Optional[float] = None
+    ) -> Iterator[str]:
+        """
+        Generate text from a prompt with streaming (yields tokens as generated).
+
+        Args:
+            prompt: Text prompt to start generation
+            max_tokens: Maximum number of tokens to generate
+            temperature: Sampling temperature
+            top_k: Top-k sampling parameter
+            top_p: Nucleus sampling parameter
+
+        Yields:
+            Generated text token by token
+        """
+        # Encode prompt
+        prompt_ids = self.tokenizer.encode(prompt)
+        input_ids = torch.tensor([prompt_ids], dtype=torch.long).to(self.device)
+
+        self.model.eval()
+
+        # Generate tokens one at a time
+        for _ in range(max_tokens):
+            # Get logits for current sequence
+            idx_cond = input_ids if input_ids.size(1) <= self.model.config.max_seq_len else input_ids[:, -self.model.config.max_seq_len:]
+
+            logits, _ = self.model.forward(idx_cond, return_attention=False)
+            logits = logits[:, -1, :] / temperature
+
+            # Apply top-k filtering
+            if top_k is not None:
+                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                logits[logits < v[:, [-1]]] = float('-inf')
+
+            # Apply top-p (nucleus) filtering
+            if top_p is not None:
+                sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+                cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+                sorted_indices_to_remove = cumulative_probs > top_p
+                sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[:, :-1].clone()
+                sorted_indices_to_remove[:, 0] = 0
+                indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+                logits[indices_to_remove] = float('-inf')
+
+            # Sample from distribution
+            probs = torch.softmax(logits, dim=-1)
+            next_token = torch.multinomial(probs, num_samples=1)
+
+            # Append to sequence
+            input_ids = torch.cat([input_ids, next_token], dim=1)
+
+            # Decode and yield the new token
+            token_text = self.tokenizer.decode([next_token.item()])
+            yield token_text
 
     def count_tokens(self, text: str) -> int:
         """
