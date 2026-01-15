@@ -173,8 +173,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
 
       <style>{`
         .text-generator {
-          max-width: 800px;
-          margin: 0 auto;
+          max-width: 100%;
           padding: 2rem;
         }
 
@@ -183,19 +182,27 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           justify-content: space-between;
           align-items: center;
           margin-bottom: 2rem;
+          padding-bottom: 1rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .generator-header h2 {
           margin: 0;
+          font-size: 1.5rem;
+          font-weight: 600;
+          color: #fff;
+          letter-spacing: 0.5px;
         }
 
         .status {
-          color: #666;
-          font-size: 0.9rem;
+          color: #00f5ff;
+          font-size: 0.85rem;
+          font-weight: 500;
         }
 
         .controls {
           display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
           gap: 1.5rem;
           margin-bottom: 2rem;
         }
@@ -203,17 +210,61 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         .control-group {
           display: flex;
           flex-direction: column;
-          gap: 0.5rem;
+          gap: 0.75rem;
         }
 
         .control-group label {
           font-weight: 500;
-          font-size: 0.9rem;
+          font-size: 0.85rem;
+          color: #aaa;
+          letter-spacing: 0.3px;
         }
 
-        .control-group select,
+        .control-group select {
+          padding: 0.75rem;
+          background: rgba(30, 30, 30, 0.6);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          color: #fff;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .control-group select:hover {
+          border-color: rgba(0, 245, 255, 0.3);
+        }
+
+        .control-group select:focus {
+          outline: none;
+          border-color: #00f5ff;
+          box-shadow: 0 0 0 2px rgba(0, 245, 255, 0.1);
+        }
+
         .control-group input[type="range"] {
           width: 100%;
+          height: 6px;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 3px;
+          outline: none;
+          -webkit-appearance: none;
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          background: linear-gradient(135deg, #00f5ff 0%, #0088ff 100%);
+          border-radius: 50%;
+          cursor: pointer;
+          box-shadow: 0 0 10px rgba(0, 245, 255, 0.5);
+          transition: all 0.2s;
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb:hover {
+          transform: scale(1.2);
+          box-shadow: 0 0 15px rgba(0, 245, 255, 0.8);
         }
 
         .prompt-area {
@@ -222,18 +273,38 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
 
         .prompt-area label {
           display: block;
-          margin-bottom: 0.5rem;
+          margin-bottom: 0.75rem;
           font-weight: 500;
+          color: #aaa;
+          font-size: 0.85rem;
+          letter-spacing: 0.3px;
         }
 
         .prompt-area textarea {
           width: 100%;
-          padding: 0.75rem;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-family: inherit;
-          font-size: 1rem;
+          padding: 1rem;
+          background: rgba(30, 30, 30, 0.6);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
+          color: #fff;
+          font-family: 'Monaco', 'Courier New', monospace;
+          font-size: 0.95rem;
           resize: vertical;
+          transition: all 0.2s;
+        }
+
+        .prompt-area textarea:hover {
+          border-color: rgba(0, 245, 255, 0.3);
+        }
+
+        .prompt-area textarea:focus {
+          outline: none;
+          border-color: #00f5ff;
+          box-shadow: 0 0 0 2px rgba(0, 245, 255, 0.1);
+        }
+
+        .prompt-area textarea::placeholder {
+          color: #555;
         }
 
         .actions {
@@ -244,87 +315,112 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
 
         .btn-primary,
         .btn-secondary {
-          padding: 0.75rem 1.5rem;
+          padding: 1rem 2rem;
           border: none;
-          border-radius: 4px;
-          font-size: 1rem;
+          border-radius: 10px;
+          font-size: 0.95rem;
+          font-weight: 600;
           cursor: pointer;
-          transition: opacity 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          letter-spacing: 0.5px;
+          position: relative;
+          overflow: hidden;
         }
 
         .btn-primary {
-          background: #007bff;
-          color: white;
+          background: linear-gradient(135deg, #00f5ff 0%, #0088ff 100%);
+          color: #000;
+          box-shadow: 0 4px 15px rgba(0, 245, 255, 0.4);
         }
 
         .btn-primary:hover:not(:disabled) {
-          background: #0056b3;
+          transform: translateY(-2px);
+          box-shadow: 0 6px 25px rgba(0, 245, 255, 0.6);
+        }
+
+        .btn-primary:active:not(:disabled) {
+          transform: translateY(0);
         }
 
         .btn-secondary {
-          background: #6c757d;
-          color: white;
+          background: rgba(60, 60, 60, 0.6);
+          color: #fff;
+          border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .btn-secondary:hover:not(:disabled) {
-          background: #545b62;
+          background: rgba(80, 80, 80, 0.8);
+          border-color: rgba(255, 255, 255, 0.2);
         }
 
         .btn-primary:disabled,
         .btn-secondary:disabled {
-          opacity: 0.5;
+          opacity: 0.4;
           cursor: not-allowed;
+          transform: none;
         }
 
         .error-message {
-          padding: 1rem;
-          background: #f8d7da;
-          border: 1px solid #f5c6cb;
-          border-radius: 4px;
-          color: #721c24;
+          padding: 1rem 1.25rem;
+          background: rgba(220, 38, 38, 0.1);
+          border: 1px solid rgba(220, 38, 38, 0.3);
+          border-radius: 10px;
+          color: #ff6b6b;
           margin-bottom: 1.5rem;
+          font-size: 0.9rem;
         }
 
         .output-area {
-          border: 1px solid #ddd;
-          border-radius: 4px;
+          border: 1px solid rgba(0, 245, 255, 0.2);
+          border-radius: 12px;
           padding: 1.5rem;
-          background: #f8f9fa;
+          background: rgba(15, 15, 15, 0.6);
+          box-shadow: 0 0 30px rgba(0, 245, 255, 0.1);
         }
 
         .output-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 1rem;
+          margin-bottom: 1.25rem;
+          padding-bottom: 1rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .output-header h3 {
           margin: 0;
-          font-size: 1.1rem;
+          font-size: 1rem;
+          font-weight: 600;
+          color: #fff;
+          letter-spacing: 0.5px;
         }
 
         .streaming-indicator {
-          color: #28a745;
+          color: #00f5ff;
           font-size: 1.5rem;
           animation: pulse 1s infinite;
+          filter: drop-shadow(0 0 8px rgba(0, 245, 255, 0.6));
         }
 
         @keyframes pulse {
           0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
+          50% { opacity: 0.4; }
         }
 
         .output-content {
           white-space: pre-wrap;
           word-wrap: break-word;
-          line-height: 1.6;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          line-height: 1.8;
+          font-family: 'Monaco', 'Courier New', monospace;
+          font-size: 0.95rem;
+          color: #e0e0e0;
         }
 
         .cursor {
-          animation: blink 1s infinite;
+          color: #00f5ff;
+          animation: blink 0.8s infinite;
           margin-left: 2px;
+          font-weight: bold;
         }
 
         @keyframes blink {
