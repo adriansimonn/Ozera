@@ -123,20 +123,41 @@ class TransformerBlock(nn.Module):
         self,
         x: torch.Tensor,
         mask: Optional[torch.Tensor] = None,
-        return_attention: bool = False
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        return_attention: bool = False,
+        capture_activations: bool = False
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[dict]]:
         # Pre-norm architecture
+        activations = {} if capture_activations else None
+
         # 1. Attention with residual
         attn_input = self.ln1(x)
-        attn_output, attn_weights = self.attention(attn_input, mask, return_attention)
+        if capture_activations:
+            activations['attn_input'] = attn_input.detach()
+
+        attn_output, attn_weights = self.attention(attn_input, mask, return_attention or capture_activations)
+        if capture_activations:
+            activations['attn_output'] = attn_output.detach()
+            if attn_weights is not None:
+                activations['attn_weights'] = attn_weights.detach()
+
         x = x + attn_output
+        if capture_activations:
+            activations['post_attn'] = x.detach()
 
         # 2. Feed-forward with residual
         ff_input = self.ln2(x)
-        ff_output = self.feed_forward(ff_input)
-        x = x + ff_output
+        if capture_activations:
+            activations['ff_input'] = ff_input.detach()
 
-        return x, attn_weights
+        ff_output = self.feed_forward(ff_input)
+        if capture_activations:
+            activations['ff_output'] = ff_output.detach()
+
+        x = x + ff_output
+        if capture_activations:
+            activations['post_ff'] = x.detach()
+
+        return x, attn_weights, activations
 
 
 class TransformerLM(nn.Module):
@@ -208,27 +229,36 @@ class TransformerLM(nn.Module):
     def forward(
         self,
         input_ids: torch.Tensor,
-        return_attention: bool = False
-    ) -> Tuple[torch.Tensor, Optional[list]]:
+        return_attention: bool = False,
+        capture_activations: bool = False
+    ) -> Tuple[torch.Tensor, Optional[list], Optional[dict]]:
         """
         Forward pass.
 
         Args:
             input_ids: Token IDs (batch_size, seq_len)
             return_attention: Whether to return attention weights
+            capture_activations: Whether to capture intermediate activations
 
         Returns:
             logits: Output logits (batch_size, seq_len, vocab_size)
             attention_weights: Optional list of attention weights per layer
+            activations: Optional dict containing all intermediate activations
         """
         batch_size, seq_len = input_ids.shape
         device = input_ids.device
+
+        # Initialize activation storage
+        all_activations = {} if capture_activations else None
 
         # Token embeddings
         token_emb = self.token_embedding(input_ids)  # (batch, seq_len, d_model)
 
         # Scale embeddings
         token_emb = token_emb * math.sqrt(self.config.d_model)
+
+        if capture_activations:
+            all_activations['token_embeddings'] = token_emb.detach()
 
         # Positional embeddings
         if self.config.learned_pos_emb:
@@ -237,9 +267,15 @@ class TransformerLM(nn.Module):
         else:
             pos_emb = self.pos_embedding[:seq_len, :].unsqueeze(0)
 
+        if capture_activations:
+            all_activations['positional_embeddings'] = pos_emb.detach()
+
         # Combine embeddings
         x = token_emb + pos_emb
         x = self.emb_dropout(x)
+
+        if capture_activations:
+            all_activations['combined_embeddings'] = x.detach()
 
         # Create causal mask
         causal_mask = torch.tril(torch.ones(seq_len, seq_len, device=device)).unsqueeze(0).unsqueeze(0)
@@ -247,18 +283,31 @@ class TransformerLM(nn.Module):
 
         # Apply transformer blocks
         all_attention_weights = [] if return_attention else None
+        layer_activations = [] if capture_activations else None
+
         for block in self.blocks:
-            x, attn_weights = block(x, causal_mask, return_attention)
+            x, attn_weights, block_activations = block(x, causal_mask, return_attention, capture_activations)
             if return_attention:
                 all_attention_weights.append(attn_weights)
+            if capture_activations:
+                layer_activations.append(block_activations)
+
+        if capture_activations:
+            all_activations['layers'] = layer_activations
 
         # Final layer norm
         x = self.ln_f(x)
 
+        if capture_activations:
+            all_activations['final_layer_norm'] = x.detach()
+
         # Project to vocabulary
         logits = self.lm_head(x)
 
-        return logits, all_attention_weights
+        if capture_activations:
+            all_activations['logits'] = logits.detach()
+
+        return logits, all_attention_weights, all_activations
 
     @torch.no_grad()
     def generate(
@@ -291,7 +340,7 @@ class TransformerLM(nn.Module):
             # Get logits for current sequence (use only last max_seq_len tokens)
             idx_cond = input_ids if input_ids.size(1) <= self.config.max_seq_len else input_ids[:, -self.config.max_seq_len:]
 
-            logits, attn_weights = self.forward(idx_cond, return_attention)
+            logits, attn_weights, _ = self.forward(idx_cond, return_attention, capture_activations=False)
 
             # Get logits for last position
             logits = logits[:, -1, :] / temperature

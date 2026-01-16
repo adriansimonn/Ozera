@@ -2,6 +2,12 @@
  * API client for Ozera inference server.
  */
 
+import type {
+  ActivationData,
+  ActivationSummary,
+  GenerateWithActivationsResponse
+} from '../types/model'
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 export interface GenerateRequest {
@@ -201,6 +207,78 @@ class OzeraAPIClient {
       }
     } finally {
       reader.releaseLock()
+    }
+  }
+
+  /**
+   * Generate text with activation capture for visualization.
+   */
+  async generateWithActivations(request: GenerateRequest): Promise<GenerateWithActivationsResponse> {
+    const response = await fetch(`${this.baseUrl}/generate/with-activations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Generation with activations failed: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get activation data by ID.
+   */
+  async getActivations(activationId: string): Promise<ActivationData> {
+    const response = await fetch(`${this.baseUrl}/activations/${activationId}`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get activations: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get activation summary (metadata only, no tensors).
+   */
+  async getActivationSummary(activationId: string): Promise<ActivationSummary> {
+    const response = await fetch(`${this.baseUrl}/activations/${activationId}/summary`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get activation summary: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * List all stored activations.
+   */
+  async listActivations(): Promise<ActivationSummary[]> {
+    const response = await fetch(`${this.baseUrl}/activations`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to list activations: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Delete activation data.
+   */
+  async deleteActivations(activationId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/activations/${activationId}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete activations: ${response.statusText}`)
     }
   }
 }

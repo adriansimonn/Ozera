@@ -11,23 +11,27 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from core.transformer.model_torch import TransformerLM
 from core.tokenizer import get_tokenizer
+from inference.activation_store import get_activation_store
 
 
 class TextGenerator:
     # Handles text generation from Ozera models.
 
-    def __init__(self, model: TransformerLM, device: str = 'cpu'):
+    def __init__(self, model: TransformerLM, device: str = 'cpu', model_name: str = 'unknown'):
         """
         Initialize text generator.
 
         Args:
             model: Loaded TransformerLM model
             device: Device model is on
+            model_name: Name of the model for activation tracking
         """
         self.model = model
         self.device = device
+        self.model_name = model_name
         self.tokenizer = get_tokenizer()
         self.model.eval()
+        self.activation_store = get_activation_store()
 
     @torch.no_grad()
     def generate(
@@ -159,7 +163,7 @@ class TextGenerator:
             # Get logits for current sequence
             idx_cond = input_ids if input_ids.size(1) <= self.model.config.max_seq_len else input_ids[:, -self.model.config.max_seq_len:]
 
-            logits, _ = self.model.forward(idx_cond, return_attention=False)
+            logits, _, _ = self.model.forward(idx_cond, return_attention=False, capture_activations=False)
             logits = logits[:, -1, :]
 
             # Handle temperature
@@ -217,3 +221,98 @@ class TextGenerator:
             Number of tokens
         """
         return len(self.tokenizer.encode(text))
+
+    @torch.no_grad()
+    def generate_with_activations(
+        self,
+        prompt: str,
+        max_tokens: int = 200,
+        temperature: float = 0.8,
+        top_k: Optional[int] = 40,
+        top_p: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate text and capture activations from the final forward pass.
+
+        Args:
+            prompt: Text prompt to start generation
+            max_tokens: Maximum number of tokens to generate
+            temperature: Sampling temperature
+            top_k: Top-k sampling parameter
+            top_p: Nucleus sampling parameter
+
+        Returns:
+            Dictionary with generated text, activation ID, and metadata
+        """
+        # Encode prompt
+        prompt_ids = self.tokenizer.encode(prompt)
+        input_ids = torch.tensor([prompt_ids], dtype=torch.long).to(self.device)
+
+        self.model.eval()
+
+        # Generate tokens (similar to generate_stream but without yielding)
+        for _ in range(max_tokens):
+            idx_cond = input_ids if input_ids.size(1) <= self.model.config.max_seq_len else input_ids[:, -self.model.config.max_seq_len:]
+
+            logits, _, _ = self.model.forward(idx_cond, return_attention=False, capture_activations=False)
+            logits = logits[:, -1, :]
+
+            if temperature == 0.0:
+                next_token = torch.argmax(logits, dim=-1, keepdim=True)
+            else:
+                logits = logits / temperature
+
+                if top_k is not None:
+                    v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                    logits[logits < v[:, [-1]]] = float('-inf')
+
+                if top_p is not None:
+                    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+                    cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+                    sorted_indices_to_remove = cumulative_probs > top_p
+                    sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[:, :-1].clone()
+                    sorted_indices_to_remove[:, 0] = 0
+                    indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+                    logits[indices_to_remove] = float('-inf')
+
+                probs = torch.softmax(logits, dim=-1)
+                next_token = torch.multinomial(probs, num_samples=1)
+
+            next_token = torch.clamp(next_token, 0, self.tokenizer.vocab_size - 1)
+            input_ids = torch.cat([input_ids, next_token], dim=1)
+
+        # Now do one final forward pass with activation capture
+        final_ids = input_ids if input_ids.size(1) <= self.model.config.max_seq_len else input_ids[:, -self.model.config.max_seq_len:]
+        _, _, activations = self.model.forward(final_ids, return_attention=True, capture_activations=True)
+
+        # Decode generated text
+        generated_text = self.tokenizer.decode(input_ids[0].cpu().tolist())
+
+        # Store activations
+        activation_id = self.activation_store.store_activations(
+            activations=activations,
+            tokens=input_ids[0].cpu().tolist(),
+            prompt=prompt,
+            model_name=self.model_name,
+            metadata={
+                'temperature': temperature,
+                'top_k': top_k,
+                'top_p': top_p,
+                'max_tokens': max_tokens,
+                'prompt_tokens': len(prompt_ids),
+                'generated_tokens': len(input_ids[0]) - len(prompt_ids),
+                'total_tokens': len(input_ids[0])
+            }
+        )
+
+        return {
+            'text': generated_text,
+            'activation_id': activation_id,
+            'prompt': prompt,
+            'prompt_tokens': len(prompt_ids),
+            'generated_tokens': len(input_ids[0]) - len(prompt_ids),
+            'total_tokens': len(input_ids[0]),
+            'temperature': temperature,
+            'top_k': top_k,
+            'top_p': top_p
+        }
