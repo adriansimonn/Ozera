@@ -1,0 +1,225 @@
+/**
+ * Layer activation display component.
+ * Shows activation statistics and distributions for a specific layer.
+ */
+
+import { useEffect, useRef } from 'react'
+import * as d3 from 'd3'
+import type { LayerActivations } from '../../types/model'
+
+interface LayerActivationDisplayProps {
+  layerActivations: LayerActivations
+  layerIndex: number
+  className?: string
+}
+
+export function LayerActivationDisplay({
+  layerActivations,
+  layerIndex,
+  className = ''
+}: LayerActivationDisplayProps) {
+  const attnChartRef = useRef<SVGSVGElement>(null)
+  const ffChartRef = useRef<SVGSVGElement>(null)
+
+  useEffect(() => {
+    if (layerActivations.attn_output && attnChartRef.current) {
+      renderDistribution(
+        attnChartRef.current,
+        layerActivations.attn_output.values as number[][][],
+        'Attention Output',
+        '#22d3ee' // cyan
+      )
+    }
+
+    if (layerActivations.ff_output && ffChartRef.current) {
+      renderDistribution(
+        ffChartRef.current,
+        layerActivations.ff_output.values as number[][][],
+        'Feed-Forward Output',
+        '#a78bfa' // purple
+      )
+    }
+  }, [layerActivations])
+
+  function renderDistribution(
+    svgElement: SVGSVGElement,
+    values: number[][][],
+    title: string,
+    color: string
+  ) {
+    d3.select(svgElement).selectAll('*').remove()
+
+    const svg = d3.select(svgElement)
+    const width = 400
+    const height = 200
+    const margin = { top: 40, right: 20, bottom: 40, left: 50 }
+    const innerWidth = width - margin.left - margin.right
+    const innerHeight = height - margin.top - margin.bottom
+
+    // Flatten all values
+    const flatValues = values.flat(2)
+
+    // Create histogram
+    const histogram = d3.bin()
+      .domain([d3.min(flatValues) || -1, d3.max(flatValues) || 1])
+      .thresholds(40)
+
+    const bins = histogram(flatValues)
+
+    // Scales
+    const xScale = d3.scaleLinear()
+      .domain([bins[0].x0 || 0, bins[bins.length - 1].x1 || 1])
+      .range([0, innerWidth])
+
+    const yScale = d3.scaleLinear()
+      .domain([0, d3.max(bins, d => d.length) || 0])
+      .range([innerHeight, 0])
+
+    const g = svg.append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`)
+
+    // Add title
+    svg.append('text')
+      .attr('x', width / 2)
+      .attr('y', 20)
+      .attr('text-anchor', 'middle')
+      .attr('class', 'text-sm font-semibold')
+      .attr('fill', '#e2e8f0')
+      .text(title)
+
+    // Draw bars
+    g.selectAll('rect')
+      .data(bins)
+      .enter()
+      .append('rect')
+      .attr('x', d => xScale(d.x0 || 0))
+      .attr('y', d => yScale(d.length))
+      .attr('width', d => Math.max(0, xScale(d.x1 || 0) - xScale(d.x0 || 0) - 1))
+      .attr('height', d => innerHeight - yScale(d.length))
+      .attr('fill', color)
+      .attr('opacity', 0.7)
+      .attr('rx', 1)
+
+    // Add axes
+    const xAxis = d3.axisBottom(xScale).ticks(6).tickFormat(d => d3.format('.2f')(d as number))
+    const yAxis = d3.axisLeft(yScale).ticks(5)
+
+    g.append('g')
+      .attr('transform', `translate(0,${innerHeight})`)
+      .call(xAxis)
+      .attr('class', 'text-xs')
+      .selectAll('text')
+      .attr('fill', '#94a3b8')
+
+    g.append('g')
+      .call(yAxis)
+      .attr('class', 'text-xs')
+      .selectAll('text')
+      .attr('fill', '#94a3b8')
+
+    // Axis labels
+    svg.append('text')
+      .attr('x', width / 2)
+      .attr('y', height - 5)
+      .attr('text-anchor', 'middle')
+      .attr('class', 'text-xs')
+      .attr('fill', '#cbd5e1')
+      .text('Activation Value')
+
+    svg.append('text')
+      .attr('transform', 'rotate(-90)')
+      .attr('x', -height / 2)
+      .attr('y', 15)
+      .attr('text-anchor', 'middle')
+      .attr('class', 'text-xs')
+      .attr('fill', '#cbd5e1')
+      .text('Frequency')
+  }
+
+  return (
+    <div className={`bg-slate-900/50 rounded-lg border border-slate-700/50 p-6 ${className}`}>
+      <h3 className="text-lg font-semibold text-slate-200 mb-4">Layer {layerIndex} Activations</h3>
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        {layerActivations.attn_output && (
+          <StatCard
+            label="Attn Mean"
+            value={layerActivations.attn_output.mean}
+            color="text-cyan-400"
+          />
+        )}
+        {layerActivations.attn_output && (
+          <StatCard
+            label="Attn Std"
+            value={layerActivations.attn_output.std}
+            color="text-cyan-400"
+          />
+        )}
+        {layerActivations.ff_output && (
+          <StatCard
+            label="FF Mean"
+            value={layerActivations.ff_output.mean}
+            color="text-purple-400"
+          />
+        )}
+        {layerActivations.ff_output && (
+          <StatCard
+            label="FF Std"
+            value={layerActivations.ff_output.std}
+            color="text-purple-400"
+          />
+        )}
+      </div>
+
+      {/* Distribution Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {layerActivations.attn_output && (
+          <svg
+            ref={attnChartRef}
+            width={400}
+            height={200}
+            className="bg-slate-800/30 rounded border border-slate-700/30"
+          />
+        )}
+        {layerActivations.ff_output && (
+          <svg
+            ref={ffChartRef}
+            width={400}
+            height={200}
+            className="bg-slate-800/30 rounded border border-slate-700/30"
+          />
+        )}
+      </div>
+
+      {/* Attention Weights Info */}
+      {layerActivations.attn_weights && (
+        <div className="mt-4 p-3 bg-slate-800/50 rounded border border-slate-700/30">
+          <div className="text-sm text-slate-300">
+            <span className="text-slate-400">Attention Weights Shape:</span>{' '}
+            <span className="font-mono text-cyan-400">
+              {layerActivations.attn_weights.shape.join(' × ')}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface StatCardProps {
+  label: string
+  value: number
+  color: string
+}
+
+function StatCard({ label, value, color }: StatCardProps) {
+  return (
+    <div className="bg-slate-800/50 rounded border border-slate-700/30 p-3">
+      <div className="text-xs text-slate-400 mb-1">{label}</div>
+      <div className={`text-lg font-mono font-semibold ${color}`}>
+        {value.toFixed(4)}
+      </div>
+    </div>
+  )
+}

@@ -3,8 +3,10 @@
  */
 
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useStreamingGeneration } from '../../hooks/useGeneration'
 import { useModels } from '../../hooks/useModels'
+import { apiClient } from '../../api/client'
 
 interface TextGeneratorProps {
   defaultModel?: 'nano' | 'mini'
@@ -17,11 +19,13 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   defaultPrompt = '',
   onGenerate,
 }) => {
+  const navigate = useNavigate()
   const [prompt, setPrompt] = useState(defaultPrompt)
   const [model, setModel] = useState<'nano' | 'mini'>(defaultModel)
   const [maxTokens, setMaxTokens] = useState(200)
   const [temperature, setTemperature] = useState(0.7)
   const [topK, setTopK] = useState(40)
+  const [capturingActivations, setCapturingActivations] = useState(false)
 
   const { models, loading: modelsLoading, error: modelsError } = useModels()
   const { text, loading, streaming, error, generate, reset } = useStreamingGeneration()
@@ -53,6 +57,31 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   const handleReset = () => {
     reset()
     setPrompt('')
+  }
+
+  const handleGenerateWithActivations = async () => {
+    if (!prompt.trim()) {
+      return
+    }
+
+    try {
+      setCapturingActivations(true)
+      const result = await apiClient.generateWithActivations({
+        prompt: prompt.trim(),
+        model,
+        max_tokens: maxTokens,
+        temperature,
+        top_k: topK,
+      })
+
+      // Navigate to visualization page with activation ID
+      navigate(`/visualize?id=${result.activation_id}`)
+    } catch (err) {
+      console.error('Activation generation error:', err)
+      alert('Failed to generate activations: ' + (err instanceof Error ? err.message : 'Unknown error'))
+    } finally {
+      setCapturingActivations(false)
+    }
   }
 
   return (
@@ -138,14 +167,21 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       <div className="actions">
         <button
           onClick={handleGenerate}
-          disabled={loading || streaming || !prompt.trim()}
+          disabled={loading || streaming || capturingActivations || !prompt.trim()}
           className="btn-primary"
         >
           {loading ? 'Loading...' : streaming ? 'Generating...' : 'Generate'}
         </button>
         <button
+          onClick={handleGenerateWithActivations}
+          disabled={loading || streaming || capturingActivations || !prompt.trim()}
+          className="btn-visualize"
+        >
+          {capturingActivations ? 'Capturing...' : 'Generate & Visualize'}
+        </button>
+        <button
           onClick={handleReset}
-          disabled={loading || streaming}
+          disabled={loading || streaming || capturingActivations}
           className="btn-secondary"
         >
           Reset
@@ -314,7 +350,8 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         .btn-primary,
-        .btn-secondary {
+        .btn-secondary,
+        .btn-visualize {
           padding: 1rem 2rem;
           border: none;
           border-radius: 10px;
@@ -342,6 +379,21 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           transform: translateY(0);
         }
 
+        .btn-visualize {
+          background: linear-gradient(135deg, #a78bfa 0%, #6366f1 100%);
+          color: #fff;
+          box-shadow: 0 4px 15px rgba(167, 139, 250, 0.4);
+        }
+
+        .btn-visualize:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 25px rgba(167, 139, 250, 0.6);
+        }
+
+        .btn-visualize:active:not(:disabled) {
+          transform: translateY(0);
+        }
+
         .btn-secondary {
           background: rgba(60, 60, 60, 0.6);
           color: #fff;
@@ -354,7 +406,8 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         .btn-primary:disabled,
-        .btn-secondary:disabled {
+        .btn-secondary:disabled,
+        .btn-visualize:disabled {
           opacity: 0.4;
           cursor: not-allowed;
           transform: none;
