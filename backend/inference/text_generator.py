@@ -151,39 +151,60 @@ class TextGenerator:
 
         self.model.eval()
 
+        # Track the number of tokens we've already yielded text for
+        num_yielded_tokens = len(prompt_ids)
+
         # Generate tokens one at a time
         for _ in range(max_tokens):
             # Get logits for current sequence
             idx_cond = input_ids if input_ids.size(1) <= self.model.config.max_seq_len else input_ids[:, -self.model.config.max_seq_len:]
 
             logits, _ = self.model.forward(idx_cond, return_attention=False)
-            logits = logits[:, -1, :] / temperature
+            logits = logits[:, -1, :]
 
-            # Apply top-k filtering
-            if top_k is not None:
-                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                logits[logits < v[:, [-1]]] = float('-inf')
+            # Handle temperature
+            if temperature == 0.0:
+                # Greedy decoding - just pick the argmax
+                next_token = torch.argmax(logits, dim=-1, keepdim=True)
+            else:
+                logits = logits / temperature
 
-            # Apply top-p (nucleus) filtering
-            if top_p is not None:
-                sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-                cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
-                sorted_indices_to_remove = cumulative_probs > top_p
-                sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[:, :-1].clone()
-                sorted_indices_to_remove[:, 0] = 0
-                indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
-                logits[indices_to_remove] = float('-inf')
+                # Apply top-k filtering
+                if top_k is not None:
+                    v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                    logits[logits < v[:, [-1]]] = float('-inf')
 
-            # Sample from distribution
-            probs = torch.softmax(logits, dim=-1)
-            next_token = torch.multinomial(probs, num_samples=1)
+                # Apply top-p (nucleus) filtering
+                if top_p is not None:
+                    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+                    cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+                    sorted_indices_to_remove = cumulative_probs > top_p
+                    sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[:, :-1].clone()
+                    sorted_indices_to_remove[:, 0] = 0
+                    indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+                    logits[indices_to_remove] = float('-inf')
+
+                # Sample from distribution
+                probs = torch.softmax(logits, dim=-1)
+                next_token = torch.multinomial(probs, num_samples=1)
+
+            # Clamp token to valid range
+            next_token = torch.clamp(next_token, 0, self.tokenizer.vocab_size - 1)
 
             # Append to sequence
             input_ids = torch.cat([input_ids, next_token], dim=1)
 
-            # Decode and yield the new token
-            token_text = self.tokenizer.decode([next_token.item()])
-            yield token_text
+            # Decode only the new token(s) to get the delta text
+            # We decode from the last yielded position to handle multi-byte UTF-8 properly
+            current_ids = input_ids[0].cpu().tolist()
+            current_text = self.tokenizer.decode(current_ids)
+            previous_text = self.tokenizer.decode(current_ids[:num_yielded_tokens])
+
+            # Yield only the new text delta
+            new_text = current_text[len(previous_text):]
+            if new_text:
+                yield new_text
+                num_yielded_tokens = len(current_ids)
 
     def count_tokens(self, text: str) -> int:
         """

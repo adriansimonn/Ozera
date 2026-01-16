@@ -54,9 +54,11 @@ class BPETokenizer:
         """
         if isinstance(token_ids[0], list):
             # Batch decoding
-            return [self.tokenizer.decode(ids) for ids in token_ids]
+            return [self.tokenizer.decode(ids, errors='ignore') for ids in token_ids]
         else:
-            return self.tokenizer.decode(token_ids)
+            # Filter out invalid token IDs and decode with error handling
+            valid_ids = [tid for tid in token_ids if 0 <= tid < self.vocab_size]
+            return self.tokenizer.decode(valid_ids, errors='ignore')
 
     def encode_batch(self, texts: List[str]) -> List[List[int]]:
         """

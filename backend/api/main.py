@@ -39,7 +39,7 @@ class GenerateRequest(BaseModel):
     prompt: str = Field(..., description="Text prompt to start generation")
     model: str = Field(default="nano", description="Model to use ('nano' or 'mini')")
     max_tokens: int = Field(default=200, ge=1, le=2000, description="Maximum tokens to generate")
-    temperature: float = Field(default=0.8, ge=0.1, le=2.0, description="Sampling temperature")
+    temperature: float = Field(default=0.8, ge=0.0, le=2.0, description="Sampling temperature")
     top_k: Optional[int] = Field(default=40, ge=1, le=100, description="Top-k sampling")
     top_p: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Nucleus sampling")
 
@@ -200,7 +200,8 @@ async def generate_stream(request: GenerateRequest):
         def event_stream():
             try:
                 # Send initial metadata
-                yield f"data: {json.dumps({'type': 'start', 'prompt': request.prompt})}\n\n"
+                data = json.dumps({'type': 'start', 'prompt': request.prompt}, ensure_ascii=False)
+                yield f"data: {data}\n\n".encode('utf-8')
 
                 # Stream tokens
                 for token in generator.generate_stream(
@@ -210,21 +211,25 @@ async def generate_stream(request: GenerateRequest):
                     top_k=request.top_k,
                     top_p=request.top_p
                 ):
-                    yield f"data: {json.dumps({'type': 'token', 'text': token})}\n\n"
+                    data = json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)
+                    yield f"data: {data}\n\n".encode('utf-8')
 
                 # Send completion
-                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                data = json.dumps({'type': 'done'}, ensure_ascii=False)
+                yield f"data: {data}\n\n".encode('utf-8')
 
             except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+                data = json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)
+                yield f"data: {data}\n\n".encode('utf-8')
 
         return StreamingResponse(
             event_stream(),
-            media_type="text/event-stream",
+            media_type="text/event-stream; charset=utf-8",
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
-                "X-Accel-Buffering": "no"
+                "X-Accel-Buffering": "no",
+                "Content-Type": "text/event-stream; charset=utf-8"
             }
         )
 

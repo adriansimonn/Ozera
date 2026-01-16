@@ -146,7 +146,7 @@ class OzeraAPIClient {
       throw new Error('Failed to get response reader')
     }
 
-    const decoder = new TextDecoder()
+    const decoder = new TextDecoder('utf-8')
     let buffer = ''
 
     try {

@@ -85,9 +85,9 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           <input
             id="max-tokens"
             type="range"
-            min="10"
+            min="1"
             max="500"
-            step="10"
+            step="1"
             value={maxTokens}
             onChange={(e) => setMaxTokens(parseInt(e.target.value))}
             disabled={loading || streaming}
@@ -99,9 +99,9 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           <input
             id="temperature"
             type="range"
-            min="0.1"
+            min="0"
             max="2.0"
-            step="0.1"
+            step="0.01"
             value={temperature}
             onChange={(e) => setTemperature(parseFloat(e.target.value))}
             disabled={loading || streaming}
