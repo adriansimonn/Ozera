@@ -27,14 +27,49 @@ export function GenerationFlow({
   const [hoveredToken, setHoveredToken] = useState<{idx: number, x: number, y: number} | null>(null)
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const [lastGeneratedToken, setLastGeneratedToken] = useState<{text: string, index: number} | null>(null)
+  const [hoveredTopToken, setHoveredTopToken] = useState<{token: string, probability: number} | null>(null)
+  const [topTokenChoices, setTopTokenChoices] = useState<Array<{token: string, tokenId: number, probability: number, isSelected: boolean}>>([])
+  const [tokenDecodeCache, setTokenDecodeCache] = useState<Map<number, string>>(new Map())
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 1400, height: 550 })
 
-  const width = 1200
-  const height = 550
+  const width = canvasDimensions.width
+  const height = canvasDimensions.height
   const numLayers = activationData.activations.layers?.length || 4
   const promptTokens = activationData.metadata.prompt_tokens || 0
   const generatedTokens = activationData.metadata.generated_tokens || 0
   const totalTokens = activationData.tokens.length
   const decodedTokens = activationData.metadata.decoded_tokens || []
+
+  // Decode token IDs to text via API
+  const decodeTokenIds = async (tokenIds: number[]): Promise<Map<number, string>> => {
+    const newCache = new Map(tokenDecodeCache)
+    const toFetch = tokenIds.filter(id => !newCache.has(id))
+
+    if (toFetch.length === 0) return newCache
+
+    try {
+      const response = await fetch('http://localhost:8000/decode-tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token_ids: toFetch,
+          model: activationData.model
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        toFetch.forEach((id, idx) => {
+          newCache.set(id, data.decoded_tokens[idx])
+        })
+        setTokenDecodeCache(newCache)
+      }
+    } catch (error) {
+      console.error('Error decoding tokens:', error)
+    }
+
+    return newCache
+  }
 
   // Extract actual activation magnitudes for node visualization
   const getNodeActivations = (layerIdx: number, tokenIdx: number, nodeIdx: number): number => {
@@ -74,6 +109,66 @@ export function GenerationFlow({
     const normalized = Math.min(1, rawValue / (embeddings.std * 3))
     return 0.2 + normalized * 0.8
   }
+
+  // Calculate top token probabilities from logits using softmax
+  const getTopTokenProbabilities = (tokenIdx: number, topK: number = 10): Array<{token: string, tokenId: number, probability: number, isSelected: boolean}> => {
+    const logits = activationData.activations.logits
+    if (!logits) return []
+
+    const logitValues = logits.values as number[][][]
+    if (!logitValues || !logitValues[0] || !logitValues[0][tokenIdx]) return []
+
+    const tokenLogits = logitValues[0][tokenIdx]
+
+    // Apply softmax to get probabilities
+    const maxLogit = Math.max(...tokenLogits)
+    const expValues = tokenLogits.map(v => Math.exp(v - maxLogit))
+    const sumExp = expValues.reduce((a, b) => a + b, 0)
+    const probabilities = expValues.map(v => v / sumExp)
+
+    // Get top K tokens
+    const tokenProbPairs = probabilities.map((prob, idx) => ({ tokenId: idx, probability: prob }))
+    tokenProbPairs.sort((a, b) => b.probability - a.probability)
+    const topTokens = tokenProbPairs.slice(0, topK)
+
+    // Determine which token was actually selected
+    const selectedTokenId = tokenIdx + 1 < activationData.tokens.length ? activationData.tokens[tokenIdx + 1] : -1
+
+    // Trigger async decode of token IDs (will update cache)
+    const tokenIdsToFetch = topTokens.map(t => t.tokenId)
+    decodeTokenIds(tokenIdsToFetch)
+
+    return topTokens.map(t => ({
+      token: tokenDecodeCache.get(t.tokenId) || `[${t.tokenId}]`,
+      tokenId: t.tokenId,
+      probability: t.probability,
+      isSelected: t.tokenId === selectedTokenId
+    }))
+  }
+
+  // Update canvas dimensions based on container size
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (canvasContainerRef.current) {
+        const containerWidth = canvasContainerRef.current.clientWidth
+        // Maintain aspect ratio while filling container
+        const aspectRatio = 550 / 1400
+        const newHeight = Math.max(550, containerWidth * aspectRatio)
+        setCanvasDimensions({ width: containerWidth, height: newHeight })
+      }
+    }
+
+    updateDimensions()
+
+    const resizeObserver = new ResizeObserver(updateDimensions)
+    if (canvasContainerRef.current) {
+      resizeObserver.observe(canvasContainerRef.current)
+    }
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -197,6 +292,7 @@ export function GenerationFlow({
         // Calculate activation progress for this connection layer
         const layerActivationProgress = (stepProgress * layers.length) - i
         const isProcessing = layerActivationProgress > 0 && layerActivationProgress <= 1
+        const hasProcessed = layerActivationProgress > 1
 
         // Connect each node to all nodes in next layer
         for (let fromIdx = 0; fromIdx < currentLayer.nodes.length; fromIdx++) {
@@ -223,8 +319,13 @@ export function GenerationFlow({
                 const waveFactor = Math.sin(layerActivationProgress * Math.PI)
                 const boostedStrength = connectionStrength * (0.5 + waveFactor * 0.5)
 
-                opacity = 0.03 + boostedStrength * 0.3
-                lineWidth = 0.5 + boostedStrength * 1.5
+                // Much brighter and more visible activations
+                opacity = 0.1 + boostedStrength * 0.6
+                lineWidth = 1.0 + boostedStrength * 2.5
+              } else if (hasProcessed && stepProgress < 0.95) {
+                // Keep connections activated (persistent) after processing until token generation completes
+                opacity = 0.08 + connectionStrength * 0.4
+                lineWidth = 0.8 + connectionStrength * 1.5
               } else {
                 // Subtle base activation
                 opacity = 0.02 + connectionStrength * 0.08
@@ -287,11 +388,15 @@ export function GenerationFlow({
             // Staggered activation across nodes
             const nodePhase = (nodeIdx / nodesPerLayer) * Math.PI
             const activationWave = Math.sin(layerActivationProgress * Math.PI + nodePhase)
-            const waveBoost = Math.max(0, activationWave) * 0.6
+            const waveBoost = Math.max(0, activationWave) * 0.8
 
-            intensity = Math.min(1, baseIntensity + waveBoost)
+            // Much brighter during processing
+            intensity = Math.min(1, baseIntensity * 1.5 + waveBoost)
+          } else if (hasProcessed && stepProgress < 0.95) {
+            // Keep nodes bright and activated after processing until token generation completes
+            intensity = baseIntensity * 1.3
           } else if (hasProcessed) {
-            // Gradual fade after processing
+            // Final fade after token completes
             const fadeAmount = Math.max(0, 1 - (layerActivationProgress - 1) * 0.5)
             intensity = baseIntensity * (0.7 + fadeAmount * 0.3)
           }
@@ -301,35 +406,35 @@ export function GenerationFlow({
           // White color for all nodes
           let nodeColor = '255, 255, 255'
 
-          // Enhanced glow during activation
-          const glowSize = nodeRadius * (2 + intensity * 2)
+          // Enhanced glow during activation - much brighter
+          const glowSize = nodeRadius * (2.5 + intensity * 3)
           const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, glowSize)
-          gradient.addColorStop(0, `rgba(${nodeColor}, ${intensity * 0.5})`)
-          gradient.addColorStop(0.5, `rgba(${nodeColor}, ${intensity * 0.2})`)
+          gradient.addColorStop(0, `rgba(${nodeColor}, ${intensity * 0.8})`)
+          gradient.addColorStop(0.5, `rgba(${nodeColor}, ${intensity * 0.4})`)
           gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
           ctx.fillStyle = gradient
           ctx.beginPath()
           ctx.arc(node.x, node.y, glowSize, 0, Math.PI * 2)
           ctx.fill()
 
-          // Node core with intensity-based sizing
+          // Node core with intensity-based sizing - brighter
           const coreSize = nodeRadius * (0.8 + intensity * 0.4)
-          ctx.fillStyle = `rgba(${nodeColor}, ${0.3 + intensity * 0.7})`
+          ctx.fillStyle = `rgba(${nodeColor}, ${0.4 + intensity * 0.6})`
           ctx.beginPath()
           ctx.arc(node.x, node.y, coreSize, 0, Math.PI * 2)
           ctx.fill()
 
-          // Bright center for high activation
-          if (intensity > 0.6) {
-            ctx.fillStyle = `rgba(255, 255, 255, ${(intensity - 0.6) * 1.5})`
+          // Bright center for high activation - lower threshold, brighter core
+          if (intensity > 0.4) {
+            ctx.fillStyle = `rgba(255, 255, 255, ${(intensity - 0.4) * 1.8})`
             ctx.beginPath()
-            ctx.arc(node.x, node.y, coreSize * 0.4, 0, Math.PI * 2)
+            ctx.arc(node.x, node.y, coreSize * 0.5, 0, Math.PI * 2)
             ctx.fill()
           }
 
-          // Node border
-          ctx.strokeStyle = `rgba(${nodeColor}, ${0.5 + intensity * 0.5})`
-          ctx.lineWidth = intensity > 0.6 ? 1.5 : 1
+          // Node border - brighter and thicker during activation
+          ctx.strokeStyle = `rgba(${nodeColor}, ${0.6 + intensity * 0.4})`
+          ctx.lineWidth = intensity > 0.5 ? 2 : 1.2
           ctx.beginPath()
           ctx.arc(node.x, node.y, coreSize, 0, Math.PI * 2)
           ctx.stroke()
@@ -393,59 +498,30 @@ export function GenerationFlow({
           ctx.globalAlpha = 1
         }
 
-        const outputLayer = layers[layers.length - 1]
-        const outputY = networkTop + networkHeight / 2
-
-        // Update last generated token when processing completes
+        // Update top token choices based on current progress
         if (stepProgress > 0.95 || currentLayerIdx >= layers.length - 1) {
-          const tokenText = decodedTokens[flowingTokenIdx] || `[${activationData.tokens[flowingTokenIdx]}]`
-          setLastGeneratedToken({ text: tokenText, index: flowingTokenIdx })
-        }
-
-        // Always show the last generated token (persists until next one)
-        if (lastGeneratedToken !== null) {
-          const isCurrentToken = lastGeneratedToken.index === flowingTokenIdx
-          const tokenColor = '#ffffff' // White for all tokens
-
-          // Scale animation only for newly appearing token
-          let scale = 1
-          if (isCurrentToken && (stepProgress > 0.95 || currentLayerIdx >= layers.length - 1)) {
-            const appearProgress = Math.min(1, (stepProgress - 0.95) / 0.05)
-            scale = easeInOutCubic(appearProgress)
+          // Show top choices for current token when processing is complete
+          if (flowingTokenIdx >= promptTokens && flowingTokenIdx < totalTokens - 1) {
+            const topChoices = getTopTokenProbabilities(flowingTokenIdx, 10)
+            if (topChoices.length > 0 && JSON.stringify(topChoices) !== JSON.stringify(topTokenChoices)) {
+              setTopTokenChoices(topChoices)
+            }
           }
 
-          if (scale > 0) {
-            ctx.save()
-            ctx.translate(outputLayer.x + 20, outputY)
-            ctx.scale(scale, scale)
-
-            // Token box
-            const boxWidth = 80
-            const boxHeight = 30
-
-            // Glow effect (stronger for newly generated)
-            ctx.shadowColor = tokenColor
-            ctx.shadowBlur = isCurrentToken ? 20 * scale : 10
-
-            ctx.fillStyle = `${tokenColor}33`
-            ctx.strokeStyle = tokenColor
-            ctx.lineWidth = 2
-            ctx.fillRect(-boxWidth/2, -boxHeight/2, boxWidth, boxHeight)
-            ctx.strokeRect(-boxWidth/2, -boxHeight/2, boxWidth, boxHeight)
-
-            ctx.shadowBlur = 0
-
-            // Token text
-            ctx.font = 'bold 12px Monaco'
-            ctx.fillStyle = '#ffffff'
-            ctx.textAlign = 'center'
-            ctx.textBaseline = 'middle'
-            const displayLabel = lastGeneratedToken.text.length > 10
-              ? lastGeneratedToken.text.substring(0, 9) + '…'
-              : lastGeneratedToken.text
-            ctx.fillText(displayLabel, 0, 0)
-
-            ctx.restore()
+          // Update state for animation purposes
+          const tokenText = decodedTokens[flowingTokenIdx] || `[${activationData.tokens[flowingTokenIdx]}]`
+          const tokenToDisplay = { text: tokenText, index: flowingTokenIdx }
+          if (!lastGeneratedToken || lastGeneratedToken.index !== flowingTokenIdx) {
+            setLastGeneratedToken(tokenToDisplay)
+          }
+        } else if (flowingTokenIdx > 0 && stepProgress > 0) {
+          // When stepping backward or in mid-animation, show the previous completed token choices
+          const prevTokenIdx = flowingTokenIdx - 1
+          if (prevTokenIdx >= promptTokens && prevTokenIdx < totalTokens - 1) {
+            const topChoices = getTopTokenProbabilities(prevTokenIdx, 10)
+            if (topChoices.length > 0 && JSON.stringify(topChoices) !== JSON.stringify(topTokenChoices)) {
+              setTopTokenChoices(topChoices)
+            }
           }
         }
 
@@ -510,7 +586,7 @@ export function GenerationFlow({
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [activationData, isPlaying, animationSpeed, showLabels, numLayers, promptTokens, generatedTokens, totalTokens, decodedTokens, width, height, lastGeneratedToken])
+  }, [activationData, isPlaying, animationSpeed, showLabels, numLayers, promptTokens, generatedTokens, totalTokens, decodedTokens, width, height, lastGeneratedToken, canvasDimensions])
 
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying)
@@ -519,6 +595,23 @@ export function GenerationFlow({
   const handleReset = () => {
     progressRef.current = 0
     setLastGeneratedToken(null)
+  }
+
+  const handlePrevious = () => {
+    // Move backward by one layer step
+    const totalSteps = generatedTokens + 1
+    const currentStepFloat = progressRef.current * totalSteps
+    const layerStep = 1 / (numLayers + 3) // +3 for input, embed, output layers
+    const newProgress = Math.max(0, progressRef.current - layerStep / totalSteps)
+    progressRef.current = newProgress
+  }
+
+  const handleNext = () => {
+    // Move forward by one layer step
+    const totalSteps = generatedTokens + 1
+    const layerStep = 1 / (numLayers + 3) // +3 for input, embed, output layers
+    const newProgress = Math.min(1, progressRef.current + layerStep / totalSteps)
+    progressRef.current = newProgress
   }
 
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -603,8 +696,14 @@ export function GenerationFlow({
     <div className={`generation-flow ${className}`}>
       <div className="controls-panel">
         <div className="playback-controls">
+          <button onClick={handlePrevious} className="btn-control">
+            ⏮ Previous
+          </button>
           <button onClick={handlePlayPause} className="btn-control primary">
             {isPlaying ? '⏸ Pause' : '▶ Play'}
+          </button>
+          <button onClick={handleNext} className="btn-control">
+            Next ⏭
           </button>
           <button onClick={handleReset} className="btn-control">
             ↺ Reset
@@ -612,13 +711,13 @@ export function GenerationFlow({
         </div>
 
         <div className="settings-controls">
-          <div className="control-group">
-            <label>Speed: {animationSpeed.toFixed(1)}x</label>
+          <div className="control-group speed-control">
+            <label>Speed: {animationSpeed.toFixed(2)}x</label>
             <input
               type="range"
-              min="0.1"
+              min="0.01"
               max="3"
-              step="0.1"
+              step="0.01"
               value={animationSpeed}
               onChange={(e) => setAnimationSpeed(parseFloat(e.target.value))}
             />
@@ -634,46 +733,82 @@ export function GenerationFlow({
       </div>
 
       <div className="visualization-container">
-        <div className="canvas-container" ref={canvasContainerRef}>
-          <canvas
-            ref={canvasRef}
-            className="flow-canvas"
-            onMouseMove={handleCanvasMouseMove}
-            onMouseLeave={handleCanvasMouseLeave}
-          />
-          {hoveredToken && (
-            <div
-              className="embedding-tooltip"
-              style={{
-                left: `${hoveredToken.x + 15}px`,
-                top: `${hoveredToken.y + 15}px`
-              }}
-            >
-              <div className="tooltip-header">
-                Token: <strong>{decodedTokens[hoveredToken.idx] || `[${activationData.tokens[hoveredToken.idx]}]`}</strong>
+        <div className="visualization-content">
+          <div className="canvas-container" ref={canvasContainerRef}>
+            <canvas
+              ref={canvasRef}
+              className="flow-canvas"
+              onMouseMove={handleCanvasMouseMove}
+              onMouseLeave={handleCanvasMouseLeave}
+            />
+            {hoveredToken && (
+              <div
+                className="embedding-tooltip"
+                style={{
+                  left: `${hoveredToken.x + 15}px`,
+                  top: `${hoveredToken.y + 15}px`
+                }}
+              >
+                <div className="tooltip-header">
+                  Token: <strong>{decodedTokens[hoveredToken.idx] || `[${activationData.tokens[hoveredToken.idx]}]`}</strong>
+                </div>
+                <div className="tooltip-content">
+                  <div className="tooltip-label">Embedding Vector (first 10 dims):</div>
+                  {(() => {
+                    const embedding = getTokenEmbedding(hoveredToken.idx)
+                    if (!embedding) return <div className="tooltip-error">No embedding available</div>
+                    return (
+                      <div className="embedding-values">
+                        {embedding.slice(0, 10).map((val, i) => (
+                          <div key={i} className="embedding-value">
+                            <span className="dim-label">[{i}]</span>
+                            <span className="dim-value">{val.toFixed(4)}</span>
+                          </div>
+                        ))}
+                        {embedding.length > 10 && (
+                          <div className="embedding-more">... and {embedding.length - 10} more dimensions</div>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </div>
               </div>
-              <div className="tooltip-content">
-                <div className="tooltip-label">Embedding Vector (first 10 dims):</div>
-                {(() => {
-                  const embedding = getTokenEmbedding(hoveredToken.idx)
-                  if (!embedding) return <div className="tooltip-error">No embedding available</div>
-                  return (
-                    <div className="embedding-values">
-                      {embedding.slice(0, 10).map((val, i) => (
-                        <div key={i} className="embedding-value">
-                          <span className="dim-label">[{i}]</span>
-                          <span className="dim-value">{val.toFixed(4)}</span>
-                        </div>
-                      ))}
-                      {embedding.length > 10 && (
-                        <div className="embedding-more">... and {embedding.length - 10} more dimensions</div>
-                      )}
-                    </div>
-                  )
-                })()}
-              </div>
+            )}
+          </div>
+
+          <div className="top-tokens-panel">
+            <div className="top-tokens-header">
+              <span className="top-tokens-title">Top Token Choices</span>
+              {topTokenChoices.length > 0 && (
+                <span className="top-tokens-count">{topTokenChoices.length} candidates</span>
+              )}
             </div>
-          )}
+            <div className="top-tokens-list">
+              {topTokenChoices.length === 0 ? (
+                <div className="top-tokens-placeholder">
+                  Token probabilities will appear here...
+                </div>
+              ) : (
+                topTokenChoices.map((choice, idx) => (
+                  <div
+                    key={idx}
+                    className={`top-token-item ${choice.isSelected ? 'selected' : ''}`}
+                    onMouseEnter={() => setHoveredTopToken({ token: choice.token, probability: choice.probability })}
+                    onMouseLeave={() => setHoveredTopToken(null)}
+                  >
+                    <div className="top-token-rank">#{idx + 1}</div>
+                    <div className="top-token-text">{choice.token}</div>
+                    <div className="top-token-probability">
+                      {(choice.probability * 100).toFixed(2)}%
+                    </div>
+                    {choice.isSelected && (
+                      <div className="selected-indicator">✓</div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -757,6 +892,10 @@ export function GenerationFlow({
           min-width: 150px;
         }
 
+        .control-group.speed-control {
+          min-width: 300px;
+        }
+
         .control-group label {
           font-size: 0.75rem;
           color: #94a3b8;
@@ -786,17 +925,165 @@ export function GenerationFlow({
           margin-bottom: 1.5rem;
         }
 
+        .visualization-content {
+          display: flex;
+          gap: 1rem;
+          align-items: stretch;
+        }
+
         .canvas-container {
           position: relative;
-          overflow: auto;
           border-radius: 8px;
           background: #0a0a0a;
           box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
+          flex: 1;
+          min-width: 0;
         }
 
         .flow-canvas {
           display: block;
           cursor: crosshair;
+          width: 100%;
+          height: auto;
+        }
+
+        .top-tokens-panel {
+          width: 280px;
+          background: rgba(15, 23, 42, 0.8);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          border-radius: 8px;
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .top-tokens-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 1rem;
+          background: rgba(255, 255, 255, 0.05);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px 8px 0 0;
+        }
+
+        .top-tokens-title {
+          font-weight: 700;
+          font-size: 0.85rem;
+          color: #ffffff;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .top-tokens-count {
+          font-size: 0.7rem;
+          color: #94a3b8;
+          font-family: 'Monaco', 'Courier New', monospace;
+          background: rgba(255, 255, 255, 0.05);
+          padding: 0.2rem 0.4rem;
+          border-radius: 3px;
+        }
+
+        .top-tokens-list {
+          flex: 1;
+          overflow-y: auto;
+          padding: 0.5rem;
+        }
+
+        .top-tokens-placeholder {
+          color: #64748b;
+          font-size: 0.8rem;
+          font-style: italic;
+          text-align: center;
+          padding: 2rem 1rem;
+        }
+
+        .top-token-item {
+          display: grid;
+          grid-template-columns: 35px 1fr 70px 20px;
+          gap: 0.5rem;
+          align-items: center;
+          padding: 0.6rem 0.75rem;
+          margin-bottom: 0.4rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 6px;
+          transition: all 0.2s ease;
+          cursor: pointer;
+          font-family: 'Monaco', 'Courier New', monospace;
+          font-size: 0.75rem;
+        }
+
+        .top-token-item:hover {
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.2);
+          transform: translateX(3px);
+        }
+
+        .top-token-item.selected {
+          background: rgba(255, 255, 255, 0.12);
+          border-color: rgba(255, 255, 255, 0.3);
+          box-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
+          font-weight: 600;
+        }
+
+        .top-token-item.selected .top-token-text {
+          color: #ffffff;
+          font-weight: 700;
+        }
+
+        .top-token-rank {
+          color: #64748b;
+          font-size: 0.7rem;
+          font-weight: 600;
+        }
+
+        .top-token-item.selected .top-token-rank {
+          color: #94a3b8;
+        }
+
+        .top-token-text {
+          color: #e2e8f0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .top-token-probability {
+          color: #94a3b8;
+          font-size: 0.7rem;
+          text-align: right;
+          font-weight: 600;
+        }
+
+        .top-token-item.selected .top-token-probability {
+          color: #ffffff;
+        }
+
+        .selected-indicator {
+          color: #ffffff;
+          font-size: 0.9rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .top-tokens-list::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        .top-tokens-list::-webkit-scrollbar-track {
+          background: rgba(15, 23, 42, 0.5);
+          border-radius: 3px;
+        }
+
+        .top-tokens-list::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.15);
+          border-radius: 3px;
+        }
+
+        .top-tokens-list::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.25);
         }
 
         .embedding-tooltip {

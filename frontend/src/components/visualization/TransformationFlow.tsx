@@ -3,7 +3,7 @@
  * Shows a visual flow diagram of how embeddings transform through the model.
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { ActivationData } from '../../types/model'
 
@@ -19,6 +19,31 @@ export function TransformationFlow({
   className = ''
 }: TransformationFlowProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 1000, height: 600 })
+
+  // Update canvas dimensions based on container size
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth
+        const aspectRatio = 600 / 1000
+        const newHeight = Math.max(600, containerWidth * aspectRatio)
+        setCanvasDimensions({ width: containerWidth, height: newHeight })
+      }
+    }
+
+    updateDimensions()
+
+    const resizeObserver = new ResizeObserver(updateDimensions)
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current)
+    }
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
     if (!canvasRef.current) return
@@ -28,8 +53,8 @@ export function TransformationFlow({
     if (!ctx) return
 
     // Set canvas size
-    const width = 1000
-    const height = 600
+    const width = canvasDimensions.width
+    const height = canvasDimensions.height
     canvas.width = width
     canvas.height = height
 
@@ -158,11 +183,11 @@ export function TransformationFlow({
     ctx.textAlign = 'center'
     ctx.fillText(`Token ${selectedTokenIndex} Transformation Flow`, width / 2, 25)
 
-  }, [activationData, selectedTokenIndex])
+  }, [activationData, selectedTokenIndex, canvasDimensions])
 
   return (
     <div className={`transformation-flow ${className}`}>
-      <div className="canvas-container">
+      <div className="canvas-container" ref={containerRef}>
         <canvas ref={canvasRef} className="flow-canvas" />
       </div>
       <div className="legend">
@@ -181,16 +206,16 @@ export function TransformationFlow({
         }
 
         .canvas-container {
-          overflow-x: auto;
-          overflow-y: auto;
-          max-height: 600px;
           border-radius: 8px;
           background: #0f172a;
+          width: 100%;
         }
 
         .flow-canvas {
           display: block;
           image-rendering: pixelated;
+          width: 100%;
+          height: auto;
         }
 
         .legend {

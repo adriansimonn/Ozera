@@ -320,6 +320,38 @@ async def get_activation_summary(activation_id: str):
     return summary
 
 
+@app.post("/decode-tokens")
+async def decode_tokens(request: dict):
+    """
+    Decode token IDs to their string representations.
+
+    Args:
+        request: Dictionary with 'token_ids' list and optional 'model' string
+
+    Returns:
+        List of decoded token strings
+    """
+    try:
+        token_ids = request.get('token_ids', [])
+        model_name = request.get('model', 'nano')
+
+        # Load model to get tokenizer
+        if model_name not in generators:
+            model, _ = model_loader.load_model(model_name, device='cpu')
+            device = str(next(model.parameters()).device)
+            generators[model_name] = TextGenerator(model, device=device, model_name=model_name)
+
+        generator = generators[model_name]
+
+        # Decode each token ID individually
+        decoded = [generator.tokenizer.decode([tid]) for tid in token_ids]
+
+        return {'decoded_tokens': decoded}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error decoding tokens: {str(e)}")
+
+
 @app.get("/activations")
 async def list_activations():
     """

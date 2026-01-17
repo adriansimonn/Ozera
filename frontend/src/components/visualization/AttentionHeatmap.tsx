@@ -23,7 +23,30 @@ export function AttentionHeatmap({
   className = ''
 }: AttentionHeatmapProps) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const [hoveredCell, setHoveredCell] = useState<{ from: number; to: number; value: number } | null>(null)
+  const [dimensions, setDimensions] = useState({ width: 600, height: 600 })
+
+  // Update dimensions based on container size
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const containerWidth = Math.min(containerRef.current.clientWidth, 800)
+        setDimensions({ width: containerWidth, height: containerWidth })
+      }
+    }
+
+    updateDimensions()
+
+    const resizeObserver = new ResizeObserver(updateDimensions)
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current)
+    }
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
     if (!svgRef.current || !attentionWeights.values) return
@@ -32,8 +55,8 @@ export function AttentionHeatmap({
     d3.select(svgRef.current).selectAll('*').remove()
 
     const svg = d3.select(svgRef.current)
-    const width = 600
-    const height = 600
+    const width = dimensions.width
+    const height = dimensions.height
     const margin = { top: 60, right: 20, bottom: 60, left: 60 }
     const innerWidth = width - margin.left - margin.right
     const innerHeight = height - margin.top - margin.bottom
@@ -192,14 +215,14 @@ export function AttentionHeatmap({
       .selectAll('text')
       .attr('fill', '#94a3b8')
 
-  }, [attentionWeights, layerIndex, headIndex, tokens])
+  }, [attentionWeights, layerIndex, headIndex, tokens, dimensions])
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative ${className}`} ref={containerRef}>
       <svg
         ref={svgRef}
-        width={600}
-        height={600}
+        width="100%"
+        height={dimensions.height}
         className="bg-slate-900/50 rounded-lg border border-slate-700/50"
       />
       {hoveredCell && (

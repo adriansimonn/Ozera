@@ -39,7 +39,7 @@ export const GeneratePage: React.FC = () => {
         }
 
         .page-header {
-          max-width: 1400px;
+          max-width: 1800px;
           margin: 0 auto 3rem;
           text-align: center;
         }
@@ -62,7 +62,7 @@ export const GeneratePage: React.FC = () => {
         }
 
         .page-content {
-          max-width: 1400px;
+          max-width: 1800px;
           margin: 0 auto;
           display: grid;
           grid-template-columns: 320px 1fr;

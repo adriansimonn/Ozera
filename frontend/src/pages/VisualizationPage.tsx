@@ -81,7 +81,7 @@ export function VisualizationPage() {
     <div className="min-h-screen">
       {/* Header */}
       <div className="border-b border-white/[0.08] glass-strong sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-[1800px] mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-white">
@@ -155,7 +155,7 @@ export function VisualizationPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-[1800px] mx-auto px-6 py-8">
         {/* Prompt Display */}
         <div className="mb-6 p-4 glass border border-white/[0.08]">
           <div className="text-xs text-white/50 mb-2 uppercase tracking-wider">Prompt</div>

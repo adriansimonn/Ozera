@@ -42,11 +42,36 @@ export function NetworkFlow({
   className = ''
 }: NetworkFlowProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const animationRef = useRef<number>()
   const particlesRef = useRef<Particle[]>([])
   const [isAnimating, setIsAnimating] = useState(false)
   const [animationSpeed, setAnimationSpeed] = useState(1)
   const [showAllTokens, setShowAllTokens] = useState(false)
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 1200, height: 800 })
+
+  // Update canvas dimensions based on container size
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth
+        const aspectRatio = 800 / 1200
+        const newHeight = Math.max(600, containerWidth * aspectRatio)
+        setCanvasDimensions({ width: containerWidth, height: newHeight })
+      }
+    }
+
+    updateDimensions()
+
+    const resizeObserver = new ResizeObserver(updateDimensions)
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current)
+    }
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
     if (!canvasRef.current) return
@@ -56,8 +81,8 @@ export function NetworkFlow({
     if (!ctx) return
 
     // Set canvas size
-    const width = 1200
-    const height = 800
+    const width = canvasDimensions.width
+    const height = canvasDimensions.height
     canvas.width = width
     canvas.height = height
 
@@ -294,7 +319,7 @@ export function NetworkFlow({
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [activationData, selectedTokenIndex, isAnimating, animationSpeed, showAllTokens])
+  }, [activationData, selectedTokenIndex, isAnimating, animationSpeed, showAllTokens, canvasDimensions])
 
   return (
     <div className={`network-flow ${className}`}>
@@ -326,7 +351,7 @@ export function NetworkFlow({
         </button>
       </div>
 
-      <div className="canvas-container">
+      <div className="canvas-container" ref={containerRef}>
         <canvas ref={canvasRef} className="flow-canvas" />
       </div>
 
@@ -417,15 +442,17 @@ export function NetworkFlow({
         }
 
         .canvas-container {
-          overflow: auto;
           border-radius: 8px;
           background: #0a0a0a;
           margin-bottom: 1rem;
+          width: 100%;
         }
 
         .flow-canvas {
           display: block;
           image-rendering: pixelated;
+          width: 100%;
+          height: auto;
         }
 
         .info-panel {

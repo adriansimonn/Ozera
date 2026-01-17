@@ -302,6 +302,29 @@ interface EmbeddingVectorDisplayProps {
 
 function EmbeddingVectorDisplay({ values, stage }: EmbeddingVectorDisplayProps) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [dimensions, setDimensions] = useState({ width: 800, height: 100 })
+
+  // Update dimensions based on container size
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth
+        setDimensions({ width: containerWidth, height: 100 })
+      }
+    }
+
+    updateDimensions()
+
+    const resizeObserver = new ResizeObserver(updateDimensions)
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current)
+    }
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -309,8 +332,8 @@ function EmbeddingVectorDisplay({ values, stage }: EmbeddingVectorDisplayProps) 
     d3.select(svgRef.current).selectAll('*').remove()
 
     const svg = d3.select(svgRef.current)
-    const width = 800
-    const height = 100
+    const width = dimensions.width
+    const height = dimensions.height
     const margin = { top: 10, right: 10, bottom: 30, left: 10 }
     const innerWidth = width - margin.left - margin.right
     const innerHeight = height - margin.top - margin.bottom
@@ -365,13 +388,13 @@ function EmbeddingVectorDisplay({ values, stage }: EmbeddingVectorDisplayProps) 
       .attr('fill', '#94a3b8')
       .text(`Showing ${displayValues.length} / ${values.length} dimensions`)
 
-  }, [values, stage])
+  }, [values, stage, dimensions])
 
   return (
-    <div className="vector-display">
+    <div className="vector-display" ref={containerRef}>
       <svg
         ref={svgRef}
-        width={800}
+        width="100%"
         height={100}
         className="bg-slate-900/30 rounded"
       />
