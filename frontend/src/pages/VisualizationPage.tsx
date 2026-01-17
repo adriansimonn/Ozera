@@ -9,7 +9,10 @@ import { apiClient } from '../api/client'
 import type { ActivationData } from '../types/model'
 import { AttentionHeatmap } from '../components/visualization/AttentionHeatmap'
 import { LayerActivationDisplay } from '../components/visualization/LayerActivationDisplay'
-import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles } from 'lucide-react'
+import { EmbeddingJourney } from '../components/visualization/EmbeddingJourney'
+import { TransformationFlow } from '../components/visualization/TransformationFlow'
+import { GenerationFlow } from '../components/visualization/GenerationFlow'
+import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network } from 'lucide-react'
 
 export function VisualizationPage() {
   const [searchParams] = useSearchParams()
@@ -21,7 +24,8 @@ export function VisualizationPage() {
 
   const [selectedLayer, setSelectedLayer] = useState(0)
   const [selectedHead, setSelectedHead] = useState(0)
-  const [view, setView] = useState<'attention' | 'activations'>('attention')
+  const [selectedTokenIndex, setSelectedTokenIndex] = useState(0)
+  const [view, setView] = useState<'attention' | 'activations' | 'journey' | 'flow' | 'network'>('attention')
 
   useEffect(() => {
     if (!activationId) {
@@ -112,6 +116,39 @@ export function VisualizationPage() {
                 <Sparkles className="w-4 h-4" />
                 Activations
               </button>
+              <button
+                onClick={() => setView('journey')}
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
+                  view === 'journey'
+                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                    : 'bg-slate-800/50 text-slate-400 border border-slate-700/30 hover:bg-slate-800'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4" />
+                Journey
+              </button>
+              <button
+                onClick={() => setView('flow')}
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
+                  view === 'flow'
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    : 'bg-slate-800/50 text-slate-400 border border-slate-700/30 hover:bg-slate-800'
+                }`}
+              >
+                <Layers className="w-4 h-4" />
+                Flow
+              </button>
+              <button
+                onClick={() => setView('network')}
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
+                  view === 'network'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-slate-800/50 text-slate-400 border border-slate-700/30 hover:bg-slate-800'
+                }`}
+              >
+                <Network className="w-4 h-4" />
+                Network
+              </button>
             </div>
           </div>
         </div>
@@ -125,29 +162,31 @@ export function VisualizationPage() {
           <div className="text-slate-200 font-mono text-sm">{activationData.prompt}</div>
         </div>
 
-        {/* Layer/Head Controls */}
-        <div className="mb-6 flex items-center gap-4 p-4 bg-slate-900/50 rounded-lg border border-slate-700/50">
-          <div className="flex items-center gap-2">
-            <Layers className="w-5 h-5 text-cyan-400" />
-            <span className="text-sm text-slate-400">Layer:</span>
-            <button
-              onClick={() => setSelectedLayer(Math.max(0, selectedLayer - 1))}
-              disabled={selectedLayer === 0}
-              className="p-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="px-4 py-1 bg-slate-800 rounded font-mono text-cyan-400">
-              {selectedLayer}
-            </span>
-            <button
-              onClick={() => setSelectedLayer(Math.min(numLayers - 1, selectedLayer + 1))}
-              disabled={selectedLayer === numLayers - 1}
-              className="p-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+        {/* Layer/Head/Token Controls */}
+        <div className="mb-6 flex flex-wrap items-center gap-4 p-4 bg-slate-900/50 rounded-lg border border-slate-700/50">
+          {(view === 'attention' || view === 'activations') && (
+            <div className="flex items-center gap-2">
+              <Layers className="w-5 h-5 text-cyan-400" />
+              <span className="text-sm text-slate-400">Layer:</span>
+              <button
+                onClick={() => setSelectedLayer(Math.max(0, selectedLayer - 1))}
+                disabled={selectedLayer === 0}
+                className="p-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="px-4 py-1 bg-slate-800 rounded font-mono text-cyan-400">
+                {selectedLayer}
+              </span>
+              <button
+                onClick={() => setSelectedLayer(Math.min(numLayers - 1, selectedLayer + 1))}
+                disabled={selectedLayer === numLayers - 1}
+                className="p-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           {view === 'attention' && (
             <div className="flex items-center gap-2">
@@ -171,6 +210,29 @@ export function VisualizationPage() {
               </button>
             </div>
           )}
+
+          {(view === 'journey' || view === 'flow' || view === 'network') && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-400">Token:</span>
+              <button
+                onClick={() => setSelectedTokenIndex(Math.max(0, selectedTokenIndex - 1))}
+                disabled={selectedTokenIndex === 0}
+                className="p-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="px-4 py-1 bg-slate-800 rounded font-mono text-green-400">
+                {selectedTokenIndex}
+              </span>
+              <button
+                onClick={() => setSelectedTokenIndex(Math.min(activationData.tokens.length - 1, selectedTokenIndex + 1))}
+                disabled={selectedTokenIndex === activationData.tokens.length - 1}
+                className="p-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Visualization Area */}
@@ -188,6 +250,26 @@ export function VisualizationPage() {
           <LayerActivationDisplay
             layerActivations={activationData.activations.layers[selectedLayer]}
             layerIndex={selectedLayer}
+          />
+        )}
+
+        {view === 'journey' && (
+          <EmbeddingJourney
+            activationData={activationData}
+            selectedTokenIndex={selectedTokenIndex}
+          />
+        )}
+
+        {view === 'flow' && (
+          <TransformationFlow
+            activationData={activationData}
+            selectedTokenIndex={selectedTokenIndex}
+          />
+        )}
+
+        {view === 'network' && (
+          <GenerationFlow
+            activationData={activationData}
           />
         )}
 

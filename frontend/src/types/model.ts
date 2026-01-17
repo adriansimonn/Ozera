@@ -113,6 +113,7 @@ export interface ActivationData {
     prompt_tokens?: number
     generated_tokens?: number
     total_tokens?: number
+    decoded_tokens?: string[]
     [key: string]: any
   }
 }

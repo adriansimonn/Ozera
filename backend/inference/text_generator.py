@@ -288,6 +288,10 @@ class TextGenerator:
         # Decode generated text
         generated_text = self.tokenizer.decode(input_ids[0].cpu().tolist())
 
+        # Decode individual tokens for visualization
+        token_list = input_ids[0].cpu().tolist()
+        decoded_tokens = [self.tokenizer.decode([token_id]) for token_id in token_list]
+
         # Store activations
         activation_id = self.activation_store.store_activations(
             activations=activations,
@@ -301,7 +305,9 @@ class TextGenerator:
                 'max_tokens': max_tokens,
                 'prompt_tokens': len(prompt_ids),
                 'generated_tokens': len(input_ids[0]) - len(prompt_ids),
-                'total_tokens': len(input_ids[0])
+                'total_tokens': len(input_ids[0]),
+                'generated_text': generated_text,
+                'decoded_tokens': decoded_tokens
             }
         )
 
