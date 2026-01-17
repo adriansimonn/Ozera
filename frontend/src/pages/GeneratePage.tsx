@@ -12,8 +12,8 @@ export const GeneratePage: React.FC = () => {
   return (
     <div className="generate-page">
       <div className="page-header">
-        <h1>Ozera Text Generation</h1>
-        <p className="subtitle">Generate text using Ozera language models</p>
+        <h1>Ozera</h1>
+        <p className="subtitle">Text Generation</p>
       </div>
 
       <div className="page-content">
@@ -35,32 +35,30 @@ export const GeneratePage: React.FC = () => {
       <style>{`
         .generate-page {
           min-height: 100vh;
-          background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
-          padding: 2rem;
+          padding: 3rem 2rem;
         }
 
         .page-header {
-          max-width: 1200px;
-          margin: 0 auto 2rem;
+          max-width: 1400px;
+          margin: 0 auto 3rem;
           text-align: center;
         }
 
         .page-header h1 {
           margin: 0 0 0.5rem 0;
-          font-size: 3rem;
+          font-size: 3.5rem;
           font-weight: 700;
-          background: linear-gradient(135deg, #00f5ff 0%, #0088ff 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          text-shadow: 0 0 40px rgba(0, 245, 255, 0.3);
+          color: #ffffff;
+          letter-spacing: -0.03em;
         }
 
         .subtitle {
           margin: 0;
-          color: #888;
-          font-size: 1.1rem;
-          font-weight: 300;
+          color: rgba(255, 255, 255, 0.5);
+          font-size: 1rem;
+          font-weight: 400;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
         }
 
         .page-content {
@@ -84,11 +82,14 @@ export const GeneratePage: React.FC = () => {
         }
 
         .main-content {
-          background: rgba(20, 20, 20, 0.6);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 16px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 0 0 1px rgba(255, 255, 255, 0.05);
         }
       `}</style>
     </div>

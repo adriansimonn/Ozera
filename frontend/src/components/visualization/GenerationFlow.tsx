@@ -207,11 +207,9 @@ export function GenerationFlow({
             // Base opacity for inactive connections
             let opacity = 0.02
             let lineWidth = 0.4
-            let color = '34, 211, 238'
+            let color = '255, 255, 255' // White for all connections
 
             if (tokensInCurrentStep > 0 && flowingTokenIdx < totalTokens) {
-              color = flowingTokenIdx >= promptTokens ? '167, 139, 250' : '34, 211, 238'
-
               // Use actual node activations to determine connection strength
               const fromIntensity = currentLayer.nodes[fromIdx]?.active || 0.2
               const toIntensity = nextLayer.nodes[toIdx]?.active || 0.2
@@ -300,11 +298,8 @@ export function GenerationFlow({
 
           node.active = intensity
 
-          // Determine node color based on layer type
-          let nodeColor = '34, 211, 238' // cyan for prompt
-          if (flowingTokenIdx >= promptTokens) {
-            nodeColor = '167, 139, 250' // purple for generated
-          }
+          // White color for all nodes
+          let nodeColor = '255, 255, 255'
 
           // Enhanced glow during activation
           const glowSize = nodeRadius * (2 + intensity * 2)
@@ -345,8 +340,8 @@ export function GenerationFlow({
           ctx.font = 'bold 13px Monaco'
 
           if (isProcessing) {
-            ctx.fillStyle = flowingTokenIdx >= promptTokens ? '#a78bfa' : '#22d3ee'
-            ctx.shadowColor = ctx.fillStyle
+            ctx.fillStyle = '#ffffff'
+            ctx.shadowColor = '#ffffff'
             ctx.shadowBlur = 10
           } else {
             ctx.fillStyle = '#94a3b8'
@@ -368,12 +363,12 @@ export function GenerationFlow({
       maxVisibleTokens: number,
       stepProgress: number,
       flowingTokenIdx: number,
-      isPrompt: boolean,
+      _isPrompt: boolean,
       tokensInCurrentStep: number
     ) => {
       // Show generated token appearing next to output layer
       if (tokensInCurrentStep > 0) {
-        const color = isPrompt ? '#22d3ee' : '#a78bfa'
+        const color = '#ffffff' // White for all tokens
 
         // Calculate layer progress
         const layerProgress = stepProgress * layers.length
@@ -410,7 +405,7 @@ export function GenerationFlow({
         // Always show the last generated token (persists until next one)
         if (lastGeneratedToken !== null) {
           const isCurrentToken = lastGeneratedToken.index === flowingTokenIdx
-          const tokenColor = lastGeneratedToken.index >= promptTokens ? '#a78bfa' : '#22d3ee'
+          const tokenColor = '#ffffff' // White for all tokens
 
           // Scale animation only for newly appearing token
           let scale = 1
@@ -476,7 +471,7 @@ export function GenerationFlow({
     const drawInfo = (ctx: CanvasRenderingContext2D, progress: number) => {
       // Title
       ctx.font = 'bold 24px sans-serif'
-      ctx.fillStyle = '#22d3ee'
+      ctx.fillStyle = '#ffffff'
       ctx.textAlign = 'center'
       ctx.fillText('Neural Network Generation Flow', width / 2, 40)
 
@@ -484,20 +479,6 @@ export function GenerationFlow({
       ctx.font = '14px Monaco'
       ctx.fillStyle = '#64748b'
       ctx.fillText('Watch tokens flow through the transformer architecture', width / 2, 65)
-
-      // Legend at top right
-      ctx.font = '12px Monaco'
-      ctx.textAlign = 'right'
-
-      ctx.fillStyle = '#22d3ee'
-      ctx.fillRect(width - 200, 25, 16, 16)
-      ctx.fillStyle = '#94a3b8'
-      ctx.fillText('Prompt Tokens', width - 210, 37)
-
-      ctx.fillStyle = '#a78bfa'
-      ctx.fillRect(width - 200, 50, 16, 16)
-      ctx.fillStyle = '#94a3b8'
-      ctx.fillText('Generated Tokens', width - 210, 62)
 
       // Progress bar at bottom
       const barWidth = 500
@@ -508,10 +489,7 @@ export function GenerationFlow({
       ctx.fillStyle = 'rgba(100, 116, 139, 0.3)'
       ctx.fillRect(barX, barY, barWidth, barHeight)
 
-      const gradient = ctx.createLinearGradient(barX, 0, barX + barWidth, 0)
-      gradient.addColorStop(0, '#22d3ee')
-      gradient.addColorStop(1, '#a78bfa')
-      ctx.fillStyle = gradient
+      ctx.fillStyle = '#ffffff'
       ctx.fillRect(barX, barY, barWidth * progress, barHeight)
 
       // Progress percentage
@@ -722,8 +700,7 @@ export function GenerationFlow({
       <style>{`
         .generation-flow {
           background: linear-gradient(to bottom, #0a0a0a, #1a1a1a);
-          border: 1px solid rgba(100, 116, 139, 0.3);
-          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
           padding: 1.5rem;
         }
 
@@ -747,20 +724,19 @@ export function GenerationFlow({
 
         .btn-control {
           padding: 0.5rem 1rem;
-          background: rgba(34, 211, 238, 0.1);
-          border: 1px solid rgba(34, 211, 238, 0.3);
-          border-radius: 6px;
-          color: #22d3ee;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.15);
           font-size: 0.9rem;
           font-weight: 600;
           cursor: pointer;
           transition: all 0.2s;
           white-space: nowrap;
+          color: #ffffff;
         }
 
         .btn-control:hover:not(:disabled) {
-          background: rgba(34, 211, 238, 0.2);
-          box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
+          background: rgba(255, 255, 255, 0.12);
+          box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
           transform: translateY(-1px);
         }
 
@@ -769,9 +745,9 @@ export function GenerationFlow({
         }
 
         .btn-control.primary {
-          background: rgba(34, 211, 238, 0.2);
-          border-color: #22d3ee;
-          box-shadow: 0 0 10px rgba(34, 211, 238, 0.2);
+          background: rgba(255, 255, 255, 0.15);
+          border-color: rgba(255, 255, 255, 0.3);
+          box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
         }
 
         .control-group {
@@ -800,10 +776,10 @@ export function GenerationFlow({
           -webkit-appearance: none;
           width: 14px;
           height: 14px;
-          background: #22d3ee;
+          background: #ffffff;
           border-radius: 50%;
           cursor: pointer;
-          box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+          box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
         }
 
         .visualization-container {
@@ -826,23 +802,22 @@ export function GenerationFlow({
         .embedding-tooltip {
           position: absolute;
           background: rgba(15, 23, 42, 0.98);
-          border: 1px solid rgba(34, 211, 238, 0.5);
-          border-radius: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.3);
           padding: 0.75rem;
           pointer-events: none;
           z-index: 1000;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(34, 211, 238, 0.2);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 255, 255, 0.15);
           max-width: 300px;
           font-family: 'Monaco', 'Courier New', monospace;
           font-size: 0.75rem;
         }
 
         .tooltip-header {
-          color: #22d3ee;
+          color: #ffffff;
           font-weight: 600;
           margin-bottom: 0.5rem;
           padding-bottom: 0.5rem;
-          border-bottom: 1px solid rgba(34, 211, 238, 0.2);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         .tooltip-header strong {
@@ -872,8 +847,7 @@ export function GenerationFlow({
           display: flex;
           justify-content: space-between;
           padding: 0.15rem 0.25rem;
-          background: rgba(34, 211, 238, 0.05);
-          border-radius: 3px;
+          background: rgba(255, 255, 255, 0.05);
         }
 
         .dim-label {
@@ -882,7 +856,7 @@ export function GenerationFlow({
         }
 
         .dim-value {
-          color: #22d3ee;
+          color: #ffffff;
           font-weight: 600;
         }
 
@@ -903,10 +877,9 @@ export function GenerationFlow({
 
         .output-panel {
           background: rgba(15, 23, 42, 0.8);
-          border: 1px solid rgba(167, 139, 250, 0.3);
-          border-radius: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.15);
           overflow: hidden;
-          box-shadow: 0 4px 20px rgba(167, 139, 250, 0.15);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
 
         .output-header {
@@ -914,14 +887,14 @@ export function GenerationFlow({
           justify-content: space-between;
           align-items: center;
           padding: 1rem;
-          background: rgba(167, 139, 250, 0.1);
-          border-bottom: 1px solid rgba(167, 139, 250, 0.2);
+          background: rgba(255, 255, 255, 0.05);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .output-title {
           font-weight: 700;
           font-size: 0.95rem;
-          color: #a78bfa;
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
@@ -930,9 +903,8 @@ export function GenerationFlow({
           font-size: 0.75rem;
           color: #94a3b8;
           font-family: 'Monaco', 'Courier New', monospace;
-          background: rgba(167, 139, 250, 0.1);
+          background: rgba(255, 255, 255, 0.05);
           padding: 0.25rem 0.5rem;
-          border-radius: 4px;
         }
 
         .output-content {
@@ -960,9 +932,8 @@ export function GenerationFlow({
         .output-token {
           display: inline;
           animation: tokenFadeIn 0.3s ease-out;
-          background: rgba(167, 139, 250, 0.1);
+          background: rgba(255, 255, 255, 0.05);
           padding: 0.15rem 0.25rem;
-          border-radius: 3px;
           margin: 0 1px;
         }
 
@@ -987,12 +958,11 @@ export function GenerationFlow({
         }
 
         .output-content::-webkit-scrollbar-thumb {
-          background: rgba(167, 139, 250, 0.3);
-          border-radius: 4px;
+          background: rgba(255, 255, 255, 0.15);
         }
 
         .output-content::-webkit-scrollbar-thumb:hover {
-          background: rgba(167, 139, 250, 0.5);
+          background: rgba(255, 255, 255, 0.25);
         }
       `}</style>
     </div>

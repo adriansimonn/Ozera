@@ -87,139 +87,132 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
       <style>{`
         .model-selector {
-          padding: 1.5rem;
-          background: rgba(20, 20, 20, 0.6);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 16px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+          padding: 2rem;
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 0 0 1px rgba(255, 255, 255, 0.05);
         }
 
         .selector-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 1.5rem;
-          padding-bottom: 1rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          margin-bottom: 2rem;
+          padding-bottom: 1.5rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .selector-header h3 {
           margin: 0;
-          font-size: 1.2rem;
-          font-weight: 600;
-          color: #fff;
-          letter-spacing: 0.5px;
+          font-size: 0.85rem;
+          font-weight: 500;
+          color: rgba(255, 255, 255, 0.6);
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
         }
 
         .loading {
-          color: #00f5ff;
+          color: rgba(255, 255, 255, 0.5);
           font-size: 0.85rem;
-          font-weight: 500;
+          font-weight: 400;
         }
 
         .error-box {
           padding: 1rem;
-          background: rgba(220, 38, 38, 0.1);
-          border: 1px solid rgba(220, 38, 38, 0.3);
-          border-radius: 8px;
-          color: #ff6b6b;
-          margin-bottom: 1rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.8);
+          margin-bottom: 1.5rem;
           font-size: 0.9rem;
         }
 
         .models-grid {
           display: grid;
-          gap: 0.75rem;
-          margin-bottom: 1.5rem;
+          gap: 1rem;
+          margin-bottom: 2rem;
         }
 
         .model-card {
-          padding: 1.25rem;
+          padding: 1.5rem;
           border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 12px;
-          background: rgba(30, 30, 30, 0.4);
+          background: rgba(255, 255, 255, 0.03);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
           cursor: pointer;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           text-align: center;
           position: relative;
-          overflow: hidden;
-        }
-
-        .model-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: linear-gradient(135deg, rgba(0, 245, 255, 0) 0%, rgba(0, 136, 255, 0) 100%);
-          opacity: 0;
-          transition: opacity 0.3s;
-        }
-
-        .model-card:hover:not(:disabled)::before {
-          opacity: 0.1;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
         }
 
         .model-card:hover:not(:disabled) {
-          border-color: rgba(0, 245, 255, 0.5);
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.25);
+          box-shadow:
+            0 8px 24px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.15);
           transform: translateY(-2px);
-          box-shadow: 0 8px 24px rgba(0, 245, 255, 0.2);
         }
 
         .model-card.selected {
-          border-color: #00f5ff;
-          background: rgba(0, 136, 255, 0.1);
-          box-shadow: 0 0 20px rgba(0, 245, 255, 0.3);
+          border-color: rgba(255, 255, 255, 0.35);
+          background: rgba(255, 255, 255, 0.12);
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2),
+            0 0 20px rgba(255, 255, 255, 0.1);
         }
 
         .model-card:disabled {
-          opacity: 0.4;
+          opacity: 0.3;
           cursor: not-allowed;
         }
 
         .model-name {
-          font-weight: 600;
+          font-weight: 500;
           margin-bottom: 0.75rem;
-          color: #fff;
+          color: #ffffff;
           font-size: 1rem;
-          position: relative;
-          z-index: 1;
+          letter-spacing: -0.01em;
         }
 
         .model-badge {
           display: inline-block;
-          padding: 0.35rem 0.75rem;
-          background: linear-gradient(135deg, #00f5ff 0%, #0088ff 100%);
-          color: #000;
-          border-radius: 6px;
+          padding: 0.4rem 0.9rem;
+          background: rgba(255, 255, 255, 0.1);
+          color: #ffffff;
           font-size: 0.7rem;
-          font-weight: 700;
-          letter-spacing: 1px;
-          position: relative;
-          z-index: 1;
-          box-shadow: 0 4px 12px rgba(0, 245, 255, 0.3);
+          font-weight: 500;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
         }
 
         .model-details {
-          padding: 1.25rem;
-          background: rgba(15, 15, 15, 0.6);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          border-radius: 12px;
+          padding: 1.5rem;
+          background: rgba(255, 255, 255, 0.03);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
         }
 
         .model-details h4 {
-          margin: 0 0 1rem 0;
-          font-size: 1rem;
-          font-weight: 600;
-          color: #fff;
-          letter-spacing: 0.5px;
+          margin: 0 0 1.5rem 0;
+          font-size: 0.85rem;
+          font-weight: 500;
+          color: rgba(255, 255, 255, 0.6);
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
         }
 
         .loading-details,
         .no-info {
-          color: #666;
+          color: rgba(255, 255, 255, 0.4);
           text-align: center;
           padding: 1rem;
           font-size: 0.9rem;
@@ -227,35 +220,40 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
         .details-grid {
           display: grid;
-          gap: 0.5rem;
+          gap: 0.75rem;
         }
 
         .detail-item {
           display: flex;
           justify-content: space-between;
-          padding: 0.75rem;
-          background: rgba(30, 30, 30, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          border-radius: 8px;
-          transition: all 0.2s;
+          padding: 0.875rem;
+          background: rgba(255, 255, 255, 0.03);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .detail-item:hover {
-          background: rgba(40, 40, 40, 0.6);
-          border-color: rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.06);
+          border-color: rgba(255, 255, 255, 0.15);
+          box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+          transform: translateX(4px);
         }
 
         .detail-label {
-          font-weight: 500;
-          color: #888;
+          font-weight: 400;
+          color: rgba(255, 255, 255, 0.5);
           font-size: 0.85rem;
         }
 
         .detail-value {
-          font-weight: 600;
-          color: #00f5ff;
+          font-weight: 500;
+          color: #ffffff;
           font-size: 0.9rem;
-          font-family: 'Monaco', 'Courier New', monospace;
+          font-family: 'JetBrains Mono', monospace;
         }
       `}</style>
     </div>

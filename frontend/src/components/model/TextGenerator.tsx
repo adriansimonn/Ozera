@@ -210,78 +210,87 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       <style>{`
         .text-generator {
           max-width: 100%;
-          padding: 2rem;
+          padding: 2.5rem;
         }
 
         .generator-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 2rem;
-          padding-bottom: 1rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          margin-bottom: 2.5rem;
+          padding-bottom: 1.5rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .generator-header h2 {
           margin: 0;
           font-size: 1.5rem;
           font-weight: 600;
-          color: #fff;
-          letter-spacing: 0.5px;
+          color: #ffffff;
+          letter-spacing: -0.02em;
         }
 
         .status {
-          color: #00f5ff;
+          color: rgba(255, 255, 255, 0.6);
           font-size: 0.85rem;
-          font-weight: 500;
+          font-weight: 400;
         }
 
         .controls {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 1.5rem;
-          margin-bottom: 2rem;
+          gap: 2rem;
+          margin-bottom: 2.5rem;
         }
 
         .control-group {
           display: flex;
           flex-direction: column;
-          gap: 0.75rem;
+          gap: 1rem;
         }
 
         .control-group label {
           font-weight: 500;
           font-size: 0.85rem;
-          color: #aaa;
-          letter-spacing: 0.3px;
+          color: rgba(255, 255, 255, 0.6);
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
         }
 
         .control-group select {
-          padding: 0.75rem;
-          background: rgba(30, 30, 30, 0.6);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 8px;
-          color: #fff;
+          padding: 0.875rem 1rem;
+          background: rgba(0, 0, 0, 0.2);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #ffffff;
           font-size: 0.95rem;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
 
         .control-group select:hover {
-          border-color: rgba(0, 245, 255, 0.3);
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.2);
+          box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
 
         .control-group select:focus {
-          outline: none;
-          border-color: #00f5ff;
-          box-shadow: 0 0 0 2px rgba(0, 245, 255, 0.1);
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.25);
+          box-shadow:
+            0 4px 16px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.12),
+            0 0 0 2px rgba(255, 255, 255, 0.05);
         }
 
         .control-group input[type="range"] {
           width: 100%;
-          height: 6px;
+          height: 2px;
           background: rgba(255, 255, 255, 0.1);
-          border-radius: 3px;
           outline: none;
           -webkit-appearance: none;
         }
@@ -289,191 +298,214 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         .control-group input[type="range"]::-webkit-slider-thumb {
           -webkit-appearance: none;
           appearance: none;
-          width: 18px;
-          height: 18px;
-          background: linear-gradient(135deg, #00f5ff 0%, #0088ff 100%);
+          width: 14px;
+          height: 14px;
+          background: #ffffff;
           border-radius: 50%;
           cursor: pointer;
-          box-shadow: 0 0 10px rgba(0, 245, 255, 0.5);
-          transition: all 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow:
+            0 2px 8px rgba(0, 0, 0, 0.3),
+            0 0 0 2px rgba(255, 255, 255, 0.1);
         }
 
         .control-group input[type="range"]::-webkit-slider-thumb:hover {
           transform: scale(1.2);
-          box-shadow: 0 0 15px rgba(0, 245, 255, 0.8);
+          box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.4),
+            0 0 0 3px rgba(255, 255, 255, 0.15),
+            0 0 12px rgba(255, 255, 255, 0.3);
         }
 
         .prompt-area {
-          margin-bottom: 1.5rem;
+          margin-bottom: 2rem;
         }
 
         .prompt-area label {
           display: block;
-          margin-bottom: 0.75rem;
+          margin-bottom: 1rem;
           font-weight: 500;
-          color: #aaa;
+          color: rgba(255, 255, 255, 0.6);
           font-size: 0.85rem;
-          letter-spacing: 0.3px;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
         }
 
         .prompt-area textarea {
           width: 100%;
-          padding: 1rem;
-          background: rgba(30, 30, 30, 0.6);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 12px;
-          color: #fff;
-          font-family: 'Monaco', 'Courier New', monospace;
+          padding: 1.25rem;
+          background: rgba(0, 0, 0, 0.2);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+          font-family: 'JetBrains Mono', monospace;
           font-size: 0.95rem;
           resize: vertical;
-          transition: all 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          line-height: 1.6;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
 
         .prompt-area textarea:hover {
-          border-color: rgba(0, 245, 255, 0.3);
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.2);
+          box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
 
         .prompt-area textarea:focus {
-          outline: none;
-          border-color: #00f5ff;
-          box-shadow: 0 0 0 2px rgba(0, 245, 255, 0.1);
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.25);
+          box-shadow:
+            0 4px 16px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.12),
+            0 0 0 2px rgba(255, 255, 255, 0.05);
         }
 
         .prompt-area textarea::placeholder {
-          color: #555;
+          color: rgba(255, 255, 255, 0.3);
         }
 
         .actions {
           display: flex;
           gap: 1rem;
-          margin-bottom: 1.5rem;
+          margin-bottom: 2rem;
         }
 
         .btn-primary,
         .btn-secondary,
         .btn-visualize {
           padding: 1rem 2rem;
-          border: none;
-          border-radius: 10px;
-          font-size: 0.95rem;
-          font-weight: 600;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          font-size: 0.9rem;
+          font-weight: 500;
           cursor: pointer;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          letter-spacing: 0.5px;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
           position: relative;
-          overflow: hidden;
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
         .btn-primary {
-          background: linear-gradient(135deg, #00f5ff 0%, #0088ff 100%);
-          color: #000;
-          box-shadow: 0 4px 15px rgba(0, 245, 255, 0.4);
+          background: rgba(255, 255, 255, 0.1);
+          color: #ffffff;
         }
 
         .btn-primary:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.15);
+          border-color: rgba(255, 255, 255, 0.3);
+          box-shadow:
+            0 6px 20px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
           transform: translateY(-2px);
-          box-shadow: 0 6px 25px rgba(0, 245, 255, 0.6);
-        }
-
-        .btn-primary:active:not(:disabled) {
-          transform: translateY(0);
         }
 
         .btn-visualize {
-          background: linear-gradient(135deg, #a78bfa 0%, #6366f1 100%);
-          color: #fff;
-          box-shadow: 0 4px 15px rgba(167, 139, 250, 0.4);
+          background: rgba(255, 255, 255, 0.06);
+          color: #ffffff;
+          border-color: rgba(255, 255, 255, 0.12);
         }
 
         .btn-visualize:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.12);
+          border-color: rgba(255, 255, 255, 0.25);
+          box-shadow:
+            0 6px 20px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.15);
           transform: translateY(-2px);
-          box-shadow: 0 6px 25px rgba(167, 139, 250, 0.6);
-        }
-
-        .btn-visualize:active:not(:disabled) {
-          transform: translateY(0);
         }
 
         .btn-secondary {
-          background: rgba(60, 60, 60, 0.6);
-          color: #fff;
+          background: rgba(255, 255, 255, 0.02);
+          color: rgba(255, 255, 255, 0.7);
           border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .btn-secondary:hover:not(:disabled) {
-          background: rgba(80, 80, 80, 0.8);
-          border-color: rgba(255, 255, 255, 0.2);
+          background: rgba(255, 255, 255, 0.06);
+          border-color: rgba(255, 255, 255, 0.18);
+          color: #ffffff;
+          box-shadow:
+            0 6px 16px rgba(0, 0, 0, 0.25),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+          transform: translateY(-2px);
         }
 
         .btn-primary:disabled,
         .btn-secondary:disabled,
         .btn-visualize:disabled {
-          opacity: 0.4;
+          opacity: 0.3;
           cursor: not-allowed;
-          transform: none;
         }
 
         .error-message {
           padding: 1rem 1.25rem;
-          background: rgba(220, 38, 38, 0.1);
-          border: 1px solid rgba(220, 38, 38, 0.3);
-          border-radius: 10px;
-          color: #ff6b6b;
-          margin-bottom: 1.5rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.8);
+          margin-bottom: 2rem;
           font-size: 0.9rem;
         }
 
         .output-area {
-          border: 1px solid rgba(0, 245, 255, 0.2);
-          border-radius: 12px;
-          padding: 1.5rem;
-          background: rgba(15, 15, 15, 0.6);
-          box-shadow: 0 0 30px rgba(0, 245, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          padding: 2rem;
+          background: rgba(0, 0, 0, 0.2);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          box-shadow:
+            0 8px 24px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
 
         .output-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 1.25rem;
+          margin-bottom: 1.5rem;
           padding-bottom: 1rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .output-header h3 {
           margin: 0;
-          font-size: 1rem;
-          font-weight: 600;
-          color: #fff;
-          letter-spacing: 0.5px;
+          font-size: 0.85rem;
+          font-weight: 500;
+          color: rgba(255, 255, 255, 0.6);
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
         }
 
         .streaming-indicator {
-          color: #00f5ff;
-          font-size: 1.5rem;
+          color: rgba(255, 255, 255, 0.8);
+          font-size: 1.2rem;
           animation: pulse 1s infinite;
-          filter: drop-shadow(0 0 8px rgba(0, 245, 255, 0.6));
         }
 
         @keyframes pulse {
           0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
+          50% { opacity: 0.3; }
         }
 
         .output-content {
           white-space: pre-wrap;
           word-wrap: break-word;
           line-height: 1.8;
-          font-family: 'Monaco', 'Courier New', monospace;
+          font-family: 'JetBrains Mono', monospace;
           font-size: 0.95rem;
-          color: #e0e0e0;
+          color: #ffffff;
         }
 
         .cursor {
-          color: #00f5ff;
+          color: rgba(255, 255, 255, 0.8);
           animation: blink 0.8s infinite;
           margin-left: 2px;
-          font-weight: bold;
+          font-weight: normal;
         }
 
         @keyframes blink {

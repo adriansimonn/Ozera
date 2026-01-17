@@ -2,12 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import GeneratePage from './pages/GeneratePage'
 import { VisualizationPage } from './pages/VisualizationPage'
-
-// Pages (to be created)
-// import Dashboard from '@pages/dashboard/Dashboard'
-// import Playground from '@pages/playground/Playground'
-// import Training from '@pages/training/Training'
-// import Analysis from '@pages/analysis/Analysis'
+import { AnimatedBackground } from './components/common/AnimatedBackground'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,14 +18,11 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <Router>
         <div className="min-h-screen bg-black">
-          {/* Navigation/Layout will go here */}
-          <main>
+          <AnimatedBackground />
+          <main className="content-container">
             <Routes>
               <Route path="/" element={<GeneratePage />} />
               <Route path="/visualize" element={<VisualizationPage />} />
-              {/* <Route path="/playground" element={<Playground />} /> */}
-              {/* <Route path="/training" element={<Training />} /> */}
-              {/* <Route path="/analysis" element={<Analysis />} /> */}
             </Routes>
           </main>
         </div>
