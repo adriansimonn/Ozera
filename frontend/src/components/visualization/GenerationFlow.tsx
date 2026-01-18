@@ -479,25 +479,6 @@ export function GenerationFlow({
         const layerProgress = stepProgress * layers.length
         const currentLayerIdx = Math.floor(layerProgress)
 
-        // Show current processing token at the input layer
-        const inputLayer = layers[0]
-        const inputY = networkTop + networkHeight / 2
-
-        // Draw token being processed indicator at input
-        if (showLabels && stepProgress > 0) {
-          ctx.font = 'bold 11px Monaco'
-          ctx.fillStyle = color
-          ctx.textAlign = 'right'
-          const labelText = decodedTokens[flowingTokenIdx] || `T${flowingTokenIdx}`
-          const displayLabel = labelText.length > 12 ? labelText.substring(0, 11) + '…' : labelText
-
-          // Pulsing effect
-          const pulseAlpha = 0.6 + Math.sin(stepProgress * Math.PI * 8) * 0.4
-          ctx.globalAlpha = pulseAlpha
-          ctx.fillText(`Processing: ${displayLabel}`, inputLayer.x - 15, inputY)
-          ctx.globalAlpha = 1
-        }
-
         // Update top token choices based on current progress
         if (stepProgress > 0.95 || currentLayerIdx >= layers.length - 1) {
           // Show top choices for current token when processing is complete
@@ -545,16 +526,24 @@ export function GenerationFlow({
     }
 
     const drawInfo = (ctx: CanvasRenderingContext2D, progress: number) => {
-      // Title
-      ctx.font = 'bold 24px sans-serif'
-      ctx.fillStyle = '#ffffff'
-      ctx.textAlign = 'center'
-      ctx.fillText('Neural Network Generation Flow', width / 2, 40)
+      // Processing token label above progress bar
+      const totalSteps = generatedTokens + 1
+      const currentStep = Math.floor(progress * totalSteps)
+      const tokensInCurrentStep = Math.min(promptTokens + currentStep, totalTokens)
+      const currentTokenIdx = tokensInCurrentStep > 0 ? tokensInCurrentStep - 1 : 0
 
-      // Subtitle
-      ctx.font = '14px Monaco'
-      ctx.fillStyle = '#64748b'
-      ctx.fillText('Watch tokens flow through the transformer architecture', width / 2, 65)
+      if (showLabels && progress > 0 && progress < 1) {
+        const labelText = decodedTokens[currentTokenIdx] || `T${currentTokenIdx}`
+        const displayLabel = labelText.length > 12 ? labelText.substring(0, 11) + '…' : labelText
+
+        ctx.font = 'bold 14px Monaco'
+        ctx.fillStyle = '#ffffff'
+        ctx.textAlign = 'center'
+        const pulseAlpha = 0.6 + Math.sin(progress * Math.PI * 8) * 0.4
+        ctx.globalAlpha = pulseAlpha
+        ctx.fillText(`Processing: ${displayLabel}`, width / 2, height - 60)
+        ctx.globalAlpha = 1
+      }
 
       // Progress bar at bottom
       const barWidth = 500
@@ -695,41 +684,37 @@ export function GenerationFlow({
   return (
     <div className={`generation-flow ${className}`}>
       <div className="controls-panel">
-        <div className="playback-controls">
-          <button onClick={handlePrevious} className="btn-control">
-            ⏮ Previous
-          </button>
-          <button onClick={handlePlayPause} className="btn-control primary">
-            {isPlaying ? '⏸ Pause' : '▶ Play'}
-          </button>
-          <button onClick={handleNext} className="btn-control">
-            Next ⏭
-          </button>
-          <button onClick={handleReset} className="btn-control">
-            ↺ Reset
-          </button>
+        <button onClick={handlePrevious} className="btn-control">
+          ⏮ Previous
+        </button>
+        <button onClick={handlePlayPause} className="btn-control primary">
+          {isPlaying ? '⏸ Pause' : '▶ Play'}
+        </button>
+        <button onClick={handleNext} className="btn-control">
+          Next ⏭
+        </button>
+        <button onClick={handleReset} className="btn-control">
+          ↺ Reset
+        </button>
+
+        <div className="control-group speed-control">
+          <label>Speed: {animationSpeed.toFixed(2)}x</label>
+          <input
+            type="range"
+            min="0.01"
+            max="3"
+            step="0.01"
+            value={animationSpeed}
+            onChange={(e) => setAnimationSpeed(parseFloat(e.target.value))}
+          />
         </div>
 
-        <div className="settings-controls">
-          <div className="control-group speed-control">
-            <label>Speed: {animationSpeed.toFixed(2)}x</label>
-            <input
-              type="range"
-              min="0.01"
-              max="3"
-              step="0.01"
-              value={animationSpeed}
-              onChange={(e) => setAnimationSpeed(parseFloat(e.target.value))}
-            />
-          </div>
-
-          <button
-            onClick={() => setShowLabels(!showLabels)}
-            className="btn-control"
-          >
-            {showLabels ? '🏷️ Hide Labels' : '🏷️ Show Labels'}
-          </button>
-        </div>
+        <button
+          onClick={() => setShowLabels(!showLabels)}
+          className="btn-control"
+        >
+          {showLabels ? 'Hide Labels' : 'Show Labels'}
+        </button>
       </div>
 
       <div className="visualization-container">
@@ -834,26 +819,20 @@ export function GenerationFlow({
 
       <style>{`
         .generation-flow {
-          background: linear-gradient(to bottom, #0a0a0a, #1a1a1a);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          padding: 1.5rem;
+          padding: 0;
         }
 
         .controls-panel {
           display: flex;
-          flex-direction: column;
-          gap: 1rem;
-          margin-bottom: 1.5rem;
-        }
-
-        .playback-controls,
-        .settings-controls {
-          display: flex;
           gap: 0.75rem;
           align-items: center;
           padding: 1rem;
-          background: rgba(30, 41, 59, 0.6);
-          border-radius: 8px;
+          margin-bottom: 1.5rem;
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
           flex-wrap: wrap;
         }
 
@@ -933,9 +912,6 @@ export function GenerationFlow({
 
         .canvas-container {
           position: relative;
-          border-radius: 8px;
-          background: #0a0a0a;
-          box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
           flex: 1;
           min-width: 0;
         }
@@ -949,12 +925,13 @@ export function GenerationFlow({
 
         .top-tokens-panel {
           width: 280px;
-          background: rgba(15, 23, 42, 0.8);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
           display: flex;
           flex-direction: column;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
 
         .top-tokens-header {
@@ -962,26 +939,22 @@ export function GenerationFlow({
           justify-content: space-between;
           align-items: center;
           padding: 1rem;
-          background: rgba(255, 255, 255, 0.05);
+          background: transparent;
           border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 8px 8px 0 0;
         }
 
         .top-tokens-title {
-          font-weight: 700;
-          font-size: 0.85rem;
-          color: #ffffff;
+          font-size: 0.75rem;
+          color: rgba(255, 255, 255, 0.5);
           text-transform: uppercase;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.1em;
+          font-weight: 400;
         }
 
         .top-tokens-count {
           font-size: 0.7rem;
-          color: #94a3b8;
-          font-family: 'Monaco', 'Courier New', monospace;
-          background: rgba(255, 255, 255, 0.05);
-          padding: 0.2rem 0.4rem;
-          border-radius: 3px;
+          color: rgba(255, 255, 255, 0.5);
+          font-weight: 400;
         }
 
         .top-tokens-list {
@@ -1163,10 +1136,12 @@ export function GenerationFlow({
         }
 
         .output-panel {
-          background: rgba(15, 23, 42, 0.8);
-          border: 1px solid rgba(255, 255, 255, 0.15);
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
           overflow: hidden;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
 
         .output-header {
@@ -1174,24 +1149,22 @@ export function GenerationFlow({
           justify-content: space-between;
           align-items: center;
           padding: 1rem;
-          background: rgba(255, 255, 255, 0.05);
+          background: transparent;
           border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .output-title {
-          font-weight: 700;
-          font-size: 0.95rem;
-          color: #ffffff;
+          font-size: 0.75rem;
+          color: rgba(255, 255, 255, 0.5);
           text-transform: uppercase;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.1em;
+          font-weight: 400;
         }
 
         .output-count {
-          font-size: 0.75rem;
-          color: #94a3b8;
-          font-family: 'Monaco', 'Courier New', monospace;
-          background: rgba(255, 255, 255, 0.05);
-          padding: 0.25rem 0.5rem;
+          font-size: 0.7rem;
+          color: rgba(255, 255, 255, 0.5);
+          font-weight: 400;
         }
 
         .output-content {

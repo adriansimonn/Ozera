@@ -156,15 +156,10 @@ export function VisualizationPage() {
 
       {/* Main Content */}
       <div className="max-w-[1800px] mx-auto px-6 py-8">
-        {/* Prompt Display */}
-        <div className="mb-6 p-4 glass border border-white/[0.08]">
-          <div className="text-xs text-white/50 mb-2 uppercase tracking-wider">Prompt</div>
-          <div className="text-white font-mono text-sm">{activationData.prompt}</div>
-        </div>
-
         {/* Layer/Head/Token Controls */}
-        <div className="mb-6 flex flex-wrap items-center gap-4 p-4 glass border border-white/[0.08]">
-          {(view === 'attention' || view === 'activations') && (
+        {view !== 'network' && (
+          <div className="mb-6 flex flex-wrap items-center gap-4 p-4 glass border border-white/[0.08]">
+            {(view === 'attention' || view === 'activations') && (
             <div className="flex items-center gap-2">
               <Layers className="w-5 h-5 text-white/70" />
               <span className="text-sm text-white/60">Layer:</span>
@@ -211,7 +206,7 @@ export function VisualizationPage() {
             </div>
           )}
 
-          {(view === 'journey' || view === 'flow' || view === 'network') && (
+          {(view === 'journey' || view === 'flow') && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-white/60">Token:</span>
               <button
@@ -233,7 +228,8 @@ export function VisualizationPage() {
               </button>
             </div>
           )}
-        </div>
+          </div>
+        )}
 
         {/* Visualization Area */}
         {view === 'attention' && activationData.activations.layers?.[selectedLayer]?.attn_weights && (
@@ -268,9 +264,16 @@ export function VisualizationPage() {
         )}
 
         {view === 'network' && (
-          <GenerationFlow
-            activationData={activationData}
-          />
+          <>
+            <GenerationFlow
+              activationData={activationData}
+            />
+            {/* Prompt Display - shown below for network view */}
+            <div className="mt-6 p-4 glass border border-white/[0.08]">
+              <div className="text-xs text-white/50 mb-2 uppercase tracking-wider">Prompt</div>
+              <div className="text-white font-mono text-sm">{activationData.prompt}</div>
+            </div>
+          </>
         )}
 
         {/* Metadata */}
