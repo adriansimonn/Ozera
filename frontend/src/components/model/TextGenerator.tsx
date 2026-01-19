@@ -12,6 +12,9 @@ interface TextGeneratorProps {
   defaultPrompt?: string
   onGenerate?: (text: string) => void
   onActivationGenerated?: (activationId: string) => void
+  onGeneratingChange?: (isGenerating: boolean) => void
+  onModelChange?: (model: 'nano' | 'mini') => void
+  externalModel?: 'nano' | 'mini'
 }
 
 export const TextGenerator: React.FC<TextGeneratorProps> = ({
@@ -19,9 +22,20 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   defaultPrompt = '',
   onGenerate,
   onActivationGenerated,
+  onGeneratingChange,
+  onModelChange,
+  externalModel,
 }) => {
   const [prompt, setPrompt] = useState(defaultPrompt)
-  const [model, setModel] = useState<'nano' | 'mini'>(defaultModel)
+  const [internalModel, setInternalModel] = useState<'nano' | 'mini'>(defaultModel)
+
+  // Use external model if provided, otherwise use internal state
+  const model = externalModel ?? internalModel
+
+  const handleModelChange = (newModel: 'nano' | 'mini') => {
+    setInternalModel(newModel)
+    onModelChange?.(newModel)
+  }
   const [maxTokens, setMaxTokens] = useState(200)
   const [temperature, setTemperature] = useState(0.7)
   const [topK, setTopK] = useState(40)
@@ -66,6 +80,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
 
     try {
       setCapturingActivations(true)
+      onGeneratingChange?.(true)
       const result = await apiClient.generateWithActivations({
         prompt: prompt.trim(),
         model,
@@ -83,6 +98,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       alert('Failed to generate activations: ' + (err instanceof Error ? err.message : 'Unknown error'))
     } finally {
       setCapturingActivations(false)
+      onGeneratingChange?.(false)
     }
   }
 
@@ -100,7 +116,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           <select
             id="model-select"
             value={model}
-            onChange={(e) => setModel(e.target.value as 'nano' | 'mini')}
+            onChange={(e) => handleModelChange(e.target.value as 'nano' | 'mini')}
             disabled={loading || streaming || modelsLoading}
           >
             {models.map((m) => (
@@ -181,7 +197,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           disabled={loading || streaming || capturingActivations || !prompt.trim()}
           className="btn-visualize"
         >
-          {capturingActivations ? 'Capturing...' : 'Generate & Visualize'}
+          {capturingActivations ? 'Capturing...' : 'Visualize'}
         </button>
         <button
           onClick={handleReset}

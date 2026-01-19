@@ -39,6 +39,7 @@ export function GenerationFlow({
   const generatedTokens = activationData.metadata.generated_tokens || 0
   const totalTokens = activationData.tokens.length
   const decodedTokens = activationData.metadata.decoded_tokens || []
+  const topK = activationData.metadata.top_k || 10
 
   // Decode token IDs to text via API
   const decodeTokenIds = async (tokenIds: number[]): Promise<Map<number, string>> => {
@@ -111,7 +112,7 @@ export function GenerationFlow({
   }
 
   // Calculate top token probabilities from logits using softmax
-  const getTopTokenProbabilities = (tokenIdx: number, topK: number = 10): Array<{token: string, tokenId: number, probability: number, isSelected: boolean}> => {
+  const getTopTokenProbabilities = (tokenIdx: number, topKCount: number = 10): Array<{token: string, tokenId: number, probability: number, isSelected: boolean}> => {
     const logits = activationData.activations.logits
     if (!logits) return []
 
@@ -129,14 +130,10 @@ export function GenerationFlow({
     // Get top K tokens
     const tokenProbPairs = probabilities.map((prob, idx) => ({ tokenId: idx, probability: prob }))
     tokenProbPairs.sort((a, b) => b.probability - a.probability)
-    const topTokens = tokenProbPairs.slice(0, topK)
+    const topTokens = tokenProbPairs.slice(0, topKCount)
 
     // Determine which token was actually selected
     const selectedTokenId = tokenIdx + 1 < activationData.tokens.length ? activationData.tokens[tokenIdx + 1] : -1
-
-    // Trigger async decode of token IDs (will update cache)
-    const tokenIdsToFetch = topTokens.map(t => t.tokenId)
-    decodeTokenIds(tokenIdsToFetch)
 
     return topTokens.map(t => ({
       token: tokenDecodeCache.get(t.tokenId) || `[${t.tokenId}]`,
@@ -145,6 +142,38 @@ export function GenerationFlow({
       isSelected: t.tokenId === selectedTokenId
     }))
   }
+
+  // Pre-fetch all top-K token IDs when activation data loads to avoid race conditions during animation
+  useEffect(() => {
+    const prefetchTopTokens = async () => {
+      const logits = activationData.activations.logits
+      if (!logits) return
+
+      const logitValues = logits.values as number[][][]
+      if (!logitValues || !logitValues[0]) return
+
+      // Collect all unique token IDs from top-K for each position
+      const allTokenIds = new Set<number>()
+
+      for (let tokenIdx = 0; tokenIdx < logitValues[0].length; tokenIdx++) {
+        const tokenLogits = logitValues[0][tokenIdx]
+
+        // Get top K token IDs for this position
+        const tokenProbPairs = tokenLogits.map((_, idx) => ({ tokenId: idx, logit: tokenLogits[idx] }))
+        tokenProbPairs.sort((a, b) => b.logit - a.logit)
+        const topTokens = tokenProbPairs.slice(0, topK)
+
+        topTokens.forEach(t => allTokenIds.add(t.tokenId))
+      }
+
+      // Fetch all at once
+      if (allTokenIds.size > 0) {
+        await decodeTokenIds(Array.from(allTokenIds))
+      }
+    }
+
+    prefetchTopTokens()
+  }, [activationData, topK])
 
   // Update canvas dimensions based on container size
   useEffect(() => {
@@ -483,7 +512,7 @@ export function GenerationFlow({
         if (stepProgress > 0.95 || currentLayerIdx >= layers.length - 1) {
           // Show top choices for current token when processing is complete
           if (flowingTokenIdx >= promptTokens && flowingTokenIdx < totalTokens - 1) {
-            const topChoices = getTopTokenProbabilities(flowingTokenIdx, 10)
+            const topChoices = getTopTokenProbabilities(flowingTokenIdx, topK)
             if (topChoices.length > 0 && JSON.stringify(topChoices) !== JSON.stringify(topTokenChoices)) {
               setTopTokenChoices(topChoices)
             }
@@ -499,7 +528,7 @@ export function GenerationFlow({
           // When stepping backward or in mid-animation, show the previous completed token choices
           const prevTokenIdx = flowingTokenIdx - 1
           if (prevTokenIdx >= promptTokens && prevTokenIdx < totalTokens - 1) {
-            const topChoices = getTopTokenProbabilities(prevTokenIdx, 10)
+            const topChoices = getTopTokenProbabilities(prevTokenIdx, topK)
             if (topChoices.length > 0 && JSON.stringify(topChoices) !== JSON.stringify(topTokenChoices)) {
               setTopTokenChoices(topChoices)
             }
@@ -761,12 +790,9 @@ export function GenerationFlow({
             )}
           </div>
 
-          <div className="top-tokens-panel">
+          <div className="top-tokens-panel" style={{ maxHeight: `${canvasDimensions.height}px` }}>
             <div className="top-tokens-header">
-              <span className="top-tokens-title">Top Token Choices</span>
-              {topTokenChoices.length > 0 && (
-                <span className="top-tokens-count">{topTokenChoices.length} candidates</span>
-              )}
+              <span className="top-tokens-title">Top-{topK} Token Choices</span>
             </div>
             <div className="top-tokens-list">
               {topTokenChoices.length === 0 ? (
@@ -812,6 +838,30 @@ export function GenerationFlow({
                   {token}
                 </span>
               ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="prompt-tokens-panel">
+        <div className="prompt-tokens-header">
+          <span className="prompt-tokens-title">Tokenized Prompt</span>
+          <span className="prompt-tokens-count">{promptTokens} tokens</span>
+        </div>
+        <div className="prompt-tokens-content">
+          {promptTokens === 0 ? (
+            <div className="prompt-tokens-placeholder">Prompt tokens will appear here...</div>
+          ) : (
+            <div className="prompt-tokens-list">
+              {Array.from({ length: promptTokens }, (_, idx) => {
+                const tokenText = decodedTokens[idx] || `[${activationData.tokens[idx]}]`
+                return (
+                  <span key={idx} className="prompt-token">
+                    <span className="prompt-token-index">{idx}</span>
+                    <span className="prompt-token-text">{tokenText}</span>
+                  </span>
+                )
+              })}
             </div>
           )}
         </div>
@@ -907,7 +957,7 @@ export function GenerationFlow({
         .visualization-content {
           display: flex;
           gap: 1rem;
-          align-items: stretch;
+          align-items: flex-start;
         }
 
         .canvas-container {
@@ -932,6 +982,7 @@ export function GenerationFlow({
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
           display: flex;
           flex-direction: column;
+          flex-shrink: 0;
         }
 
         .top-tokens-header {
@@ -1222,6 +1273,107 @@ export function GenerationFlow({
         }
 
         .output-content::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.25);
+        }
+
+        .prompt-tokens-panel {
+          margin-top: 1.5rem;
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
+          overflow: hidden;
+        }
+
+        .prompt-tokens-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 1rem;
+          background: transparent;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .prompt-tokens-title {
+          font-size: 0.75rem;
+          color: rgba(255, 255, 255, 0.5);
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          font-weight: 400;
+        }
+
+        .prompt-tokens-count {
+          font-size: 0.7rem;
+          color: rgba(255, 255, 255, 0.5);
+          font-weight: 400;
+        }
+
+        .prompt-tokens-content {
+          padding: 1rem;
+          max-height: 200px;
+          overflow-y: auto;
+        }
+
+        .prompt-tokens-placeholder {
+          color: #64748b;
+          font-size: 0.85rem;
+          font-style: italic;
+          text-align: center;
+          padding: 2rem 1rem;
+        }
+
+        .prompt-tokens-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+
+        .prompt-token {
+          display: inline-flex;
+          align-items: center;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 4px;
+          overflow: hidden;
+          font-family: 'Monaco', 'Courier New', monospace;
+          font-size: 0.8rem;
+          transition: all 0.2s ease;
+        }
+
+        .prompt-token:hover {
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .prompt-token-index {
+          padding: 0.3rem 0.5rem;
+          background: rgba(255, 255, 255, 0.08);
+          color: #64748b;
+          font-size: 0.65rem;
+          font-weight: 600;
+          border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .prompt-token-text {
+          padding: 0.3rem 0.5rem;
+          color: #e2e8f0;
+        }
+
+        .prompt-tokens-content::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        .prompt-tokens-content::-webkit-scrollbar-track {
+          background: rgba(15, 23, 42, 0.5);
+          border-radius: 4px;
+        }
+
+        .prompt-tokens-content::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.15);
+        }
+
+        .prompt-tokens-content::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.25);
         }
       `}</style>

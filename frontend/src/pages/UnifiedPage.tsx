@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import TextGenerator from '../components/model/TextGenerator'
+import ModelInfoBox from '../components/model/ModelInfoBox'
 import { AttentionHeatmap } from '../components/visualization/AttentionHeatmap'
 import { LayerActivationDisplay } from '../components/visualization/LayerActivationDisplay'
 import { EmbeddingJourney } from '../components/visualization/EmbeddingJourney'
@@ -28,9 +29,13 @@ export function UnifiedPage() {
   const [singleViewType, setSingleViewType] = useState<SingleViewType>('generator')
   const [selectedVisualization, setSelectedVisualization] = useState<VisualizationType>('network')
 
+  // Model info box state (independent from TextGenerator)
+  const [infoBoxModel, setInfoBoxModel] = useState<'nano' | 'mini'>('nano')
+
   // Activation data state
   const [activationData, setActivationData] = useState<ActivationData | null>(null)
   const [loading, setLoading] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Visualization controls
@@ -73,6 +78,17 @@ export function UnifiedPage() {
   ]
 
   const renderVisualization = () => {
+    if (generating) {
+      return (
+        <div className="visualization-placeholder">
+          <div className="placeholder-content">
+            <div className="spinner" />
+            <p className="placeholder-text">Generating and capturing activations...</p>
+          </div>
+        </div>
+      )
+    }
+
     if (!activationData) {
       return (
         <div className="visualization-placeholder">
@@ -219,7 +235,7 @@ export function UnifiedPage() {
     <div className="unified-page">
       <div className="page-header">
         <div className="header-content">
-          <h1>Ozera</h1>
+          <img src="/src/assets/logos/LogoTransparentWhiteText.png" alt="Ozera" className="header-logo" />
         </div>
 
         <div className="view-mode-toggle">
@@ -265,7 +281,15 @@ export function UnifiedPage() {
             <TextGenerator
               defaultModel="nano"
               onActivationGenerated={handleActivationGenerated}
+              onGeneratingChange={setGenerating}
+              onModelChange={setInfoBoxModel}
             />
+            <div className="model-info-section">
+              <ModelInfoBox
+                selectedModel={infoBoxModel}
+                onModelChange={setInfoBoxModel}
+              />
+            </div>
           </div>
         )}
 
@@ -339,12 +363,9 @@ export function UnifiedPage() {
           text-align: left;
         }
 
-        .page-header h1 {
-          margin: 0 0 0.5rem 0;
-          font-size: 3.5rem;
-          font-weight: 700;
-          color: #ffffff;
-          letter-spacing: -0.03em;
+        .header-logo {
+          height: 60px;
+          width: auto;
         }
 
         .subtitle {
@@ -451,6 +472,13 @@ export function UnifiedPage() {
         }
 
         .generator-section {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+          height: fit-content;
+        }
+
+        .generator-section > :first-child {
           background: rgba(0, 0, 0, 0.5);
           backdrop-filter: blur(20px) saturate(180%);
           -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -459,7 +487,17 @@ export function UnifiedPage() {
             0 8px 32px rgba(0, 0, 0, 0.3),
             inset 0 1px 0 rgba(255, 255, 255, 0.1),
             0 0 0 1px rgba(255, 255, 255, 0.05);
-          height: fit-content;
+        }
+
+        .model-info-section {
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 0 0 1px rgba(255, 255, 255, 0.05);
         }
 
         .visualization-section {
