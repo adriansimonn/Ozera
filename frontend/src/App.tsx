@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import UnifiedPage from './pages/UnifiedPage'
+import TrainingPage from './pages/TrainingPage'
 import { AnimatedBackground } from './components/common/AnimatedBackground'
 
 const queryClient = new QueryClient({
@@ -21,6 +22,7 @@ function App() {
           <main className="content-container">
             <Routes>
               <Route path="/" element={<UnifiedPage />} />
+              <Route path="/training" element={<TrainingPage />} />
             </Routes>
           </main>
         </div>

@@ -79,14 +79,23 @@ class ModelLoader:
 
     def _get_checkpoint_path(self, model_name: str) -> str:
         """Get checkpoint path for a model."""
+        # Base model mapping
         model_map = {
             'nano': 'ozera-nano',
             'mini': 'ozera-mini'
         }
 
+        # Check for custom model first
+        custom_path = os.path.join(self.models_dir, 'custom', model_name, 'model.pt')
+        if os.path.exists(custom_path):
+            return custom_path
+
+        # Fall back to base models
         if model_name not in model_map:
+            # Check if it's a custom model that doesn't exist
             raise ValueError(
-                f"Unknown model '{model_name}'. Available: {list(model_map.keys())}"
+                f"Unknown model '{model_name}'. Available base models: {list(model_map.keys())}. "
+                f"Custom models should be in {os.path.join(self.models_dir, 'custom')}"
             )
 
         checkpoint_path = os.path.join(
@@ -103,16 +112,29 @@ class ModelLoader:
         return checkpoint_path
 
     def list_available_models(self) -> list:
-        """List available models."""
+        """List available models (base models + custom models)."""
         available = []
 
+        # Check base models
         for model_name in ['nano', 'mini']:
             try:
-                checkpoint_path = self._get_checkpoint_path(model_name)
-                if os.path.exists(checkpoint_path):
+                base_path = os.path.join(
+                    self.models_dir,
+                    f'ozera-{model_name}',
+                    'model.pt'
+                )
+                if os.path.exists(base_path):
                     available.append(model_name)
             except:
                 pass
+
+        # Check custom models
+        custom_dir = os.path.join(self.models_dir, 'custom')
+        if os.path.exists(custom_dir):
+            for model_dir in os.listdir(custom_dir):
+                model_path = os.path.join(custom_dir, model_dir, 'model.pt')
+                if os.path.exists(model_path):
+                    available.append(model_dir)
 
         return available
 

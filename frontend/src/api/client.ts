@@ -10,6 +10,111 @@ import type {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+// Dataset types
+export interface DatasetMetadata {
+  dataset_id: string
+  name: string
+  size_bytes: number
+  num_tokens: number
+  created_at: string
+}
+
+export interface DatasetDetail extends DatasetMetadata {
+  preview: string
+}
+
+// Training types
+export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export interface TrainingJobRequest {
+  dataset_id: string
+  base_model: 'nano' | 'mini'
+  model_name: string
+  epochs?: number
+  batch_size?: number
+  learning_rate?: number
+  seq_len?: number
+}
+
+export interface TrainingJobResponse {
+  job_id: string
+  status: JobStatus
+  model_name: string
+  dataset_id: string
+  config: {
+    epochs: number
+    batch_size: number
+    learning_rate: number
+    seq_len: number
+    model_config: string
+  }
+  created_at: string
+  estimated_minutes: number
+  estimated_cost_usd: number
+}
+
+export interface TrainingProgress {
+  job_id: string
+  status: JobStatus
+  current_epoch: number
+  total_epochs: number
+  current_step: number
+  total_steps: number
+  train_loss: number | null
+  val_loss: number | null
+  train_ppl: number | null
+  val_ppl: number | null
+  elapsed_seconds: number
+  estimated_remaining_seconds: number
+  last_update: string | null
+  error_message: string | null
+}
+
+export interface TrainingEstimate {
+  estimated_minutes: number
+  estimated_cost_usd: number
+  total_tokens: number
+  tokens_per_epoch: number
+  warning: string | null
+}
+
+export interface TrainingJobListItem {
+  job_id: string
+  status: JobStatus
+  model_name: string
+  dataset_name: string
+  created_at: string
+  current_epoch: number
+  total_epochs: number
+}
+
+export interface CustomModelInfo {
+  model_id: string
+  name: string
+  base_config: string
+  dataset_id: string
+  dataset_name: string
+  trained_at: string
+  val_loss: number
+  parameters: number
+}
+
+export interface TrainingStreamEvent {
+  type: 'progress' | 'completed' | 'error' | 'cancelled'
+  job_id?: string
+  status?: JobStatus
+  current_epoch?: number
+  total_epochs?: number
+  train_loss?: number | null
+  val_loss?: number | null
+  train_ppl?: number | null
+  val_ppl?: number | null
+  elapsed_seconds?: number
+  estimated_remaining_seconds?: number
+  model_name?: string
+  message?: string
+}
+
 export interface GenerateRequest {
   prompt: string
   model: 'nano' | 'mini'
@@ -279,6 +384,254 @@ class OzeraAPIClient {
 
     if (!response.ok) {
       throw new Error(`Failed to delete activations: ${response.statusText}`)
+    }
+  }
+
+  // ============= Dataset Management =============
+
+  /**
+   * Upload a dataset file.
+   */
+  async uploadDataset(file: File): Promise<DatasetMetadata> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch(`${this.baseUrl}/datasets/upload`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Upload failed: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * List all datasets.
+   */
+  async listDatasets(): Promise<DatasetMetadata[]> {
+    const response = await fetch(`${this.baseUrl}/datasets`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to list datasets: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return data.datasets
+  }
+
+  /**
+   * Get dataset details.
+   */
+  async getDataset(datasetId: string): Promise<DatasetDetail> {
+    const response = await fetch(`${this.baseUrl}/datasets/${datasetId}`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get dataset: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Delete a dataset.
+   */
+  async deleteDataset(datasetId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/datasets/${datasetId}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete dataset: ${response.statusText}`)
+    }
+  }
+
+  // ============= Training Jobs =============
+
+  /**
+   * Get training cost estimate.
+   */
+  async getTrainingEstimate(
+    datasetId: string,
+    baseModel: 'nano' | 'mini',
+    epochs: number,
+    batchSize: number,
+    seqLen: number
+  ): Promise<TrainingEstimate> {
+    const response = await fetch(`${this.baseUrl}/training/estimate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dataset_id: datasetId,
+        base_model: baseModel,
+        epochs,
+        batch_size: batchSize,
+        seq_len: seqLen,
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to get estimate: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Start a training job.
+   */
+  async startTrainingJob(request: TrainingJobRequest): Promise<TrainingJobResponse> {
+    const response = await fetch(`${this.baseUrl}/training/jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to start training: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * List all training jobs.
+   */
+  async listTrainingJobs(): Promise<TrainingJobListItem[]> {
+    const response = await fetch(`${this.baseUrl}/training/jobs`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to list jobs: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return data.jobs
+  }
+
+  /**
+   * Get training job status.
+   */
+  async getTrainingJobStatus(jobId: string): Promise<TrainingProgress> {
+    const response = await fetch(`${this.baseUrl}/training/jobs/${jobId}`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get job status: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Stream training job progress via SSE.
+   */
+  async streamTrainingProgress(
+    jobId: string,
+    onProgress: (event: TrainingStreamEvent) => void,
+    onComplete?: (modelName: string) => void,
+    onError?: (message: string) => void
+  ): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/training/jobs/${jobId}/stream`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to stream progress: ${response.statusText}`)
+    }
+
+    const reader = response.body?.getReader()
+    if (!reader) {
+      throw new Error('Failed to get response reader')
+    }
+
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            try {
+              const event: TrainingStreamEvent = JSON.parse(data)
+
+              if (event.type === 'progress') {
+                onProgress(event)
+              } else if (event.type === 'completed') {
+                if (onComplete && event.model_name) {
+                  onComplete(event.model_name)
+                }
+                return
+              } else if (event.type === 'error') {
+                if (onError && event.message) {
+                  onError(event.message)
+                }
+                return
+              } else if (event.type === 'cancelled') {
+                if (onError) {
+                  onError('Training was cancelled')
+                }
+                return
+              }
+            } catch (e) {
+              console.error('Failed to parse SSE data:', e)
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
+  /**
+   * Cancel a training job.
+   */
+  async cancelTrainingJob(jobId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/training/jobs/${jobId}/cancel`, {
+      method: 'POST',
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to cancel job: ${response.statusText}`)
+    }
+  }
+
+  // ============= Custom Models =============
+
+  /**
+   * List custom trained models.
+   */
+  async listCustomModels(): Promise<CustomModelInfo[]> {
+    const response = await fetch(`${this.baseUrl}/training/models`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to list custom models: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Delete a custom model.
+   */
+  async deleteCustomModel(modelId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/training/models/${modelId}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete model: ${response.statusText}`)
     }
   }
 }

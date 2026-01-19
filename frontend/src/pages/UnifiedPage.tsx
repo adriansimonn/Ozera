@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import TextGenerator from '../components/model/TextGenerator'
 import ModelInfoBox from '../components/model/ModelInfoBox'
 import { AttentionHeatmap } from '../components/visualization/AttentionHeatmap'
@@ -14,7 +14,7 @@ import { TransformationFlow } from '../components/visualization/TransformationFl
 import { GenerationFlow } from '../components/visualization/GenerationFlow'
 import { apiClient } from '../api/client'
 import type { ActivationData } from '../types/model'
-import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, SplitSquareVertical, Square } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, SplitSquareVertical, Square, Cpu } from 'lucide-react'
 
 type ViewMode = 'single' | 'split'
 type SingleViewType = 'generator' | 'visualizations'
@@ -237,6 +237,27 @@ export function UnifiedPage() {
         <div className="header-content">
           <img src="/src/assets/logos/LogoTransparentWhiteText.png" alt="Ozera" className="header-logo" />
         </div>
+
+        <Link
+          to="/training"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '8px 14px',
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.15)',
+            borderRadius: '6px',
+            color: 'rgba(255,255,255,0.8)',
+            textDecoration: 'none',
+            fontSize: '13px',
+            fontWeight: 500,
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <Cpu size={14} />
+          Train Model
+        </Link>
 
         <div className="view-mode-toggle">
           <button
