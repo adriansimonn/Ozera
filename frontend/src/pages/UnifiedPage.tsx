@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import TextGenerator from '../components/model/TextGenerator'
 import ModelInfoBox from '../components/model/ModelInfoBox'
 import { AttentionHeatmap } from '../components/visualization/AttentionHeatmap'
@@ -12,9 +12,10 @@ import { LayerActivationDisplay } from '../components/visualization/LayerActivat
 import { EmbeddingJourney } from '../components/visualization/EmbeddingJourney'
 import { TransformationFlow } from '../components/visualization/TransformationFlow'
 import { GenerationFlow } from '../components/visualization/GenerationFlow'
+import { NavBar } from '../components/common/NavBar'
 import { apiClient } from '../api/client'
 import type { ActivationData } from '../types/model'
-import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, SplitSquareVertical, Square, Cpu } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network } from 'lucide-react'
 
 type ViewMode = 'single' | 'split'
 type SingleViewType = 'generator' | 'visualizations'
@@ -233,54 +234,15 @@ export function UnifiedPage() {
 
   return (
     <div className="unified-page">
-      <div className="page-header">
-        <div className="header-content">
-          <img src="/src/assets/logos/LogoTransparentWhiteText.png" alt="Ozera" className="header-logo" />
-        </div>
+      <NavBar
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        showViewToggle={true}
+      />
 
-        <Link
-          to="/training"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '8px 14px',
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.15)',
-            borderRadius: '6px',
-            color: 'rgba(255,255,255,0.8)',
-            textDecoration: 'none',
-            fontSize: '13px',
-            fontWeight: 500,
-            transition: 'all 0.2s ease',
-          }}
-        >
-          <Cpu size={14} />
-          Train Model
-        </Link>
-
-        <div className="view-mode-toggle">
-          <button
-            onClick={() => setViewMode('single')}
-            className={`mode-btn ${viewMode === 'single' ? 'active' : ''}`}
-            title="Single View Mode"
-          >
-            <Square className="mode-icon" />
-            Single
-          </button>
-          <button
-            onClick={() => setViewMode('split')}
-            className={`mode-btn ${viewMode === 'split' ? 'active' : ''}`}
-            title="Split Screen Mode"
-          >
-            <SplitSquareVertical className="mode-icon" />
-            Split
-          </button>
-        </div>
-      </div>
-
-      {viewMode === 'single' && (
-        <div className="single-view-selector">
+      <div className="page-main">
+        {viewMode === 'single' && (
+          <div className="single-view-selector">
           <button
             onClick={() => setSingleViewType('generator')}
             className={`view-selector-btn ${singleViewType === 'generator' ? 'active' : ''}`}
@@ -363,80 +325,15 @@ export function UnifiedPage() {
           </div>
         )}
       </div>
+      </div>
 
       <style>{`
         .unified-page {
           min-height: 100vh;
-          padding: 3rem 2rem;
         }
 
-        .page-header {
-          max-width: 1800px;
-          margin: 0 auto 3rem;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 2rem;
-        }
-
-        .header-content {
-          text-align: left;
-        }
-
-        .header-logo {
-          height: 60px;
-          width: auto;
-        }
-
-        .subtitle {
-          margin: 0;
-          color: rgba(255, 255, 255, 0.5);
-          font-size: 1rem;
-          font-weight: 400;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-        }
-
-        .view-mode-toggle {
-          display: flex;
-          gap: 0.5rem;
-          background: rgba(0, 0, 0, 0.3);
-          padding: 0.5rem;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-        }
-
-        .mode-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.75rem 1.5rem;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.6);
-          font-size: 0.9rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-        }
-
-        .mode-btn:hover {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        .mode-btn.active {
-          background: rgba(255, 255, 255, 0.15);
-          border-color: rgba(255, 255, 255, 0.3);
-          color: #ffffff;
-          box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
-        }
-
-        .mode-icon {
-          width: 18px;
-          height: 18px;
+        .page-main {
+          padding: 2rem;
         }
 
         .single-view-selector {

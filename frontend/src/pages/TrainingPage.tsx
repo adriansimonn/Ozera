@@ -3,8 +3,7 @@
  */
 
 import React, { useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowLeft, Trash2, Clock } from 'lucide-react'
+import { Trash2, Clock } from 'lucide-react'
 import { TrainingPanel } from '../components/training/TrainingPanel'
 import { TrainingProgress } from '../components/training/TrainingProgress'
 import {
@@ -12,7 +11,7 @@ import {
   useTrainingProgress,
   useCustomModels,
 } from '../hooks/useTraining'
-import { AnimatedBackground } from '../components/common/AnimatedBackground'
+import { NavBar } from '../components/common/NavBar'
 
 export const TrainingPage: React.FC = () => {
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
@@ -79,35 +78,18 @@ export const TrainingPage: React.FC = () => {
   const isTrainingActive = progress && progress.status === 'running'
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a', position: 'relative' }}>
-      <AnimatedBackground />
+    <div style={{ minHeight: '100vh' }}>
+      <NavBar />
 
       <div
         style={{
-          position: 'relative',
-          zIndex: 1,
-          padding: '24px',
+          padding: '2rem',
           maxWidth: '1200px',
           margin: '0 auto',
         }}
       >
         {/* Header */}
         <div style={{ marginBottom: '24px' }}>
-          <Link
-            to="/"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              color: 'rgba(255,255,255,0.6)',
-              textDecoration: 'none',
-              fontSize: '13px',
-              marginBottom: '12px',
-            }}
-          >
-            <ArrowLeft size={14} />
-            Back to Generation
-          </Link>
           <h1 style={{ color: '#fff', fontSize: '28px', fontWeight: 700, margin: 0 }}>
             Custom Model Training
           </h1>
