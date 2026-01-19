@@ -1,0 +1,696 @@
+/**
+ * Unified interface combining text generation and visualizations.
+ * Supports single view and split screen modes.
+ */
+
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import TextGenerator from '../components/model/TextGenerator'
+import { AttentionHeatmap } from '../components/visualization/AttentionHeatmap'
+import { LayerActivationDisplay } from '../components/visualization/LayerActivationDisplay'
+import { EmbeddingJourney } from '../components/visualization/EmbeddingJourney'
+import { TransformationFlow } from '../components/visualization/TransformationFlow'
+import { GenerationFlow } from '../components/visualization/GenerationFlow'
+import { apiClient } from '../api/client'
+import type { ActivationData } from '../types/model'
+import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, SplitSquareVertical, Square } from 'lucide-react'
+
+type ViewMode = 'single' | 'split'
+type SingleViewType = 'generator' | 'visualizations'
+type VisualizationType = 'network' | 'attention' | 'activations' | 'journey' | 'flow'
+
+export function UnifiedPage() {
+  const [searchParams] = useSearchParams()
+  const activationId = searchParams.get('id')
+
+  // View mode state
+  const [viewMode, setViewMode] = useState<ViewMode>('split')
+  const [singleViewType, setSingleViewType] = useState<SingleViewType>('generator')
+  const [selectedVisualization, setSelectedVisualization] = useState<VisualizationType>('network')
+
+  // Activation data state
+  const [activationData, setActivationData] = useState<ActivationData | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Visualization controls
+  const [selectedLayer, setSelectedLayer] = useState(0)
+  const [selectedHead, setSelectedHead] = useState(0)
+  const [selectedTokenIndex, setSelectedTokenIndex] = useState(0)
+
+  useEffect(() => {
+    if (activationId) {
+      loadActivations(activationId)
+    }
+  }, [activationId])
+
+  async function loadActivations(id: string) {
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await apiClient.getActivations(id)
+      setActivationData(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load activations')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleActivationGenerated = (activationId: string) => {
+    loadActivations(activationId)
+  }
+
+  const numLayers = activationData?.activations.layers?.length || 0
+  const numHeads = activationData?.activations.layers?.[0]?.attn_weights?.shape[1] || 0
+
+  const visualizationOptions = [
+    { value: 'network' as const, label: 'Neural Network Generation Flow', icon: Network },
+    { value: 'attention' as const, label: 'Attention Heatmap', icon: Eye },
+    { value: 'activations' as const, label: 'Layer Activations', icon: Sparkles },
+    { value: 'journey' as const, label: 'Embedding Journey', icon: TrendingUp },
+    { value: 'flow' as const, label: 'Transformation Flow', icon: Layers },
+  ]
+
+  const renderVisualization = () => {
+    if (!activationData) {
+      return (
+        <div className="visualization-placeholder">
+          <div className="placeholder-content">
+            <Network className="placeholder-icon" />
+            <p className="placeholder-text">Generate text with visualizations to see activations here</p>
+          </div>
+        </div>
+      )
+    }
+
+    if (loading) {
+      return (
+        <div className="visualization-placeholder">
+          <div className="placeholder-content">
+            <div className="spinner" />
+            <p className="placeholder-text">Loading activations...</p>
+          </div>
+        </div>
+      )
+    }
+
+    if (error) {
+      return (
+        <div className="visualization-placeholder">
+          <div className="placeholder-content">
+            <p className="placeholder-error">{error}</p>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <>
+        {selectedVisualization === 'network' && (
+          <GenerationFlow activationData={activationData} />
+        )}
+
+        {selectedVisualization === 'attention' && activationData.activations.layers?.[selectedLayer]?.attn_weights && (
+          <AttentionHeatmap
+            attentionWeights={activationData.activations.layers[selectedLayer].attn_weights!}
+            layerIndex={selectedLayer}
+            headIndex={selectedHead}
+          />
+        )}
+
+        {selectedVisualization === 'activations' && activationData.activations.layers?.[selectedLayer] && (
+          <LayerActivationDisplay
+            layerActivations={activationData.activations.layers[selectedLayer]}
+            layerIndex={selectedLayer}
+          />
+        )}
+
+        {selectedVisualization === 'journey' && (
+          <EmbeddingJourney
+            activationData={activationData}
+            selectedTokenIndex={selectedTokenIndex}
+          />
+        )}
+
+        {selectedVisualization === 'flow' && (
+          <TransformationFlow
+            activationData={activationData}
+            selectedTokenIndex={selectedTokenIndex}
+          />
+        )}
+      </>
+    )
+  }
+
+  const renderVisualizationControls = () => {
+    if (!activationData || selectedVisualization === 'network') return null
+
+    return (
+      <div className="visualization-controls">
+        {(selectedVisualization === 'attention' || selectedVisualization === 'activations') && (
+          <div className="control-item">
+            <Layers className="control-icon" />
+            <span className="control-label">Layer:</span>
+            <button
+              onClick={() => setSelectedLayer(Math.max(0, selectedLayer - 1))}
+              disabled={selectedLayer === 0}
+              className="control-btn"
+            >
+              <ChevronLeft className="btn-icon" />
+            </button>
+            <span className="control-value">{selectedLayer}</span>
+            <button
+              onClick={() => setSelectedLayer(Math.min(numLayers - 1, selectedLayer + 1))}
+              disabled={selectedLayer === numLayers - 1}
+              className="control-btn"
+            >
+              <ChevronRight className="btn-icon" />
+            </button>
+          </div>
+        )}
+
+        {selectedVisualization === 'attention' && (
+          <div className="control-item">
+            <span className="control-label">Head:</span>
+            <button
+              onClick={() => setSelectedHead(Math.max(0, selectedHead - 1))}
+              disabled={selectedHead === 0}
+              className="control-btn"
+            >
+              <ChevronLeft className="btn-icon" />
+            </button>
+            <span className="control-value">{selectedHead}</span>
+            <button
+              onClick={() => setSelectedHead(Math.min(numHeads - 1, selectedHead + 1))}
+              disabled={selectedHead === numHeads - 1}
+              className="control-btn"
+            >
+              <ChevronRight className="btn-icon" />
+            </button>
+          </div>
+        )}
+
+        {(selectedVisualization === 'journey' || selectedVisualization === 'flow') && activationData && (
+          <div className="control-item">
+            <span className="control-label">Token:</span>
+            <button
+              onClick={() => setSelectedTokenIndex(Math.max(0, selectedTokenIndex - 1))}
+              disabled={selectedTokenIndex === 0}
+              className="control-btn"
+            >
+              <ChevronLeft className="btn-icon" />
+            </button>
+            <span className="control-value">{selectedTokenIndex}</span>
+            <button
+              onClick={() => setSelectedTokenIndex(Math.min(activationData.tokens.length - 1, selectedTokenIndex + 1))}
+              disabled={selectedTokenIndex === activationData.tokens.length - 1}
+              className="control-btn"
+            >
+              <ChevronRight className="btn-icon" />
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="unified-page">
+      <div className="page-header">
+        <div className="header-content">
+          <h1>Ozera</h1>
+        </div>
+
+        <div className="view-mode-toggle">
+          <button
+            onClick={() => setViewMode('single')}
+            className={`mode-btn ${viewMode === 'single' ? 'active' : ''}`}
+            title="Single View Mode"
+          >
+            <Square className="mode-icon" />
+            Single
+          </button>
+          <button
+            onClick={() => setViewMode('split')}
+            className={`mode-btn ${viewMode === 'split' ? 'active' : ''}`}
+            title="Split Screen Mode"
+          >
+            <SplitSquareVertical className="mode-icon" />
+            Split
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'single' && (
+        <div className="single-view-selector">
+          <button
+            onClick={() => setSingleViewType('generator')}
+            className={`view-selector-btn ${singleViewType === 'generator' ? 'active' : ''}`}
+          >
+            Text Generation
+          </button>
+          <button
+            onClick={() => setSingleViewType('visualizations')}
+            className={`view-selector-btn ${singleViewType === 'visualizations' ? 'active' : ''}`}
+          >
+            Visualizations
+          </button>
+        </div>
+      )}
+
+      <div className={`page-content ${viewMode === 'split' ? 'split-view' : 'single-view'}`}>
+        {(viewMode === 'split' || singleViewType === 'generator') && (
+          <div className="generator-section">
+            <TextGenerator
+              defaultModel="nano"
+              onActivationGenerated={handleActivationGenerated}
+            />
+          </div>
+        )}
+
+        {(viewMode === 'split' || singleViewType === 'visualizations') && (
+          <div className="visualization-section">
+            <div className="visualization-header">
+              <div className="visualization-dropdown">
+                <label htmlFor="vis-select">Visualization:</label>
+                <select
+                  id="vis-select"
+                  value={selectedVisualization}
+                  onChange={(e) => setSelectedVisualization(e.target.value as VisualizationType)}
+                  className="visualization-select"
+                >
+                  {visualizationOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {renderVisualizationControls()}
+            </div>
+
+            <div className="visualization-content">
+              {renderVisualization()}
+            </div>
+
+            {activationData && (
+              <div className="visualization-metadata">
+                <div className="metadata-card">
+                  <span className="metadata-label">Model</span>
+                  <span className="metadata-value">{activationData.model}</span>
+                </div>
+                <div className="metadata-card">
+                  <span className="metadata-label">Tokens</span>
+                  <span className="metadata-value">{activationData.tokens.length}</span>
+                </div>
+                <div className="metadata-card">
+                  <span className="metadata-label">Temperature</span>
+                  <span className="metadata-value">{activationData.metadata.temperature?.toFixed(2) || 'N/A'}</span>
+                </div>
+                <div className="metadata-card">
+                  <span className="metadata-label">Top-K</span>
+                  <span className="metadata-value">{activationData.metadata.top_k?.toString() || 'N/A'}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        .unified-page {
+          min-height: 100vh;
+          padding: 3rem 2rem;
+        }
+
+        .page-header {
+          max-width: 1800px;
+          margin: 0 auto 3rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 2rem;
+        }
+
+        .header-content {
+          text-align: left;
+        }
+
+        .page-header h1 {
+          margin: 0 0 0.5rem 0;
+          font-size: 3.5rem;
+          font-weight: 700;
+          color: #ffffff;
+          letter-spacing: -0.03em;
+        }
+
+        .subtitle {
+          margin: 0;
+          color: rgba(255, 255, 255, 0.5);
+          font-size: 1rem;
+          font-weight: 400;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .view-mode-toggle {
+          display: flex;
+          gap: 0.5rem;
+          background: rgba(0, 0, 0, 0.3);
+          padding: 0.5rem;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .mode-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.75rem 1.5rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.6);
+          font-size: 0.9rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+        }
+
+        .mode-btn:hover {
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .mode-btn.active {
+          background: rgba(255, 255, 255, 0.15);
+          border-color: rgba(255, 255, 255, 0.3);
+          color: #ffffff;
+          box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+        }
+
+        .mode-icon {
+          width: 18px;
+          height: 18px;
+        }
+
+        .single-view-selector {
+          max-width: 1800px;
+          margin: 0 auto 2rem;
+          display: flex;
+          gap: 1rem;
+          justify-content: center;
+        }
+
+        .view-selector-btn {
+          padding: 1rem 2rem;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 1rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          letter-spacing: 0.05em;
+        }
+
+        .view-selector-btn:hover {
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .view-selector-btn.active {
+          background: rgba(255, 255, 255, 0.15);
+          border-color: rgba(255, 255, 255, 0.35);
+          color: #ffffff;
+          box-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
+        }
+
+        .page-content {
+          max-width: 1800px;
+          margin: 0 auto;
+        }
+
+        .page-content.split-view {
+          display: grid;
+          grid-template-columns: 1fr 2fr;
+          gap: 2rem;
+        }
+
+        .page-content.single-view {
+          display: block;
+        }
+
+        @media (max-width: 1200px) {
+          .page-content.split-view {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        .generator-section {
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 0 0 1px rgba(255, 255, 255, 0.05);
+          height: fit-content;
+        }
+
+        .visualization-section {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+        }
+
+        .visualization-header {
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 0 0 1px rgba(255, 255, 255, 0.05);
+          padding: 1.5rem;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1.5rem;
+          align-items: center;
+        }
+
+        .visualization-dropdown {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          flex: 1;
+          min-width: 250px;
+        }
+
+        .visualization-dropdown label {
+          font-weight: 500;
+          font-size: 0.85rem;
+          color: rgba(255, 255, 255, 0.6);
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .visualization-select {
+          flex: 1;
+          padding: 0.875rem 1rem;
+          background: rgba(0, 0, 0, 0.2);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .visualization-select:hover {
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.2);
+          box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .visualization-select:focus {
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.25);
+          box-shadow:
+            0 4px 16px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.12),
+            0 0 0 2px rgba(255, 255, 255, 0.05);
+          outline: none;
+        }
+
+        .visualization-controls {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1.5rem;
+          align-items: center;
+        }
+
+        .control-item {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .control-icon {
+          width: 18px;
+          height: 18px;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .control-label {
+          font-size: 0.85rem;
+          color: rgba(255, 255, 255, 0.6);
+          font-weight: 500;
+        }
+
+        .control-btn {
+          padding: 0.5rem;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: rgba(255, 255, 255, 0.8);
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .control-btn:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .control-btn:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+        }
+
+        .btn-icon {
+          width: 16px;
+          height: 16px;
+        }
+
+        .control-value {
+          padding: 0.5rem 1rem;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.9rem;
+          min-width: 50px;
+          text-align: center;
+        }
+
+        .visualization-content {
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 0 0 1px rgba(255, 255, 255, 0.05);
+          min-height: 600px;
+          overflow: auto;
+        }
+
+        .visualization-placeholder {
+          min-height: 600px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 3rem;
+        }
+
+        .placeholder-content {
+          text-align: center;
+          color: rgba(255, 255, 255, 0.4);
+        }
+
+        .placeholder-icon {
+          width: 64px;
+          height: 64px;
+          margin: 0 auto 1.5rem;
+          opacity: 0.3;
+        }
+
+        .placeholder-text {
+          font-size: 1rem;
+          margin: 0;
+        }
+
+        .placeholder-error {
+          color: rgba(255, 255, 255, 0.6);
+          font-size: 1rem;
+        }
+
+        .spinner {
+          width: 48px;
+          height: 48px;
+          border: 3px solid rgba(255, 255, 255, 0.1);
+          border-top-color: #ffffff;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin: 0 auto 1.5rem;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .visualization-metadata {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 1rem;
+        }
+
+        .metadata-card {
+          padding: 1.25rem;
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 0 0 1px rgba(255, 255, 255, 0.05);
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
+        .metadata-label {
+          font-size: 0.75rem;
+          color: rgba(255, 255, 255, 0.5);
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          font-weight: 400;
+        }
+
+        .metadata-value {
+          font-size: 1rem;
+          color: #ffffff;
+          font-family: 'JetBrains Mono', monospace;
+          font-weight: 500;
+        }
+      `}</style>
+    </div>
+  )
+}
+
+export default UnifiedPage

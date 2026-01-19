@@ -3,7 +3,6 @@
  */
 
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useStreamingGeneration } from '../../hooks/useGeneration'
 import { useModels } from '../../hooks/useModels'
 import { apiClient } from '../../api/client'
@@ -12,14 +11,15 @@ interface TextGeneratorProps {
   defaultModel?: 'nano' | 'mini'
   defaultPrompt?: string
   onGenerate?: (text: string) => void
+  onActivationGenerated?: (activationId: string) => void
 }
 
 export const TextGenerator: React.FC<TextGeneratorProps> = ({
   defaultModel = 'nano',
   defaultPrompt = '',
   onGenerate,
+  onActivationGenerated,
 }) => {
-  const navigate = useNavigate()
   const [prompt, setPrompt] = useState(defaultPrompt)
   const [model, setModel] = useState<'nano' | 'mini'>(defaultModel)
   const [maxTokens, setMaxTokens] = useState(200)
@@ -74,8 +74,10 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         top_k: topK,
       })
 
-      // Navigate to visualization page with activation ID
-      navigate(`/visualize?id=${result.activation_id}`)
+      // Call callback with activation ID if provided
+      if (onActivationGenerated) {
+        onActivationGenerated(result.activation_id)
+      }
     } catch (err) {
       console.error('Activation generation error:', err)
       alert('Failed to generate activations: ' + (err instanceof Error ? err.message : 'Unknown error'))
@@ -122,7 +124,9 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
             disabled={loading || streaming}
           />
         </div>
+      </div>
 
+      <div className="controls">
         <div className="control-group">
           <label htmlFor="temperature">Temperature: {temperature.toFixed(2)}</label>
           <input
