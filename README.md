@@ -1,6 +1,6 @@
-# Ozera
+![Ozera Logo](frontend/src/assets/logos/LogoWallpaperTGradientText.png)
 
-An advanced mechanistic interpretability platform for NLP/LLM researchers.
+An advanced tool for NLP/LLM Researchers & Enthusiasts focused on Mechanistic Interpretability
 
 ## Overview
 
@@ -8,7 +8,7 @@ Ozera enables deep understanding of how language models work internally through 
 
 ## Key Features
 
-- **Custom Language Models**: Train 1M and 10M parameter models from scratch
+- **Custom Language Models**: Use your own datasets to train and save models of the Ozera transformer architecture
 - **Advanced Interpretability**: Layer-by-layer activation visualization, attention pattern analysis
 - **Activation Patching Playground**: Interactive experimentation with model internals
 - **SAE Analysis**: Sparse autoencoder training and feature discovery
@@ -34,16 +34,13 @@ ozera/
 └── scripts/           # Development and deployment scripts
 ```
 
-## Getting Started
-
-See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for setup instructions.
-
 ## Philosophy
 
 - **No Frameworks, Pure Mathematics**: All models built from fundamental ML mathematics
 - **Research-Grade Tools**: Rigorous, useful research capabilities with beautiful interfaces
 - **Transparency**: Every transformation visible and understandable
 - **Practicality**: Focus on tools researchers use daily
+- **Polished Interfaces**: Intuitive layout, clean visuals + graphics, and polished styling
 
 ## Target Audience
 
