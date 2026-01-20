@@ -1,8 +1,12 @@
+import { useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import UnifiedPage from './pages/UnifiedPage'
 import TrainingPage from './pages/TrainingPage'
 import { AnimatedBackground } from './components/common/AnimatedBackground'
+import { LoginModal } from './components/auth/LoginModal'
+import { SignupModal } from './components/auth/SignupModal'
+import { useAuthStore } from './stores/authStore'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,6 +18,23 @@ const queryClient = new QueryClient({
 })
 
 function App() {
+  const [showLogin, setShowLogin] = useState(false)
+  const [showSignup, setShowSignup] = useState(false)
+  const { token, refreshUser } = useAuthStore()
+
+  // Refresh user data on mount if token exists
+  useEffect(() => {
+    if (token) {
+      refreshUser()
+    }
+  }, [token, refreshUser])
+
+  // Make modals available globally via window
+  useEffect(() => {
+    ;(window as any).showLoginModal = () => setShowLogin(true)
+    ;(window as any).showSignupModal = () => setShowSignup(true)
+  }, [])
+
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
@@ -25,6 +46,24 @@ function App() {
               <Route path="/training" element={<TrainingPage />} />
             </Routes>
           </main>
+
+          {/* Auth Modals */}
+          <LoginModal
+            isOpen={showLogin}
+            onClose={() => setShowLogin(false)}
+            onSwitchToSignup={() => {
+              setShowLogin(false)
+              setShowSignup(true)
+            }}
+          />
+          <SignupModal
+            isOpen={showSignup}
+            onClose={() => setShowSignup(false)}
+            onSwitchToLogin={() => {
+              setShowSignup(false)
+              setShowLogin(true)
+            }}
+          />
         </div>
       </Router>
     </QueryClientProvider>

@@ -1,0 +1,98 @@
+/**
+ * User menu dropdown component.
+ */
+import { useState, useRef, useEffect } from 'react';
+import { User, LogOut, Wallet } from 'lucide-react';
+import { useAuthStore } from '../../stores/authStore';
+
+export function UserMenu() {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const { user, logout } = useAuthStore();
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  if (!user) return null;
+
+  const handleLogout = () => {
+    logout();
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={menuRef}>
+      {/* User button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1a1a1a] border border-gray-700 hover:border-gray-600 transition-colors"
+      >
+        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
+          <User size={16} className="text-white" />
+        </div>
+        <div className="hidden md:block text-left">
+          <div className="text-sm font-medium text-white">
+            {user.full_name || user.email.split('@')[0]}
+          </div>
+          <div className="text-xs text-gray-400">
+            ${user.available_balance.toFixed(2)} available
+          </div>
+        </div>
+      </button>
+
+      {/* Dropdown menu */}
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-64 bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-lg overflow-hidden z-50">
+          {/* User info */}
+          <div className="px-4 py-3 border-b border-gray-700">
+            <div className="text-sm font-medium text-white truncate">{user.email}</div>
+            {user.full_name && (
+              <div className="text-xs text-gray-400 truncate">{user.full_name}</div>
+            )}
+          </div>
+
+          {/* Credit balance */}
+          <div className="px-4 py-3 border-b border-gray-700">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm text-gray-300 flex items-center gap-2">
+                <Wallet size={14} />
+                Credit Balance
+              </span>
+            </div>
+            <div className="text-lg font-bold text-white">
+              ${user.balance_usd.toFixed(2)}
+            </div>
+            {user.reserved_usd > 0 && (
+              <div className="text-xs text-gray-400">
+                ${user.reserved_usd.toFixed(2)} reserved
+              </div>
+            )}
+            <div className="text-xs text-green-400 font-medium mt-1">
+              ${user.available_balance.toFixed(2)} available
+            </div>
+          </div>
+
+          {/* Menu items */}
+          <div className="py-1">
+            <button
+              onClick={handleLogout}
+              className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#2a2a2a] flex items-center gap-2 transition-colors"
+            >
+              <LogOut size={14} />
+              Logout
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

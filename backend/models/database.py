@@ -1,0 +1,205 @@
+"""
+SQLAlchemy database models for Ozera cloud training platform.
+"""
+from datetime import datetime
+from enum import Enum as PyEnum
+from typing import Optional
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+
+Base = declarative_base()
+
+
+class User(Base):
+    """User account model."""
+
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_verified = Column(Boolean, default=False, nullable=False)
+
+    # Relationships
+    credit_balance = relationship(
+        "CreditBalance", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+    training_jobs = relationship(
+        "TrainingJob", back_populates="user", cascade="all, delete-orphan"
+    )
+    transactions = relationship(
+        "Transaction", back_populates="user", cascade="all, delete-orphan"
+    )
+    datasets = relationship(
+        "Dataset", back_populates="user", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self):
+        return f"<User(id={self.id}, email={self.email})>"
+
+
+class CreditBalance(Base):
+    """User credit balance model."""
+
+    __tablename__ = "credit_balances"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    balance_usd = Column(Float, default=0.0, nullable=False)
+    reserved_usd = Column(
+        Float, default=0.0, nullable=False
+    )  # Reserved for running jobs
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="credit_balance")
+
+    @property
+    def available_balance(self) -> float:
+        """Calculate available balance (total - reserved)."""
+        return self.balance_usd - self.reserved_usd
+
+    def __repr__(self):
+        return f"<CreditBalance(user_id={self.user_id}, balance=${self.balance_usd:.2f}, reserved=${self.reserved_usd:.2f})>"
+
+
+class TransactionType(PyEnum):
+    """Transaction type enumeration."""
+
+    CREDIT_PURCHASE = "credit_purchase"
+    TRAINING_CHARGE = "training_charge"
+    TRAINING_REFUND = "training_refund"
+    ADMIN_ADJUSTMENT = "admin_adjustment"
+
+
+class Transaction(Base):
+    """Transaction history model."""
+
+    __tablename__ = "transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    amount_usd = Column(
+        Float, nullable=False
+    )  # Positive = credit added, Negative = credit deducted
+    transaction_type = Column(Enum(TransactionType), nullable=False)
+    description = Column(String(500), nullable=True)
+    stripe_payment_intent_id = Column(
+        String(255), nullable=True, index=True
+    )  # For refunds/reconciliation
+    training_job_id = Column(
+        String(50), ForeignKey("training_jobs.job_id"), nullable=True
+    )
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # Relationships
+    user = relationship("User", back_populates="transactions")
+    training_job = relationship("TrainingJob", back_populates="transactions")
+
+    def __repr__(self):
+        return f"<Transaction(id={self.id}, user_id={self.user_id}, type={self.transaction_type.value}, amount=${self.amount_usd:.2f})>"
+
+
+class JobStatus(PyEnum):
+    """Training job status enumeration."""
+
+    PENDING = "pending"
+    QUEUED = "queued"  # Waiting in Modal queue
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class TrainingJob(Base):
+    """Training job model."""
+
+    __tablename__ = "training_jobs"
+
+    job_id = Column(String(50), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    # Configuration
+    dataset_id = Column(String(100), nullable=False)
+    dataset_name = Column(String(255), nullable=True)
+    model_config = Column(String(50), nullable=False)  # 'nano' or 'mini'
+    model_name = Column(String(255), nullable=False)
+    epochs = Column(Integer, nullable=False)
+    batch_size = Column(Integer, nullable=False)
+    learning_rate = Column(Float, nullable=False)
+    seq_len = Column(Integer, nullable=False)
+
+    # GPU configuration
+    gpu_type = Column(String(50), default="a10g", nullable=False)  # 't4', 'a10g', 'a100'
+
+    # Status
+    status = Column(
+        Enum(JobStatus), default=JobStatus.PENDING, nullable=False, index=True
+    )
+    modal_call_id = Column(String(255), nullable=True, index=True)  # Modal's job ID
+
+    # Cost tracking
+    estimated_cost_usd = Column(Float, nullable=False)
+    estimated_minutes = Column(Float, nullable=False)
+    reserved_credits_usd = Column(
+        Float, nullable=False
+    )  # Amount reserved upfront (with buffer)
+    actual_cost_usd = Column(Float, nullable=True)  # Final cost after completion
+    actual_minutes = Column(Float, nullable=True)  # Actual duration
+
+    # Progress tracking
+    current_epoch = Column(Integer, default=0)
+    total_epochs = Column(Integer, nullable=True)
+    train_loss = Column(Float, nullable=True)
+    val_loss = Column(Float, nullable=True)
+    train_ppl = Column(Float, nullable=True)
+    val_ppl = Column(Float, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    user = relationship("User", back_populates="training_jobs")
+    transactions = relationship("Transaction", back_populates="training_job")
+
+    def __repr__(self):
+        return f"<TrainingJob(job_id={self.job_id}, user_id={self.user_id}, status={self.status.value}, gpu={self.gpu_type})>"
+
+
+class Dataset(Base):
+    """User dataset model (for user-scoped datasets)."""
+
+    __tablename__ = "datasets"
+
+    dataset_id = Column(String(100), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    file_size_bytes = Column(Integer, nullable=False)
+    num_tokens = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # Relationships
+    user = relationship("User", back_populates="datasets")
+
+    def __repr__(self):
+        return f"<Dataset(dataset_id={self.dataset_id}, user_id={self.user_id}, name={self.name})>"

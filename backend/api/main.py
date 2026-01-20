@@ -17,6 +17,7 @@ from inference import ModelLoader, TextGenerator
 from inference.activation_store import get_activation_store
 from api.datasets import router as datasets_router
 from api.training import router as training_router
+from api.auth import router as auth_router
 
 app = FastAPI(
     title="Ozera API",
@@ -38,7 +39,8 @@ model_loader = ModelLoader(models_dir="models")
 generators = {}
 activation_store = get_activation_store()
 
-# Register routers for datasets and training
+# Register routers for authentication, datasets, and training
+app.include_router(auth_router)
 app.include_router(datasets_router)
 app.include_router(training_router)
 
