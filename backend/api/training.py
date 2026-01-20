@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -35,6 +35,8 @@ from services.job_manager import (
 )
 from services.training_worker import run_training_job
 from api.datasets import load_dataset_metadata
+from middleware.auth_middleware import get_optional_current_user
+from models.database import User
 
 
 router = APIRouter(prefix="/training", tags=["training"])
@@ -98,7 +100,10 @@ async def get_training_estimate(request: TrainingEstimateRequest):
 
 
 @router.post("/jobs", response_model=TrainingJobResponse)
-async def start_training_job(request: TrainingJobRequest):
+async def start_training_job(
+    request: TrainingJobRequest,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
     """
     Start a new training job.
 
@@ -134,7 +139,8 @@ async def start_training_job(request: TrainingJobRequest):
         epochs=request.epochs,
     )
 
-    # Create job
+    # Create job with user_id if authenticated
+    user_id = current_user.id if current_user else None
     job_id = job_manager.create_job(
         dataset_id=request.dataset_id,
         dataset_name=metadata["name"],
@@ -146,6 +152,7 @@ async def start_training_job(request: TrainingJobRequest):
         seq_len=request.seq_len,
         estimated_minutes=estimate["estimated_minutes"],
         estimated_cost_usd=estimate["estimated_cost_usd"],
+        user_id=user_id,
     )
 
     # Start job
@@ -178,9 +185,14 @@ async def start_training_job(request: TrainingJobRequest):
 
 
 @router.get("/jobs", response_model=TrainingJobListResponse)
-async def list_training_jobs():
-    """List all training jobs."""
-    jobs = list_all_jobs()
+async def list_training_jobs(
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
+    """List training jobs. Returns only the authenticated user's jobs, or empty list if not logged in."""
+    if not current_user:
+        return TrainingJobListResponse(jobs=[])
+
+    jobs = list_all_jobs(user_id=current_user.id)
     return TrainingJobListResponse(
         jobs=[TrainingJobListItem(**j) for j in jobs]
     )

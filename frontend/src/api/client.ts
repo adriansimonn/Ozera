@@ -10,6 +10,33 @@ import type {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+/**
+ * Get auth token from localStorage (used by Zustand persist).
+ */
+function getAuthToken(): string | null {
+  const authStorage = localStorage.getItem('auth-storage')
+  if (authStorage) {
+    try {
+      const { state } = JSON.parse(authStorage)
+      return state?.token || null
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+/**
+ * Get auth headers if token is available.
+ */
+function getAuthHeaders(): Record<string, string> {
+  const token = getAuthToken()
+  if (token) {
+    return { Authorization: `Bearer ${token}` }
+  }
+  return {}
+}
+
 // Dataset types
 export interface DatasetMetadata {
   dataset_id: string
@@ -487,7 +514,10 @@ class OzeraAPIClient {
   async startTrainingJob(request: TrainingJobRequest): Promise<TrainingJobResponse> {
     const response = await fetch(`${this.baseUrl}/training/jobs`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
       body: JSON.stringify(request),
     })
 
@@ -500,10 +530,14 @@ class OzeraAPIClient {
   }
 
   /**
-   * List all training jobs.
+   * List training jobs for the current user.
    */
   async listTrainingJobs(): Promise<TrainingJobListItem[]> {
-    const response = await fetch(`${this.baseUrl}/training/jobs`)
+    const response = await fetch(`${this.baseUrl}/training/jobs`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to list jobs: ${response.statusText}`)

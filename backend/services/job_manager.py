@@ -58,8 +58,8 @@ def save_job_progress(job_id: str, progress: dict) -> None:
         json.dump(progress, f, indent=2, default=str)
 
 
-def list_all_jobs() -> list[dict]:
-    """List all jobs from the jobs directory."""
+def list_all_jobs(user_id: Optional[int] = None) -> list[dict]:
+    """List all jobs from the jobs directory, optionally filtered by user_id."""
     if not JOBS_DIR.exists():
         return []
 
@@ -69,6 +69,10 @@ def list_all_jobs() -> list[dict]:
             config = load_job_config(job_dir.name)
             progress = load_job_progress(job_dir.name)
             if config:
+                # Filter by user_id if specified
+                if user_id is not None and config.get("user_id") != user_id:
+                    continue
+
                 job_info = {
                     "job_id": job_dir.name,
                     "status": progress.get("status", JobStatus.PENDING) if progress else JobStatus.PENDING,
@@ -127,12 +131,14 @@ class JobManager:
         seq_len: int,
         estimated_minutes: float,
         estimated_cost_usd: float,
+        user_id: Optional[int] = None,
     ) -> str:
         """Create a new training job (does not start it)."""
         job_id = str(uuid.uuid4())[:8]
 
         config = {
             "job_id": job_id,
+            "user_id": user_id,
             "dataset_id": dataset_id,
             "dataset_name": dataset_name,
             "model_config": model_config,
