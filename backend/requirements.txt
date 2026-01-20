@@ -62,3 +62,4 @@ python-dotenv>=1.0.0
 # Authentication & Security
 python-jose[cryptography]>=3.3.0  # JWT tokens
 passlib[bcrypt]>=1.7.4  # Password hashing
+bcrypt==4.0.1  # Pin to 4.0.1 for passlib compatibility

@@ -12,22 +12,38 @@ export const apiClient = axios.create({
   },
 });
 
+// Token getter function - will be set by authStore
+let getAuthToken: (() => string | null) | null = null;
+
+export const setAuthTokenGetter = (getter: () => string | null) => {
+  getAuthToken = getter;
+};
+
 // Request interceptor to add JWT token
 apiClient.interceptors.request.use(
   (config) => {
-    // Get token from localStorage (persisted by Zustand)
-    const authStorage = localStorage.getItem('auth-storage');
-    if (authStorage) {
-      try {
-        const { state } = JSON.parse(authStorage);
-        const token = state?.token;
+    // Try to get token from the getter function (in-memory from Zustand)
+    let token: string | null = null;
 
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+    if (getAuthToken) {
+      token = getAuthToken();
+    }
+
+    // Fallback to localStorage if getter not available
+    if (!token) {
+      const authStorage = localStorage.getItem('auth-storage');
+      if (authStorage) {
+        try {
+          const { state } = JSON.parse(authStorage);
+          token = state?.token;
+        } catch (error) {
+          console.error('Failed to parse auth storage:', error);
         }
-      } catch (error) {
-        console.error('Failed to parse auth storage:', error);
       }
+    }
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
 
     return config;

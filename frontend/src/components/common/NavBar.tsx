@@ -5,6 +5,8 @@
 
 import { Link, useLocation } from 'react-router-dom'
 import { Cpu, Square, SplitSquareVertical, Sparkles } from 'lucide-react'
+import { UserMenu } from './UserMenu'
+import { useAuthStore } from '../../stores/authStore'
 
 type ViewMode = 'single' | 'split'
 
@@ -12,10 +14,13 @@ interface NavBarProps {
   viewMode?: ViewMode
   onViewModeChange?: (mode: ViewMode) => void
   showViewToggle?: boolean
+  onShowLogin?: () => void
+  onShowSignup?: () => void
 }
 
-export function NavBar({ viewMode, onViewModeChange, showViewToggle = false }: NavBarProps) {
+export function NavBar({ viewMode, onViewModeChange, showViewToggle = false, onShowLogin, onShowSignup }: NavBarProps) {
   const location = useLocation()
+  const { user } = useAuthStore()
 
   const isActive = (path: string) => location.pathname === path
 
@@ -63,6 +68,20 @@ export function NavBar({ viewMode, onViewModeChange, showViewToggle = false }: N
               >
                 <SplitSquareVertical className="mode-icon" />
                 Split
+              </button>
+            </div>
+          )}
+
+          {/* Auth Section - Show UserMenu if logged in, otherwise show Login/Signup buttons */}
+          {user ? (
+            <UserMenu />
+          ) : (
+            <div className="auth-buttons">
+              <button onClick={onShowLogin} className="auth-btn login-btn">
+                Login
+              </button>
+              <button onClick={onShowSignup} className="auth-btn signup-btn">
+                Sign Up
               </button>
             </div>
           )}
@@ -191,6 +210,45 @@ export function NavBar({ viewMode, onViewModeChange, showViewToggle = false }: N
           height: 14px;
         }
 
+        .auth-buttons {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .auth-btn {
+          padding: 0.625rem 1.25rem;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          font-size: 0.875rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          letter-spacing: 0.025em;
+        }
+
+        .login-btn {
+          background: transparent;
+          color: rgba(255, 255, 255, 0.8);
+        }
+
+        .login-btn:hover {
+          background: rgba(255, 255, 255, 0.05);
+          color: #ffffff;
+          border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .signup-btn {
+          background: rgba(59, 130, 246, 0.8);
+          color: #ffffff;
+          border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        .signup-btn:hover {
+          background: rgba(59, 130, 246, 1);
+          border-color: rgba(59, 130, 246, 0.5);
+          box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+        }
+
         @media (max-width: 768px) {
           .navbar-content {
             padding: 0.75rem 1rem;
@@ -212,6 +270,11 @@ export function NavBar({ viewMode, onViewModeChange, showViewToggle = false }: N
           .mode-btn {
             padding: 0.4rem 0.75rem;
             font-size: 0.75rem;
+          }
+
+          .auth-btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
           }
         }
       `}</style>

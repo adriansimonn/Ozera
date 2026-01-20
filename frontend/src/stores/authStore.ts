@@ -4,7 +4,7 @@
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { apiClient } from '../api/axios';
+import { apiClient, setAuthTokenGetter } from '../api/axios';
 
 export interface User {
   id: number;
@@ -53,13 +53,13 @@ export const useAuthStore = create<AuthState>()(
           });
 
           const { access_token } = response.data;
+
+          // Update state with token
           set({ token: access_token });
 
-          // Fetch user info
+          // Fetch user info - pass token directly since state update may not be visible to interceptor yet
           const userResponse = await apiClient.get('/auth/me', {
-            headers: {
-              Authorization: `Bearer ${access_token}`,
-            },
+            headers: { Authorization: `Bearer ${access_token}` },
           });
 
           set({
@@ -125,13 +125,10 @@ export const useAuthStore = create<AuthState>()(
         if (!token) return;
 
         try {
-          const response = await apiClient.get('/auth/me', {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          // Interceptor will automatically add the Authorization header
+          const response = await apiClient.get('/auth/me');
 
-          set({ user: response.data });
+          set({ user: response.data, isAuthenticated: true });
         } catch (error) {
           console.error('Failed to refresh user info:', error);
           // If refresh fails due to invalid token, logout
@@ -164,3 +161,6 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// Register the token getter with axios interceptor
+setAuthTokenGetter(() => useAuthStore.getState().token);

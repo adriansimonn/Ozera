@@ -60,46 +60,46 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#0a0a0a] border border-gray-800 rounded-lg max-w-md w-full p-6 relative">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-black/60 backdrop-filter backdrop-blur-xl border border-gray-800 max-w-md w-full p-8 relative">
         {/* Close button */}
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+          className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors"
           aria-label="Close"
         >
           <X size={20} />
         </button>
 
         {/* Header */}
-        <h2 className="text-2xl font-bold text-white mb-6">Create Account</h2>
+        <h2 className="text-2xl font-bold text-white mb-8 tracking-tight">Create Account</h2>
 
         {/* Error message */}
         {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm">
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
             {error}
           </div>
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label htmlFor="fullName" className="block text-sm font-medium text-gray-300 mb-1">
-              Full Name (optional)
+            <label htmlFor="fullName" className="block text-sm font-medium text-gray-400 mb-2 uppercase tracking-wide text-xs">
+              Full Name <span className="text-gray-600">(optional)</span>
             </label>
             <input
               type="text"
               id="fullName"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-gray-500 transition-colors"
               placeholder="John Doe"
               disabled={isLoading}
             />
           </div>
 
           <div>
-            <label htmlFor="signup-email" className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="signup-email" className="block text-sm font-medium text-gray-400 mb-2 uppercase tracking-wide text-xs">
               Email
             </label>
             <input
@@ -108,14 +108,14 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-gray-500 transition-colors"
               placeholder="you@example.com"
               disabled={isLoading}
             />
           </div>
 
           <div>
-            <label htmlFor="signup-password" className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="signup-password" className="block text-sm font-medium text-gray-400 mb-2 uppercase tracking-wide text-xs">
               Password
             </label>
             <input
@@ -125,15 +125,15 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-gray-500 transition-colors"
               placeholder="••••••••"
               disabled={isLoading}
             />
-            <p className="mt-1 text-xs text-gray-500">Minimum 8 characters</p>
+            <p className="mt-2 text-xs text-gray-600">Minimum 8 characters</p>
           </div>
 
           <div>
-            <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-400 mb-2 uppercase tracking-wide text-xs">
               Confirm Password
             </label>
             <input
@@ -143,7 +143,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-gray-500 transition-colors"
               placeholder="••••••••"
               disabled={isLoading}
             />
@@ -152,18 +152,18 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium rounded transition-colors"
+            className="w-full py-3 px-4 bg-white/10 hover:bg-white/15 disabled:bg-gray-800 disabled:cursor-not-allowed text-white font-medium border border-gray-700 hover:border-gray-600 transition-all mt-6"
           >
             {isLoading ? 'Creating account...' : 'Sign Up'}
           </button>
         </form>
 
         {/* Switch to login */}
-        <div className="mt-4 text-center text-sm text-gray-400">
+        <div className="mt-6 text-center text-sm text-gray-500">
           Already have an account?{' '}
           <button
             onClick={onSwitchToLogin}
-            className="text-blue-500 hover:text-blue-400 font-medium transition-colors"
+            className="text-gray-300 hover:text-white font-medium transition-colors"
           >
             Login
           </button>

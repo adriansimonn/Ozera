@@ -42,8 +42,24 @@ function App() {
           <AnimatedBackground />
           <main className="content-container">
             <Routes>
-              <Route path="/" element={<UnifiedPage />} />
-              <Route path="/training" element={<TrainingPage />} />
+              <Route
+                path="/"
+                element={
+                  <UnifiedPage
+                    onShowLogin={() => setShowLogin(true)}
+                    onShowSignup={() => setShowSignup(true)}
+                  />
+                }
+              />
+              <Route
+                path="/training"
+                element={
+                  <TrainingPage
+                    onShowLogin={() => setShowLogin(true)}
+                    onShowSignup={() => setShowSignup(true)}
+                  />
+                }
+              />
             </Routes>
           </main>
 

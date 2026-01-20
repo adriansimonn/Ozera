@@ -98,12 +98,15 @@ def get_user_id_from_token(token: str) -> Optional[int]:
     Returns:
         User ID if token is valid, None otherwise
     """
-    payload = decode_access_token(token)
-    if payload is None:
+    try:
+        # Disable subject validation since we store user_id as int
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_sub": False})
+        if payload is None:
+            return None
+        sub = payload.get("sub")
+        return int(sub) if sub is not None else None
+    except JWTError:
         return None
-
-    user_id: Optional[int] = payload.get("sub")
-    return user_id
 
 
 # Test function

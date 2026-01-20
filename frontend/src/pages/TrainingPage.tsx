@@ -13,7 +13,12 @@ import {
 } from '../hooks/useTraining'
 import { NavBar } from '../components/common/NavBar'
 
-export const TrainingPage: React.FC = () => {
+interface TrainingPageProps {
+  onShowLogin: () => void
+  onShowSignup: () => void
+}
+
+export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowSignup }) => {
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
 
   const { jobs, fetchJobs, startJob, cancelJob } = useTrainingJobs()
@@ -79,7 +84,7 @@ export const TrainingPage: React.FC = () => {
 
   return (
     <div style={{ minHeight: '100vh', paddingTop: '100px' }}>
-      <NavBar />
+      <NavBar onShowLogin={onShowLogin} onShowSignup={onShowSignup} />
 
       <div
         style={{

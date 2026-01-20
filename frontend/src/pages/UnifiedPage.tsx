@@ -21,7 +21,12 @@ type ViewMode = 'single' | 'split'
 type SingleViewType = 'generator' | 'visualizations'
 type VisualizationType = 'network' | 'attention' | 'activations' | 'journey' | 'flow'
 
-export function UnifiedPage() {
+interface UnifiedPageProps {
+  onShowLogin: () => void
+  onShowSignup: () => void
+}
+
+export function UnifiedPage({ onShowLogin, onShowSignup }: UnifiedPageProps) {
   const [searchParams] = useSearchParams()
   const activationId = searchParams.get('id')
 
@@ -238,6 +243,8 @@ export function UnifiedPage() {
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         showViewToggle={true}
+        onShowLogin={onShowLogin}
+        onShowSignup={onShowSignup}
       />
 
       {viewMode === 'single' && (
