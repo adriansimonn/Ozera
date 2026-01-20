@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 class JobStatus(str, Enum):
     """Training job status."""
     PENDING = "pending"
+    QUEUED = "queued"  # Waiting in Modal queue
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -49,6 +50,8 @@ class TrainingJobRequest(BaseModel):
     batch_size: int = Field(default=32, ge=8, le=128, description="Batch size")
     learning_rate: float = Field(default=3e-4, ge=1e-5, le=1e-2, description="Learning rate")
     seq_len: int = Field(default=256, ge=64, le=1024, description="Sequence length")
+    gpu_type: str = Field(default="a10g", pattern="^(t4|a10g|a100)$", description="GPU type for training")
+    overwrite_existing: bool = Field(default=False, description="If true, delete existing custom model before training")
 
 
 class TrainingJobResponse(BaseModel):
@@ -106,6 +109,7 @@ class TrainingEstimateRequest(BaseModel):
     epochs: int = Field(default=20, ge=5, le=100)
     batch_size: int = Field(default=32, ge=8, le=128)
     seq_len: int = Field(default=256, ge=64, le=1024)
+    gpu_type: str = Field(default="a10g", pattern="^(t4|a10g|a100)$", description="GPU type for training")
 
 
 class TrainingEstimateResponse(BaseModel):

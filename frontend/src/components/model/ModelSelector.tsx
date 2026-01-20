@@ -38,6 +38,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       )}
 
       <div className="models-grid">
+        {models.length === 0 && !modelsLoading && !modelsError && (
+          <div className="no-models">
+            No models available. Make sure the backend is running.
+          </div>
+        )}
         {models.map((model) => (
           <button
             key={model}
@@ -45,7 +50,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             onClick={() => onModelSelect(model)}
             disabled={modelsLoading}
           >
-            <div className="model-name">ozera-{model}</div>
+            <div className="model-name">{model.startsWith('ozera-') ? model : `ozera-${model}`}</div>
             <div className="model-badge">{model.toUpperCase()}</div>
           </button>
         ))}
@@ -128,6 +133,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           border: 1px solid rgba(255, 255, 255, 0.1);
           color: rgba(255, 255, 255, 0.8);
           margin-bottom: 1.5rem;
+          font-size: 0.9rem;
+        }
+
+        .no-models {
+          padding: 2rem 1rem;
+          text-align: center;
+          color: rgba(255, 255, 255, 0.5);
           font-size: 0.9rem;
         }
 

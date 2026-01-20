@@ -3,7 +3,7 @@
  */
 
 import React, { useMemo, useState, useEffect } from 'react'
-import { X, CheckCircle, AlertCircle, Clock, Activity } from 'lucide-react'
+import { X, CheckCircle, AlertCircle, Clock, Activity, Download } from 'lucide-react'
 import type { TrainingProgress as TrainingProgressType } from '../../api/client'
 
 interface TrainingProgressProps {
@@ -13,6 +13,8 @@ interface TrainingProgressProps {
   error: string | null
   onCancel?: () => void
   onDismiss?: () => void
+  onDownload?: () => void
+  downloading?: boolean
 }
 
 export const TrainingProgress: React.FC<TrainingProgressProps> = ({
@@ -22,6 +24,8 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
   error,
   onCancel,
   onDismiss,
+  onDownload,
+  downloading = false,
 }) => {
   // Live elapsed time counter
   const [liveElapsedSeconds, setLiveElapsedSeconds] = useState(0)
@@ -117,9 +121,51 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
             </button>
           )}
         </div>
-        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>
-          Your custom model is now available in the model selector.
+        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '12px' }}>
+          Your custom model has been trained. Download it below to use it locally.
         </div>
+        {onDownload && (
+          <button
+            onClick={onDownload}
+            disabled={downloading}
+            style={{
+              width: '100%',
+              padding: '10px 16px',
+              background: downloading ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.2)',
+              border: '1px solid rgba(59, 130, 246, 0.4)',
+              borderRadius: '0',
+              color: '#3b82f6',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: downloading ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+            }}
+          >
+            {downloading ? (
+              <>
+                <div
+                  style={{
+                    width: '14px',
+                    height: '14px',
+                    border: '2px solid rgba(59, 130, 246, 0.3)',
+                    borderTopColor: '#3b82f6',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                  }}
+                />
+                Downloading...
+              </>
+            ) : (
+              <>
+                <Download size={14} />
+                Download Model
+              </>
+            )}
+          </button>
+        )}
       </div>
     )
   }

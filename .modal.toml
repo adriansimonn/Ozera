@@ -1,0 +1,13 @@
+# Modal CLI configuration for Ozera
+# See: https://modal.com/docs/reference/config
+
+[default]
+# Default app name for deployments
+app = "ozera-training"
+
+# Environment configuration
+environment = "main"
+
+# Workspace/organization (set via MODAL_TOKEN_ID env var)
+# token_id = ""
+# token_secret = ""

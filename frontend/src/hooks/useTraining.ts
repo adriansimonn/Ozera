@@ -12,6 +12,8 @@ import {
   TrainingJobListItem,
   TrainingStreamEvent,
   CustomModelInfo,
+  GpuPricingInfo,
+  GpuType,
 } from '../api/client'
 
 /**
@@ -78,6 +80,42 @@ export function useDatasets() {
 }
 
 /**
+ * Hook for GPU pricing.
+ */
+export function useGpuPricing() {
+  const [pricing, setPricing] = useState<GpuPricingInfo[]>([])
+  const [defaultGpu, setDefaultGpu] = useState<GpuType>('a10g')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchPricing = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await apiClient.getGpuPricing()
+      setPricing(data.pricing)
+      setDefaultGpu(data.default_gpu)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch GPU pricing')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchPricing()
+  }, [fetchPricing])
+
+  return {
+    pricing,
+    defaultGpu,
+    loading,
+    error,
+    fetchPricing,
+  }
+}
+
+/**
  * Hook for training cost estimation.
  */
 export function useTrainingEstimate() {
@@ -90,7 +128,8 @@ export function useTrainingEstimate() {
     modelConfig: 'nano' | 'mini',
     epochs: number,
     batchSize: number,
-    seqLen: number
+    seqLen: number,
+    gpuType: GpuType = 'a10g'
   ) => {
     setLoading(true)
     setError(null)
@@ -100,7 +139,8 @@ export function useTrainingEstimate() {
         modelConfig,
         epochs,
         batchSize,
-        seqLen
+        seqLen,
+        gpuType
       )
       setEstimate(data)
       return data
@@ -156,7 +196,9 @@ export function useTrainingJobs() {
     epochs: number,
     batchSize: number,
     learningRate: number,
-    seqLen: number
+    seqLen: number,
+    gpuType: GpuType = 'a10g',
+    overwriteExisting: boolean = false
   ): Promise<TrainingJobResponse> => {
     setError(null)
     try {
@@ -168,6 +210,8 @@ export function useTrainingJobs() {
         batch_size: batchSize,
         learning_rate: learningRate,
         seq_len: seqLen,
+        gpu_type: gpuType,
+        overwrite_existing: overwriteExisting,
       })
       // Refresh job list
       await fetchJobs()

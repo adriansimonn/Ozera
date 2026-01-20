@@ -2,8 +2,8 @@
  * Training page for custom model training.
  */
 
-import React, { useState, useCallback } from 'react'
-import { Trash2, Clock } from 'lucide-react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
+import { Trash2, Clock, Download, Loader2 } from 'lucide-react'
 import { TrainingPanel } from '../components/training/TrainingPanel'
 import { TrainingProgress } from '../components/training/TrainingProgress'
 import {
@@ -12,6 +12,7 @@ import {
   useCustomModels,
 } from '../hooks/useTraining'
 import { NavBar } from '../components/common/NavBar'
+import { apiClient, GpuType } from '../api/client'
 
 interface TrainingPageProps {
   onShowLogin: () => void
@@ -20,10 +21,45 @@ interface TrainingPageProps {
 
 export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowSignup }) => {
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
+  const [autoDownloadEnabled, setAutoDownloadEnabled] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null)
+  const autoDownloadTriggeredRef = useRef(false)
 
   const { jobs, fetchJobs, startJob, cancelJob } = useTrainingJobs()
   const { progress, completed, completedModelName, error, reset: resetProgress } = useTrainingProgress(activeJobId)
   const { models, fetchModels, deleteModel } = useCustomModels()
+
+  // Handle auto-download when training completes
+  useEffect(() => {
+    if (completed && completedModelName && autoDownloadEnabled && !autoDownloadTriggeredRef.current) {
+      autoDownloadTriggeredRef.current = true
+      handleDownload()
+    }
+  }, [completed, completedModelName, autoDownloadEnabled])
+
+  const handleDownload = useCallback(async () => {
+    if (!completedModelName) return
+    setDownloading(true)
+    try {
+      await apiClient.downloadCustomModel(completedModelName)
+    } catch (err) {
+      console.error('Failed to download model:', err)
+    } finally {
+      setDownloading(false)
+    }
+  }, [completedModelName])
+
+  const handleDownloadModel = useCallback(async (modelId: string) => {
+    setDownloadingModelId(modelId)
+    try {
+      await apiClient.downloadCustomModel(modelId)
+    } catch (err) {
+      console.error('Failed to download model:', err)
+    } finally {
+      setDownloadingModelId(null)
+    }
+  }, [])
 
   const handleStartTraining = useCallback(async (
     datasetId: string,
@@ -32,8 +68,15 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
     epochs: number,
     batchSize: number,
     learningRate: number,
-    seqLen: number
+    seqLen: number,
+    gpuType: GpuType,
+    autoDownload: boolean,
+    overwriteExisting: boolean
   ) => {
+    // Reset auto-download trigger for new job
+    autoDownloadTriggeredRef.current = false
+    setAutoDownloadEnabled(autoDownload)
+
     const response = await startJob(
       datasetId,
       modelConfig,
@@ -41,7 +84,9 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
       epochs,
       batchSize,
       learningRate,
-      seqLen
+      seqLen,
+      gpuType,
+      overwriteExisting
     )
     setActiveJobId(response.job_id)
   }, [startJob])
@@ -123,6 +168,8 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
               error={error}
               onCancel={handleCancel}
               onDismiss={handleDismiss}
+              onDownload={handleDownload}
+              downloading={downloading}
             />
 
             {/* Custom Models List */}
@@ -145,7 +192,7 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {models.map((model) => (
+                  {models.slice(0, 1).map((model) => (
                     <div
                       key={model.model_id}
                       style={{
@@ -162,21 +209,42 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
                           {model.name}
                         </div>
                         <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginTop: '2px' }}>
-                          {model.base_config} · {(model.parameters / 1000000).toFixed(1)}M params · Val loss: {model.val_loss.toFixed(4)}
+                          {model.base_config} · Val loss: {model.val_loss.toFixed(4)}
                         </div>
                       </div>
-                      <button
-                        onClick={() => deleteModel(model.model_id)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          padding: '6px',
-                          cursor: 'pointer',
-                          color: 'rgba(255,255,255,0.4)',
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <button
+                          onClick={() => handleDownloadModel(model.model_id)}
+                          disabled={downloadingModelId === model.model_id}
+                          title="Download model"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            padding: '6px',
+                            cursor: downloadingModelId === model.model_id ? 'not-allowed' : 'pointer',
+                            color: 'rgba(255,255,255,0.4)',
+                          }}
+                        >
+                          {downloadingModelId === model.model_id ? (
+                            <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                          ) : (
+                            <Download size={14} />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => deleteModel(model.model_id)}
+                          title="Delete model"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            padding: '6px',
+                            cursor: 'pointer',
+                            color: 'rgba(255,255,255,0.4)',
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -243,6 +311,12 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   )
 }

@@ -7,7 +7,7 @@ import TextGenerator from '../components/model/TextGenerator'
 import ModelSelector from '../components/model/ModelSelector'
 
 export const GeneratePage: React.FC = () => {
-  const [selectedModel, setSelectedModel] = useState<'nano' | 'mini'>('nano')
+  const [selectedModel, setSelectedModel] = useState<string>('nano')
 
   return (
     <div className="generate-page">
@@ -20,7 +20,7 @@ export const GeneratePage: React.FC = () => {
         <div className="sidebar">
           <ModelSelector
             selectedModel={selectedModel}
-            onModelSelect={(model) => setSelectedModel(model as 'nano' | 'mini')}
+            onModelSelect={(model) => setSelectedModel(model)}
           />
         </div>
 

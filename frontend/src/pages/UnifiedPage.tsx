@@ -36,7 +36,7 @@ export function UnifiedPage({ onShowLogin, onShowSignup }: UnifiedPageProps) {
   const [selectedVisualization, setSelectedVisualization] = useState<VisualizationType>('network')
 
   // Model info box state (independent from TextGenerator)
-  const [infoBoxModel, setInfoBoxModel] = useState<'nano' | 'mini'>('nano')
+  const [infoBoxModel, setInfoBoxModel] = useState<string>('nano')
 
   // Activation data state
   const [activationData, setActivationData] = useState<ActivationData | null>(null)

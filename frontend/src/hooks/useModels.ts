@@ -19,6 +19,7 @@ export interface ModelInfoState {
 
 /**
  * Hook to fetch and manage available models.
+ * Combines base models from /models and custom models from /training/models.
  */
 export function useModels() {
   const [state, setState] = useState<ModelsState>({
@@ -31,8 +32,29 @@ export function useModels() {
     setState(prev => ({ ...prev, loading: true, error: null }))
 
     try {
-      const models = await apiClient.listModels()
-      setState({ models, loading: false, error: null })
+      // Fetch both base models and custom models in parallel
+      // Both have catch handlers so we always get arrays
+      const [baseModels, customModels] = await Promise.all([
+        apiClient.listModels().catch((err) => {
+          console.error('Failed to fetch base models:', err)
+          return [] as string[]
+        }),
+        apiClient.listCustomModels().catch((err) => {
+          // Don't log error for custom models - user might not be logged in
+          return []
+        }),
+      ])
+
+      // Combine base models with custom model names
+      const customModelNames = customModels.map(m => m.model_id)
+      const allModels = [...baseModels, ...customModelNames]
+
+      // If no models at all, show an error
+      if (allModels.length === 0) {
+        setState({ models: [], loading: false, error: 'No models available' })
+      } else {
+        setState({ models: allModels, loading: false, error: null })
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       setState({ models: [], loading: false, error: errorMessage })

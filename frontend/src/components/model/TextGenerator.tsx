@@ -8,13 +8,13 @@ import { useModels } from '../../hooks/useModels'
 import { apiClient } from '../../api/client'
 
 interface TextGeneratorProps {
-  defaultModel?: 'nano' | 'mini'
+  defaultModel?: string
   defaultPrompt?: string
   onGenerate?: (text: string) => void
   onActivationGenerated?: (activationId: string) => void
   onGeneratingChange?: (isGenerating: boolean) => void
-  onModelChange?: (model: 'nano' | 'mini') => void
-  externalModel?: 'nano' | 'mini'
+  onModelChange?: (model: string) => void
+  externalModel?: string
 }
 
 export const TextGenerator: React.FC<TextGeneratorProps> = ({
@@ -27,12 +27,12 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   externalModel,
 }) => {
   const [prompt, setPrompt] = useState(defaultPrompt)
-  const [internalModel, setInternalModel] = useState<'nano' | 'mini'>(defaultModel)
+  const [internalModel, setInternalModel] = useState<string>(defaultModel)
 
   // Use external model if provided, otherwise use internal state
   const model = externalModel ?? internalModel
 
-  const handleModelChange = (newModel: 'nano' | 'mini') => {
+  const handleModelChange = (newModel: string) => {
     setInternalModel(newModel)
     onModelChange?.(newModel)
   }
@@ -116,12 +116,15 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           <select
             id="model-select"
             value={model}
-            onChange={(e) => handleModelChange(e.target.value as 'nano' | 'mini')}
-            disabled={loading || streaming || modelsLoading}
+            onChange={(e) => handleModelChange(e.target.value)}
+            disabled={loading || streaming || modelsLoading || models.length === 0}
           >
+            {models.length === 0 && (
+              <option value="">No models available</option>
+            )}
             {models.map((m) => (
               <option key={m} value={m}>
-                ozera-{m}
+                {m.startsWith('ozera-') ? m : `ozera-${m}`}
               </option>
             ))}
           </select>

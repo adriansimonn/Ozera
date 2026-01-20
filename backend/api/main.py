@@ -20,6 +20,7 @@ from api.training import router as training_router
 from api.auth import router as auth_router
 from api.credits import router as credits_router
 from api.payments import router as payments_router
+from api.webhooks import router as webhooks_router
 
 app = FastAPI(
     title="Ozera API",
@@ -36,17 +37,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global model loader
-model_loader = ModelLoader(models_dir="models")
+# Global model loader - use absolute path relative to backend directory
+BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODELS_DIR = os.path.join(BACKEND_DIR, "models")
+model_loader = ModelLoader(models_dir=MODELS_DIR)
 generators = {}
 activation_store = get_activation_store()
 
-# Register routers for authentication, datasets, training, credits, and payments
+# Register routers for authentication, datasets, training, credits, payments, and webhooks
 app.include_router(auth_router)
 app.include_router(datasets_router)
 app.include_router(training_router)
 app.include_router(credits_router)
 app.include_router(payments_router)
+app.include_router(webhooks_router)
 
 
 class GenerateRequest(BaseModel):

@@ -53,6 +53,17 @@ export interface DatasetDetail extends DatasetMetadata {
 // Training types
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
+export type GpuType = 't4' | 'a10g' | 'a100'
+
+export interface GpuPricingInfo {
+  gpu_type: GpuType
+  display_name: string
+  rate_per_hour: number
+  description: string
+  nano_tokens_per_sec: number
+  mini_tokens_per_sec: number
+}
+
 export interface TrainingJobRequest {
   dataset_id: string
   base_model: 'nano' | 'mini'
@@ -61,6 +72,13 @@ export interface TrainingJobRequest {
   batch_size?: number
   learning_rate?: number
   seq_len?: number
+  gpu_type?: GpuType
+  overwrite_existing?: boolean
+}
+
+export interface CustomModelCount {
+  count: number
+  max_allowed: number
 }
 
 export interface TrainingJobResponse {
@@ -144,7 +162,7 @@ export interface TrainingStreamEvent {
 
 export interface GenerateRequest {
   prompt: string
-  model: 'nano' | 'mini'
+  model: string
   max_tokens?: number
   temperature?: number
   top_k?: number
@@ -479,6 +497,19 @@ class OzeraAPIClient {
   // ============= Training Jobs =============
 
   /**
+   * Get GPU pricing information.
+   */
+  async getGpuPricing(): Promise<{ pricing: GpuPricingInfo[]; default_gpu: GpuType }> {
+    const response = await fetch(`${this.baseUrl}/training/gpu-pricing`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get GPU pricing: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
    * Get training cost estimate.
    */
   async getTrainingEstimate(
@@ -486,7 +517,8 @@ class OzeraAPIClient {
     baseModel: 'nano' | 'mini',
     epochs: number,
     batchSize: number,
-    seqLen: number
+    seqLen: number,
+    gpuType: GpuType = 'a10g'
   ): Promise<TrainingEstimate> {
     const response = await fetch(`${this.baseUrl}/training/estimate`, {
       method: 'POST',
@@ -497,6 +529,7 @@ class OzeraAPIClient {
         epochs,
         batch_size: batchSize,
         seq_len: seqLen,
+        gpu_type: gpuType,
       }),
     })
 
@@ -644,10 +677,31 @@ class OzeraAPIClient {
   // ============= Custom Models =============
 
   /**
+   * Get count of custom models for current user.
+   */
+  async getCustomModelCount(): Promise<CustomModelCount> {
+    const response = await fetch(`${this.baseUrl}/training/models/count`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to get model count: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
    * List custom trained models.
    */
   async listCustomModels(): Promise<CustomModelInfo[]> {
-    const response = await fetch(`${this.baseUrl}/training/models`)
+    const response = await fetch(`${this.baseUrl}/training/models`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to list custom models: ${response.statusText}`)
@@ -667,6 +721,33 @@ class OzeraAPIClient {
     if (!response.ok) {
       throw new Error(`Failed to delete model: ${response.statusText}`)
     }
+  }
+
+  /**
+   * Download a custom model as a zip file.
+   */
+  async downloadCustomModel(modelId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/training/models/${modelId}/download`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to download model: ${response.statusText}`)
+    }
+
+    // Get the blob and trigger download
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${modelId}.zip`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
   }
 }
 

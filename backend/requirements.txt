@@ -66,3 +66,6 @@ bcrypt==4.0.1  # Pin to 4.0.1 for passlib compatibility
 
 # Payments (Phase 2)
 stripe>=7.0.0  # Stripe payment processing
+
+# Cloud GPU Training (Phase 3)
+modal>=0.55.0  # Modal for cloud GPU execution

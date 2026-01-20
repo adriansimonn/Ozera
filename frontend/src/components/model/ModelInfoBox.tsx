@@ -39,15 +39,17 @@ const MODEL_INFO: Record<'nano' | 'mini', {
 const AVAILABLE_MODELS: ('nano' | 'mini')[] = ['nano', 'mini']
 
 interface ModelInfoBoxProps {
-  selectedModel: 'nano' | 'mini'
-  onModelChange: (model: 'nano' | 'mini') => void
+  selectedModel: string
+  onModelChange: (model: string) => void
 }
 
 export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
   selectedModel,
   onModelChange,
 }) => {
-  const info = MODEL_INFO[selectedModel]
+  // Only show info for base models (nano/mini)
+  const isBaseModel = selectedModel === 'nano' || selectedModel === 'mini'
+  const info = isBaseModel ? MODEL_INFO[selectedModel] : null
 
   const formatNumber = (num: number): string => {
     if (num >= 1_000_000) {
@@ -81,59 +83,67 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
       </div>
 
       <div className="model-info-content">
-        <p className="model-description">{info.description}</p>
+        {info ? (
+          <>
+            <p className="model-description">{info.description}</p>
 
-        <div className="info-grid">
-          <div className="info-card">
-            <div className="info-icon-wrapper">
-              <Cpu className="info-icon" />
-            </div>
-            <div className="info-details">
-              <span className="info-label">Parameters</span>
-              <span className="info-value">{formatNumber(info.parameters)}</span>
-            </div>
-          </div>
+            <div className="info-grid">
+              <div className="info-card">
+                <div className="info-icon-wrapper">
+                  <Cpu className="info-icon" />
+                </div>
+                <div className="info-details">
+                  <span className="info-label">Parameters</span>
+                  <span className="info-value">{formatNumber(info.parameters)}</span>
+                </div>
+              </div>
 
-          <div className="info-card">
-            <div className="info-icon-wrapper">
-              <Layers className="info-icon" />
-            </div>
-            <div className="info-details">
-              <span className="info-label">Layers</span>
-              <span className="info-value">{info.layers}</span>
-            </div>
-          </div>
+              <div className="info-card">
+                <div className="info-icon-wrapper">
+                  <Layers className="info-icon" />
+                </div>
+                <div className="info-details">
+                  <span className="info-label">Layers</span>
+                  <span className="info-value">{info.layers}</span>
+                </div>
+              </div>
 
-          <div className="info-card">
-            <div className="info-icon-wrapper">
-              <Grid3X3 className="info-icon" />
-            </div>
-            <div className="info-details">
-              <span className="info-label">Attention Heads</span>
-              <span className="info-value">{info.heads}</span>
-            </div>
-          </div>
+              <div className="info-card">
+                <div className="info-icon-wrapper">
+                  <Grid3X3 className="info-icon" />
+                </div>
+                <div className="info-details">
+                  <span className="info-label">Attention Heads</span>
+                  <span className="info-value">{info.heads}</span>
+                </div>
+              </div>
 
-          <div className="info-card">
-            <div className="info-icon-wrapper">
-              <Hash className="info-icon" />
-            </div>
-            <div className="info-details">
-              <span className="info-label">Hidden Dimension</span>
-              <span className="info-value">{info.hidden_dim}</span>
-            </div>
-          </div>
+              <div className="info-card">
+                <div className="info-icon-wrapper">
+                  <Hash className="info-icon" />
+                </div>
+                <div className="info-details">
+                  <span className="info-label">Hidden Dimension</span>
+                  <span className="info-value">{info.hidden_dim}</span>
+                </div>
+              </div>
 
-          <div className="info-card">
-            <div className="info-icon-wrapper">
-              <Database className="info-icon" />
+              <div className="info-card">
+                <div className="info-icon-wrapper">
+                  <Database className="info-icon" />
+                </div>
+                <div className="info-details">
+                  <span className="info-label">Vocabulary Size</span>
+                  <span className="info-value">{formatNumber(info.vocab_size)}</span>
+                </div>
+              </div>
             </div>
-            <div className="info-details">
-              <span className="info-label">Vocabulary Size</span>
-              <span className="info-value">{formatNumber(info.vocab_size)}</span>
-            </div>
-          </div>
-        </div>
+          </>
+        ) : (
+          <p className="model-description">
+            Custom model: {selectedModel}
+          </p>
+        )}
       </div>
 
       <style>{`

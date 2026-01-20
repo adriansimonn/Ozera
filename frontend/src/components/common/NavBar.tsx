@@ -45,7 +45,7 @@ export function NavBar({ viewMode, onViewModeChange, showViewToggle = false, onS
               className={`nav-link ${isActive('/training') ? 'active' : ''}`}
             >
               <Cpu className="nav-icon" />
-              Train Custom Model
+              Custom Models
             </Link>
           </div>
         </div>
