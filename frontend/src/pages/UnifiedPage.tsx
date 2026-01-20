@@ -240,9 +240,8 @@ export function UnifiedPage() {
         showViewToggle={true}
       />
 
-      <div className="page-main">
-        {viewMode === 'single' && (
-          <div className="single-view-selector">
+      {viewMode === 'single' && (
+        <div className="single-view-selector">
           <button
             onClick={() => setSingleViewType('generator')}
             className={`view-selector-btn ${singleViewType === 'generator' ? 'active' : ''}`}
@@ -325,11 +324,11 @@ export function UnifiedPage() {
           </div>
         )}
       </div>
-      </div>
 
       <style>{`
         .unified-page {
           min-height: 100vh;
+          padding-top: 100px;
         }
 
         .page-main {

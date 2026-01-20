@@ -40,7 +40,7 @@ export function NavBar({ viewMode, onViewModeChange, showViewToggle = false }: N
               className={`nav-link ${isActive('/training') ? 'active' : ''}`}
             >
               <Cpu className="nav-icon" />
-              Train Model
+              Train Custom Model
             </Link>
           </div>
         </div>
@@ -71,8 +71,10 @@ export function NavBar({ viewMode, onViewModeChange, showViewToggle = false }: N
 
       <style>{`
         .navbar {
-          position: sticky;
+          position: fixed;
           top: 0;
+          left: 0;
+          right: 0;
           z-index: 100;
           background: rgba(0, 0, 0, 0.6);
           backdrop-filter: blur(24px) saturate(200%);

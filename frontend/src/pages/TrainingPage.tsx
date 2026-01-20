@@ -78,7 +78,7 @@ export const TrainingPage: React.FC = () => {
   const isTrainingActive = progress && progress.status === 'running'
 
   return (
-    <div style={{ minHeight: '100vh' }}>
+    <div style={{ minHeight: '100vh', paddingTop: '100px' }}>
       <NavBar />
 
       <div
@@ -94,7 +94,7 @@ export const TrainingPage: React.FC = () => {
             Custom Model Training
           </h1>
           <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', marginTop: '8px' }}>
-            Train your own Ozera models on custom datasets
+            Train and save your own Ozera models on custom datasets
           </p>
         </div>
 
