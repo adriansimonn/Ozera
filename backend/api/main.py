@@ -18,6 +18,8 @@ from inference.activation_store import get_activation_store
 from api.datasets import router as datasets_router
 from api.training import router as training_router
 from api.auth import router as auth_router
+from api.credits import router as credits_router
+from api.payments import router as payments_router
 
 app = FastAPI(
     title="Ozera API",
@@ -39,10 +41,12 @@ model_loader = ModelLoader(models_dir="models")
 generators = {}
 activation_store = get_activation_store()
 
-# Register routers for authentication, datasets, and training
+# Register routers for authentication, datasets, training, credits, and payments
 app.include_router(auth_router)
 app.include_router(datasets_router)
 app.include_router(training_router)
+app.include_router(credits_router)
+app.include_router(payments_router)
 
 
 class GenerateRequest(BaseModel):

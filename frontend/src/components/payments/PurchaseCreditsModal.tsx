@@ -1,0 +1,422 @@
+/**
+ * Modal for purchasing credits via Stripe.
+ */
+import { useState, useEffect } from 'react';
+import { X, CreditCard, Check, Loader2, AlertCircle, DollarSign } from 'lucide-react';
+import { loadStripe } from '@stripe/stripe-js';
+import {
+  Elements,
+  PaymentElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js';
+import { usePricing, usePayment, useStripeConfig } from '../../hooks/useCredits';
+import { useAuthStore } from '../../stores/authStore';
+
+interface PurchaseCreditsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+// Amount input component
+function AmountInput({
+  amount,
+  onChange,
+  minAmount,
+  maxAmount,
+}: {
+  amount: string;
+  onChange: (value: string) => void;
+  minAmount: number;
+  maxAmount: number;
+}) {
+  const numericAmount = parseFloat(amount) || 0;
+  const isValid = numericAmount >= minAmount && numericAmount <= maxAmount;
+
+  return (
+    <div className="space-y-3">
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <DollarSign size={20} className="text-gray-400" />
+        </div>
+        <input
+          type="number"
+          value={amount}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Enter amount"
+          min={minAmount}
+          max={maxAmount}
+          step="0.01"
+          className="w-full pl-10 pr-4 py-4 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-xl font-medium focus:outline-none focus:border-blue-500 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+      </div>
+
+      <div className="flex justify-between text-sm text-gray-400">
+        <span>Min: ${minAmount}</span>
+        <span>Max: ${maxAmount}</span>
+      </div>
+
+      {amount && !isValid && (
+        <p className="text-sm text-red-400">
+          Amount must be between ${minAmount} and ${maxAmount}
+        </p>
+      )}
+
+      {amount && isValid && (
+        <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+          <p className="text-green-400 text-sm">
+            You'll receive <span className="font-bold">${numericAmount.toFixed(2)}</span> in credits
+          </p>
+        </div>
+      )}
+
+      {/* Quick amount buttons */}
+      <div className="flex gap-2 flex-wrap">
+        {[10, 25, 50, 100].map((quickAmount) => (
+          <button
+            key={quickAmount}
+            onClick={() => onChange(quickAmount.toString())}
+            className={`px-4 py-2 rounded-lg border transition-all ${
+              parseFloat(amount) === quickAmount
+                ? 'border-blue-500 bg-blue-500/10 text-blue-400'
+                : 'border-gray-700 hover:border-gray-600 bg-[#1a1a1a] text-gray-300'
+            }`}
+          >
+            ${quickAmount}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Checkout form component (inside Stripe Elements)
+function CheckoutForm({
+  clientSecret,
+  paymentIntentId,
+  amount,
+  onSuccess,
+  onCancel,
+}: {
+  clientSecret: string;
+  paymentIntentId: string;
+  amount: number;
+  onSuccess: (paymentIntentId: string) => void;
+  onCancel: () => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [succeeded, setSucceeded] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!stripe || !elements) {
+      return;
+    }
+
+    setProcessing(true);
+    setError(null);
+
+    const { error: submitError } = await elements.submit();
+    if (submitError) {
+      setError(submitError.message || 'Payment failed');
+      setProcessing(false);
+      return;
+    }
+
+    const { error: confirmError } = await stripe.confirmPayment({
+      elements,
+      clientSecret,
+      confirmParams: {
+        return_url: window.location.href,
+      },
+      redirect: 'if_required',
+    });
+
+    if (confirmError) {
+      setError(confirmError.message || 'Payment failed');
+      setProcessing(false);
+    } else {
+      setSucceeded(true);
+      setProcessing(false);
+      // Call onSuccess with payment intent ID to confirm via backend
+      setTimeout(() => {
+        onSuccess(paymentIntentId);
+      }, 1000);
+    }
+  };
+
+  if (succeeded) {
+    return (
+      <div className="text-center py-8">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
+          <Check size={32} className="text-green-400" />
+        </div>
+        <h3 className="text-xl font-bold text-white mb-2">Payment Successful!</h3>
+        <p className="text-gray-400">
+          ${amount.toFixed(2)} credits have been added to your account.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="bg-[#1a1a1a] border border-gray-700 rounded-lg p-4 mb-4">
+        <div className="flex justify-between items-center">
+          <span className="text-gray-300">Payment Amount</span>
+          <span className="text-xl font-bold text-white">${amount.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between items-center mt-1">
+          <span className="text-gray-400 text-sm">Credits Received</span>
+          <span className="text-green-400 font-medium">${amount.toFixed(2)}</span>
+        </div>
+      </div>
+
+      <PaymentElement
+        options={{
+          layout: 'tabs',
+        }}
+      />
+
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+          <AlertCircle size={16} />
+          {error}
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={processing}
+          className="flex-1 px-4 py-3 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-lg transition-colors disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={!stripe || processing}
+          className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {processing ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
+              <CreditCard size={18} />
+              Pay ${amount.toFixed(2)}
+            </>
+          )}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalProps) {
+  const { isAuthenticated } = useAuthStore();
+  const { minPurchase, maxPurchase, loading: pricingLoading } = usePricing();
+  const { createPaymentIntent, onPaymentSuccess, loading: paymentLoading, error: paymentError } = usePayment();
+  const { publishableKey, isConfigured } = useStripeConfig();
+
+  const [amount, setAmount] = useState<string>('');
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
+  const [stripePromise, setStripePromise] = useState<ReturnType<typeof loadStripe> | null>(null);
+  const [step, setStep] = useState<'select' | 'checkout'>('select');
+
+  const numericAmount = parseFloat(amount) || 0;
+  const isValidAmount = numericAmount >= minPurchase && numericAmount <= maxPurchase;
+
+  // Initialize Stripe
+  useEffect(() => {
+    if (publishableKey) {
+      setStripePromise(loadStripe(publishableKey));
+    }
+  }, [publishableKey]);
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setAmount('');
+      setClientSecret(null);
+      setPaymentIntentId(null);
+      setStep('select');
+    }
+  }, [isOpen]);
+
+  const handleProceedToCheckout = async () => {
+    if (!isValidAmount) return;
+
+    try {
+      const result = await createPaymentIntent(numericAmount);
+      setClientSecret(result.client_secret);
+      setPaymentIntentId(result.payment_intent_id);
+      setStep('checkout');
+    } catch (err) {
+      // Error is handled by the hook
+    }
+  };
+
+  const handlePaymentSuccess = async (intentId: string) => {
+    await onPaymentSuccess(intentId);
+    onClose();
+  };
+
+  const handleBack = () => {
+    setStep('select');
+    setClientSecret(null);
+    setPaymentIntentId(null);
+  };
+
+  if (!isOpen) return null;
+
+  if (!isAuthenticated) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="bg-[#0a0a0a] border border-gray-800 rounded-xl p-6 w-full max-w-md">
+          <p className="text-center text-gray-300">Please log in to purchase credits.</p>
+          <button
+            onClick={onClose}
+            className="w-full mt-4 px-4 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-lg"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isConfigured) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="bg-[#0a0a0a] border border-gray-800 rounded-xl p-6 w-full max-w-md">
+          <div className="flex items-center gap-2 text-yellow-400 mb-4">
+            <AlertCircle size={20} />
+            <span className="font-medium">Payment Not Available</span>
+          </div>
+          <p className="text-gray-300 text-sm">
+            Payment processing is not configured. Please contact support.
+          </p>
+          <button
+            onClick={onClose}
+            className="w-full mt-4 px-4 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-lg"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="bg-[#0a0a0a] border border-gray-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-800">
+          <h2 className="text-lg font-semibold text-white">
+            {step === 'select' ? 'Add Credits' : 'Checkout'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-[#2a2a2a] rounded-lg transition-colors"
+          >
+            <X size={20} className="text-gray-400" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-4">
+          {step === 'select' ? (
+            <>
+              {pricingLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 size={24} className="animate-spin text-gray-400" />
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-400 mb-4">
+                    Enter the amount you'd like to add. You'll receive exactly what you pay.
+                  </p>
+
+                  <AmountInput
+                    amount={amount}
+                    onChange={setAmount}
+                    minAmount={minPurchase}
+                    maxAmount={maxPurchase}
+                  />
+
+                  {paymentError && (
+                    <div className="mt-4 flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                      <AlertCircle size={16} />
+                      {paymentError}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleProceedToCheckout}
+                    disabled={!isValidAmount || paymentLoading}
+                    className="w-full mt-4 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    {paymentLoading ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        Continue to Payment
+                        {isValidAmount && (
+                          <span className="text-blue-200">
+                            (${numericAmount.toFixed(2)})
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              {clientSecret && stripePromise && paymentIntentId && (
+                <Elements
+                  stripe={stripePromise}
+                  options={{
+                    clientSecret,
+                    appearance: {
+                      theme: 'night',
+                      variables: {
+                        colorPrimary: '#3b82f6',
+                        colorBackground: '#1a1a1a',
+                        colorText: '#ffffff',
+                        colorDanger: '#ef4444',
+                        fontFamily: 'system-ui, sans-serif',
+                        borderRadius: '8px',
+                      },
+                    },
+                  }}
+                >
+                  <CheckoutForm
+                    clientSecret={clientSecret}
+                    paymentIntentId={paymentIntentId}
+                    amount={numericAmount}
+                    onSuccess={handlePaymentSuccess}
+                    onCancel={handleBack}
+                  />
+                </Elements>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

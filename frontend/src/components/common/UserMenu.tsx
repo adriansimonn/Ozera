@@ -2,7 +2,7 @@
  * User menu dropdown component.
  */
 import { useState, useRef, useEffect } from 'react';
-import { User, LogOut, Wallet } from 'lucide-react';
+import { User, LogOut, Wallet, Plus } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 
 export function UserMenu() {
@@ -27,6 +27,14 @@ export function UserMenu() {
   const handleLogout = () => {
     logout();
     setIsOpen(false);
+  };
+
+  const handleAddCredits = () => {
+    setIsOpen(false);
+    // Use globally available modal trigger
+    if ((window as any).showPurchaseCreditsModal) {
+      (window as any).showPurchaseCreditsModal();
+    }
   };
 
   return (
@@ -62,11 +70,18 @@ export function UserMenu() {
 
           {/* Credit balance */}
           <div className="px-4 py-3 border-b border-gray-700">
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-gray-300 flex items-center gap-2">
                 <Wallet size={14} />
                 Credit Balance
               </span>
+              <button
+                onClick={handleAddCredits}
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 rounded transition-colors"
+              >
+                <Plus size={12} />
+                Add
+              </button>
             </div>
             <div className="text-lg font-bold text-white">
               ${user.balance_usd.toFixed(2)}

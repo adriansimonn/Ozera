@@ -6,6 +6,7 @@ import TrainingPage from './pages/TrainingPage'
 import { AnimatedBackground } from './components/common/AnimatedBackground'
 import { LoginModal } from './components/auth/LoginModal'
 import { SignupModal } from './components/auth/SignupModal'
+import { PurchaseCreditsModal } from './components/payments/PurchaseCreditsModal'
 import { useAuthStore } from './stores/authStore'
 
 const queryClient = new QueryClient({
@@ -20,6 +21,7 @@ const queryClient = new QueryClient({
 function App() {
   const [showLogin, setShowLogin] = useState(false)
   const [showSignup, setShowSignup] = useState(false)
+  const [showPurchaseCredits, setShowPurchaseCredits] = useState(false)
   const { token, refreshUser } = useAuthStore()
 
   // Refresh user data on mount if token exists
@@ -33,6 +35,7 @@ function App() {
   useEffect(() => {
     ;(window as any).showLoginModal = () => setShowLogin(true)
     ;(window as any).showSignupModal = () => setShowSignup(true)
+    ;(window as any).showPurchaseCreditsModal = () => setShowPurchaseCredits(true)
   }, [])
 
   return (
@@ -79,6 +82,12 @@ function App() {
               setShowSignup(false)
               setShowLogin(true)
             }}
+          />
+
+          {/* Purchase Credits Modal */}
+          <PurchaseCreditsModal
+            isOpen={showPurchaseCredits}
+            onClose={() => setShowPurchaseCredits(false)}
           />
         </div>
       </Router>

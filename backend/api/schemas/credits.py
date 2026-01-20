@@ -1,0 +1,61 @@
+"""
+Pydantic schemas for credits API.
+"""
+from datetime import datetime
+from typing import Optional, List
+from enum import Enum
+
+from pydantic import BaseModel, Field
+
+
+class TransactionTypeEnum(str, Enum):
+    """Transaction type enumeration for API responses."""
+    CREDIT_PURCHASE = "credit_purchase"
+    TRAINING_CHARGE = "training_charge"
+    TRAINING_REFUND = "training_refund"
+    ADMIN_ADJUSTMENT = "admin_adjustment"
+
+
+class CreditBalanceResponse(BaseModel):
+    """Response schema for credit balance."""
+    balance_usd: float = Field(..., description="Total credit balance")
+    reserved_usd: float = Field(..., description="Credits reserved for running jobs")
+    available_balance: float = Field(..., description="Available balance (total - reserved)")
+
+    class Config:
+        from_attributes = True
+
+
+class TransactionResponse(BaseModel):
+    """Response schema for a single transaction."""
+    id: int
+    amount_usd: float = Field(..., description="Transaction amount (positive = credit, negative = debit)")
+    transaction_type: TransactionTypeEnum
+    description: Optional[str] = None
+    stripe_payment_intent_id: Optional[str] = None
+    training_job_id: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TransactionListResponse(BaseModel):
+    """Response schema for transaction list."""
+    transactions: List[TransactionResponse]
+    total: int = Field(..., description="Total number of transactions")
+
+
+class GPUPricing(BaseModel):
+    """GPU pricing tier information."""
+    gpu_type: str = Field(..., description="GPU type identifier")
+    display_name: str = Field(..., description="Display name for the GPU")
+    rate_per_hour: float = Field(..., description="Cost per hour in USD")
+    description: str = Field(..., description="GPU description")
+
+
+class PricingResponse(BaseModel):
+    """Response schema for GPU pricing tiers and credit purchase limits."""
+    gpu_pricing: List[GPUPricing]
+    min_purchase: float = Field(..., description="Minimum credit purchase amount in USD")
+    max_purchase: float = Field(..., description="Maximum credit purchase amount in USD")
