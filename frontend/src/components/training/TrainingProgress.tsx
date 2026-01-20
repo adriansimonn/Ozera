@@ -2,7 +2,7 @@
  * Training progress display with real-time updates.
  */
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { X, CheckCircle, AlertCircle, Clock, Activity } from 'lucide-react'
 import type { TrainingProgress as TrainingProgressType } from '../../api/client'
 
@@ -23,6 +23,36 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
   onCancel,
   onDismiss,
 }) => {
+  // Live elapsed time counter
+  const [liveElapsedSeconds, setLiveElapsedSeconds] = useState(0)
+
+  // Confirmation modal state
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+
+  // Update live elapsed time every second when training is active
+  useEffect(() => {
+    if (!progress || completed || error) {
+      return
+    }
+
+    // Initialize with current elapsed time
+    setLiveElapsedSeconds(progress.elapsed_seconds)
+
+    // Update every second
+    const interval = setInterval(() => {
+      setLiveElapsedSeconds(prev => prev + 1)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [progress?.job_id, completed, error]) // Reset when job changes
+
+  // Sync with backend updates
+  useEffect(() => {
+    if (progress) {
+      setLiveElapsedSeconds(progress.elapsed_seconds)
+    }
+  }, [progress?.elapsed_seconds])
+
   // Calculate progress percentage
   const progressPercent = useMemo(() => {
     if (!progress) return 0
@@ -182,7 +212,7 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
         </div>
         {onCancel && (
           <button
-            onClick={onCancel}
+            onClick={() => setShowCancelConfirm(true)}
             style={{
               background: 'rgba(239, 68, 68, 0.1)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
@@ -221,12 +251,15 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
           }}
         >
           <div
+            className="animated-gradient-bar"
             style={{
               height: '100%',
               width: `${progressPercent}%`,
-              background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
+              background: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #3b82f6)',
+              backgroundSize: '200% 100%',
               borderRadius: '0',
               transition: 'width 0.5s ease',
+              animation: 'gradientShift 3s ease infinite',
             }}
           />
         </div>
@@ -250,13 +283,13 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
             <div>
               <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '10px' }}>Elapsed</div>
               <div style={{ color: '#fff', fontSize: '14px', fontWeight: 500 }}>
-                {formatTime(progress.elapsed_seconds)}
+                {formatTime(liveElapsedSeconds)}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '10px' }}>Remaining</div>
               <div style={{ color: '#fff', fontSize: '14px', fontWeight: 500 }}>
-                {formatTime(progress.estimated_remaining_seconds)}
+                {formatTime(Math.max(0, progress.estimated_remaining_seconds - (liveElapsedSeconds - progress.elapsed_seconds)))}
               </div>
             </div>
           </div>
@@ -301,10 +334,10 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
             borderRadius: '0',
             padding: '12px',
             display: 'flex',
-            justifyContent: 'space-around',
+            alignItems: 'center',
           }}
         >
-          <div style={{ textAlign: 'center' }}>
+          <div style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '10px' }}>Train PPL</div>
             <div style={{ color: '#fff', fontSize: '16px', fontWeight: 600 }}>
               {lossDisplay.trainPpl}
@@ -313,13 +346,94 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
           <div
             style={{
               width: '1px',
+              height: '30px',
               background: 'rgba(255,255,255,0.1)',
             }}
           />
-          <div style={{ textAlign: 'center' }}>
+          <div style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '10px' }}>Val PPL</div>
             <div style={{ color: '#fff', fontSize: '16px', fontWeight: 600 }}>
               {lossDisplay.valPpl}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Confirmation Modal */}
+      {showCancelConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+          onClick={() => setShowCancelConfirm(false)}
+        >
+          <div
+            style={{
+              background: 'rgba(20, 20, 20, 0.95)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '0',
+              padding: '24px',
+              maxWidth: '400px',
+              width: '90%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <AlertCircle size={24} color="#ef4444" />
+                <h3 style={{ color: '#fff', fontSize: '18px', fontWeight: 600, margin: 0 }}>
+                  Cancel Training?
+                </h3>
+              </div>
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', lineHeight: '1.5', margin: 0 }}>
+                Are you sure you want to cancel this training job? All progress will be lost and cannot be recovered.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '0',
+                  padding: '8px 16px',
+                  color: 'rgba(255,255,255,0.8)',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
+              >
+                Keep Training
+              </button>
+              <button
+                onClick={() => {
+                  setShowCancelConfirm(false)
+                  onCancel?.()
+                }}
+                style={{
+                  background: '#ef4444',
+                  border: '1px solid #dc2626',
+                  borderRadius: '0',
+                  padding: '8px 16px',
+                  color: '#fff',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
+              >
+                Cancel Training
+              </button>
             </div>
           </div>
         </div>
@@ -329,6 +443,12 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.5; }
+        }
+
+        @keyframes gradientShift {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
         }
       `}</style>
     </div>

@@ -89,7 +89,7 @@ def train_epoch(
         x, y = x.to(device), y.to(device)
 
         # Forward pass
-        logits, _ = model(x)
+        logits, _, _ = model(x)
 
         # Compute loss
         loss = nn.functional.cross_entropy(
@@ -130,7 +130,7 @@ def evaluate(
     for x, y in val_loader:
         x, y = x.to(device), y.to(device)
 
-        logits, _ = model(x)
+        logits, _, _ = model(x)
 
         loss = nn.functional.cross_entropy(
             logits.view(-1, logits.size(-1)),
