@@ -16,6 +16,7 @@ export interface StreamingState {
   streaming: boolean
   error: string | null
   text: string
+  insufficientCredits: boolean
 }
 
 /**
@@ -62,10 +63,11 @@ export function useStreamingGeneration() {
     streaming: false,
     error: null,
     text: '',
+    insufficientCredits: false,
   })
 
   const generate = useCallback(async (request: GenerateRequest) => {
-    setState({ loading: true, streaming: false, error: null, text: '' })
+    setState({ loading: true, streaming: false, error: null, text: '', insufficientCredits: false })
 
     try {
       await apiClient.generateStream(
@@ -99,23 +101,30 @@ export function useStreamingGeneration() {
       )
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const isInsufficientCredits = errorMessage === 'INSUFFICIENT_CREDITS'
       setState(prev => ({
         ...prev,
         loading: false,
         streaming: false,
-        error: errorMessage,
+        error: isInsufficientCredits ? 'Insufficient credits. Please add more credits to continue.' : errorMessage,
+        insufficientCredits: isInsufficientCredits,
       }))
       throw error
     }
   }, [])
 
   const reset = useCallback(() => {
-    setState({ loading: false, streaming: false, error: null, text: '' })
+    setState({ loading: false, streaming: false, error: null, text: '', insufficientCredits: false })
+  }, [])
+
+  const clearInsufficientCredits = useCallback(() => {
+    setState(prev => ({ ...prev, insufficientCredits: false, error: null }))
   }, [])
 
   return {
     ...state,
     generate,
     reset,
+    clearInsufficientCredits,
   }
 }

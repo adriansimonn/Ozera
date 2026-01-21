@@ -265,3 +265,78 @@ def check_sufficient_balance(db: Session, user_id: int, required_amount: float) 
     if not credit_balance:
         return False
     return credit_balance.available_balance >= required_amount
+
+
+# Inference pricing (per 1000 tokens, 30% markup on Modal GPU costs)
+# Based on T4 GPU usage: ~$0.01 per ~100 tokens = ~$0.10 per 1000 tokens
+INFERENCE_PRICING = {
+    "input": 0.05,    # $0.05 per 1000 input tokens ($50 per 1M)
+    "output": 0.10,   # $0.10 per 1000 output tokens ($100 per 1M)
+}
+
+
+# Minimum charge per inference request (covers GPU cold start overhead)
+MIN_INFERENCE_CHARGE = 0.01  # $0.01 minimum
+
+
+def calculate_inference_cost(prompt_tokens: int, generated_tokens: int) -> float:
+    """
+    Calculate the cost for an inference request.
+
+    Args:
+        prompt_tokens: Number of input tokens
+        generated_tokens: Number of output tokens
+
+    Returns:
+        Cost in USD (minimum $0.01 per request)
+    """
+    input_cost = (prompt_tokens / 1000) * INFERENCE_PRICING["input"]
+    output_cost = (generated_tokens / 1000) * INFERENCE_PRICING["output"]
+    return max(input_cost + output_cost, MIN_INFERENCE_CHARGE)
+
+
+def charge_inference(
+    db: Session,
+    user_id: int,
+    prompt_tokens: int,
+    generated_tokens: int,
+    model_name: str,
+    description: Optional[str] = None,
+) -> Transaction:
+    """
+    Charge credits for an inference request.
+
+    Args:
+        db: Database session
+        user_id: User ID
+        prompt_tokens: Number of input tokens
+        generated_tokens: Number of output tokens
+        model_name: Name of the model used
+        description: Optional description
+
+    Returns:
+        Created transaction record
+    """
+    cost = calculate_inference_cost(prompt_tokens, generated_tokens)
+
+    credit_balance = get_credit_balance(db, user_id)
+    if not credit_balance:
+        credit_balance = CreditBalance(user_id=user_id, balance_usd=0.0, reserved_usd=0.0)
+        db.add(credit_balance)
+
+    # Deduct cost from balance
+    credit_balance.balance_usd -= cost
+    credit_balance.updated_at = datetime.utcnow()
+
+    # Create transaction record
+    transaction = Transaction(
+        user_id=user_id,
+        amount_usd=-cost,  # Negative for deduction
+        transaction_type=TransactionType.INFERENCE_CHARGE,
+        description=description or f"Inference ({model_name}): {prompt_tokens} input + {generated_tokens} output tokens",
+    )
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+
+    return transaction

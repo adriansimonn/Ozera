@@ -8,10 +8,11 @@ Supports both local and Modal cloud inference based on INFERENCE_MODE env var.
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 from typing import Optional
 import sys
 import os
@@ -22,12 +23,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from inference import ModelLoader
 from inference.activation_store import get_activation_store
 from services.inference_router import get_inference_router
+from services.credit_service import (
+    calculate_inference_cost,
+    charge_inference,
+    check_sufficient_balance,
+    get_credit_balance,
+)
 from api.datasets import router as datasets_router
 from api.training import router as training_router
 from api.auth import router as auth_router
 from api.credits import router as credits_router
 from api.payments import router as payments_router
 from api.webhooks import router as webhooks_router
+from middleware.auth_middleware import get_optional_current_user
+from models.database import User
+from db import get_db
 
 app = FastAPI(
     title="Ozera API",
@@ -255,21 +265,42 @@ async def prepare_model(model_name: str):
 
 
 @app.post("/generate/stream")
-async def generate_stream(request: GenerateRequest):
+async def generate_stream(
+    request: GenerateRequest,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Generate text from a prompt with streaming (Server-Sent Events).
 
     Routes to local or Modal inference based on INFERENCE_MODE env var.
+    Charges user credits if authenticated.
 
     Args:
         request: Generation request parameters
+        current_user: Optional authenticated user
+        db: Database session
 
     Returns:
         Stream of generated tokens
     """
+    # Check if user has sufficient balance (estimate based on max_tokens)
+    if current_user:
+        estimated_cost = calculate_inference_cost(
+            prompt_tokens=len(request.prompt.split()) * 2,  # Rough estimate
+            generated_tokens=request.max_tokens
+        )
+        if not check_sufficient_balance(db, current_user.id, estimated_cost):
+            raise HTTPException(
+                status_code=402,
+                detail="Insufficient credits. Please add more credits to continue."
+            )
+
     try:
         # Create streaming generator function
         async def event_stream():
+            token_count = 0
+            prompt_token_estimate = len(request.prompt.split()) * 2  # Rough estimate
             try:
                 # Send initial metadata
                 data = json.dumps({'type': 'start', 'prompt': request.prompt}, ensure_ascii=False)
@@ -284,11 +315,30 @@ async def generate_stream(request: GenerateRequest):
                     top_k=request.top_k,
                     top_p=request.top_p,
                 ):
+                    token_count += 1
                     data = json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)
                     yield f"data: {data}\n\n".encode('utf-8')
 
-                # Send completion
-                data = json.dumps({'type': 'done'}, ensure_ascii=False)
+                # Charge user after successful generation
+                if current_user:
+                    try:
+                        charge_inference(
+                            db=db,
+                            user_id=current_user.id,
+                            prompt_tokens=prompt_token_estimate,
+                            generated_tokens=token_count,
+                            model_name=request.model,
+                        )
+                    except Exception as charge_error:
+                        # Log but don't fail the request
+                        print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+
+                # Send completion with token count
+                data = json.dumps({
+                    'type': 'done',
+                    'token_count': token_count,
+                    'charged': current_user is not None
+                }, ensure_ascii=False)
                 yield f"data: {data}\n\n".encode('utf-8')
 
             except Exception as e:
@@ -315,19 +365,38 @@ async def generate_stream(request: GenerateRequest):
 
 
 @app.post("/generate/with-activations")
-async def generate_with_activations(request: GenerateRequest):
+async def generate_with_activations(
+    request: GenerateRequest,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Generate text and capture activations for visualization.
 
     Note: For Modal mode, activations are returned inline. For local mode,
     an activation_id is returned for later retrieval.
+    Charges user credits if authenticated.
 
     Args:
         request: Generation request parameters
+        current_user: Optional authenticated user
+        db: Database session
 
     Returns:
         Generated text, metadata, and activation ID or inline activations
     """
+    # Check if user has sufficient balance (estimate based on max_tokens)
+    if current_user:
+        estimated_cost = calculate_inference_cost(
+            prompt_tokens=len(request.prompt.split()) * 2,  # Rough estimate
+            generated_tokens=request.max_tokens
+        )
+        if not check_sufficient_balance(db, current_user.id, estimated_cost):
+            raise HTTPException(
+                status_code=402,
+                detail="Insufficient credits. Please add more credits to continue."
+            )
+
     try:
         result = await inference_router.generate_with_activations(
             model_id=request.model,
@@ -358,6 +427,24 @@ async def generate_with_activations(request: GenerateRequest):
             )
             result['activation_id'] = activation_id
             del result['activations']  # Don't send large activations to frontend
+
+        # Charge user after successful generation
+        if current_user:
+            try:
+                charge_inference(
+                    db=db,
+                    user_id=current_user.id,
+                    prompt_tokens=result.get('prompt_tokens', 0),
+                    generated_tokens=result.get('generated_tokens', 0),
+                    model_name=request.model,
+                )
+                result['charged'] = True
+            except Exception as charge_error:
+                # Log but don't fail the request
+                print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+                result['charged'] = False
+        else:
+            result['charged'] = False
 
         return result
 

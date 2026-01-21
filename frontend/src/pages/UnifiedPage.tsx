@@ -24,9 +24,10 @@ type VisualizationType = 'network' | 'attention' | 'activations' | 'journey' | '
 interface UnifiedPageProps {
   onShowLogin: () => void
   onShowSignup: () => void
+  onShowPurchaseCredits?: () => void
 }
 
-export function UnifiedPage({ onShowLogin, onShowSignup }: UnifiedPageProps) {
+export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }: UnifiedPageProps) {
   const [searchParams] = useSearchParams()
   const activationId = searchParams.get('id')
 
@@ -272,6 +273,7 @@ export function UnifiedPage({ onShowLogin, onShowSignup }: UnifiedPageProps) {
               onActivationGenerated={handleActivationGenerated}
               onGeneratingChange={setGenerating}
               onModelChange={setInfoBoxModel}
+              onShowPurchaseCredits={onShowPurchaseCredits}
             />
             <div className="model-info-section">
               <ModelInfoBox

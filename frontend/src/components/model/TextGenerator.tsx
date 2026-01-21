@@ -16,6 +16,7 @@ interface TextGeneratorProps {
   onGeneratingChange?: (isGenerating: boolean) => void
   onModelChange?: (model: string) => void
   externalModel?: string
+  onShowPurchaseCredits?: () => void
 }
 
 // Cold start threshold - show "warming up" message after this delay
@@ -29,6 +30,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   onGeneratingChange,
   onModelChange,
   externalModel,
+  onShowPurchaseCredits,
 }) => {
   const [prompt, setPrompt] = useState(defaultPrompt)
   const [internalModel, setInternalModel] = useState<string>(defaultModel)
@@ -48,7 +50,8 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   const warmupTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const { models, loading: modelsLoading, error: modelsError } = useModels()
-  const { text, loading, streaming, error, generate, reset } = useStreamingGeneration()
+  const { text, loading, streaming, error, insufficientCredits, generate, reset, clearInsufficientCredits } = useStreamingGeneration()
+  const [activationInsufficientCredits, setActivationInsufficientCredits] = useState(false)
 
   // Clear warmup timer on unmount
   useEffect(() => {
@@ -107,6 +110,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
     }
 
     setIsWarmingUp(false)
+    setActivationInsufficientCredits(false)
 
     // Start warmup timer
     warmupTimerRef.current = setTimeout(() => {
@@ -130,7 +134,12 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       }
     } catch (err) {
       console.error('Activation generation error:', err)
-      alert('Failed to generate activations: ' + (err instanceof Error ? err.message : 'Unknown error'))
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      if (errorMessage === 'INSUFFICIENT_CREDITS') {
+        setActivationInsufficientCredits(true)
+      } else {
+        alert('Failed to generate activations: ' + errorMessage)
+      }
     } finally {
       // Clear warmup timer
       if (warmupTimerRef.current) {
@@ -269,7 +278,28 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         </div>
       )}
 
-      {error && (
+      {(insufficientCredits || activationInsufficientCredits) && (
+        <div className="insufficient-credits-message">
+          <div className="insufficient-credits-content">
+            <strong>Insufficient Credits</strong>
+            <p>You don't have enough credits to generate text. Please add more credits to continue.</p>
+            {onShowPurchaseCredits && (
+              <button
+                className="add-credits-button"
+                onClick={() => {
+                  clearInsufficientCredits()
+                  setActivationInsufficientCredits(false)
+                  onShowPurchaseCredits()
+                }}
+              >
+                Add Credits
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {error && !insufficientCredits && (
         <div className="error-message">
           <strong>Error:</strong> {error}
         </div>
@@ -562,6 +592,50 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           color: rgba(255, 255, 255, 0.8);
           margin-bottom: 2rem;
           font-size: 0.9rem;
+        }
+
+        .insufficient-credits-message {
+          padding: 1.5rem;
+          background: rgba(255, 200, 100, 0.08);
+          border: 1px solid rgba(255, 200, 100, 0.25);
+          margin-bottom: 2rem;
+          animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .insufficient-credits-content {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .insufficient-credits-content strong {
+          color: rgba(255, 220, 150, 0.95);
+          font-size: 1rem;
+        }
+
+        .insufficient-credits-content p {
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 0.9rem;
+          margin: 0;
+        }
+
+        .add-credits-button {
+          align-self: flex-start;
+          padding: 0.75rem 1.5rem;
+          background: rgba(255, 200, 100, 0.15);
+          border: 1px solid rgba(255, 200, 100, 0.3);
+          color: rgba(255, 220, 150, 0.95);
+          font-size: 0.85rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          letter-spacing: 0.03em;
+        }
+
+        .add-credits-button:hover {
+          background: rgba(255, 200, 100, 0.25);
+          border-color: rgba(255, 200, 100, 0.5);
+          transform: translateY(-1px);
         }
 
         .output-area {

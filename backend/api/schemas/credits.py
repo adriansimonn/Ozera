@@ -14,6 +14,7 @@ class TransactionTypeEnum(str, Enum):
     TRAINING_CHARGE = "training_charge"
     TRAINING_REFUND = "training_refund"
     ADMIN_ADJUSTMENT = "admin_adjustment"
+    INFERENCE_CHARGE = "inference_charge"
 
 
 class CreditBalanceResponse(BaseModel):
@@ -54,8 +55,15 @@ class GPUPricing(BaseModel):
     description: str = Field(..., description="GPU description")
 
 
+class InferencePricing(BaseModel):
+    """Inference pricing information."""
+    input_per_1k_tokens: float = Field(..., description="Cost per 1000 input tokens in USD")
+    output_per_1k_tokens: float = Field(..., description="Cost per 1000 output tokens in USD")
+
+
 class PricingResponse(BaseModel):
-    """Response schema for GPU pricing tiers and credit purchase limits."""
+    """Response schema for GPU pricing tiers, inference pricing, and credit purchase limits."""
     gpu_pricing: List[GPUPricing]
+    inference_pricing: InferencePricing = Field(..., description="Token-based inference pricing")
     min_purchase: float = Field(..., description="Minimum credit purchase amount in USD")
     max_purchase: float = Field(..., description="Maximum credit purchase amount in USD")

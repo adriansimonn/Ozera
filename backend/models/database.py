@@ -87,6 +87,7 @@ class TransactionType(PyEnum):
     TRAINING_CHARGE = "training_charge"
     TRAINING_REFUND = "training_refund"
     ADMIN_ADJUSTMENT = "admin_adjustment"
+    INFERENCE_CHARGE = "inference_charge"
 
 
 class Transaction(Base):

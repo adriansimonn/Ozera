@@ -305,12 +305,17 @@ class OzeraAPIClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
 
     if (!response.ok) {
       const error = await response.json()
+      // Check for insufficient credits (402 Payment Required)
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
       throw new Error(error.detail || `Streaming failed: ${response.statusText}`)
     }
 
@@ -385,12 +390,17 @@ class OzeraAPIClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
 
     if (!response.ok) {
       const error = await response.json()
+      // Check for insufficient credits (402 Payment Required)
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
       throw new Error(error.detail || `Generation with activations failed: ${response.statusText}`)
     }
 

@@ -51,6 +51,7 @@ function App() {
                   <UnifiedPage
                     onShowLogin={() => setShowLogin(true)}
                     onShowSignup={() => setShowSignup(true)}
+                    onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
                   />
                 }
               />

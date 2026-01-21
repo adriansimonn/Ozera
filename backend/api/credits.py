@@ -11,6 +11,7 @@ from services.credit_service import (
     get_credit_balance,
     get_user_transactions,
     GPU_PRICING,
+    INFERENCE_PRICING,
     MIN_CREDIT_PURCHASE,
     MAX_CREDIT_PURCHASE,
 )
@@ -19,6 +20,7 @@ from api.schemas.credits import (
     TransactionResponse,
     TransactionListResponse,
     GPUPricing,
+    InferencePricing,
     PricingResponse,
 )
 
@@ -85,7 +87,7 @@ async def get_transactions(
 @router.get("/pricing", response_model=PricingResponse)
 async def get_pricing():
     """
-    Get GPU pricing tiers and credit purchase limits.
+    Get GPU pricing tiers, inference pricing, and credit purchase limits.
 
     This endpoint is public (no auth required) to show pricing before signup.
     """
@@ -99,8 +101,14 @@ async def get_pricing():
         for gpu_type, info in GPU_PRICING.items()
     ]
 
+    inference_pricing = InferencePricing(
+        input_per_1k_tokens=INFERENCE_PRICING["input"],
+        output_per_1k_tokens=INFERENCE_PRICING["output"],
+    )
+
     return PricingResponse(
         gpu_pricing=gpu_pricing,
+        inference_pricing=inference_pricing,
         min_purchase=MIN_CREDIT_PURCHASE,
         max_purchase=MAX_CREDIT_PURCHASE,
     )
