@@ -97,7 +97,7 @@ async def check_dataset_exists(user_id: int, dataset_id: str) -> bool:
         return False
 
 
-async def download_model_from_volume(
+def download_model_from_volume(
     user_id: int,
     model_name: str,
     local_dir: Path,

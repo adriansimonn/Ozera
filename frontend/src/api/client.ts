@@ -249,6 +249,23 @@ class OzeraAPIClient {
   }
 
   /**
+   * Prepare a model for inference (pre-loads and caches it).
+   * For custom models, this triggers download from Modal volume if needed.
+   */
+  async prepareModel(modelName: string): Promise<{ status: string; model: string; parameters: number; layers: number }> {
+    const response = await fetch(`${this.baseUrl}/models/${modelName}/prepare`, {
+      method: 'POST',
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to prepare model: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
    * Generate text from a prompt.
    */
   async generate(request: GenerateRequest): Promise<GenerateResponse> {

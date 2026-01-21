@@ -1,6 +1,12 @@
 """
 FastAPI application for Ozera inference API.
+
+Supports both local and Modal cloud inference based on INFERENCE_MODE env var.
 """
+
+# Load environment variables BEFORE any other imports
+from dotenv import load_dotenv
+load_dotenv()
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from inference import ModelLoader, TextGenerator
 from inference.activation_store import get_activation_store
+from services.inference_router import get_inference_router
 from api.datasets import router as datasets_router
 from api.training import router as training_router
 from api.auth import router as auth_router
@@ -43,6 +50,9 @@ MODELS_DIR = os.path.join(BACKEND_DIR, "models")
 model_loader = ModelLoader(models_dir=MODELS_DIR)
 generators = {}
 activation_store = get_activation_store()
+
+# Inference router for local/Modal routing
+inference_router = get_inference_router(models_dir=MODELS_DIR)
 
 # Register routers for authentication, datasets, training, credits, payments, and webhooks
 app.include_router(auth_router)
@@ -107,10 +117,26 @@ async def health():
     }
 
 
+@app.get("/inference-mode")
+async def get_inference_mode():
+    """
+    Get current inference mode configuration.
+
+    Returns:
+        Current inference mode ('local' or 'modal')
+    """
+    return {
+        "mode": inference_router.get_inference_mode(),
+        "is_modal": inference_router.is_modal_mode(),
+    }
+
+
 @app.post("/generate", response_model=GenerateResponse)
 async def generate(request: GenerateRequest):
     """
     Generate text from a prompt.
+
+    Routes to local or Modal inference based on INFERENCE_MODE env var.
 
     Args:
         request: Generation request parameters
@@ -119,28 +145,19 @@ async def generate(request: GenerateRequest):
         Generated text and metadata
     """
     try:
-        # Load model if not already loaded
-        if request.model not in generators:
-            model, config = model_loader.load_model(request.model, device='cpu')
-            device = str(next(model.parameters()).device)
-            generators[request.model] = TextGenerator(model, device=device, model_name=request.model)
-
-        generator = generators[request.model]
-
-        # Generate text
-        result = generator.generate(
+        result = await inference_router.generate(
+            model_id=request.model,
             prompt=request.prompt,
             max_tokens=request.max_tokens,
             temperature=request.temperature,
             top_k=request.top_k,
             top_p=request.top_p,
-            return_metadata=True
         )
 
         return GenerateResponse(
             text=result['text'],
             prompt=result['prompt'],
-            model=request.model,
+            model=result.get('model', request.model),
             prompt_tokens=result['prompt_tokens'],
             generated_tokens=result['generated_tokens'],
             total_tokens=result['total_tokens'],
@@ -159,8 +176,8 @@ async def generate(request: GenerateRequest):
 
 @app.get("/models", response_model=list[str])
 async def list_models():
-    # List available models
-    return model_loader.list_available_models()
+    # List available models (including custom models from database)
+    return model_loader.list_available_models(include_remote=True)
 
 
 @app.get("/models/{model_name}", response_model=ModelInfo)
@@ -168,22 +185,24 @@ async def get_model_info(model_name: str):
     """
     Get information about a specific model.
 
+    Routes to local or Modal inference based on INFERENCE_MODE env var.
+
     Args:
-        model_name: Name of the model ('nano' or 'mini')
+        model_name: Name of the model ('nano', 'mini', or custom model name)
 
     Returns:
         Model information
     """
     try:
-        model, config = model_loader.load_model(model_name)
+        info = await inference_router.get_model_info(model_name)
 
         return ModelInfo(
-            name=model_name,
-            parameters=config.count_parameters(),
-            layers=config.num_layers,
-            heads=config.num_heads,
-            hidden_dim=config.d_model,
-            vocab_size=config.vocab_size
+            name=info["name"],
+            parameters=info["parameters"],
+            layers=info["layers"],
+            heads=info["heads"],
+            hidden_dim=info["hidden_dim"],
+            vocab_size=info["vocab_size"]
         )
 
     except ValueError as e:
@@ -194,10 +213,54 @@ async def get_model_info(model_name: str):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
+@app.post("/models/{model_name}/prepare")
+async def prepare_model(model_name: str):
+    """
+    Pre-load a model to ensure it's available for inference.
+
+    For local mode: Downloads from Modal volume if needed and caches locally.
+    For Modal mode: Warms up the Modal container with the model.
+
+    This is useful to trigger model loading before the first generation request.
+
+    Args:
+        model_name: Name of the model
+
+    Returns:
+        Status and model info
+    """
+    try:
+        # Warmup using the inference router
+        success = await inference_router.warmup_model(model_name)
+
+        if not success:
+            raise HTTPException(status_code=500, detail=f"Failed to prepare model: {model_name}")
+
+        # Get model info
+        model_info = await inference_router.get_model_info(model_name)
+
+        return {
+            "status": "ready",
+            "model": model_name,
+            "parameters": model_info.get("parameters"),
+            "layers": model_info.get("layers"),
+            "inference_mode": inference_router.get_inference_mode(),
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to prepare model: {str(e)}")
+
+
 @app.post("/generate/stream")
 async def generate_stream(request: GenerateRequest):
     """
     Generate text from a prompt with streaming (Server-Sent Events).
+
+    Routes to local or Modal inference based on INFERENCE_MODE env var.
 
     Args:
         request: Generation request parameters
@@ -206,28 +269,21 @@ async def generate_stream(request: GenerateRequest):
         Stream of generated tokens
     """
     try:
-        # Load model if not already loaded
-        if request.model not in generators:
-            model, _ = model_loader.load_model(request.model, device='cpu')
-            device = str(next(model.parameters()).device)
-            generators[request.model] = TextGenerator(model, device=device, model_name=request.model)
-
-        generator = generators[request.model]
-
         # Create streaming generator function
-        def event_stream():
+        async def event_stream():
             try:
                 # Send initial metadata
                 data = json.dumps({'type': 'start', 'prompt': request.prompt}, ensure_ascii=False)
                 yield f"data: {data}\n\n".encode('utf-8')
 
-                # Stream tokens
-                for token in generator.generate_stream(
+                # Stream tokens using the inference router
+                async for token in inference_router.generate_stream(
+                    model_id=request.model,
                     prompt=request.prompt,
                     max_tokens=request.max_tokens,
                     temperature=request.temperature,
                     top_k=request.top_k,
-                    top_p=request.top_p
+                    top_p=request.top_p,
                 ):
                     data = json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)
                     yield f"data: {data}\n\n".encode('utf-8')
@@ -264,29 +320,45 @@ async def generate_with_activations(request: GenerateRequest):
     """
     Generate text and capture activations for visualization.
 
+    Note: For Modal mode, activations are returned inline. For local mode,
+    an activation_id is returned for later retrieval.
+
     Args:
         request: Generation request parameters
 
     Returns:
-        Generated text, metadata, and activation ID
+        Generated text, metadata, and activation ID or inline activations
     """
     try:
-        # Load model if not already loaded
-        if request.model not in generators:
-            model, _ = model_loader.load_model(request.model, device='cpu')
-            device = str(next(model.parameters()).device)
-            generators[request.model] = TextGenerator(model, device=device, model_name=request.model)
-
-        generator = generators[request.model]
-
-        # Generate with activation capture
-        result = generator.generate_with_activations(
+        result = await inference_router.generate_with_activations(
+            model_id=request.model,
             prompt=request.prompt,
             max_tokens=request.max_tokens,
             temperature=request.temperature,
             top_k=request.top_k,
-            top_p=request.top_p
+            top_p=request.top_p,
         )
+
+        # If Modal mode returned inline activations, store them locally
+        if 'activations' in result and 'activation_id' not in result:
+            activation_id = activation_store.store_activations(
+                activations=result['activations'],
+                tokens=result.get('tokens', []),
+                prompt=result['prompt'],
+                model_name=result.get('model', request.model),
+                metadata={
+                    'temperature': result['temperature'],
+                    'top_k': result['top_k'],
+                    'top_p': result['top_p'],
+                    'prompt_tokens': result['prompt_tokens'],
+                    'generated_tokens': result['generated_tokens'],
+                    'total_tokens': result['total_tokens'],
+                    'generated_text': result['text'],
+                    'decoded_tokens': result.get('decoded_tokens', []),
+                }
+            )
+            result['activation_id'] = activation_id
+            del result['activations']  # Don't send large activations to frontend
 
         return result
 

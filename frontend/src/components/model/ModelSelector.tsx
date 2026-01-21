@@ -24,6 +24,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     return num.toString()
   }
 
+  // Separate base models from custom models
+  const baseModels = models.filter(m => m === 'nano' || m === 'mini')
+  const customModels = models.filter(m => m !== 'nano' && m !== 'mini')
+
   return (
     <div className="model-selector">
       <div className="selector-header">
@@ -43,15 +47,35 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             No models available. Make sure the backend is running.
           </div>
         )}
-        {models.map((model) => (
+
+        {/* Base models section */}
+        {baseModels.map((model) => (
           <button
             key={model}
             className={`model-card ${selectedModel === model ? 'selected' : ''}`}
             onClick={() => onModelSelect(model)}
             disabled={modelsLoading}
           >
-            <div className="model-name">{model.startsWith('ozera-') ? model : `ozera-${model}`}</div>
+            <div className="model-name">ozera-{model}</div>
             <div className="model-badge">{model.toUpperCase()}</div>
+          </button>
+        ))}
+
+        {/* Custom models section */}
+        {customModels.length > 0 && (
+          <div className="section-divider">
+            <span>Your Custom Models</span>
+          </div>
+        )}
+        {customModels.map((model) => (
+          <button
+            key={model}
+            className={`model-card custom-model ${selectedModel === model ? 'selected' : ''}`}
+            onClick={() => onModelSelect(model)}
+            disabled={modelsLoading}
+          >
+            <div className="model-name">{model}</div>
+            <div className="model-badge custom">CUSTOM</div>
           </button>
         ))}
       </div>
@@ -202,6 +226,59 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           font-weight: 500;
           letter-spacing: 0.08em;
           text-transform: uppercase;
+        }
+
+        .model-badge.custom {
+          background: rgba(147, 112, 219, 0.2);
+          color: rgba(200, 180, 255, 0.9);
+        }
+
+        .section-divider {
+          padding: 1rem 0;
+          text-align: center;
+          color: rgba(255, 255, 255, 0.4);
+          font-size: 0.75rem;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          position: relative;
+        }
+
+        .section-divider::before,
+        .section-divider::after {
+          content: '';
+          position: absolute;
+          top: 50%;
+          width: 20%;
+          height: 1px;
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        .section-divider::before {
+          left: 0;
+        }
+
+        .section-divider::after {
+          right: 0;
+        }
+
+        .model-card.custom-model {
+          border-color: rgba(147, 112, 219, 0.2);
+        }
+
+        .model-card.custom-model:hover:not(:disabled) {
+          border-color: rgba(147, 112, 219, 0.4);
+          box-shadow:
+            0 8px 24px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(200, 180, 255, 0.1);
+        }
+
+        .model-card.custom-model.selected {
+          border-color: rgba(147, 112, 219, 0.5);
+          background: rgba(147, 112, 219, 0.15);
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.4),
+            inset 0 1px 0 rgba(200, 180, 255, 0.15),
+            0 0 20px rgba(147, 112, 219, 0.2);
         }
 
         .model-details {

@@ -3,7 +3,8 @@
  */
 
 import React, { useMemo, useState, useEffect } from 'react'
-import { X, CheckCircle, AlertCircle, Clock, Activity, Download } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { X, CheckCircle, AlertCircle, Clock, Activity, Download, Play } from 'lucide-react'
 import type { TrainingProgress as TrainingProgressType } from '../../api/client'
 
 interface TrainingProgressProps {
@@ -27,6 +28,8 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
   onDownload,
   downloading = false,
 }) => {
+  const navigate = useNavigate()
+
   // Live elapsed time counter
   const [liveElapsedSeconds, setLiveElapsedSeconds] = useState(0)
 
@@ -122,50 +125,73 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
           )}
         </div>
         <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '12px' }}>
-          Your custom model has been trained. Download it below to use it locally.
+          Your custom model has been trained and is ready for text generation and visualization.
         </div>
-        {onDownload && (
+        <div style={{ display: 'flex', gap: '8px' }}>
           <button
-            onClick={onDownload}
-            disabled={downloading}
+            onClick={() => navigate('/')}
             style={{
-              width: '100%',
+              flex: 1,
               padding: '10px 16px',
-              background: downloading ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.2)',
-              border: '1px solid rgba(59, 130, 246, 0.4)',
+              background: 'rgba(34, 197, 94, 0.2)',
+              border: '1px solid rgba(34, 197, 94, 0.4)',
               borderRadius: '0',
-              color: '#3b82f6',
+              color: '#22c55e',
               fontSize: '13px',
               fontWeight: 500,
-              cursor: downloading ? 'not-allowed' : 'pointer',
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
             }}
           >
-            {downloading ? (
-              <>
-                <div
-                  style={{
-                    width: '14px',
-                    height: '14px',
-                    border: '2px solid rgba(59, 130, 246, 0.3)',
-                    borderTopColor: '#3b82f6',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite',
-                  }}
-                />
-                Downloading...
-              </>
-            ) : (
-              <>
-                <Download size={14} />
-                Download Model
-              </>
-            )}
+            <Play size={14} />
+            Use Model
           </button>
-        )}
+          {onDownload && (
+            <button
+              onClick={onDownload}
+              disabled={downloading}
+              style={{
+                flex: 1,
+                padding: '10px 16px',
+                background: downloading ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.2)',
+                border: '1px solid rgba(59, 130, 246, 0.4)',
+                borderRadius: '0',
+                color: '#3b82f6',
+                fontSize: '13px',
+                fontWeight: 500,
+                cursor: downloading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+              }}
+            >
+              {downloading ? (
+                <>
+                  <div
+                    style={{
+                      width: '14px',
+                      height: '14px',
+                      border: '2px solid rgba(59, 130, 246, 0.3)',
+                      borderTopColor: '#3b82f6',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite',
+                    }}
+                  />
+                  Downloading...
+                </>
+              ) : (
+                <>
+                  <Download size={14} />
+                  Download
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
     )
   }

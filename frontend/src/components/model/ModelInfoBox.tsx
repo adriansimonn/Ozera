@@ -1,42 +1,26 @@
 /**
  * Model information box component with model selector and detailed specs.
- * Model data is stored statically since it doesn't change.
+ * Supports both base models (nano/mini) and custom trained models.
  */
 
 import React from 'react'
 import { Info, Cpu, Layers, Grid3X3, Hash, Database } from 'lucide-react'
+import { useModels, useModelInfo } from '../../hooks/useModels'
 
-// Static model information - stored on frontend since it doesn't change
-const MODEL_INFO: Record<'nano' | 'mini', {
+// Static model information for base models
+const BASE_MODEL_INFO: Record<'nano' | 'mini', {
   name: string
-  parameters: number
-  layers: number
-  heads: number
-  hidden_dim: number
-  vocab_size: number
   description: string
 }> = {
   nano: {
     name: 'ozera-nano',
-    parameters: 4_336_128,
-    layers: 4,
-    heads: 4,
-    hidden_dim: 256,
-    vocab_size: 50257,
     description: 'Fast experimentation and educational demonstrations. Optimized for rapid iteration and full interpretability.',
   },
   mini: {
     name: 'ozera-mini',
-    parameters: 51_459_584,
-    layers: 8,
-    heads: 8,
-    hidden_dim: 512,
-    vocab_size: 50257,
     description: 'More coherent outputs while remaining computationally accessible. Better for observing emergent behaviors.',
   },
 }
-
-const AVAILABLE_MODELS: ('nano' | 'mini')[] = ['nano', 'mini']
 
 interface ModelInfoBoxProps {
   selectedModel: string
@@ -47,9 +31,16 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
   selectedModel,
   onModelChange,
 }) => {
-  // Only show info for base models (nano/mini)
+  const { models } = useModels()
+  const { info: dynamicInfo, loading: infoLoading } = useModelInfo(selectedModel)
+
+  // Determine if this is a base model or custom model
   const isBaseModel = selectedModel === 'nano' || selectedModel === 'mini'
-  const info = isBaseModel ? MODEL_INFO[selectedModel] : null
+  const description = isBaseModel ? BASE_MODEL_INFO[selectedModel].description : 'Your custom trained model.'
+
+  // Separate models into base and custom
+  const baseModels = models.filter(m => m === 'nano' || m === 'mini')
+  const customModels = models.filter(m => m !== 'nano' && m !== 'mini')
 
   const formatNumber = (num: number): string => {
     if (num >= 1_000_000) {
@@ -72,20 +63,37 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
         <select
           id="model-info-select"
           value={selectedModel}
-          onChange={(e) => onModelChange(e.target.value as 'nano' | 'mini')}
+          onChange={(e) => onModelChange(e.target.value)}
         >
-          {AVAILABLE_MODELS.map((m) => (
+          {/* Base models */}
+          {baseModels.map((m) => (
             <option key={m} value={m}>
               ozera-{m}
+            </option>
+          ))}
+          {/* Custom models */}
+          {customModels.length > 0 && (
+            <option disabled>── Custom Models ──</option>
+          )}
+          {customModels.map((m) => (
+            <option key={m} value={m}>
+              {m} (custom)
             </option>
           ))}
         </select>
       </div>
 
       <div className="model-info-content">
-        {info ? (
+        {infoLoading ? (
+          <p className="model-description loading">Loading model information...</p>
+        ) : dynamicInfo ? (
           <>
-            <p className="model-description">{info.description}</p>
+            <p className="model-description">
+              {description}
+              {!isBaseModel && (
+                <span className="custom-badge">Custom Model</span>
+              )}
+            </p>
 
             <div className="info-grid">
               <div className="info-card">
@@ -94,7 +102,7 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
                 </div>
                 <div className="info-details">
                   <span className="info-label">Parameters</span>
-                  <span className="info-value">{formatNumber(info.parameters)}</span>
+                  <span className="info-value">{formatNumber(dynamicInfo.parameters)}</span>
                 </div>
               </div>
 
@@ -104,7 +112,7 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
                 </div>
                 <div className="info-details">
                   <span className="info-label">Layers</span>
-                  <span className="info-value">{info.layers}</span>
+                  <span className="info-value">{dynamicInfo.layers}</span>
                 </div>
               </div>
 
@@ -114,7 +122,7 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
                 </div>
                 <div className="info-details">
                   <span className="info-label">Attention Heads</span>
-                  <span className="info-value">{info.heads}</span>
+                  <span className="info-value">{dynamicInfo.heads}</span>
                 </div>
               </div>
 
@@ -124,7 +132,7 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
                 </div>
                 <div className="info-details">
                   <span className="info-label">Hidden Dimension</span>
-                  <span className="info-value">{info.hidden_dim}</span>
+                  <span className="info-value">{dynamicInfo.hidden_dim}</span>
                 </div>
               </div>
 
@@ -134,14 +142,14 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
                 </div>
                 <div className="info-details">
                   <span className="info-label">Vocabulary Size</span>
-                  <span className="info-value">{formatNumber(info.vocab_size)}</span>
+                  <span className="info-value">{formatNumber(dynamicInfo.vocab_size)}</span>
                 </div>
               </div>
             </div>
           </>
         ) : (
           <p className="model-description">
-            Custom model: {selectedModel}
+            Unable to load model information for: {selectedModel}
           </p>
         )}
       </div>
@@ -234,6 +242,24 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
           color: rgba(255, 255, 255, 0.6);
           font-size: 0.9rem;
           line-height: 1.5;
+        }
+
+        .model-description.loading {
+          color: rgba(255, 255, 255, 0.4);
+          font-style: italic;
+        }
+
+        .custom-badge {
+          display: inline-block;
+          margin-left: 0.75rem;
+          padding: 0.25rem 0.6rem;
+          background: rgba(147, 112, 219, 0.2);
+          color: rgba(200, 180, 255, 0.9);
+          font-size: 0.7rem;
+          font-weight: 500;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          vertical-align: middle;
         }
 
         .info-grid {

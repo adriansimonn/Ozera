@@ -1,8 +1,9 @@
 /**
  * Text generation component with model selection and streaming support.
+ * Supports both local and Modal cloud inference with cold start handling.
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useStreamingGeneration } from '../../hooks/useGeneration'
 import { useModels } from '../../hooks/useModels'
 import { apiClient } from '../../api/client'
@@ -16,6 +17,9 @@ interface TextGeneratorProps {
   onModelChange?: (model: string) => void
   externalModel?: string
 }
+
+// Cold start threshold - show "warming up" message after this delay
+const COLD_START_THRESHOLD_MS = 3000
 
 export const TextGenerator: React.FC<TextGeneratorProps> = ({
   defaultModel = 'nano',
@@ -40,9 +44,20 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   const [temperature, setTemperature] = useState(0.7)
   const [topK, setTopK] = useState(40)
   const [capturingActivations, setCapturingActivations] = useState(false)
+  const [isWarmingUp, setIsWarmingUp] = useState(false)
+  const warmupTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const { models, loading: modelsLoading, error: modelsError } = useModels()
   const { text, loading, streaming, error, generate, reset } = useStreamingGeneration()
+
+  // Clear warmup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (warmupTimerRef.current) {
+        clearTimeout(warmupTimerRef.current)
+      }
+    }
+  }, [])
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -50,6 +65,12 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
     }
 
     reset()
+    setIsWarmingUp(false)
+
+    // Start a timer to show "warming up" message if response takes too long
+    warmupTimerRef.current = setTimeout(() => {
+      setIsWarmingUp(true)
+    }, COLD_START_THRESHOLD_MS)
 
     try {
       await generate({
@@ -65,6 +86,13 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       }
     } catch (err) {
       console.error('Generation error:', err)
+    } finally {
+      // Clear warmup timer
+      if (warmupTimerRef.current) {
+        clearTimeout(warmupTimerRef.current)
+        warmupTimerRef.current = null
+      }
+      setIsWarmingUp(false)
     }
   }
 
@@ -77,6 +105,13 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
     if (!prompt.trim()) {
       return
     }
+
+    setIsWarmingUp(false)
+
+    // Start warmup timer
+    warmupTimerRef.current = setTimeout(() => {
+      setIsWarmingUp(true)
+    }, COLD_START_THRESHOLD_MS)
 
     try {
       setCapturingActivations(true)
@@ -97,6 +132,12 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       console.error('Activation generation error:', err)
       alert('Failed to generate activations: ' + (err instanceof Error ? err.message : 'Unknown error'))
     } finally {
+      // Clear warmup timer
+      if (warmupTimerRef.current) {
+        clearTimeout(warmupTimerRef.current)
+        warmupTimerRef.current = null
+      }
+      setIsWarmingUp(false)
       setCapturingActivations(false)
       onGeneratingChange?.(false)
     }
@@ -122,9 +163,19 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
             {models.length === 0 && (
               <option value="">No models available</option>
             )}
-            {models.map((m) => (
+            {/* Base models */}
+            {models.filter(m => m === 'nano' || m === 'mini').map((m) => (
               <option key={m} value={m}>
-                {m.startsWith('ozera-') ? m : `ozera-${m}`}
+                ozera-{m}
+              </option>
+            ))}
+            {/* Custom models - show with different formatting */}
+            {models.filter(m => m !== 'nano' && m !== 'mini').length > 0 && (
+              <option disabled>── Custom Models ──</option>
+            )}
+            {models.filter(m => m !== 'nano' && m !== 'mini').map((m) => (
+              <option key={m} value={m}>
+                {m} (custom)
               </option>
             ))}
           </select>
@@ -193,14 +244,14 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           disabled={loading || streaming || capturingActivations || !prompt.trim()}
           className="btn-primary"
         >
-          {loading ? 'Loading...' : streaming ? 'Generating...' : 'Generate'}
+          {loading && isWarmingUp ? 'Warming up model...' : loading ? 'Loading...' : streaming ? 'Generating...' : 'Generate'}
         </button>
         <button
           onClick={handleGenerateWithActivations}
           disabled={loading || streaming || capturingActivations || !prompt.trim()}
           className="btn-visualize"
         >
-          {capturingActivations ? 'Capturing...' : 'Visualize'}
+          {capturingActivations && isWarmingUp ? 'Warming up...' : capturingActivations ? 'Capturing...' : 'Visualize'}
         </button>
         <button
           onClick={handleReset}
@@ -210,6 +261,13 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           Reset
         </button>
       </div>
+
+      {isWarmingUp && (loading || capturingActivations) && (
+        <div className="warmup-message">
+          <span className="warmup-spinner"></span>
+          <span>Model is warming up. This may take 10-30 seconds on first request...</span>
+        </div>
+      )}
 
       {error && (
         <div className="error-message">
@@ -464,6 +522,37 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         .btn-visualize:disabled {
           opacity: 0.3;
           cursor: not-allowed;
+        }
+
+        .warmup-message {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 1rem 1.25rem;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.8);
+          margin-bottom: 1.5rem;
+          font-size: 0.9rem;
+          animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .warmup-spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba(255, 255, 255, 0.2);
+          border-top-color: rgba(255, 255, 255, 0.8);
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
         .error-message {

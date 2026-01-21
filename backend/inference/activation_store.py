@@ -156,8 +156,11 @@ class ActivationStore:
         """
         Convert activation tensors to numpy arrays and compute statistics.
 
+        Handles both torch.Tensor inputs (from local inference) and
+        already-serialized list inputs (from Modal inference).
+
         Args:
-            activations: Raw activation tensors from model
+            activations: Raw activation tensors or serialized lists from model
 
         Returns:
             Processed activation dictionary with numpy arrays and stats
@@ -171,15 +174,49 @@ class ActivationStore:
                 processed['layers'] = []
                 for layer_idx, layer_act in enumerate(value):
                     layer_processed = {}
-                    for act_name, act_tensor in layer_act.items():
-                        layer_processed[act_name] = self._tensor_to_data(act_tensor)
+                    for act_name, act_value in layer_act.items():
+                        layer_processed[act_name] = self._value_to_data(act_value)
                     processed['layers'].append(layer_processed)
             elif isinstance(value, torch.Tensor):
                 processed[key] = self._tensor_to_data(value)
+            elif isinstance(value, list):
+                # Already serialized from Modal - convert to data format
+                processed[key] = self._list_to_data(value)
             else:
                 processed[key] = value
 
         return processed
+
+    def _value_to_data(self, value) -> Dict[str, Any]:
+        """Convert a tensor or list to data format."""
+        if isinstance(value, torch.Tensor):
+            return self._tensor_to_data(value)
+        elif isinstance(value, list):
+            return self._list_to_data(value)
+        else:
+            return value
+
+    def _list_to_data(self, data: list) -> Dict[str, Any]:
+        """
+        Convert an already-serialized list to data format with statistics.
+
+        Args:
+            data: List of values (from Modal serialization)
+
+        Returns:
+            Dictionary with array and statistics
+        """
+        arr = np.array(data)
+
+        return {
+            'values': data,  # Keep original list for JSON serialization
+            'shape': list(arr.shape),
+            'dtype': str(arr.dtype),
+            'mean': float(np.mean(arr)),
+            'std': float(np.std(arr)),
+            'min': float(np.min(arr)),
+            'max': float(np.max(arr))
+        }
 
     def _tensor_to_data(self, tensor: torch.Tensor) -> Dict[str, Any]:
         """

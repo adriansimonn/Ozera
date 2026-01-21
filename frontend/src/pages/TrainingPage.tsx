@@ -3,7 +3,8 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { Trash2, Clock, Download, Loader2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Trash2, Clock, Download, Loader2, Play } from 'lucide-react'
 import { TrainingPanel } from '../components/training/TrainingPanel'
 import { TrainingProgress } from '../components/training/TrainingProgress'
 import {
@@ -20,6 +21,7 @@ interface TrainingPageProps {
 }
 
 export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowSignup }) => {
+  const navigate = useNavigate()
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [autoDownloadEnabled, setAutoDownloadEnabled] = useState(false)
   const [downloading, setDownloading] = useState(false)
@@ -192,7 +194,7 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {models.slice(0, 1).map((model) => (
+                  {models.map((model) => (
                     <div
                       key={model.model_id}
                       style={{
@@ -213,6 +215,26 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <button
+                          onClick={() => navigate('/')}
+                          title="Use model for generation"
+                          style={{
+                            background: 'rgba(34, 197, 94, 0.15)',
+                            border: '1px solid rgba(34, 197, 94, 0.3)',
+                            borderRadius: '0',
+                            padding: '4px 8px',
+                            cursor: 'pointer',
+                            color: '#22c55e',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '11px',
+                            fontWeight: 500,
+                          }}
+                        >
+                          <Play size={12} />
+                          Use
+                        </button>
                         <button
                           onClick={() => handleDownloadModel(model.model_id)}
                           disabled={downloadingModelId === model.model_id}

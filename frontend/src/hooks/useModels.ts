@@ -45,9 +45,9 @@ export function useModels() {
         }),
       ])
 
-      // Combine base models with custom model names
+      // Combine base models with custom model names, avoiding duplicates
       const customModelNames = customModels.map(m => m.model_id)
-      const allModels = [...baseModels, ...customModelNames]
+      const allModels = [...new Set([...baseModels, ...customModelNames])]
 
       // If no models at all, show an error
       if (allModels.length === 0) {
