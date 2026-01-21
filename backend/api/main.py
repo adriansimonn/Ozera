@@ -19,7 +19,7 @@ import json
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from inference import ModelLoader, TextGenerator
+from inference import ModelLoader
 from inference.activation_store import get_activation_store
 from services.inference_router import get_inference_router
 from api.datasets import router as datasets_router
@@ -48,7 +48,6 @@ app.add_middleware(
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(BACKEND_DIR, "models")
 model_loader = ModelLoader(models_dir=MODELS_DIR)
-generators = {}
 activation_store = get_activation_store()
 
 # Inference router for local/Modal routing
@@ -420,19 +419,15 @@ async def decode_tokens(request: dict):
         List of decoded token strings
     """
     try:
+        from core.tokenizer import get_tokenizer
+
         token_ids = request.get('token_ids', [])
-        model_name = request.get('model', 'nano')
 
-        # Load model to get tokenizer
-        if model_name not in generators:
-            model, _ = model_loader.load_model(model_name, device='cpu')
-            device = str(next(model.parameters()).device)
-            generators[model_name] = TextGenerator(model, device=device, model_name=model_name)
-
-        generator = generators[model_name]
+        # Use shared tokenizer (all models use the same BPE tokenizer)
+        tokenizer = get_tokenizer()
 
         # Decode each token ID individually
-        decoded = [generator.tokenizer.decode([tid]) for tid in token_ids]
+        decoded = [tokenizer.decode([tid]) for tid in token_ids]
 
         return {'decoded_tokens': decoded}
 

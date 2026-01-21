@@ -41,6 +41,21 @@ export function GenerationFlow({
   const decodedTokens = activationData.metadata.decoded_tokens || []
   const topK = activationData.metadata.top_k || 10
 
+  // Helper to get decoded token text - checks metadata first, then cache
+  const getDecodedToken = (idx: number): string => {
+    // First try metadata decoded_tokens
+    if (decodedTokens[idx]) {
+      return decodedTokens[idx]
+    }
+    // Then try cache using the token ID
+    const tokenId = activationData.tokens[idx]
+    if (tokenDecodeCache.has(tokenId)) {
+      return tokenDecodeCache.get(tokenId)!
+    }
+    // Fallback to token ID display
+    return `[${tokenId}]`
+  }
+
   // Decode token IDs to text via API
   const decodeTokenIds = async (tokenIds: number[]): Promise<Map<number, string>> => {
     const newCache = new Map(tokenDecodeCache)
@@ -143,27 +158,31 @@ export function GenerationFlow({
     }))
   }
 
-  // Pre-fetch all top-K token IDs when activation data loads to avoid race conditions during animation
+  // Pre-fetch all token IDs (sequence tokens + top-K from logits) when activation data loads
   useEffect(() => {
-    const prefetchTopTokens = async () => {
-      const logits = activationData.activations.logits
-      if (!logits) return
-
-      const logitValues = logits.values as number[][][]
-      if (!logitValues || !logitValues[0]) return
-
-      // Collect all unique token IDs from top-K for each position
+    const prefetchAllTokens = async () => {
+      // Collect all unique token IDs to fetch
       const allTokenIds = new Set<number>()
 
-      for (let tokenIdx = 0; tokenIdx < logitValues[0].length; tokenIdx++) {
-        const tokenLogits = logitValues[0][tokenIdx]
+      // Add sequence tokens (needed for generated output display)
+      activationData.tokens.forEach(tokenId => allTokenIds.add(tokenId))
 
-        // Get top K token IDs for this position
-        const tokenProbPairs = tokenLogits.map((_, idx) => ({ tokenId: idx, logit: tokenLogits[idx] }))
-        tokenProbPairs.sort((a, b) => b.logit - a.logit)
-        const topTokens = tokenProbPairs.slice(0, topK)
+      // Add top-K tokens from logits (needed for probability display)
+      const logits = activationData.activations.logits
+      if (logits) {
+        const logitValues = logits.values as number[][][]
+        if (logitValues && logitValues[0]) {
+          for (let tokenIdx = 0; tokenIdx < logitValues[0].length; tokenIdx++) {
+            const tokenLogits = logitValues[0][tokenIdx]
 
-        topTokens.forEach(t => allTokenIds.add(t.tokenId))
+            // Get top K token IDs for this position
+            const tokenProbPairs = tokenLogits.map((_, idx) => ({ tokenId: idx, logit: tokenLogits[idx] }))
+            tokenProbPairs.sort((a, b) => b.logit - a.logit)
+            const topTokens = tokenProbPairs.slice(0, topK)
+
+            topTokens.forEach(t => allTokenIds.add(t.tokenId))
+          }
+        }
       }
 
       // Fetch all at once
@@ -172,7 +191,7 @@ export function GenerationFlow({
       }
     }
 
-    prefetchTopTokens()
+    prefetchAllTokens()
   }, [activationData, topK])
 
   // Update canvas dimensions based on container size
@@ -275,7 +294,7 @@ export function GenerationFlow({
           (_, i) => promptTokens + i
         )
         const newOutputTokens = outputTokenIndices.map(idx => {
-          return decodedTokens[idx] || `[${activationData.tokens[idx]}]`
+          return getDecodedToken(idx)
         })
         if (JSON.stringify(newOutputTokens) !== JSON.stringify(currentOutputTokens)) {
           setCurrentOutputTokens(newOutputTokens)
@@ -519,7 +538,7 @@ export function GenerationFlow({
           }
 
           // Update state for animation purposes
-          const tokenText = decodedTokens[flowingTokenIdx] || `[${activationData.tokens[flowingTokenIdx]}]`
+          const tokenText = getDecodedToken(flowingTokenIdx)
           const tokenToDisplay = { text: tokenText, index: flowingTokenIdx }
           if (!lastGeneratedToken || lastGeneratedToken.index !== flowingTokenIdx) {
             setLastGeneratedToken(tokenToDisplay)
@@ -562,7 +581,7 @@ export function GenerationFlow({
       const currentTokenIdx = tokensInCurrentStep > 0 ? tokensInCurrentStep - 1 : 0
 
       if (showLabels && progress > 0 && progress < 1) {
-        const labelText = decodedTokens[currentTokenIdx] || `T${currentTokenIdx}`
+        const labelText = getDecodedToken(currentTokenIdx)
         const displayLabel = labelText.length > 12 ? labelText.substring(0, 11) + '…' : labelText
 
         ctx.font = 'bold 14px Monaco'
@@ -604,7 +623,7 @@ export function GenerationFlow({
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [activationData, isPlaying, animationSpeed, showLabels, numLayers, promptTokens, generatedTokens, totalTokens, decodedTokens, width, height, lastGeneratedToken, canvasDimensions])
+  }, [activationData, isPlaying, animationSpeed, showLabels, numLayers, promptTokens, generatedTokens, totalTokens, decodedTokens, tokenDecodeCache, width, height, lastGeneratedToken, canvasDimensions])
 
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying)
@@ -764,7 +783,7 @@ export function GenerationFlow({
                 }}
               >
                 <div className="tooltip-header">
-                  Token: <strong>{decodedTokens[hoveredToken.idx] || `[${activationData.tokens[hoveredToken.idx]}]`}</strong>
+                  Token: <strong>{getDecodedToken(hoveredToken.idx)}</strong>
                 </div>
                 <div className="tooltip-content">
                   <div className="tooltip-label">Embedding Vector (first 10 dims):</div>
@@ -854,7 +873,7 @@ export function GenerationFlow({
           ) : (
             <div className="prompt-tokens-list">
               {Array.from({ length: promptTokens }, (_, idx) => {
-                const tokenText = decodedTokens[idx] || `[${activationData.tokens[idx]}]`
+                const tokenText = getDecodedToken(idx)
                 return (
                   <span key={idx} className="prompt-token">
                     <span className="prompt-token-index">{idx}</span>
