@@ -28,6 +28,7 @@ inference_image = (
         "numpy>=1.24.0",
         "tiktoken>=0.5.0",
         "safetensors>=0.4.0",
+        "packaging>=21.0",
     )
     .add_local_dir(os.path.join(BACKEND_DIR, "core"), remote_path="/app/backend/core")
     .add_local_dir(os.path.join(BACKEND_DIR, "inference"), remote_path="/app/backend/inference")
@@ -181,7 +182,7 @@ class InferenceWorkerT4:
             num_layers=num_layers,
             num_heads=num_heads,
             d_ff=d_model * 4,
-            dropout=0.0,
+            dropout_rate=0.0,
         )
 
     def _map_safetensors_state_dict(self, state_dict: dict, model) -> dict:
@@ -691,7 +692,7 @@ class InferenceWorkerA10G:
             num_layers=num_layers,
             num_heads=num_heads,
             d_ff=d_model * 4,
-            dropout=0.0,
+            dropout_rate=0.0,
         )
 
     def _map_safetensors_state_dict(self, state_dict: dict, model) -> dict:

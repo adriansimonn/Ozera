@@ -8,6 +8,7 @@ import { Trash2, Clock, Download, Loader2, Play, Upload } from 'lucide-react'
 import { TrainingPanel } from '../components/training/TrainingPanel'
 import { TrainingProgress } from '../components/training/TrainingProgress'
 import { ModelUploadPanel } from '../components/training/ModelUploadPanel'
+import { ConfirmModal } from '../components/common/ConfirmModal'
 import {
   useTrainingJobs,
   useTrainingProgress,
@@ -30,6 +31,7 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
   const [downloading, setDownloading] = useState(false)
   const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null)
   const [deletingUploadedModelId, setDeletingUploadedModelId] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ modelId: string; modelName: string; type: 'trained' | 'uploaded' } | null>(null)
   const autoDownloadTriggeredRef = useRef(false)
 
   const { jobs, fetchJobs, startJob, cancelJob } = useTrainingJobs()
@@ -112,16 +114,24 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
     fetchUploadedModels()
   }, [resetProgress, fetchJobs, fetchModels, fetchUploadedModels])
 
-  const handleDeleteUploadedModel = useCallback(async (modelId: string) => {
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteConfirm) return
+
+    const { modelId, type } = deleteConfirm
     setDeletingUploadedModelId(modelId)
     try {
-      await deleteUploadedModel(modelId)
+      if (type === 'trained') {
+        await deleteModel(modelId)
+      } else {
+        await deleteUploadedModel(modelId)
+      }
     } catch (err) {
-      console.error('Failed to delete uploaded model:', err)
+      console.error('Failed to delete model:', err)
     } finally {
       setDeletingUploadedModelId(null)
+      setDeleteConfirm(null)
     }
-  }, [deleteUploadedModel])
+  }, [deleteConfirm, deleteModel, deleteUploadedModel])
 
   const handleUploadComplete = useCallback(() => {
     fetchModels()
@@ -351,7 +361,7 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
                           </button>
                         )}
                         <button
-                          onClick={() => model.type === 'trained' ? deleteModel(model.model_id) : handleDeleteUploadedModel(model.model_id)}
+                          onClick={() => setDeleteConfirm({ modelId: model.model_id, modelName: model.name, type: model.type })}
                           disabled={deletingUploadedModelId === model.model_id}
                           title="Delete model"
                           style={{
@@ -437,6 +447,16 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={!!deleteConfirm}
+        title="Delete Model"
+        message={`Are you sure you want to delete "${deleteConfirm?.modelName}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteConfirm(null)}
+        isLoading={!!deletingUploadedModelId}
+      />
 
       <style>{`
         @keyframes spin {

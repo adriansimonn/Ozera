@@ -7,6 +7,7 @@ import { apiClient, ModelInfo } from '../api/client'
 
 export interface ModelsState {
   models: string[]
+  modelNames: Record<string, string>  // Maps model_id to display name
   loading: boolean
   error: string | null
 }
@@ -19,11 +20,13 @@ export interface ModelInfoState {
 
 /**
  * Hook to fetch and manage available models.
- * Combines base models from /models and custom models from /training/models.
+ * Combines base models from /models, custom trained models from /training/models,
+ * and uploaded models from /training/models/uploaded.
  */
 export function useModels() {
   const [state, setState] = useState<ModelsState>({
     models: [],
+    modelNames: {},
     loading: true,
     error: null,
   })
@@ -32,9 +35,9 @@ export function useModels() {
     setState(prev => ({ ...prev, loading: true, error: null }))
 
     try {
-      // Fetch both base models and custom models in parallel
-      // Both have catch handlers so we always get arrays
-      const [baseModels, customModels] = await Promise.all([
+      // Fetch base models, custom trained models, and uploaded models in parallel
+      // All have catch handlers so we always get arrays
+      const [baseModels, customModels, uploadedModels] = await Promise.all([
         apiClient.listModels().catch((err) => {
           console.error('Failed to fetch base models:', err)
           return [] as string[]
@@ -43,17 +46,40 @@ export function useModels() {
           // Don't log error for custom models - user might not be logged in
           return []
         }),
+        apiClient.listUploadedModels().catch((err) => {
+          // Don't log error for uploaded models - user might not be logged in
+          return []
+        }),
       ])
 
-      // Combine base models with custom model names, avoiding duplicates
-      const customModelNames = customModels.map(m => m.model_id)
-      const allModels = [...new Set([...baseModels, ...customModelNames])]
+      // Build display name mapping
+      const nameMap: Record<string, string> = {}
+
+      // Base models use their formatted names
+      baseModels.forEach(m => {
+        nameMap[m] = m === 'nano' || m === 'mini' ? `ozera-${m}` : m
+      })
+
+      // Custom trained models use their name field
+      customModels.forEach(m => {
+        nameMap[m.model_id] = m.name
+      })
+
+      // Uploaded models use their name field
+      uploadedModels.forEach(m => {
+        nameMap[m.model_id] = m.name
+      })
+
+      // Combine all model sources, avoiding duplicates
+      const customModelIds = customModels.map(m => m.model_id)
+      const uploadedModelIds = uploadedModels.map(m => m.model_id)
+      const allModels = [...new Set([...baseModels, ...customModelIds, ...uploadedModelIds])]
 
       // If no models at all, show an error
       if (allModels.length === 0) {
-        setState({ models: [], loading: false, error: 'No models available' })
+        setState({ models: [], modelNames: {}, loading: false, error: 'No models available' })
       } else {
-        setState({ models: allModels, loading: false, error: null })
+        setState({ models: allModels, modelNames: nameMap, loading: false, error: null })
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'

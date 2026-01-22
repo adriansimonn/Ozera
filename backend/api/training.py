@@ -820,7 +820,8 @@ async def upload_model(
         # Continue anyway - we can still upload the file
 
     # Save to temporary file and upload to Modal volume
-    model_id = str(uuid.uuid4())[:8]
+    # Use model_name as model_id since that's the folder name on the volume
+    model_id = model_name
 
     with tempfile.NamedTemporaryFile(suffix=".safetensors", delete=False) as tmp_file:
         tmp_file.write(content)

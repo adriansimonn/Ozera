@@ -14,8 +14,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   selectedModel,
   onModelSelect,
 }) => {
-  const { models, loading: modelsLoading, error: modelsError } = useModels()
+  const { models, modelNames, loading: modelsLoading, error: modelsError } = useModels()
   const { info, loading: infoLoading } = useModelInfo(selectedModel)
+
+  // Helper to get display name for a model
+  const getDisplayName = (modelId: string): string => {
+    return modelNames[modelId] || modelId
+  }
 
   const formatNumber = (num: number): string => {
     if (num >= 1e9) return `${(num / 1e9).toFixed(1)}B`
@@ -74,7 +79,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             onClick={() => onModelSelect(model)}
             disabled={modelsLoading}
           >
-            <div className="model-name">{model}</div>
+            <div className="model-name">{getDisplayName(model)}</div>
             <div className="model-badge custom">CUSTOM</div>
           </button>
         ))}
