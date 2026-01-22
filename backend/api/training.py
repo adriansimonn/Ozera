@@ -53,10 +53,19 @@ async def get_training_estimate(
     Returns estimated training time and cost based on dataset size,
     model configuration, and GPU type.
     """
-    # Load dataset to get token count
-    metadata = load_dataset_metadata(request.dataset_id)
-    if not metadata:
-        raise HTTPException(status_code=404, detail=f"Dataset not found: {request.dataset_id}")
+    from services.modal_volumes import parse_dataset_id, get_generic_dataset_metadata
+
+    # Load dataset metadata - handle both generic and user-uploaded datasets
+    is_generic, actual_dataset_id = parse_dataset_id(request.dataset_id)
+
+    if is_generic:
+        metadata = get_generic_dataset_metadata(actual_dataset_id)
+        if not metadata:
+            raise HTTPException(status_code=404, detail=f"Generic dataset not found: {actual_dataset_id}")
+    else:
+        metadata = load_dataset_metadata(request.dataset_id)
+        if not metadata:
+            raise HTTPException(status_code=404, detail=f"Dataset not found: {request.dataset_id}")
 
     num_tokens = metadata["num_tokens"]
 
@@ -104,6 +113,8 @@ async def start_training_job(
     Requires authentication and sufficient credit balance.
     Credits are reserved upfront and charged based on actual usage.
     """
+    from services.modal_volumes import parse_dataset_id, get_generic_dataset_metadata
+
     # Validate model name is not reserved
     if request.model_name.lower() in RESERVED_MODEL_NAMES:
         raise HTTPException(
@@ -111,10 +122,17 @@ async def start_training_job(
             detail=f"Model name '{request.model_name}' is reserved for default Ozera models"
         )
 
-    # Validate dataset exists
-    metadata = load_dataset_metadata(request.dataset_id)
-    if not metadata:
-        raise HTTPException(status_code=404, detail=f"Dataset not found: {request.dataset_id}")
+    # Validate dataset exists - handle both generic and user-uploaded datasets
+    is_generic, actual_dataset_id = parse_dataset_id(request.dataset_id)
+
+    if is_generic:
+        metadata = get_generic_dataset_metadata(actual_dataset_id)
+        if not metadata:
+            raise HTTPException(status_code=404, detail=f"Generic dataset not found: {actual_dataset_id}")
+    else:
+        metadata = load_dataset_metadata(request.dataset_id)
+        if not metadata:
+            raise HTTPException(status_code=404, detail=f"Dataset not found: {request.dataset_id}")
 
     # Get GPU type from request
     gpu_type = request.gpu_type

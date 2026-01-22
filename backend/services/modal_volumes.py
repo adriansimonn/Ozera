@@ -19,9 +19,13 @@ datasets_volume = modal.Volume.from_name(DATASETS_VOLUME_NAME, create_if_missing
 models_volume = modal.Volume.from_name(MODELS_VOLUME_NAME, create_if_missing=True)
 
 
+# Generic datasets folder name (datasets available to all users)
+GENERIC_DATASETS_FOLDER = "generic"
+
+
 def get_dataset_path(user_id: int, dataset_id: str) -> str:
     """
-    Get the path for a dataset in the Modal volume.
+    Get the path for a user-uploaded dataset in the Modal volume.
 
     Args:
         user_id: User ID
@@ -31,6 +35,52 @@ def get_dataset_path(user_id: int, dataset_id: str) -> str:
         Path string: /datasets/{user_id}/{dataset_id}/raw.txt
     """
     return f"/datasets/{user_id}/{dataset_id}/raw.txt"
+
+
+def get_generic_dataset_path(dataset_id: str) -> str:
+    """
+    Get the path for a generic dataset in the Modal volume.
+
+    Generic datasets are stored in /datasets/generic/{dataset_id}/raw.txt
+    and are available to all users.
+
+    Args:
+        dataset_id: Dataset ID (e.g., 'tinystories', 'openwebtext')
+
+    Returns:
+        Path string: /datasets/generic/{dataset_id}/raw.txt
+    """
+    return f"/datasets/{GENERIC_DATASETS_FOLDER}/{dataset_id}/raw.txt"
+
+
+def is_generic_dataset(dataset_id: str) -> bool:
+    """
+    Check if a dataset ID refers to a generic dataset.
+
+    Generic dataset IDs are prefixed with 'generic:'.
+
+    Args:
+        dataset_id: Dataset ID
+
+    Returns:
+        True if this is a generic dataset
+    """
+    return dataset_id.startswith("generic:")
+
+
+def parse_dataset_id(dataset_id: str) -> tuple[bool, str]:
+    """
+    Parse a dataset ID to determine if it's generic and get the actual ID.
+
+    Args:
+        dataset_id: Dataset ID (e.g., 'generic:tinystories' or 'abc123')
+
+    Returns:
+        Tuple of (is_generic, actual_dataset_id)
+    """
+    if dataset_id.startswith("generic:"):
+        return True, dataset_id[8:]  # Remove 'generic:' prefix
+    return False, dataset_id
 
 
 def get_model_path(user_id: int, model_name: str) -> str:
@@ -95,6 +145,113 @@ async def check_dataset_exists(user_id: int, dataset_id: str) -> bool:
         return False
     except Exception:
         return False
+
+
+async def check_generic_dataset_exists(dataset_id: str) -> bool:
+    """
+    Check if a generic dataset exists in the Modal volume.
+
+    Args:
+        dataset_id: Dataset ID (without 'generic:' prefix)
+
+    Returns:
+        True if dataset exists
+    """
+    try:
+        for entry in datasets_volume.listdir(f"/{GENERIC_DATASETS_FOLDER}/{dataset_id}"):
+            if entry.path.endswith("raw.txt"):
+                return True
+        return False
+    except Exception:
+        return False
+
+
+def list_generic_datasets() -> list[dict]:
+    """
+    List all generic datasets available in the Modal volume.
+
+    Returns:
+        List of dicts with dataset info: {id, name, path}
+    """
+    datasets = []
+    try:
+        # List directories in /generic/
+        for entry in datasets_volume.listdir(f"/{GENERIC_DATASETS_FOLDER}"):
+            if entry.type == "directory":
+                dataset_id = entry.path.strip("/").split("/")[-1]
+                # Check if raw.txt exists
+                try:
+                    for file_entry in datasets_volume.listdir(entry.path):
+                        if file_entry.path.endswith("raw.txt"):
+                            datasets.append({
+                                "id": f"generic:{dataset_id}",
+                                "name": dataset_id.replace("-", " ").replace("_", " ").title(),
+                                "path": f"/{GENERIC_DATASETS_FOLDER}/{dataset_id}/raw.txt",
+                            })
+                            break
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"Error listing generic datasets: {e}")
+    return datasets
+
+
+def get_generic_dataset_metadata(dataset_id: str) -> Optional[dict]:
+    """
+    Get metadata for a generic dataset.
+
+    First checks for a metadata.json file in the dataset folder.
+    If not found, returns basic metadata with the dataset name.
+
+    Args:
+        dataset_id: Dataset ID (without 'generic:' prefix)
+
+    Returns:
+        Dict with metadata or None if dataset not found
+    """
+    import json
+
+    try:
+        dataset_dir = f"/{GENERIC_DATASETS_FOLDER}/{dataset_id}"
+
+        # Check if dataset exists
+        has_raw_txt = False
+        has_metadata = False
+
+        for entry in datasets_volume.listdir(dataset_dir):
+            if entry.path.endswith("raw.txt"):
+                has_raw_txt = True
+            if entry.path.endswith("metadata.json"):
+                has_metadata = True
+
+        if not has_raw_txt:
+            return None
+
+        # Try to read metadata.json if it exists
+        if has_metadata:
+            try:
+                metadata_content = b""
+                for chunk in datasets_volume.read_file(f"{dataset_dir}/metadata.json"):
+                    metadata_content += chunk
+                metadata = json.loads(metadata_content.decode("utf-8"))
+                # Ensure required fields
+                metadata["dataset_id"] = f"generic:{dataset_id}"
+                metadata["name"] = metadata.get("name", dataset_id.replace("-", " ").replace("_", " ").title())
+                return metadata
+            except Exception:
+                pass
+
+        # Return basic metadata
+        return {
+            "dataset_id": f"generic:{dataset_id}",
+            "name": dataset_id.replace("-", " ").replace("_", " ").title(),
+            "num_tokens": 0,  # Unknown without reading the file
+            "size_bytes": 0,
+        }
+
+    except Exception as e:
+        print(f"Error getting generic dataset metadata: {e}")
+        return None
 
 
 def download_model_from_volume(

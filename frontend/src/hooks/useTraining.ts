@@ -5,7 +5,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   apiClient,
-  DatasetMetadata,
   TrainingEstimate,
   TrainingJobResponse,
   TrainingProgress,
@@ -16,68 +15,7 @@ import {
   GpuType,
 } from '../api/client'
 
-/**
- * Hook for managing datasets.
- */
-export function useDatasets() {
-  const [datasets, setDatasets] = useState<DatasetMetadata[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchDatasets = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await apiClient.listDatasets()
-      setDatasets(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch datasets')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  const uploadDataset = useCallback(async (file: File) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const metadata = await apiClient.uploadDataset(file)
-      setDatasets(prev => [metadata, ...prev])
-      return metadata
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to upload dataset'
-      setError(message)
-      throw err
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  const deleteDataset = useCallback(async (datasetId: string) => {
-    setError(null)
-    try {
-      await apiClient.deleteDataset(datasetId)
-      setDatasets(prev => prev.filter(d => d.dataset_id !== datasetId))
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete dataset'
-      setError(message)
-      throw err
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchDatasets()
-  }, [fetchDatasets])
-
-  return {
-    datasets,
-    loading,
-    error,
-    fetchDatasets,
-    uploadDataset,
-    deleteDataset,
-  }
-}
+// useDatasets hook removed - datasets are now session-only and uploaded directly via apiClient
 
 /**
  * Hook for GPU pricing.

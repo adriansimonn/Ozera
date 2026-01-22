@@ -5,9 +5,12 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Play, AlertCircle, Database, Cpu, Settings, Zap, Download } from 'lucide-react'
 import { DatasetUpload } from './DatasetUpload'
-import { useDatasets, useTrainingEstimate, useGpuPricing } from '../../hooks/useTraining'
-import type { GpuType } from '../../api/client'
+import { useTrainingEstimate, useGpuPricing } from '../../hooks/useTraining'
+import type { GpuType, DatasetMetadata, GenericDatasetInfo } from '../../api/client'
 import { apiClient } from '../../api/client'
+
+// Dataset sources - "uploaded" is user's uploaded dataset, others are generic datasets from Modal volume
+type DatasetSource = 'uploaded' | string
 
 interface TrainingPanelProps {
   onStartTraining: (
@@ -29,9 +32,19 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
   onStartTraining,
   disabled = false,
 }) => {
-  // Dataset state
-  const { datasets, uploadDataset } = useDatasets()
-  const [selectedDatasetId, setSelectedDatasetId] = useState<string>('')
+  // Dataset state - tracks the selected source and the current session's uploaded dataset
+  const [datasetSource, setDatasetSource] = useState<DatasetSource>('uploaded')
+  const [uploadedDataset, setUploadedDataset] = useState<DatasetMetadata | null>(null)
+  const [genericDatasets, setGenericDatasets] = useState<GenericDatasetInfo[]>([])
+
+  // Fetch generic datasets on mount
+  useEffect(() => {
+    apiClient.listGenericDatasets()
+      .then(setGenericDatasets)
+      .catch(() => {
+        // Silently fail - generic datasets are optional
+      })
+  }, [])
 
   // GPU pricing
   const { pricing: gpuPricing, defaultGpu } = useGpuPricing()
@@ -46,7 +59,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
   const [seqLen, setSeqLen] = useState(256)
 
   // Estimate
-  const { estimate, getEstimate } = useTrainingEstimate()
+  const { estimate, getEstimate, clearEstimate } = useTrainingEstimate()
 
   // Set default GPU when pricing loads
   useEffect(() => {
@@ -64,31 +77,31 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
 
   // Overwrite confirmation modal
   const [showOverwriteModal, setShowOverwriteModal] = useState(false)
-  const [existingModelCount, setExistingModelCount] = useState(0)
+
+  // Get the current dataset ID based on source
+  const currentDatasetId = datasetSource === 'uploaded'
+    ? uploadedDataset?.dataset_id
+    : datasetSource
 
   // Fetch estimate when config changes
   useEffect(() => {
-    if (selectedDatasetId) {
-      getEstimate(selectedDatasetId, modelConfig, epochs, batchSize, seqLen, gpuType).catch(() => {})
+    if (currentDatasetId) {
+      getEstimate(currentDatasetId, modelConfig, epochs, batchSize, seqLen, gpuType).catch(() => {})
+    } else {
+      clearEstimate()
     }
-  }, [selectedDatasetId, modelConfig, epochs, batchSize, seqLen, gpuType, getEstimate])
-
-  // Set default dataset when datasets load
-  useEffect(() => {
-    if (datasets.length > 0 && !selectedDatasetId) {
-      setSelectedDatasetId(datasets[0].dataset_id)
-    }
-  }, [datasets, selectedDatasetId])
+  }, [currentDatasetId, modelConfig, epochs, batchSize, seqLen, gpuType, getEstimate, clearEstimate])
 
   const handleUpload = useCallback(async (file: File) => {
-    const metadata = await uploadDataset(file)
-    setSelectedDatasetId(metadata.dataset_id)
+    const metadata = await apiClient.uploadDataset(file)
+    setUploadedDataset(metadata)
+    setDatasetSource('uploaded')
     return metadata
-  }, [uploadDataset])
+  }, [])
 
   const handleStartTraining = async () => {
-    if (!selectedDatasetId || !modelName.trim()) {
-      setError('Please select a dataset and enter a model name')
+    if (!currentDatasetId || !modelName.trim()) {
+      setError('Please upload a dataset and enter a model name')
       return
     }
 
@@ -98,11 +111,10 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
     try {
       const { count } = await apiClient.getCustomModelCount()
       if (count > 0) {
-        setExistingModelCount(count)
         setShowOverwriteModal(true)
         return
       }
-    } catch (err) {
+    } catch {
       // If we can't check, proceed anyway (backend will handle it)
     }
 
@@ -110,12 +122,14 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
   }
 
   const startTrainingWithOverwrite = async (overwrite: boolean) => {
+    if (!currentDatasetId) return
+
     setStarting(true)
     setShowOverwriteModal(false)
 
     try {
       await onStartTraining(
-        selectedDatasetId,
+        currentDatasetId,
         modelConfig,
         modelName.trim(),
         epochs,
@@ -143,7 +157,14 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
   const RESERVED_MODEL_NAMES = ['ozera-nano', 'ozera-mini']
   const isReservedName = RESERVED_MODEL_NAMES.includes(modelName.trim().toLowerCase())
 
-  const isValid = selectedDatasetId && modelName.trim().length > 0 && !isReservedName
+  const hasDataset = datasetSource === 'uploaded' ? !!uploadedDataset : !!datasetSource
+  const isValid = hasDataset && modelName.trim().length > 0 && !isReservedName
+
+  // Build dataset options for dropdown
+  const datasetOptions = [
+    { id: 'uploaded', name: 'Uploaded Dataset', tokens: uploadedDataset?.num_tokens },
+    ...genericDatasets.map(d => ({ id: d.id, name: d.name, tokens: undefined })),
+  ]
 
   return (
     <div
@@ -173,36 +194,59 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
           Dataset
         </label>
 
-        {datasets.length > 0 ? (
-          <select
-            value={selectedDatasetId}
-            onChange={(e) => setSelectedDatasetId(e.target.value)}
-            disabled={disabled || starting}
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              background: 'rgba(0,0,0,0.3)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: '0',
-              color: '#fff',
-              fontSize: '13px',
-              cursor: 'pointer',
-              marginBottom: '12px',
-            }}
-          >
-            {datasets.map((d) => (
-              <option key={d.dataset_id} value={d.dataset_id}>
-                {d.name} ({formatTokens(d.num_tokens)} tokens)
-              </option>
-            ))}
-          </select>
-        ) : (
-          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginBottom: '12px' }}>
-            No datasets uploaded yet
-          </div>
-        )}
+        {/* Dataset source selector */}
+        <select
+          value={datasetSource}
+          onChange={(e) => setDatasetSource(e.target.value)}
+          disabled={disabled || starting}
+          style={{
+            width: '100%',
+            padding: '10px 12px',
+            background: 'rgba(0,0,0,0.3)',
+            border: '1px solid rgba(255,255,255,0.15)',
+            borderRadius: '0',
+            color: '#fff',
+            fontSize: '13px',
+            cursor: 'pointer',
+            marginBottom: '12px',
+          }}
+        >
+          {datasetOptions.map((opt) => (
+            <option key={opt.id} value={opt.id}>
+              {opt.name}
+              {opt.tokens ? ` (${formatTokens(opt.tokens)} tokens)` : ''}
+            </option>
+          ))}
+        </select>
 
-        <DatasetUpload onUpload={handleUpload} disabled={disabled || starting} />
+        {/* Show upload component when "Uploaded Dataset" is selected */}
+        {datasetSource === 'uploaded' && (
+          <>
+            {uploadedDataset ? (
+              <div
+                style={{
+                  background: 'rgba(34, 197, 94, 0.1)',
+                  border: '1px solid rgba(34, 197, 94, 0.3)',
+                  padding: '10px 12px',
+                  marginBottom: '12px',
+                  fontSize: '12px',
+                }}
+              >
+                <div style={{ color: '#22c55e', fontWeight: 500 }}>
+                  {uploadedDataset.name}
+                </div>
+                <div style={{ color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
+                  {formatTokens(uploadedDataset.num_tokens)} tokens • {(uploadedDataset.size_bytes / 1024).toFixed(1)} KB
+                </div>
+              </div>
+            ) : (
+              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginBottom: '12px' }}>
+                No dataset uploaded yet
+              </div>
+            )}
+            <DatasetUpload onUpload={handleUpload} disabled={disabled || starting} />
+          </>
+        )}
       </div>
 
       {/* Model Configuration */}

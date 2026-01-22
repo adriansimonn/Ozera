@@ -50,6 +50,12 @@ export interface DatasetDetail extends DatasetMetadata {
   preview: string
 }
 
+export interface GenericDatasetInfo {
+  id: string  // e.g., "generic:tinystories"
+  name: string  // e.g., "Tinystories"
+  description?: string
+}
+
 // Training types
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
@@ -481,44 +487,21 @@ class OzeraAPIClient {
     return response.json()
   }
 
+  // listDatasets, getDataset, and deleteDataset removed - datasets are now session-only
+
   /**
-   * List all datasets.
+   * List generic datasets available for training.
+   * These are pre-uploaded datasets available to all users.
    */
-  async listDatasets(): Promise<DatasetMetadata[]> {
-    const response = await fetch(`${this.baseUrl}/datasets`)
+  async listGenericDatasets(): Promise<GenericDatasetInfo[]> {
+    const response = await fetch(`${this.baseUrl}/datasets/generic/list`)
 
     if (!response.ok) {
-      throw new Error(`Failed to list datasets: ${response.statusText}`)
+      throw new Error(`Failed to list generic datasets: ${response.statusText}`)
     }
 
     const data = await response.json()
     return data.datasets
-  }
-
-  /**
-   * Get dataset details.
-   */
-  async getDataset(datasetId: string): Promise<DatasetDetail> {
-    const response = await fetch(`${this.baseUrl}/datasets/${datasetId}`)
-
-    if (!response.ok) {
-      throw new Error(`Failed to get dataset: ${response.statusText}`)
-    }
-
-    return response.json()
-  }
-
-  /**
-   * Delete a dataset.
-   */
-  async deleteDataset(datasetId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/datasets/${datasetId}`, {
-      method: 'DELETE',
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete dataset: ${response.statusText}`)
-    }
   }
 
   // ============= Training Jobs =============

@@ -23,6 +23,9 @@ from services.modal_volumes import (
     datasets_volume,
     upload_dataset_to_volume,
     check_dataset_exists,
+    check_generic_dataset_exists,
+    is_generic_dataset,
+    parse_dataset_id,
 )
 
 # GPU throughput for cost estimation (tokens/second)
@@ -164,17 +167,28 @@ async def submit_training_job(
         db.commit()
         db.refresh(job)
 
-        # Upload dataset to Modal volume if not already there
-        dataset_exists = await check_dataset_exists(user_id, dataset_id)
-        if not dataset_exists:
-            local_dataset_path = DATASETS_DIR / dataset_id / "raw.txt"
-            if local_dataset_path.exists():
-                await upload_dataset_to_volume(local_dataset_path, user_id, dataset_id)
-            else:
-                # Try user-scoped path
-                user_dataset_path = DATASETS_DIR / str(user_id) / dataset_id / "raw.txt"
-                if user_dataset_path.exists():
-                    await upload_dataset_to_volume(user_dataset_path, user_id, dataset_id)
+        # Handle dataset - generic datasets are already in the volume, user datasets need upload
+        is_generic, actual_dataset_id = parse_dataset_id(dataset_id)
+
+        if is_generic:
+            # Generic dataset - verify it exists in the volume
+            if not await check_generic_dataset_exists(actual_dataset_id):
+                refund_credits(db, user_id, 0, reservation_amount, job_id,
+                               f"Generic dataset not found: {actual_dataset_id}")
+                db.rollback()
+                return None, f"Generic dataset not found: {actual_dataset_id}"
+        else:
+            # User-uploaded dataset - upload to Modal volume if not already there
+            dataset_exists = await check_dataset_exists(user_id, dataset_id)
+            if not dataset_exists:
+                local_dataset_path = DATASETS_DIR / dataset_id / "raw.txt"
+                if local_dataset_path.exists():
+                    await upload_dataset_to_volume(local_dataset_path, user_id, dataset_id)
+                else:
+                    # Try user-scoped path
+                    user_dataset_path = DATASETS_DIR / str(user_id) / dataset_id / "raw.txt"
+                    if user_dataset_path.exists():
+                        await upload_dataset_to_volume(user_dataset_path, user_id, dataset_id)
 
         # Update status to queued
         job.status = JobStatus.QUEUED

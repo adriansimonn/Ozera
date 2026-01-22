@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from core.tokenizer.bpe_tokenizer import get_tokenizer
 
-from api.schemas.training import DatasetMetadata, DatasetDetail, DatasetListResponse
+from api.schemas.training import DatasetMetadata, DatasetDetail
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
 
@@ -50,21 +50,7 @@ def save_dataset_metadata(dataset_id: str, metadata: dict) -> None:
         json.dump(metadata, f, indent=2, default=str)
 
 
-def list_all_datasets() -> list[dict]:
-    """List all datasets from the data directory."""
-    if not DATA_DIR.exists():
-        return []
-
-    datasets = []
-    for dataset_dir in DATA_DIR.iterdir():
-        if dataset_dir.is_dir():
-            metadata = load_dataset_metadata(dataset_dir.name)
-            if metadata:
-                datasets.append(metadata)
-
-    # Sort by created_at descending
-    datasets.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-    return datasets
+# list_all_datasets removed - datasets are session-only
 
 
 @router.post("/upload", response_model=DatasetMetadata)
@@ -144,12 +130,43 @@ async def upload_dataset(file: UploadFile = File(...)):
     return DatasetMetadata(**metadata)
 
 
-@router.get("", response_model=DatasetListResponse)
-async def list_datasets():
-    """List all uploaded datasets."""
-    datasets = list_all_datasets()
-    return DatasetListResponse(
-        datasets=[DatasetMetadata(**d) for d in datasets]
+# User dataset listing removed - user-uploaded datasets are now session-only
+# Generic datasets (available to all users) are listed from Modal volume
+
+
+class GenericDatasetInfo(BaseModel):
+    """Information about a generic dataset."""
+    id: str  # e.g., "generic:tinystories"
+    name: str  # e.g., "Tinystories"
+    description: Optional[str] = None
+
+
+class GenericDatasetListResponse(BaseModel):
+    """Response for listing generic datasets."""
+    datasets: list[GenericDatasetInfo]
+
+
+@router.get("/generic/list", response_model=GenericDatasetListResponse)
+async def list_generic_datasets_endpoint():
+    """
+    List all generic datasets available for training.
+
+    Generic datasets are pre-uploaded datasets (e.g., TinyStories, OpenWebText)
+    that are available to all users for model training.
+    """
+    from services.modal_volumes import list_generic_datasets
+
+    datasets = list_generic_datasets()
+
+    return GenericDatasetListResponse(
+        datasets=[
+            GenericDatasetInfo(
+                id=d["id"],
+                name=d["name"],
+                description=None,  # Can be extended to include descriptions
+            )
+            for d in datasets
+        ]
     )
 
 
@@ -171,16 +188,4 @@ async def get_dataset(dataset_id: str):
     return DatasetDetail(**metadata, preview=preview)
 
 
-@router.delete("/{dataset_id}")
-async def delete_dataset(dataset_id: str):
-    """Delete a dataset."""
-    dataset_dir = get_dataset_dir(dataset_id)
-
-    if not dataset_dir.exists():
-        raise HTTPException(status_code=404, detail=f"Dataset not found: {dataset_id}")
-
-    # Remove all files in the dataset directory
-    import shutil
-    shutil.rmtree(dataset_dir)
-
-    return {"status": "deleted", "dataset_id": dataset_id}
+# delete_dataset endpoint removed - datasets are temporary and cleaned up automatically

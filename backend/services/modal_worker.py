@@ -140,7 +140,12 @@ def run_training_on_modal(
     webhook_secret = os.environ.get("MODAL_WEBHOOK_SECRET", "")
 
     # Construct paths in Modal volumes
-    dataset_path = f"/datasets/{user_id}/{dataset_id}/raw.txt"
+    # Handle generic datasets (prefixed with 'generic:') vs user-uploaded datasets
+    if dataset_id.startswith("generic:"):
+        actual_dataset_id = dataset_id[8:]  # Remove 'generic:' prefix
+        dataset_path = f"/datasets/generic/{actual_dataset_id}/raw.txt"
+    else:
+        dataset_path = f"/datasets/{user_id}/{dataset_id}/raw.txt"
     model_output_path = f"/models/{user_id}/{model_name}"
 
     # Create training config
@@ -308,7 +313,12 @@ def _run_training_impl(
     webhook_secret = os.environ.get("MODAL_WEBHOOK_SECRET", "")
 
     # Construct paths
-    dataset_path = f"/datasets/{user_id}/{dataset_id}/raw.txt"
+    # Handle generic datasets (prefixed with 'generic:') vs user-uploaded datasets
+    if dataset_id.startswith("generic:"):
+        actual_dataset_id = dataset_id[8:]  # Remove 'generic:' prefix
+        dataset_path = f"/datasets/generic/{actual_dataset_id}/raw.txt"
+    else:
+        dataset_path = f"/datasets/{user_id}/{dataset_id}/raw.txt"
     model_output_path = f"/models/{user_id}/{model_name}"
 
     config = TrainingConfig(
