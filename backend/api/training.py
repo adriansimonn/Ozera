@@ -5,11 +5,13 @@ Supports multiple concurrent jobs per user with credit-based billing.
 """
 import json
 import asyncio
+import uuid
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -24,10 +26,13 @@ from api.schemas.training import (
     TrainingEstimateRequest,
     TrainingEstimateResponse,
     CustomModelInfo,
+    UploadedModelInfo,
+    ModelUploadResponse,
+    CustomModelCount,
 )
 from api.datasets import load_dataset_metadata
 from middleware.auth_middleware import get_current_user, get_optional_current_user
-from models.database import User, TrainingJob as TrainingJobModel, JobStatus as DBJobStatus
+from models.database import User, TrainingJob as TrainingJobModel, JobStatus as DBJobStatus, UploadedModel
 from services.job_orchestrator import (
     estimate_training_cost,
     submit_training_job,
@@ -139,25 +144,40 @@ async def start_training_job(
     if gpu_type not in GPU_PRICING:
         raise HTTPException(status_code=400, detail=f"Invalid GPU type: {gpu_type}")
 
-    # Check if user already has a custom model (limit to 1)
-    existing_models = (
-        db.query(TrainingJobModel)
-        .filter(
-            TrainingJobModel.user_id == current_user.id,
-            TrainingJobModel.status == DBJobStatus.COMPLETED,
-        )
-        .all()
-    )
+    # Check if user already has a custom model (limit to 1 across trained + uploaded)
+    from services.modal_volumes import delete_model_from_volume
 
-    if existing_models:
+    total_models = get_total_custom_model_count(db, current_user.id)
+
+    if total_models > 0:
         if not request.overwrite_existing:
             raise HTTPException(
                 status_code=409,
                 detail="You already have a custom model. Enable overwrite to replace it."
             )
-        # Delete all existing models (enforcing 1 model limit)
-        for model in existing_models:
+        # Delete all existing trained models
+        existing_trained = (
+            db.query(TrainingJobModel)
+            .filter(
+                TrainingJobModel.user_id == current_user.id,
+                TrainingJobModel.status == DBJobStatus.COMPLETED,
+            )
+            .all()
+        )
+        for model in existing_trained:
+            await delete_model_from_volume(current_user.id, model.model_name)
             db.delete(model)
+
+        # Delete all existing uploaded models
+        existing_uploaded = (
+            db.query(UploadedModel)
+            .filter(UploadedModel.user_id == current_user.id)
+            .all()
+        )
+        for model in existing_uploaded:
+            await delete_model_from_volume(current_user.id, model.name)
+            db.delete(model)
+
         db.commit()
 
     # Estimate cost
@@ -435,16 +455,40 @@ async def get_gpu_pricing():
 
 # Custom model management
 
-@router.get("/models/count")
+# Maximum file size for model upload: 500MB
+MAX_MODEL_FILE_SIZE = 500 * 1024 * 1024
+
+
+def get_total_custom_model_count(db: Session, user_id: int) -> int:
+    """Get the total count of custom models (trained + uploaded) for a user."""
+    trained_count = (
+        db.query(TrainingJobModel)
+        .filter(
+            TrainingJobModel.user_id == user_id,
+            TrainingJobModel.status == DBJobStatus.COMPLETED,
+        )
+        .count()
+    )
+
+    uploaded_count = (
+        db.query(UploadedModel)
+        .filter(UploadedModel.user_id == user_id)
+        .count()
+    )
+
+    return trained_count + uploaded_count
+
+
+@router.get("/models/count", response_model=CustomModelCount)
 async def get_custom_model_count(
     current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get the count of custom models for the current user."""
+    """Get the count of custom models (trained + uploaded) for the current user."""
     if not current_user:
-        return {"count": 0, "max_allowed": 1}
+        return CustomModelCount(trained_count=0, uploaded_count=0, total_count=0, max_allowed=1)
 
-    count = (
+    trained_count = (
         db.query(TrainingJobModel)
         .filter(
             TrainingJobModel.user_id == current_user.id,
@@ -453,7 +497,18 @@ async def get_custom_model_count(
         .count()
     )
 
-    return {"count": count, "max_allowed": 1}
+    uploaded_count = (
+        db.query(UploadedModel)
+        .filter(UploadedModel.user_id == current_user.id)
+        .count()
+    )
+
+    return CustomModelCount(
+        trained_count=trained_count,
+        uploaded_count=uploaded_count,
+        total_count=trained_count + uploaded_count,
+        max_allowed=1,
+    )
 
 
 @router.get("/models", response_model=list[CustomModelInfo])
@@ -604,3 +659,271 @@ async def download_custom_model(
             status_code=500,
             detail=f"Failed to download model: {str(e)}"
         )
+
+
+# Uploaded model management
+
+@router.post("/models/upload", response_model=ModelUploadResponse)
+async def upload_model(
+    file: UploadFile = File(...),
+    model_name: str = Form(...),
+    overwrite_existing: bool = Form(default=False),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Upload a .safetensors model file.
+
+    The model will be available for text generation and visualization.
+    Users are limited to 1 custom model total (trained or uploaded).
+
+    - Maximum file size: 500MB
+    - Accepted formats: .safetensors
+    """
+    from services.modal_volumes import upload_model_to_volume, delete_model_from_volume
+
+    # Validate file extension
+    if not file.filename or not file.filename.endswith(".safetensors"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only .safetensors files are accepted"
+        )
+
+    # Validate model name
+    if not model_name or len(model_name) < 1 or len(model_name) > 64:
+        raise HTTPException(
+            status_code=400,
+            detail="Model name must be between 1 and 64 characters"
+        )
+
+    if model_name.lower() in RESERVED_MODEL_NAMES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Model name '{model_name}' is reserved for default Ozera models"
+        )
+
+    # Check if user already has a custom model (limit to 1)
+    total_models = get_total_custom_model_count(db, current_user.id)
+
+    if total_models > 0:
+        if not overwrite_existing:
+            raise HTTPException(
+                status_code=409,
+                detail="You already have a custom model. Enable overwrite to replace it."
+            )
+
+        # Delete existing trained models
+        existing_trained = (
+            db.query(TrainingJobModel)
+            .filter(
+                TrainingJobModel.user_id == current_user.id,
+                TrainingJobModel.status == DBJobStatus.COMPLETED,
+            )
+            .all()
+        )
+        for model in existing_trained:
+            await delete_model_from_volume(current_user.id, model.model_name)
+            db.delete(model)
+
+        # Delete existing uploaded models
+        existing_uploaded = (
+            db.query(UploadedModel)
+            .filter(UploadedModel.user_id == current_user.id)
+            .all()
+        )
+        for model in existing_uploaded:
+            await delete_model_from_volume(current_user.id, model.name)
+            db.delete(model)
+
+        db.commit()
+
+    # Read file content
+    content = await file.read()
+    file_size = len(content)
+
+    # Validate file size
+    if file_size > MAX_MODEL_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size is {MAX_MODEL_FILE_SIZE // (1024*1024)}MB"
+        )
+
+    if file_size < 1024:  # Less than 1KB is suspiciously small
+        raise HTTPException(
+            status_code=400,
+            detail="File too small. Model files should be at least 1KB"
+        )
+
+    # Validate safetensors format (basic header check)
+    # Safetensors files start with a little-endian uint64 header size
+    if len(content) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid safetensors file: too small"
+        )
+
+    # Parse header size (first 8 bytes as little-endian uint64)
+    import struct
+    header_size = struct.unpack("<Q", content[:8])[0]
+
+    if header_size > len(content) - 8 or header_size > 100 * 1024 * 1024:  # Header shouldn't be > 100MB
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid safetensors file: invalid header size"
+        )
+
+    # Try to parse the header JSON to extract model info
+    num_parameters = None
+    num_layers = None
+    num_heads = None
+    hidden_dim = None
+    vocab_size = None
+    max_seq_len = None
+
+    try:
+        header_json = content[8:8 + header_size].decode("utf-8")
+        header = json.loads(header_json)
+
+        # Try to extract model metadata if present
+        metadata = header.get("__metadata__", {})
+        if metadata:
+            # Common metadata fields in safetensors
+            if "parameters" in metadata:
+                num_parameters = int(metadata["parameters"])
+            if "num_layers" in metadata:
+                num_layers = int(metadata["num_layers"])
+            if "num_heads" in metadata:
+                num_heads = int(metadata["num_heads"])
+            if "hidden_dim" in metadata:
+                hidden_dim = int(metadata["hidden_dim"])
+            if "vocab_size" in metadata:
+                vocab_size = int(metadata["vocab_size"])
+            if "max_seq_len" in metadata:
+                max_seq_len = int(metadata["max_seq_len"])
+
+        # Count parameters from tensor shapes if not in metadata
+        if num_parameters is None:
+            total_params = 0
+            for key, tensor_info in header.items():
+                if key != "__metadata__" and isinstance(tensor_info, dict):
+                    shape = tensor_info.get("shape", [])
+                    if shape:
+                        param_count = 1
+                        for dim in shape:
+                            param_count *= dim
+                        total_params += param_count
+            if total_params > 0:
+                num_parameters = total_params
+
+    except Exception as e:
+        print(f"Warning: Could not parse safetensors header metadata: {e}")
+        # Continue anyway - we can still upload the file
+
+    # Save to temporary file and upload to Modal volume
+    model_id = str(uuid.uuid4())[:8]
+
+    with tempfile.NamedTemporaryFile(suffix=".safetensors", delete=False) as tmp_file:
+        tmp_file.write(content)
+        tmp_path = Path(tmp_file.name)
+
+    try:
+        success = await upload_model_to_volume(tmp_path, current_user.id, model_name)
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to upload model to storage"
+            )
+    finally:
+        # Clean up temp file
+        tmp_path.unlink(missing_ok=True)
+
+    # Save to database
+    uploaded_model = UploadedModel(
+        model_id=model_id,
+        user_id=current_user.id,
+        name=model_name,
+        file_size_bytes=file_size,
+        num_parameters=num_parameters,
+        num_layers=num_layers,
+        num_heads=num_heads,
+        hidden_dim=hidden_dim,
+        vocab_size=vocab_size,
+        max_seq_len=max_seq_len,
+    )
+    db.add(uploaded_model)
+    db.commit()
+    db.refresh(uploaded_model)
+
+    return ModelUploadResponse(
+        model_id=model_id,
+        name=model_name,
+        file_size_bytes=file_size,
+        num_parameters=num_parameters,
+        num_layers=num_layers,
+        status="uploaded",
+    )
+
+
+@router.get("/models/uploaded", response_model=list[UploadedModelInfo])
+async def list_uploaded_models(
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    """List all uploaded models for the current user."""
+    if not current_user:
+        return []
+
+    models = (
+        db.query(UploadedModel)
+        .filter(UploadedModel.user_id == current_user.id)
+        .order_by(UploadedModel.created_at.desc())
+        .all()
+    )
+
+    return [
+        UploadedModelInfo(
+            model_id=model.model_id,
+            name=model.name,
+            file_size_bytes=model.file_size_bytes,
+            num_parameters=model.num_parameters,
+            num_layers=model.num_layers,
+            num_heads=model.num_heads,
+            hidden_dim=model.hidden_dim,
+            vocab_size=model.vocab_size,
+            max_seq_len=model.max_seq_len,
+            uploaded_at=model.created_at,
+            model_type="uploaded",
+        )
+        for model in models
+    ]
+
+
+@router.delete("/models/uploaded/{model_id}")
+async def delete_uploaded_model(
+    model_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete an uploaded model."""
+    from services.modal_volumes import delete_model_from_volume
+
+    model = (
+        db.query(UploadedModel)
+        .filter(
+            UploadedModel.user_id == current_user.id,
+            UploadedModel.model_id == model_id,
+        )
+        .first()
+    )
+
+    if not model:
+        raise HTTPException(status_code=404, detail=f"Uploaded model not found: {model_id}")
+
+    # Delete from Modal volume
+    await delete_model_from_volume(current_user.id, model.name)
+
+    # Delete from database
+    db.delete(model)
+    db.commit()
+
+    return {"status": "deleted", "model_id": model_id}

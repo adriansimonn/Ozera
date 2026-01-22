@@ -11,8 +11,11 @@ import {
   TrainingJobListItem,
   TrainingStreamEvent,
   CustomModelInfo,
+  CustomModelCount,
   GpuPricingInfo,
   GpuType,
+  UploadedModelInfo,
+  ModelUploadResponse,
 } from '../api/client'
 
 // useDatasets hook removed - datasets are now session-only and uploaded directly via apiClient
@@ -313,5 +316,142 @@ export function useCustomModels() {
     error,
     fetchModels,
     deleteModel,
+  }
+}
+
+/**
+ * Hook for managing uploaded models.
+ */
+export function useUploadedModels() {
+  const [models, setModels] = useState<UploadedModelInfo[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchModels = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await apiClient.listUploadedModels()
+      setModels(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch uploaded models')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const deleteModel = useCallback(async (modelId: string) => {
+    setError(null)
+    try {
+      await apiClient.deleteUploadedModel(modelId)
+      setModels(prev => prev.filter(m => m.model_id !== modelId))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete model'
+      setError(message)
+      throw err
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchModels()
+  }, [fetchModels])
+
+  return {
+    models,
+    loading,
+    error,
+    fetchModels,
+    deleteModel,
+  }
+}
+
+/**
+ * Hook for model upload.
+ */
+export function useModelUpload() {
+  const [uploading, setUploading] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [uploadedModel, setUploadedModel] = useState<ModelUploadResponse | null>(null)
+
+  const uploadModel = useCallback(async (
+    file: File,
+    modelName: string,
+    overwriteExisting: boolean = false
+  ): Promise<ModelUploadResponse> => {
+    setUploading(true)
+    setProgress(0)
+    setError(null)
+    setUploadedModel(null)
+
+    try {
+      // Simulate progress (actual upload doesn't give progress updates)
+      const progressInterval = setInterval(() => {
+        setProgress(prev => Math.min(prev + 10, 90))
+      }, 200)
+
+      const response = await apiClient.uploadModel(file, modelName, overwriteExisting)
+
+      clearInterval(progressInterval)
+      setProgress(100)
+      setUploadedModel(response)
+
+      return response
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to upload model'
+      setError(message)
+      throw err
+    } finally {
+      setUploading(false)
+    }
+  }, [])
+
+  const reset = useCallback(() => {
+    setUploading(false)
+    setProgress(0)
+    setError(null)
+    setUploadedModel(null)
+  }, [])
+
+  return {
+    uploading,
+    progress,
+    error,
+    uploadedModel,
+    uploadModel,
+    reset,
+  }
+}
+
+/**
+ * Hook for getting custom model count (trained + uploaded).
+ */
+export function useCustomModelCount() {
+  const [count, setCount] = useState<CustomModelCount | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchCount = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await apiClient.getCustomModelCount()
+      setCount(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch model count')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchCount()
+  }, [fetchCount])
+
+  return {
+    count,
+    loading,
+    error,
+    fetchCount,
   }
 }

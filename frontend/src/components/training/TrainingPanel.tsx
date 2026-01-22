@@ -109,8 +109,8 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
 
     // Check if user has existing models
     try {
-      const { count } = await apiClient.getCustomModelCount()
-      if (count > 0) {
+      const { total_count } = await apiClient.getCustomModelCount()
+      if (total_count > 0) {
         setShowOverwriteModal(true)
         return
       }

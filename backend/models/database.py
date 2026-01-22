@@ -48,6 +48,9 @@ class User(Base):
     datasets = relationship(
         "Dataset", back_populates="user", cascade="all, delete-orphan"
     )
+    uploaded_models = relationship(
+        "UploadedModel", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
@@ -204,3 +207,30 @@ class Dataset(Base):
 
     def __repr__(self):
         return f"<Dataset(dataset_id={self.dataset_id}, user_id={self.user_id}, name={self.name})>"
+
+
+class UploadedModel(Base):
+    """User uploaded model (safetensors files)."""
+
+    __tablename__ = "uploaded_models"
+
+    model_id = Column(String(100), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    file_size_bytes = Column(Integer, nullable=False)
+
+    # Model architecture info (extracted from safetensors metadata or config)
+    num_parameters = Column(Integer, nullable=True)
+    num_layers = Column(Integer, nullable=True)
+    num_heads = Column(Integer, nullable=True)
+    hidden_dim = Column(Integer, nullable=True)
+    vocab_size = Column(Integer, nullable=True)
+    max_seq_len = Column(Integer, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # Relationships
+    user = relationship("User", back_populates="uploaded_models")
+
+    def __repr__(self):
+        return f"<UploadedModel(model_id={self.model_id}, user_id={self.user_id}, name={self.name})>"

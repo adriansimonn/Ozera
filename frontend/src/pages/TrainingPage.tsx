@@ -1,18 +1,20 @@
 /**
- * Training page for custom model training.
+ * Custom Models page - supports both training and model upload.
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trash2, Clock, Download, Loader2, Play } from 'lucide-react'
+import { Trash2, Clock, Download, Loader2, Play, Upload } from 'lucide-react'
 import { TrainingPanel } from '../components/training/TrainingPanel'
 import { TrainingProgress } from '../components/training/TrainingProgress'
+import { ModelUploadPanel } from '../components/training/ModelUploadPanel'
 import {
   useTrainingJobs,
   useTrainingProgress,
   useCustomModels,
+  useUploadedModels,
 } from '../hooks/useTraining'
-import { NavBar } from '../components/common/NavBar'
+import { NavBar, CustomModelsMode } from '../components/common/NavBar'
 import { apiClient, GpuType } from '../api/client'
 
 interface TrainingPageProps {
@@ -22,15 +24,18 @@ interface TrainingPageProps {
 
 export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowSignup }) => {
   const navigate = useNavigate()
+  const [mode, setMode] = useState<CustomModelsMode>('training')
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [autoDownloadEnabled, setAutoDownloadEnabled] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null)
+  const [deletingUploadedModelId, setDeletingUploadedModelId] = useState<string | null>(null)
   const autoDownloadTriggeredRef = useRef(false)
 
   const { jobs, fetchJobs, startJob, cancelJob } = useTrainingJobs()
   const { progress, completed, completedModelName, error, reset: resetProgress } = useTrainingProgress(activeJobId)
   const { models, fetchModels, deleteModel } = useCustomModels()
+  const { models: uploadedModels, fetchModels: fetchUploadedModels, deleteModel: deleteUploadedModel } = useUploadedModels()
 
   // Handle auto-download when training completes
   useEffect(() => {
@@ -104,7 +109,24 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
     resetProgress()
     fetchJobs()
     fetchModels()
-  }, [resetProgress, fetchJobs, fetchModels])
+    fetchUploadedModels()
+  }, [resetProgress, fetchJobs, fetchModels, fetchUploadedModels])
+
+  const handleDeleteUploadedModel = useCallback(async (modelId: string) => {
+    setDeletingUploadedModelId(modelId)
+    try {
+      await deleteUploadedModel(modelId)
+    } catch (err) {
+      console.error('Failed to delete uploaded model:', err)
+    } finally {
+      setDeletingUploadedModelId(null)
+    }
+  }, [deleteUploadedModel])
+
+  const handleUploadComplete = useCallback(() => {
+    fetchModels()
+    fetchUploadedModels()
+  }, [fetchModels, fetchUploadedModels])
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -129,9 +151,34 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
   // Check if there's an active running job
   const isTrainingActive = progress && progress.status === 'running'
 
+  // Combine trained and uploaded models for the list
+  const allCustomModels = [
+    ...models.map(m => ({ ...m, type: 'trained' as const })),
+    ...uploadedModels.map(m => ({ ...m, type: 'uploaded' as const })),
+  ]
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const formatParams = (params: number | null | undefined) => {
+    if (!params) return null
+    if (params < 1000000) return `${(params / 1000).toFixed(0)}K params`
+    if (params < 1000000000) return `${(params / 1000000).toFixed(1)}M params`
+    return `${(params / 1000000000).toFixed(2)}B params`
+  }
+
   return (
     <div style={{ minHeight: '100vh', paddingTop: '100px' }}>
-      <NavBar onShowLogin={onShowLogin} onShowSignup={onShowSignup} />
+      <NavBar
+        onShowLogin={onShowLogin}
+        onShowSignup={onShowSignup}
+        showCustomModelsToggle={true}
+        customModelsMode={mode}
+        onCustomModelsModeChange={setMode}
+      />
 
       <div
         style={{
@@ -143,38 +190,50 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
         {/* Header */}
         <div style={{ marginBottom: '24px' }}>
           <h1 style={{ color: '#fff', fontSize: '28px', fontWeight: 700, margin: 0 }}>
-            Custom Model Training
+            {mode === 'training' ? 'Custom Model Training' : 'Upload Model'}
           </h1>
           <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', marginTop: '8px' }}>
-            Train and save your own Ozera models on custom datasets
+            {mode === 'training'
+              ? 'Train and save your own Ozera models on custom datasets'
+              : 'Upload a .safetensors model file to use for generation'
+            }
           </p>
         </div>
 
         {/* Main Content */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-          {/* Left Column - Training Config */}
+          {/* Left Column - Training Config or Upload Panel */}
           <div>
-            <TrainingPanel
-              onStartTraining={handleStartTraining}
-              disabled={isTrainingActive || false}
-            />
+            {mode === 'training' ? (
+              <TrainingPanel
+                onStartTraining={handleStartTraining}
+                disabled={isTrainingActive || false}
+              />
+            ) : (
+              <ModelUploadPanel
+                onUploadComplete={handleUploadComplete}
+                disabled={isTrainingActive || false}
+              />
+            )}
           </div>
 
           {/* Right Column - Progress & History */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* Active Training Progress */}
-            <TrainingProgress
-              progress={progress}
-              completed={completed}
-              completedModelName={completedModelName}
-              error={error}
-              onCancel={handleCancel}
-              onDismiss={handleDismiss}
-              onDownload={handleDownload}
-              downloading={downloading}
-            />
+            {/* Active Training Progress (only show in training mode or when there's active progress) */}
+            {(mode === 'training' || progress) && (
+              <TrainingProgress
+                progress={progress}
+                completed={completed}
+                completedModelName={completedModelName}
+                error={error}
+                onCancel={handleCancel}
+                onDismiss={handleDismiss}
+                onDownload={handleDownload}
+                downloading={downloading}
+              />
+            )}
 
-            {/* Custom Models List */}
+            {/* Custom Models List (shows both trained and uploaded) */}
             <div
               style={{
                 background: 'rgba(255,255,255,0.03)',
@@ -188,13 +247,13 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
                 Custom Models
               </h3>
 
-              {models.length === 0 ? (
+              {allCustomModels.length === 0 ? (
                 <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
                   No custom models yet
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {models.map((model) => (
+                  {allCustomModels.map((model) => (
                     <div
                       key={model.model_id}
                       style={{
@@ -206,12 +265,48 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
                         justifyContent: 'space-between',
                       }}
                     >
-                      <div>
-                        <div style={{ color: '#fff', fontSize: '13px', fontWeight: 500 }}>
-                          {model.name}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '0',
+                            background: model.type === 'trained' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(59, 130, 246, 0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {model.type === 'trained' ? (
+                            <Play size={12} color="#22c55e" />
+                          ) : (
+                            <Upload size={12} color="#3b82f6" />
+                          )}
                         </div>
-                        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginTop: '2px' }}>
-                          {model.base_config} · Val loss: {model.val_loss.toFixed(4)}
+                        <div>
+                          <div style={{ color: '#fff', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {model.name}
+                            <span
+                              style={{
+                                fontSize: '9px',
+                                padding: '2px 6px',
+                                borderRadius: '0',
+                                background: model.type === 'trained' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(59, 130, 246, 0.2)',
+                                color: model.type === 'trained' ? '#22c55e' : '#3b82f6',
+                                textTransform: 'uppercase',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {model.type}
+                            </span>
+                          </div>
+                          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginTop: '2px' }}>
+                            {model.type === 'trained' ? (
+                              <>{model.base_config} · Val loss: {model.val_loss.toFixed(4)}</>
+                            ) : (
+                              <>{formatBytes(model.file_size_bytes)}{formatParams(model.num_parameters) && ` · ${formatParams(model.num_parameters)}`}</>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -235,36 +330,43 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
                           <Play size={12} />
                           Use
                         </button>
+                        {model.type === 'trained' && (
+                          <button
+                            onClick={() => handleDownloadModel(model.model_id)}
+                            disabled={downloadingModelId === model.model_id}
+                            title="Download model"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              padding: '6px',
+                              cursor: downloadingModelId === model.model_id ? 'not-allowed' : 'pointer',
+                              color: 'rgba(255,255,255,0.4)',
+                            }}
+                          >
+                            {downloadingModelId === model.model_id ? (
+                              <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                            ) : (
+                              <Download size={14} />
+                            )}
+                          </button>
+                        )}
                         <button
-                          onClick={() => handleDownloadModel(model.model_id)}
-                          disabled={downloadingModelId === model.model_id}
-                          title="Download model"
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            padding: '6px',
-                            cursor: downloadingModelId === model.model_id ? 'not-allowed' : 'pointer',
-                            color: 'rgba(255,255,255,0.4)',
-                          }}
-                        >
-                          {downloadingModelId === model.model_id ? (
-                            <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                          ) : (
-                            <Download size={14} />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => deleteModel(model.model_id)}
+                          onClick={() => model.type === 'trained' ? deleteModel(model.model_id) : handleDeleteUploadedModel(model.model_id)}
+                          disabled={deletingUploadedModelId === model.model_id}
                           title="Delete model"
                           style={{
                             background: 'transparent',
                             border: 'none',
                             padding: '6px',
-                            cursor: 'pointer',
+                            cursor: deletingUploadedModelId === model.model_id ? 'not-allowed' : 'pointer',
                             color: 'rgba(255,255,255,0.4)',
                           }}
                         >
-                          <Trash2 size={14} />
+                          {deletingUploadedModelId === model.model_id ? (
+                            <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                          ) : (
+                            <Trash2 size={14} />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -273,63 +375,65 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
               )}
             </div>
 
-            {/* Job History */}
-            <div
-              style={{
-                background: 'rgba(255,255,255,0.03)',
-                backdropFilter: 'blur(20px)',
-                borderRadius: '0',
-                border: '1px solid rgba(255,255,255,0.1)',
-                padding: '20px',
-              }}
-            >
-              <h3 style={{ color: '#fff', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>
-                Recent Jobs
-              </h3>
+            {/* Job History (only show in training mode) */}
+            {mode === 'training' && (
+              <div
+                style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  backdropFilter: 'blur(20px)',
+                  borderRadius: '0',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  padding: '20px',
+                }}
+              >
+                <h3 style={{ color: '#fff', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>
+                  Recent Jobs
+                </h3>
 
-              {jobs.length === 0 ? (
-                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
-                  No training jobs yet
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {jobs.slice(0, 5).map((job) => (
-                    <div
-                      key={job.job_id}
-                      style={{
-                        background: 'rgba(0,0,0,0.2)',
-                        borderRadius: '0',
-                        padding: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                      }}
-                    >
+                {jobs.length === 0 ? (
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
+                    No training jobs yet
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {jobs.slice(0, 5).map((job) => (
                       <div
+                        key={job.job_id}
                         style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
-                          background: getStatusColor(job.status),
+                          background: 'rgba(0,0,0,0.2)',
+                          borderRadius: '0',
+                          padding: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
                         }}
-                      />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ color: '#fff', fontSize: '13px', fontWeight: 500 }}>
-                          {job.model_name}
+                      >
+                        <div
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: getStatusColor(job.status),
+                          }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: '#fff', fontSize: '13px', fontWeight: 500 }}>
+                            {job.model_name}
+                          </div>
+                          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginTop: '2px' }}>
+                            {job.dataset_name} · {job.current_epoch}/{job.total_epochs} epochs
+                          </div>
                         </div>
-                        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginTop: '2px' }}>
-                          {job.dataset_name} · {job.current_epoch}/{job.total_epochs} epochs
+                        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Clock size={10} />
+                          {formatDate(job.created_at)}
                         </div>
                       </div>
-                      <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Clock size={10} />
-                        {formatDate(job.created_at)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

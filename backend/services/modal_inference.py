@@ -27,6 +27,7 @@ inference_image = (
         "torch>=2.0.0",
         "numpy>=1.24.0",
         "tiktoken>=0.5.0",
+        "safetensors>=0.4.0",
     )
     .add_local_dir(os.path.join(BACKEND_DIR, "core"), remote_path="/app/backend/core")
     .add_local_dir(os.path.join(BACKEND_DIR, "inference"), remote_path="/app/backend/inference")
@@ -62,7 +63,7 @@ class InferenceWorkerT4:
         self._tokenizer = get_tokenizer()
 
     def _get_model(self, model_id: str):
-        """Get or load a model."""
+        """Get or load a model (supports both .pt and .safetensors formats)."""
         import torch
 
         if model_id in self._models:
@@ -82,12 +83,18 @@ class InferenceWorkerT4:
 
         print(f"Loading model '{model_id}' from {checkpoint_path}")
 
-        checkpoint = torch.load(checkpoint_path, map_location="cuda", weights_only=False)
-        config = checkpoint["config"]
-
         from core.transformer.model_torch import TransformerLM
-        model = TransformerLM(config).to("cuda")
-        model.load_state_dict(checkpoint["model_state_dict"])
+
+        if checkpoint_path.endswith(".safetensors"):
+            # Load safetensors format (uploaded models)
+            model, config = self._load_safetensors_model(checkpoint_path)
+        else:
+            # Load .pt format (trained models)
+            checkpoint = torch.load(checkpoint_path, map_location="cuda", weights_only=False)
+            config = checkpoint["config"]
+            model = TransformerLM(config).to("cuda")
+            model.load_state_dict(checkpoint["model_state_dict"])
+
         model.eval()
 
         self._models[model_id] = (model, config)
@@ -95,9 +102,134 @@ class InferenceWorkerT4:
 
         return model, config
 
+    def _load_safetensors_model(self, checkpoint_path: str):
+        """Load a model from safetensors format."""
+        import torch
+        from safetensors.torch import load_file
+
+        from core.transformer.model_torch import TransformerLM
+        from core.transformer.config import TransformerConfig
+
+        # Load safetensors file
+        state_dict = load_file(checkpoint_path)
+
+        # Try to infer config from state dict
+        config = self._infer_config_from_state_dict(state_dict)
+
+        # Create model and load state dict
+        model = TransformerLM(config).to("cuda")
+
+        # Map state dict keys if needed
+        mapped_state_dict = self._map_safetensors_state_dict(state_dict, model)
+        model.load_state_dict(mapped_state_dict, strict=False)
+
+        return model, config
+
+    def _infer_config_from_state_dict(self, state_dict: dict):
+        """Infer TransformerConfig from state dict tensor shapes."""
+        from core.transformer.config import TransformerConfig
+
+        # Default config (nano-like)
+        d_model = 192
+        num_layers = 6
+        num_heads = 6
+        vocab_size = 50257
+        max_seq_len = 256
+
+        # Try to infer from embedding layer
+        for key, tensor in state_dict.items():
+            if "embed" in key.lower() and "token" in key.lower():
+                if len(tensor.shape) == 2:
+                    vocab_size, d_model = tensor.shape
+                    break
+            elif "wte" in key.lower():  # GPT-style token embedding
+                if len(tensor.shape) == 2:
+                    vocab_size, d_model = tensor.shape
+                    break
+
+        # Try to count layers
+        layer_indices = set()
+        for key in state_dict.keys():
+            parts = key.split(".")
+            for i, part in enumerate(parts):
+                if part.isdigit():
+                    layer_indices.add(int(part))
+                elif part.startswith("layer"):
+                    try:
+                        idx = int(part.replace("layer", "").replace("_", ""))
+                        layer_indices.add(idx)
+                    except ValueError:
+                        pass
+        if layer_indices:
+            num_layers = max(layer_indices) + 1
+
+        # Try to infer num_heads from attention projections
+        for key, tensor in state_dict.items():
+            if "attn" in key.lower() and ("q_proj" in key.lower() or "query" in key.lower()):
+                if len(tensor.shape) == 2:
+                    # Assume d_model x d_model or d_model x (num_heads * head_dim)
+                    # Common head_dim is 64
+                    potential_heads = d_model // 64
+                    if potential_heads > 0:
+                        num_heads = min(potential_heads, 32)  # Cap at 32 heads
+                    break
+
+        return TransformerConfig(
+            vocab_size=vocab_size,
+            max_seq_len=max_seq_len,
+            d_model=d_model,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            d_ff=d_model * 4,
+            dropout=0.0,
+        )
+
+    def _map_safetensors_state_dict(self, state_dict: dict, model) -> dict:
+        """Map safetensors state dict keys to our model's expected keys."""
+        # Get the expected keys from our model
+        model_keys = set(model.state_dict().keys())
+
+        # If keys already match, return as-is
+        if set(state_dict.keys()) == model_keys:
+            return state_dict
+
+        # Try common mappings
+        mapped = {}
+        for key, tensor in state_dict.items():
+            # Direct match
+            if key in model_keys:
+                mapped[key] = tensor
+                continue
+
+            # Try common renames
+            new_key = key
+
+            # GPT-2 style mappings
+            if key.startswith("transformer."):
+                new_key = key.replace("transformer.", "")
+
+            # Handle h.0.attn -> layers.0.attention style
+            new_key = new_key.replace("h.", "layers.")
+            new_key = new_key.replace(".attn.", ".attention.")
+            new_key = new_key.replace(".mlp.", ".ffn.")
+            new_key = new_key.replace(".ln_1.", ".norm1.")
+            new_key = new_key.replace(".ln_2.", ".norm2.")
+            new_key = new_key.replace("ln_f.", "final_norm.")
+            new_key = new_key.replace("wte.", "token_embedding.")
+            new_key = new_key.replace("wpe.", "position_embedding.")
+            new_key = new_key.replace("lm_head.", "output_projection.")
+
+            if new_key in model_keys:
+                mapped[new_key] = tensor
+            else:
+                # Store with original key, strict=False will ignore
+                mapped[key] = tensor
+
+        return mapped
+
     def _find_custom_model(self, model_id: str) -> Optional[str]:
-        """Find a custom model in the volume."""
-        # Custom models are stored at /models/{user_id}/{model_name}/model.pt
+        """Find a custom model in the volume (supports both .pt and .safetensors)."""
+        # Custom models are stored at /models/{user_id}/{model_name}/model.pt or model.safetensors
         models_root = "/models"
 
         for user_dir in os.listdir(models_root):
@@ -106,9 +238,16 @@ class InferenceWorkerT4:
             user_path = os.path.join(models_root, user_dir)
             if not os.path.isdir(user_path):
                 continue
-            model_path = os.path.join(user_path, model_id, "model.pt")
-            if os.path.exists(model_path):
-                return model_path
+
+            # Check for .pt file (trained models)
+            pt_path = os.path.join(user_path, model_id, "model.pt")
+            if os.path.exists(pt_path):
+                return pt_path
+
+            # Check for .safetensors file (uploaded models)
+            safetensors_path = os.path.join(user_path, model_id, "model.safetensors")
+            if os.path.exists(safetensors_path):
+                return safetensors_path
 
         return None
 
@@ -413,7 +552,7 @@ class InferenceWorkerA10G:
         self._tokenizer = get_tokenizer()
 
     def _get_model(self, model_id: str):
-        """Get or load a model."""
+        """Get or load a model (supports both .pt and .safetensors formats)."""
         import torch
 
         if model_id in self._models:
@@ -433,12 +572,18 @@ class InferenceWorkerA10G:
 
         print(f"Loading model '{model_id}' from {checkpoint_path}")
 
-        checkpoint = torch.load(checkpoint_path, map_location="cuda", weights_only=False)
-        config = checkpoint["config"]
-
         from core.transformer.model_torch import TransformerLM
-        model = TransformerLM(config).to("cuda")
-        model.load_state_dict(checkpoint["model_state_dict"])
+
+        if checkpoint_path.endswith(".safetensors"):
+            # Load safetensors format (uploaded models)
+            model, config = self._load_safetensors_model(checkpoint_path)
+        else:
+            # Load .pt format (trained models)
+            checkpoint = torch.load(checkpoint_path, map_location="cuda", weights_only=False)
+            config = checkpoint["config"]
+            model = TransformerLM(config).to("cuda")
+            model.load_state_dict(checkpoint["model_state_dict"])
+
         model.eval()
 
         self._models[model_id] = (model, config)
@@ -447,7 +592,7 @@ class InferenceWorkerA10G:
         return model, config
 
     def _find_custom_model(self, model_id: str) -> Optional[str]:
-        """Find a custom model in the volume."""
+        """Find a custom model in the volume (supports both .pt and .safetensors)."""
         models_root = "/models"
 
         for user_dir in os.listdir(models_root):
@@ -456,11 +601,132 @@ class InferenceWorkerA10G:
             user_path = os.path.join(models_root, user_dir)
             if not os.path.isdir(user_path):
                 continue
-            model_path = os.path.join(user_path, model_id, "model.pt")
-            if os.path.exists(model_path):
-                return model_path
+
+            # Check for .pt file (trained models)
+            pt_path = os.path.join(user_path, model_id, "model.pt")
+            if os.path.exists(pt_path):
+                return pt_path
+
+            # Check for .safetensors file (uploaded models)
+            safetensors_path = os.path.join(user_path, model_id, "model.safetensors")
+            if os.path.exists(safetensors_path):
+                return safetensors_path
 
         return None
+
+    def _load_safetensors_model(self, checkpoint_path: str):
+        """Load a model from safetensors format."""
+        import torch
+        from safetensors.torch import load_file
+
+        from core.transformer.model_torch import TransformerLM
+        from core.transformer.config import TransformerConfig
+
+        # Load safetensors file
+        state_dict = load_file(checkpoint_path)
+
+        # Try to infer config from state dict
+        config = self._infer_config_from_state_dict(state_dict)
+
+        # Create model and load state dict
+        model = TransformerLM(config).to("cuda")
+
+        # Map state dict keys if needed
+        mapped_state_dict = self._map_safetensors_state_dict(state_dict, model)
+        model.load_state_dict(mapped_state_dict, strict=False)
+
+        return model, config
+
+    def _infer_config_from_state_dict(self, state_dict: dict):
+        """Infer TransformerConfig from state dict tensor shapes."""
+        from core.transformer.config import TransformerConfig
+
+        # Default config (nano-like)
+        d_model = 192
+        num_layers = 6
+        num_heads = 6
+        vocab_size = 50257
+        max_seq_len = 256
+
+        # Try to infer from embedding layer
+        for key, tensor in state_dict.items():
+            if "embed" in key.lower() and "token" in key.lower():
+                if len(tensor.shape) == 2:
+                    vocab_size, d_model = tensor.shape
+                    break
+            elif "wte" in key.lower():  # GPT-style token embedding
+                if len(tensor.shape) == 2:
+                    vocab_size, d_model = tensor.shape
+                    break
+
+        # Try to count layers
+        layer_indices = set()
+        for key in state_dict.keys():
+            parts = key.split(".")
+            for i, part in enumerate(parts):
+                if part.isdigit():
+                    layer_indices.add(int(part))
+                elif part.startswith("layer"):
+                    try:
+                        idx = int(part.replace("layer", "").replace("_", ""))
+                        layer_indices.add(idx)
+                    except ValueError:
+                        pass
+        if layer_indices:
+            num_layers = max(layer_indices) + 1
+
+        # Try to infer num_heads from attention projections
+        for key, tensor in state_dict.items():
+            if "attn" in key.lower() and ("q_proj" in key.lower() or "query" in key.lower()):
+                if len(tensor.shape) == 2:
+                    potential_heads = d_model // 64
+                    if potential_heads > 0:
+                        num_heads = min(potential_heads, 32)
+                    break
+
+        return TransformerConfig(
+            vocab_size=vocab_size,
+            max_seq_len=max_seq_len,
+            d_model=d_model,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            d_ff=d_model * 4,
+            dropout=0.0,
+        )
+
+    def _map_safetensors_state_dict(self, state_dict: dict, model) -> dict:
+        """Map safetensors state dict keys to our model's expected keys."""
+        model_keys = set(model.state_dict().keys())
+
+        if set(state_dict.keys()) == model_keys:
+            return state_dict
+
+        mapped = {}
+        for key, tensor in state_dict.items():
+            if key in model_keys:
+                mapped[key] = tensor
+                continue
+
+            new_key = key
+            if key.startswith("transformer."):
+                new_key = key.replace("transformer.", "")
+
+            new_key = new_key.replace("h.", "layers.")
+            new_key = new_key.replace(".attn.", ".attention.")
+            new_key = new_key.replace(".mlp.", ".ffn.")
+            new_key = new_key.replace(".ln_1.", ".norm1.")
+            new_key = new_key.replace(".ln_2.", ".norm2.")
+            new_key = new_key.replace("ln_f.", "final_norm.")
+            new_key = new_key.replace("wte.", "token_embedding.")
+            new_key = new_key.replace("wpe.", "position_embedding.")
+            new_key = new_key.replace("lm_head.", "output_projection.")
+
+            if new_key in model_keys:
+                mapped[new_key] = tensor
+            else:
+                mapped[key] = tensor
+
+        return mapped
 
     @modal.method()
     def generate(

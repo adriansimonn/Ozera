@@ -124,7 +124,7 @@ class TrainingEstimateResponse(BaseModel):
 # Custom model schemas
 
 class CustomModelInfo(BaseModel):
-    """Custom model information."""
+    """Custom model information (for trained models)."""
     model_id: str
     name: str
     base_config: str
@@ -133,3 +133,37 @@ class CustomModelInfo(BaseModel):
     trained_at: datetime
     val_loss: float
     parameters: int
+    model_type: str = "trained"  # "trained" or "uploaded"
+
+
+class UploadedModelInfo(BaseModel):
+    """Uploaded model information."""
+    model_id: str
+    name: str
+    file_size_bytes: int
+    num_parameters: Optional[int] = None
+    num_layers: Optional[int] = None
+    num_heads: Optional[int] = None
+    hidden_dim: Optional[int] = None
+    vocab_size: Optional[int] = None
+    max_seq_len: Optional[int] = None
+    uploaded_at: datetime
+    model_type: str = "uploaded"
+
+
+class ModelUploadResponse(BaseModel):
+    """Response after uploading a model."""
+    model_id: str
+    name: str
+    file_size_bytes: int
+    num_parameters: Optional[int] = None
+    num_layers: Optional[int] = None
+    status: str = "uploaded"
+
+
+class CustomModelCount(BaseModel):
+    """Count of custom models (both trained and uploaded)."""
+    trained_count: int
+    uploaded_count: int
+    total_count: int
+    max_allowed: int = 1

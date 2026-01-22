@@ -1,24 +1,38 @@
 /**
  * Navigation bar component with glass morphism styling.
  * Supports view mode toggle for pages that use split/single view.
+ * Supports custom models page mode toggle (training/upload).
  */
 
 import { Link, useLocation } from 'react-router-dom'
-import { Cpu, Square, SplitSquareVertical, Sparkles } from 'lucide-react'
+import { Cpu, Square, SplitSquareVertical, Sparkles, GraduationCap, Upload } from 'lucide-react'
 import { UserMenu } from './UserMenu'
 import { useAuthStore } from '../../stores/authStore'
 
 type ViewMode = 'single' | 'split'
+export type CustomModelsMode = 'training' | 'upload'
 
 interface NavBarProps {
   viewMode?: ViewMode
   onViewModeChange?: (mode: ViewMode) => void
   showViewToggle?: boolean
+  customModelsMode?: CustomModelsMode
+  onCustomModelsModeChange?: (mode: CustomModelsMode) => void
+  showCustomModelsToggle?: boolean
   onShowLogin?: () => void
   onShowSignup?: () => void
 }
 
-export function NavBar({ viewMode, onViewModeChange, showViewToggle = false, onShowLogin, onShowSignup }: NavBarProps) {
+export function NavBar({
+  viewMode,
+  onViewModeChange,
+  showViewToggle = false,
+  customModelsMode,
+  onCustomModelsModeChange,
+  showCustomModelsToggle = false,
+  onShowLogin,
+  onShowSignup,
+}: NavBarProps) {
   const location = useLocation()
   const { user } = useAuthStore()
 
@@ -68,6 +82,27 @@ export function NavBar({ viewMode, onViewModeChange, showViewToggle = false, onS
               >
                 <SplitSquareVertical className="mode-icon" />
                 Split
+              </button>
+            </div>
+          )}
+
+          {showCustomModelsToggle && onCustomModelsModeChange && (
+            <div className="view-mode-toggle">
+              <button
+                onClick={() => onCustomModelsModeChange('training')}
+                className={`mode-btn ${customModelsMode === 'training' ? 'active' : ''}`}
+                title="Train a custom model"
+              >
+                <GraduationCap className="mode-icon" />
+                Training
+              </button>
+              <button
+                onClick={() => onCustomModelsModeChange('upload')}
+                className={`mode-btn ${customModelsMode === 'upload' ? 'active' : ''}`}
+                title="Upload a model file"
+              >
+                <Upload className="mode-icon" />
+                Upload
               </button>
             </div>
           )}

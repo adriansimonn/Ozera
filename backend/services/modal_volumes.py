@@ -301,3 +301,94 @@ def get_volume_mounts() -> dict:
         "/datasets": datasets_volume,
         "/models": models_volume,
     }
+
+
+def get_uploaded_model_path(user_id: int, model_name: str) -> str:
+    """
+    Get the path for an uploaded model in the Modal volume.
+
+    Uploaded models use safetensors format and are stored separately.
+
+    Args:
+        user_id: User ID
+        model_name: Model name
+
+    Returns:
+        Path string: /models/{user_id}/{model_name}/model.safetensors
+    """
+    return f"/{user_id}/{model_name}/model.safetensors"
+
+
+async def upload_model_to_volume(
+    local_path: Path,
+    user_id: int,
+    model_name: str,
+) -> bool:
+    """
+    Upload a .safetensors model file to the Modal volume.
+
+    Args:
+        local_path: Local path to the model file
+        user_id: User ID
+        model_name: Model name
+
+    Returns:
+        True if successful
+    """
+    try:
+        remote_dir = f"/{user_id}/{model_name}"
+
+        with models_volume.batch_upload() as batch:
+            batch.put_file(str(local_path), f"{remote_dir}/model.safetensors")
+
+        return True
+    except Exception as e:
+        print(f"Error uploading model to Modal volume: {e}")
+        return False
+
+
+async def delete_model_from_volume(user_id: int, model_name: str) -> bool:
+    """
+    Delete a model directory from the Modal volume.
+
+    Args:
+        user_id: User ID
+        model_name: Model name
+
+    Returns:
+        True if successful
+    """
+    try:
+        remote_dir = f"/{user_id}/{model_name}"
+
+        # List and delete all files in the directory
+        for entry in models_volume.listdir(remote_dir):
+            models_volume.remove_file(entry.path)
+
+        return True
+    except Exception as e:
+        print(f"Error deleting model from Modal volume: {e}")
+        return False
+
+
+def check_model_exists_in_volume(user_id: int, model_name: str) -> bool:
+    """
+    Check if a model exists in the Modal volume.
+
+    Checks for both .pt (trained) and .safetensors (uploaded) formats.
+
+    Args:
+        user_id: User ID
+        model_name: Model name
+
+    Returns:
+        True if model exists
+    """
+    try:
+        remote_dir = f"/{user_id}/{model_name}"
+        for entry in models_volume.listdir(remote_dir):
+            if entry.path.endswith(".pt") or entry.path.endswith(".safetensors"):
+                return True
+        return False
+    except Exception:
+        return False

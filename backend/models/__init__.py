@@ -9,6 +9,7 @@ from .database import (
     TrainingJob,
     Transaction,
     TransactionType,
+    UploadedModel,
     User,
 )
 
@@ -21,4 +22,5 @@ __all__ = [
     "TrainingJob",
     "JobStatus",
     "Dataset",
+    "UploadedModel",
 ]

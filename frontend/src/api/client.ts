@@ -83,8 +83,33 @@ export interface TrainingJobRequest {
 }
 
 export interface CustomModelCount {
-  count: number
+  trained_count: number
+  uploaded_count: number
+  total_count: number
   max_allowed: number
+}
+
+export interface UploadedModelInfo {
+  model_id: string
+  name: string
+  file_size_bytes: number
+  num_parameters: number | null
+  num_layers: number | null
+  num_heads: number | null
+  hidden_dim: number | null
+  vocab_size: number | null
+  max_seq_len: number | null
+  uploaded_at: string
+  model_type: 'uploaded'
+}
+
+export interface ModelUploadResponse {
+  model_id: string
+  name: string
+  file_size_bytes: number
+  num_parameters: number | null
+  num_layers: number | null
+  status: string
 }
 
 export interface TrainingJobResponse {
@@ -758,6 +783,70 @@ class OzeraAPIClient {
     a.click()
     window.URL.revokeObjectURL(url)
     document.body.removeChild(a)
+  }
+
+  // ============= Model Upload =============
+
+  /**
+   * Upload a .safetensors model file.
+   */
+  async uploadModel(
+    file: File,
+    modelName: string,
+    overwriteExisting: boolean = false
+  ): Promise<ModelUploadResponse> {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('model_name', modelName)
+    formData.append('overwrite_existing', String(overwriteExisting))
+
+    const response = await fetch(`${this.baseUrl}/training/models/upload`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to upload model: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * List uploaded models for the current user.
+   */
+  async listUploadedModels(): Promise<UploadedModelInfo[]> {
+    const response = await fetch(`${this.baseUrl}/training/models/uploaded`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to list uploaded models: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Delete an uploaded model.
+   */
+  async deleteUploadedModel(modelId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/training/models/uploaded/${modelId}`, {
+      method: 'DELETE',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete uploaded model: ${response.statusText}`)
+    }
   }
 }
 
