@@ -2,6 +2,7 @@
 Modal app for cloud GPU inference.
 
 This module provides serverless GPU inference for Ozera models using Modal.
+Supports both Ozera custom models and open-source models (SmolLM, Gemma, Qwen).
 Separate from the training app to allow independent scaling and deployment.
 """
 
@@ -17,10 +18,14 @@ app = modal.App("ozera-inference")
 MODELS_VOLUME_NAME = "ozera-models"
 models_volume = modal.Volume.from_name(MODELS_VOLUME_NAME, create_if_missing=True)
 
+# HuggingFace models volume for open-source models
+HF_VOLUME_NAME = "ozera-hf-models"
+hf_volume = modal.Volume.from_name(HF_VOLUME_NAME, create_if_missing=True)
+
 # Get backend directory path
 BACKEND_DIR = os.path.join(os.path.dirname(__file__), "..")
 
-# Docker image with inference dependencies
+# Docker image with inference dependencies (includes HuggingFace transformers)
 inference_image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
@@ -29,6 +34,9 @@ inference_image = (
         "tiktoken>=0.5.0",
         "safetensors>=0.4.0",
         "packaging>=21.0",
+        "transformers>=4.40.0",
+        "accelerate>=0.26.0",
+        "huggingface_hub>=0.20.0",
     )
     .add_local_dir(os.path.join(BACKEND_DIR, "core"), remote_path="/app/backend/core")
     .add_local_dir(os.path.join(BACKEND_DIR, "inference"), remote_path="/app/backend/inference")
@@ -43,7 +51,7 @@ BASE_MODEL_PATHS = {
 
 @app.cls(
     image=inference_image,
-    volumes={"/models": models_volume},
+    volumes={"/models": models_volume, "/hf_cache": hf_volume},
     gpu="T4",
     timeout=300,
     scaledown_window=300,  # Keep warm for 5 minutes
@@ -55,7 +63,8 @@ class InferenceWorkerT4:
     @modal.enter()
     def setup(self):
         """Initialize on container start."""
-        self._models = {}
+        self._models = {}  # Ozera models cache
+        self._os_loaders = {}  # Open-source model loaders cache
         self._tokenizer = None
         import sys
         sys.path.insert(0, "/app/backend")
@@ -63,9 +72,42 @@ class InferenceWorkerT4:
         from core.tokenizer import get_tokenizer
         self._tokenizer = get_tokenizer()
 
+    def _is_open_source_model(self, model_id: str) -> bool:
+        """Check if model_id is an open-source model."""
+        from core.open_source import OPEN_SOURCE_MODELS
+        return model_id in OPEN_SOURCE_MODELS
+
+    def _get_open_source_loader(self, model_id: str):
+        """Get or load an open-source model loader."""
+        if model_id in self._os_loaders:
+            return self._os_loaders[model_id]
+
+        from core.open_source import OPEN_SOURCE_MODELS, get_loader_for_model
+
+        if model_id not in OPEN_SOURCE_MODELS:
+            raise ValueError(f"Unknown open-source model: {model_id}")
+
+        config = OPEN_SOURCE_MODELS[model_id]
+        cache_dir = f"/hf_cache/{config.hf_id.replace('/', '--')}"
+
+        print(f"Loading open-source model '{model_id}' from {cache_dir}")
+
+        loader = get_loader_for_model(model_id)
+        loader.load(cache_dir)
+
+        self._os_loaders[model_id] = loader
+        print(f"Open-source model '{model_id}' loaded ({config.parameters:,} params)")
+
+        return loader
+
     def _get_model(self, model_id: str):
-        """Get or load a model (supports both .pt and .safetensors formats)."""
+        """Get or load a model (supports Ozera, safetensors, and open-source formats)."""
         import torch
+
+        # Check if it's an open-source model
+        if self._is_open_source_model(model_id):
+            # Return None for model/config - caller should use _get_open_source_loader
+            raise ValueError(f"Use _get_open_source_loader for open-source model: {model_id}")
 
         if model_id in self._models:
             return self._models[model_id]
@@ -262,9 +304,27 @@ class InferenceWorkerT4:
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
     ) -> dict:
-        """Generate text from a model."""
+        """Generate text from a model (Ozera or open-source)."""
         import torch
 
+        # Handle open-source models
+        if self._is_open_source_model(model_id):
+            loader = self._get_open_source_loader(model_id)
+            result = loader.generate(
+                prompt=prompt,
+                max_new_tokens=max_tokens,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                do_sample=temperature > 0,
+            )
+            result["model"] = model_id
+            result["top_k"] = top_k
+            result["top_p"] = top_p
+            result["temperature"] = temperature
+            return result
+
+        # Handle Ozera models
         model, config = self._get_model(model_id)
 
         prompt_ids = self._tokenizer.encode(prompt)
@@ -374,9 +434,27 @@ class InferenceWorkerT4:
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
     ) -> dict:
-        """Generate text and return activations for visualization."""
+        """Generate text and return activations for visualization (Ozera or open-source)."""
         import torch
 
+        # Handle open-source models
+        if self._is_open_source_model(model_id):
+            loader = self._get_open_source_loader(model_id)
+            result = loader.generate_with_activations(
+                prompt=prompt,
+                max_new_tokens=max_tokens,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                do_sample=temperature > 0,
+            )
+            result["model"] = model_id
+            result["top_k"] = top_k
+            result["top_p"] = top_p
+            result["temperature"] = temperature
+            return result
+
+        # Handle Ozera models
         model, config = self._get_model(model_id)
 
         prompt_ids = self._tokenizer.encode(prompt)
@@ -477,7 +555,25 @@ class InferenceWorkerT4:
 
     @modal.method()
     def get_model_info(self, model_id: str) -> dict:
-        """Get model configuration info."""
+        """Get model configuration info (Ozera or open-source)."""
+        # Handle open-source models
+        if self._is_open_source_model(model_id):
+            from core.open_source import OPEN_SOURCE_MODELS
+            config = OPEN_SOURCE_MODELS[model_id]
+            return {
+                "name": model_id,
+                "display_name": config.display_name,
+                "family": config.family.value,
+                "parameters": config.parameters,
+                "layers": config.num_layers,
+                "heads": config.num_heads,
+                "hidden_dim": config.hidden_dim,
+                "vocab_size": config.vocab_size,
+                "max_seq_len": config.max_seq_len,
+                "type": "open_source",
+            }
+
+        # Handle Ozera models
         model, config = self._get_model(model_id)
 
         return {
@@ -488,12 +584,30 @@ class InferenceWorkerT4:
             "hidden_dim": config.d_model,
             "vocab_size": config.vocab_size,
             "max_seq_len": config.max_seq_len,
+            "type": "ozera",
         }
 
     @modal.method()
     def list_models(self) -> list:
-        """List available models in the volume."""
+        """List available models in the volume (includes open-source models)."""
         available = []
+
+        # Add open-source models
+        from core.open_source import OPEN_SOURCE_MODELS
+        for model_id, config in OPEN_SOURCE_MODELS.items():
+            # Only include models that match this worker's GPU tier
+            if config.gpu_tier == "t4":
+                # Check if model is cached
+                cache_path = f"/hf_cache/{config.hf_id.replace('/', '--')}"
+                is_cached = os.path.exists(cache_path)
+                available.append({
+                    "id": model_id,
+                    "type": "open_source",
+                    "family": config.family.value,
+                    "display_name": config.display_name,
+                    "parameters": config.parameters,
+                    "cached": is_cached,
+                })
 
         # Check base models
         for model_id, path in BASE_MODEL_PATHS.items():
@@ -502,28 +616,32 @@ class InferenceWorkerT4:
 
         # Check custom models
         models_root = "/models"
-        for user_dir in os.listdir(models_root):
-            if user_dir == "base":
-                continue
-            user_path = os.path.join(models_root, user_dir)
-            if not os.path.isdir(user_path):
-                continue
-            for model_name in os.listdir(user_path):
-                model_path = os.path.join(user_path, model_name, "model.pt")
-                if os.path.exists(model_path):
-                    available.append({
-                        "id": model_name,
-                        "type": "custom",
-                        "user_id": user_dir,
-                    })
+        if os.path.exists(models_root):
+            for user_dir in os.listdir(models_root):
+                if user_dir == "base":
+                    continue
+                user_path = os.path.join(models_root, user_dir)
+                if not os.path.isdir(user_path):
+                    continue
+                for model_name in os.listdir(user_path):
+                    model_path = os.path.join(user_path, model_name, "model.pt")
+                    if os.path.exists(model_path):
+                        available.append({
+                            "id": model_name,
+                            "type": "custom",
+                            "user_id": user_dir,
+                        })
 
         return available
 
     @modal.method()
     def warmup(self, model_id: str) -> bool:
-        """Pre-load a model into memory."""
+        """Pre-load a model into memory (Ozera or open-source)."""
         try:
-            self._get_model(model_id)
+            if self._is_open_source_model(model_id):
+                self._get_open_source_loader(model_id)
+            else:
+                self._get_model(model_id)
             return True
         except Exception as e:
             print(f"Warmup failed for {model_id}: {e}")
@@ -532,7 +650,7 @@ class InferenceWorkerT4:
 
 @app.cls(
     image=inference_image,
-    volumes={"/models": models_volume},
+    volumes={"/models": models_volume, "/hf_cache": hf_volume},
     gpu="A10G",
     timeout=600,
     scaledown_window=120,
@@ -544,7 +662,8 @@ class InferenceWorkerA10G:
     @modal.enter()
     def setup(self):
         """Initialize on container start."""
-        self._models = {}
+        self._models = {}  # Ozera models cache
+        self._os_loaders = {}  # Open-source model loaders cache
         self._tokenizer = None
         import sys
         sys.path.insert(0, "/app/backend")
@@ -552,9 +671,41 @@ class InferenceWorkerA10G:
         from core.tokenizer import get_tokenizer
         self._tokenizer = get_tokenizer()
 
+    def _is_open_source_model(self, model_id: str) -> bool:
+        """Check if model_id is an open-source model."""
+        from core.open_source import OPEN_SOURCE_MODELS
+        return model_id in OPEN_SOURCE_MODELS
+
+    def _get_open_source_loader(self, model_id: str):
+        """Get or load an open-source model loader."""
+        if model_id in self._os_loaders:
+            return self._os_loaders[model_id]
+
+        from core.open_source import OPEN_SOURCE_MODELS, get_loader_for_model
+
+        if model_id not in OPEN_SOURCE_MODELS:
+            raise ValueError(f"Unknown open-source model: {model_id}")
+
+        config = OPEN_SOURCE_MODELS[model_id]
+        cache_dir = f"/hf_cache/{config.hf_id.replace('/', '--')}"
+
+        print(f"Loading open-source model '{model_id}' from {cache_dir}")
+
+        loader = get_loader_for_model(model_id)
+        loader.load(cache_dir)
+
+        self._os_loaders[model_id] = loader
+        print(f"Open-source model '{model_id}' loaded ({config.parameters:,} params)")
+
+        return loader
+
     def _get_model(self, model_id: str):
-        """Get or load a model (supports both .pt and .safetensors formats)."""
+        """Get or load a model (supports Ozera, safetensors, and open-source formats)."""
         import torch
+
+        # Check if it's an open-source model
+        if self._is_open_source_model(model_id):
+            raise ValueError(f"Use _get_open_source_loader for open-source model: {model_id}")
 
         if model_id in self._models:
             return self._models[model_id]
@@ -739,9 +890,27 @@ class InferenceWorkerA10G:
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
     ) -> dict:
-        """Generate text from a model."""
+        """Generate text from a model (Ozera or open-source)."""
         import torch
 
+        # Handle open-source models
+        if self._is_open_source_model(model_id):
+            loader = self._get_open_source_loader(model_id)
+            result = loader.generate(
+                prompt=prompt,
+                max_new_tokens=max_tokens,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                do_sample=temperature > 0,
+            )
+            result["model"] = model_id
+            result["top_k"] = top_k
+            result["top_p"] = top_p
+            result["temperature"] = temperature
+            return result
+
+        # Handle Ozera models
         model, config = self._get_model(model_id)
 
         prompt_ids = self._tokenizer.encode(prompt)
@@ -771,14 +940,75 @@ class InferenceWorkerA10G:
         }
 
     @modal.method()
+    def generate_with_activations(
+        self,
+        model_id: str,
+        prompt: str,
+        max_tokens: int = 200,
+        temperature: float = 0.8,
+        top_k: Optional[int] = 40,
+        top_p: Optional[float] = None,
+    ) -> dict:
+        """Generate text and return activations for visualization (open-source models only on A10G)."""
+        # Handle open-source models
+        if self._is_open_source_model(model_id):
+            loader = self._get_open_source_loader(model_id)
+            result = loader.generate_with_activations(
+                prompt=prompt,
+                max_new_tokens=max_tokens,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                do_sample=temperature > 0,
+            )
+            result["model"] = model_id
+            result["top_k"] = top_k
+            result["top_p"] = top_p
+            result["temperature"] = temperature
+            return result
+
+        # For Ozera models on A10G, delegate to T4 worker or raise error
+        raise ValueError(f"Activation capture not implemented for Ozera models on A10G: {model_id}")
+
+    @modal.method()
     def warmup(self, model_id: str) -> bool:
-        """Pre-load a model into memory."""
+        """Pre-load a model into memory (Ozera or open-source)."""
         try:
-            self._get_model(model_id)
+            if self._is_open_source_model(model_id):
+                self._get_open_source_loader(model_id)
+            else:
+                self._get_model(model_id)
             return True
         except Exception as e:
             print(f"Warmup failed for {model_id}: {e}")
             return False
+
+    @modal.method()
+    def list_models(self) -> list:
+        """List available models (includes A10G-tier open-source models)."""
+        available = []
+
+        # Add open-source models that need A10G
+        from core.open_source import OPEN_SOURCE_MODELS
+        for model_id, config in OPEN_SOURCE_MODELS.items():
+            if config.gpu_tier == "a10g":
+                cache_path = f"/hf_cache/{config.hf_id.replace('/', '--')}"
+                is_cached = os.path.exists(cache_path)
+                available.append({
+                    "id": model_id,
+                    "type": "open_source",
+                    "family": config.family.value,
+                    "display_name": config.display_name,
+                    "parameters": config.parameters,
+                    "cached": is_cached,
+                })
+
+        # Check base models
+        for model_id, path in BASE_MODEL_PATHS.items():
+            if os.path.exists(path):
+                available.append({"id": model_id, "type": "base"})
+
+        return available
 
 
 def get_inference_worker(gpu_tier: str = "t4"):
