@@ -1,11 +1,12 @@
 /**
  * Model information box component with model selector and detailed specs.
- * Supports both base models (nano/mini) and custom trained models.
+ * Supports base models (nano/mini), open source models, and custom trained models.
  */
 
 import React from 'react'
 import { Info, Cpu, Layers, Grid3X3, Hash, Database } from 'lucide-react'
 import { useModels, useModelInfo } from '../../hooks/useModels'
+import type { ModelFamily } from '../../types/model'
 
 // Static model information for base models
 const BASE_MODEL_INFO: Record<'nano' | 'mini', {
@@ -22,6 +23,13 @@ const BASE_MODEL_INFO: Record<'nano' | 'mini', {
   },
 }
 
+// Developer names for open source model families
+const FAMILY_DEVELOPERS: Record<Exclude<ModelFamily, 'ozera'>, string> = {
+  smollm: 'Hugging Face',
+  qwen: 'Alibaba',
+  gemma: 'Google DeepMind',
+}
+
 interface ModelInfoBoxProps {
   selectedModel: string
   onModelChange: (model: string) => void
@@ -31,19 +39,47 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
   selectedModel,
   onModelChange,
 }) => {
-  const { models } = useModels()
+  const { models, modelFamilies, modelNames } = useModels()
   const { info: dynamicInfo, loading: infoLoading } = useModelInfo(selectedModel)
 
-  // Determine if this is a base model or custom model
-  const isBaseModel = selectedModel === 'nano' || selectedModel === 'mini'
-  const description = isBaseModel ? BASE_MODEL_INFO[selectedModel].description : 'Your custom trained model.'
+  // Helper to get family for a model
+  const getFamily = (modelId: string): ModelFamily => {
+    return modelFamilies[modelId] || 'ozera'
+  }
 
-  // Separate models into base and custom
+  // Determine model category
+  const isBaseModel = selectedModel === 'nano' || selectedModel === 'mini'
+  const selectedFamily = getFamily(selectedModel)
+  const isOpenSourceModel = selectedFamily !== 'ozera'
+  const isCustomModel = !isBaseModel && !isOpenSourceModel
+
+  // Get description based on model type
+  const getDescription = (): string => {
+    if (isBaseModel) {
+      return BASE_MODEL_INFO[selectedModel as 'nano' | 'mini'].description
+    }
+    if (isOpenSourceModel) {
+      const developer = FAMILY_DEVELOPERS[selectedFamily as Exclude<ModelFamily, 'ozera'>]
+      return `Small model by ${developer}.`
+    }
+    return 'Your custom trained model.'
+  }
+
+  // Separate models into categories
   const baseModels = models.filter(m => m === 'nano' || m === 'mini')
-  const customModels = models.filter(m => m !== 'nano' && m !== 'mini')
+  const osModels = models.filter(m => {
+    const family = getFamily(m)
+    return family !== 'ozera'
+  })
+  const customModels = models.filter(m => {
+    const family = getFamily(m)
+    return family === 'ozera' && m !== 'nano' && m !== 'mini'
+  })
 
   const formatNumber = (num: number): string => {
-    if (num >= 1_000_000) {
+    if (num >= 1_000_000_000) {
+      return `${(num / 1_000_000_000).toFixed(1)}B`
+    } else if (num >= 1_000_000) {
       return `${(num / 1_000_000).toFixed(1)}M`
     } else if (num >= 1_000) {
       return `${(num / 1_000).toFixed(1)}K`
@@ -71,13 +107,22 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
               ozera-{m}
             </option>
           ))}
+          {/* Open Source models */}
+          {osModels.length > 0 && (
+            <option disabled>── Open Source ──</option>
+          )}
+          {osModels.map((m) => (
+            <option key={m} value={m}>
+              {modelNames[m] || m}
+            </option>
+          ))}
           {/* Custom models */}
           {customModels.length > 0 && (
             <option disabled>── Custom Models ──</option>
           )}
           {customModels.map((m) => (
             <option key={m} value={m}>
-              {m} (custom)
+              {modelNames[m] || m} (custom)
             </option>
           ))}
         </select>
@@ -89,8 +134,11 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
         ) : dynamicInfo ? (
           <>
             <p className="model-description">
-              {description}
-              {!isBaseModel && (
+              {getDescription()}
+              {isOpenSourceModel && (
+                <span className="os-badge">Open Source</span>
+              )}
+              {isCustomModel && (
                 <span className="custom-badge">Custom Model</span>
               )}
             </p>
@@ -249,17 +297,26 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
           font-style: italic;
         }
 
-        .custom-badge {
+        .custom-badge,
+        .os-badge {
           display: inline-block;
           margin-left: 0.75rem;
           padding: 0.25rem 0.6rem;
-          background: rgba(147, 112, 219, 0.2);
-          color: rgba(200, 180, 255, 0.9);
           font-size: 0.7rem;
           font-weight: 500;
           letter-spacing: 0.05em;
           text-transform: uppercase;
           vertical-align: middle;
+        }
+
+        .custom-badge {
+          background: rgba(147, 112, 219, 0.2);
+          color: rgba(200, 180, 255, 0.9);
+        }
+
+        .os-badge {
+          background: rgba(34, 197, 94, 0.15);
+          color: rgba(134, 239, 172, 0.95);
         }
 
         .info-grid {
