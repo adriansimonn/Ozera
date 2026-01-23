@@ -34,7 +34,6 @@ download_image = (
     image=download_image,
     volumes={"/hf_cache": hf_volume},
     timeout=1800,  # 30 minutes for large models
-    secrets=[modal.Secret.from_name("huggingface-token", required=False)],
 )
 def download_model(hf_model_id: str, force: bool = False) -> dict:
     """

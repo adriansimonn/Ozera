@@ -366,6 +366,45 @@ class InferenceWorkerT4:
         """Stream text generation token by token."""
         import torch
 
+        # Handle open-source models with HuggingFace streamer
+        if self._is_open_source_model(model_id):
+            loader = self._get_open_source_loader(model_id)
+
+            from transformers import TextIteratorStreamer
+            from threading import Thread
+
+            inputs = loader.tokenizer(prompt, return_tensors="pt").to(loader.device)
+            streamer = TextIteratorStreamer(
+                loader.tokenizer,
+                skip_prompt=True,
+                skip_special_tokens=True
+            )
+
+            gen_kwargs = {
+                "input_ids": inputs.input_ids,
+                "max_new_tokens": max_tokens,
+                "temperature": temperature,
+                "do_sample": temperature > 0,
+                "streamer": streamer,
+                "pad_token_id": loader.tokenizer.eos_token_id,
+            }
+            if top_k is not None:
+                gen_kwargs["top_k"] = top_k
+            if top_p is not None:
+                gen_kwargs["top_p"] = top_p
+
+            # Run generation in a thread so we can stream
+            thread = Thread(target=loader.model.generate, kwargs=gen_kwargs)
+            thread.start()
+
+            for text in streamer:
+                if text:
+                    yield text
+
+            thread.join()
+            return
+
+        # Handle Ozera models
         model, config = self._get_model(model_id)
 
         prompt_ids = self._tokenizer.encode(prompt)

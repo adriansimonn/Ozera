@@ -51,6 +51,7 @@ class SmolLMLoader(OpenSourceModelLoader):
             torch_dtype=torch.float16,
             device_map=self.device,
             trust_remote_code=False,
+            attn_implementation="eager",  # Required for output_attentions=True
         )
 
         self.model.eval()
