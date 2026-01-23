@@ -2,6 +2,68 @@
  * Type definitions for transformer models and configurations.
  */
 
+/**
+ * Model family types for grouping models
+ */
+export type ModelFamily = 'ozera' | 'gemma' | 'qwen' | 'smollm'
+
+/**
+ * Information about an open-source model
+ */
+export interface OpenSourceModelInfo {
+  id: string
+  hf_id: string
+  display_name: string
+  family: ModelFamily
+  parameters: number
+  layers: number
+  heads: number
+  kv_heads: number
+  hidden_dim: number
+  intermediate_dim: number
+  vocab_size: number
+  max_seq_len: number
+  gpu_tier: 't4' | 'a10g'
+}
+
+/**
+ * Cache status for an open-source model
+ */
+export interface ModelCacheStatus {
+  status: 'ready' | 'not_cached' | 'incomplete' | 'error'
+  hf_id: string
+  path?: string
+  has_model?: boolean
+  has_tokenizer?: boolean
+  total_size_mb?: number
+  file_count?: number
+  error?: string
+}
+
+/**
+ * Response from model download request
+ */
+export interface ModelDownloadResponse {
+  status: 'downloading' | 'cached' | 'error'
+  hf_id: string
+  path?: string
+  error?: string
+}
+
+/**
+ * Model family metadata for UI grouping
+ */
+export interface ModelFamilyInfo {
+  name: string
+  display_name: string
+  models: {
+    id: string
+    display_name: string
+    parameters: number
+    gpu_tier: string
+  }[]
+}
+
 export interface TransformerConfig {
   vocab_size: number
   d_model: number

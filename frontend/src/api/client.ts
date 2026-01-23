@@ -5,7 +5,11 @@
 import type {
   ActivationData,
   ActivationSummary,
-  GenerateWithActivationsResponse
+  GenerateWithActivationsResponse,
+  OpenSourceModelInfo,
+  ModelCacheStatus,
+  ModelDownloadResponse,
+  ModelFamilyInfo,
 } from '../types/model'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -847,6 +851,240 @@ class OzeraAPIClient {
     if (!response.ok) {
       throw new Error(`Failed to delete uploaded model: ${response.statusText}`)
     }
+  }
+
+  // ============= Open-Source Models =============
+
+  /**
+   * List all available open-source models.
+   */
+  async listOpenSourceModels(): Promise<OpenSourceModelInfo[]> {
+    const response = await fetch(`${this.baseUrl}/open-source/models`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to list open-source models: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get info for a specific open-source model.
+   */
+  async getOpenSourceModelInfo(modelId: string): Promise<OpenSourceModelInfo> {
+    const response = await fetch(`${this.baseUrl}/open-source/models/${modelId}`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get open-source model info: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * List open-source models grouped by family.
+   */
+  async listOpenSourceFamilies(): Promise<ModelFamilyInfo[]> {
+    const response = await fetch(`${this.baseUrl}/open-source/families`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to list model families: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Check cache status for an open-source model.
+   */
+  async getOpenSourceCacheStatus(modelId: string): Promise<ModelCacheStatus> {
+    const response = await fetch(`${this.baseUrl}/open-source/cache/${modelId}/status`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get cache status: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Trigger download of an open-source model to Modal cache.
+   */
+  async downloadOpenSourceModel(modelId: string, force: boolean = false): Promise<ModelDownloadResponse> {
+    const response = await fetch(`${this.baseUrl}/open-source/cache/${modelId}/download?force=${force}`, {
+      method: 'POST',
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to download model: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Delete cached open-source model.
+   */
+  async deleteOpenSourceCache(modelId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/open-source/cache/${modelId}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete cached model: ${response.statusText}`)
+    }
+  }
+
+  /**
+   * Warmup an open-source model (pre-load into GPU memory).
+   */
+  async warmupOpenSourceModel(modelId: string): Promise<{ status: string; model: string; display_name: string; parameters: number; gpu_tier: string }> {
+    const response = await fetch(`${this.baseUrl}/open-source/models/${modelId}/warmup`, {
+      method: 'POST',
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to warmup model: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Generate text using an open-source model.
+   */
+  async generateOpenSource(request: GenerateRequest): Promise<GenerateResponse> {
+    const response = await fetch(`${this.baseUrl}/open-source/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      throw new Error(error.detail || `Generation failed: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Stream text generation using an open-source model.
+   */
+  async generateOpenSourceStream(
+    request: GenerateRequest,
+    onToken: (token: string) => void,
+    onStart?: (prompt: string) => void,
+    onDone?: () => void,
+    onError?: (error: string) => void
+  ): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/open-source/generate/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      throw new Error(error.detail || `Streaming failed: ${response.statusText}`)
+    }
+
+    const reader = response.body?.getReader()
+    if (!reader) {
+      throw new Error('Failed to get response reader')
+    }
+
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+
+            try {
+              const event: StreamToken = JSON.parse(data)
+
+              switch (event.type) {
+                case 'start':
+                  if (onStart && event.prompt) {
+                    onStart(event.prompt)
+                  }
+                  break
+
+                case 'token':
+                  if (event.text) {
+                    onToken(event.text)
+                  }
+                  break
+
+                case 'done':
+                  if (onDone) {
+                    onDone()
+                  }
+                  break
+
+                case 'error':
+                  if (onError && event.message) {
+                    onError(event.message)
+                  }
+                  break
+              }
+            } catch (e) {
+              console.error('Failed to parse SSE data:', e)
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
+  /**
+   * Generate text with activations using an open-source model.
+   */
+  async generateOpenSourceWithActivations(request: GenerateRequest): Promise<GenerateWithActivationsResponse> {
+    const response = await fetch(`${this.baseUrl}/open-source/generate/with-activations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      throw new Error(error.detail || `Generation with activations failed: ${response.statusText}`)
+    }
+
+    return response.json()
   }
 }
 
