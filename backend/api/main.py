@@ -35,6 +35,7 @@ from api.auth import router as auth_router
 from api.credits import router as credits_router
 from api.payments import router as payments_router
 from api.webhooks import router as webhooks_router
+from api.open_source import router as open_source_router
 from middleware.auth_middleware import get_optional_current_user
 from models.database import User
 from db import get_db
@@ -63,13 +64,14 @@ activation_store = get_activation_store()
 # Inference router for local/Modal routing
 inference_router = get_inference_router(models_dir=MODELS_DIR)
 
-# Register routers for authentication, datasets, training, credits, payments, and webhooks
+# Register routers for authentication, datasets, training, credits, payments, webhooks, and open-source models
 app.include_router(auth_router)
 app.include_router(datasets_router)
 app.include_router(training_router)
 app.include_router(credits_router)
 app.include_router(payments_router)
 app.include_router(webhooks_router)
+app.include_router(open_source_router)
 
 
 class GenerateRequest(BaseModel):

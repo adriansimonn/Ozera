@@ -1,0 +1,567 @@
+"""
+API endpoints for open-source model management and inference.
+
+Provides endpoints for:
+- Listing available open-source models
+- Triggering model downloads to Modal cache
+- Checking model cache status
+- Managing cached models
+"""
+
+from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+from typing import Optional
+import json
+
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from core.open_source import OPEN_SOURCE_MODELS, ModelFamily
+from middleware.auth_middleware import get_optional_current_user
+from models.database import User
+from db import get_db
+from services.credit_service import (
+    calculate_inference_cost,
+    charge_inference,
+    check_sufficient_balance,
+)
+from inference.activation_store import get_activation_store
+
+router = APIRouter(prefix="/open-source", tags=["Open Source Models"])
+
+activation_store = get_activation_store()
+
+
+# Request/Response Models
+
+class OpenSourceModelInfo(BaseModel):
+    """Information about an open-source model."""
+    id: str
+    hf_id: str
+    display_name: str
+    family: str
+    parameters: int
+    layers: int
+    heads: int
+    kv_heads: int
+    hidden_dim: int
+    intermediate_dim: int
+    vocab_size: int
+    max_seq_len: int
+    gpu_tier: str
+
+
+class ModelCacheStatus(BaseModel):
+    """Cache status for a model."""
+    status: str  # "ready", "not_cached", "incomplete", "error"
+    hf_id: str
+    path: Optional[str] = None
+    has_model: Optional[bool] = None
+    has_tokenizer: Optional[bool] = None
+    total_size_mb: Optional[float] = None
+    file_count: Optional[int] = None
+    error: Optional[str] = None
+
+
+class DownloadResponse(BaseModel):
+    """Response from model download request."""
+    status: str  # "downloading", "cached", "error"
+    hf_id: str
+    path: Optional[str] = None
+    error: Optional[str] = None
+
+
+class GenerateRequest(BaseModel):
+    """Request for text generation."""
+    prompt: str = Field(..., description="Text prompt to start generation")
+    model: str = Field(..., description="Open-source model ID (e.g., 'smollm-135m')")
+    max_tokens: int = Field(default=200, ge=1, le=2000, description="Maximum tokens to generate")
+    temperature: float = Field(default=0.8, ge=0.0, le=2.0, description="Sampling temperature")
+    top_k: Optional[int] = Field(default=40, ge=1, le=100, description="Top-k sampling")
+    top_p: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Nucleus sampling")
+
+
+# Helper Functions
+
+def _get_gpu_tier_for_model(model_id: str) -> str:
+    """Get the GPU tier required for a model."""
+    if model_id not in OPEN_SOURCE_MODELS:
+        raise ValueError(f"Unknown open-source model: {model_id}")
+    return OPEN_SOURCE_MODELS[model_id].gpu_tier
+
+
+def _get_inference_worker(model_id: str):
+    """Get the appropriate Modal inference worker for a model."""
+    import modal
+    gpu_tier = _get_gpu_tier_for_model(model_id)
+    worker_class = "InferenceWorkerT4" if gpu_tier == "t4" else "InferenceWorkerA10G"
+    return modal.Cls.from_name("ozera-inference", worker_class)
+
+
+def _get_download_functions():
+    """Get Modal download functions."""
+    import modal
+    download_model = modal.Function.from_name("ozera-hf-download", "download_model")
+    check_model_status = modal.Function.from_name("ozera-hf-download", "check_model_status")
+    list_cached_models = modal.Function.from_name("ozera-hf-download", "list_cached_models")
+    delete_cached_model = modal.Function.from_name("ozera-hf-download", "delete_cached_model")
+    return download_model, check_model_status, list_cached_models, delete_cached_model
+
+
+# Model Listing Endpoints
+
+@router.get("/models", response_model=list[OpenSourceModelInfo])
+async def list_models():
+    """
+    List all available open-source models.
+
+    Returns metadata for all supported open-source models (SmolLM, Gemma, Qwen).
+    """
+    return [
+        OpenSourceModelInfo(
+            id=cfg.model_id,
+            hf_id=cfg.hf_id,
+            display_name=cfg.display_name,
+            family=cfg.family.value,
+            parameters=cfg.parameters,
+            layers=cfg.num_layers,
+            heads=cfg.num_heads,
+            kv_heads=cfg.num_kv_heads,
+            hidden_dim=cfg.hidden_dim,
+            intermediate_dim=cfg.intermediate_dim,
+            vocab_size=cfg.vocab_size,
+            max_seq_len=cfg.max_seq_len,
+            gpu_tier=cfg.gpu_tier,
+        )
+        for cfg in OPEN_SOURCE_MODELS.values()
+    ]
+
+
+@router.get("/models/{model_id}", response_model=OpenSourceModelInfo)
+async def get_model_info(model_id: str):
+    """
+    Get detailed info for a specific open-source model.
+
+    Args:
+        model_id: Internal model ID (e.g., "smollm-135m", "gemma-2-2b")
+    """
+    if model_id not in OPEN_SOURCE_MODELS:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Model not found: {model_id}. Available: {list(OPEN_SOURCE_MODELS.keys())}"
+        )
+
+    cfg = OPEN_SOURCE_MODELS[model_id]
+    return OpenSourceModelInfo(
+        id=cfg.model_id,
+        hf_id=cfg.hf_id,
+        display_name=cfg.display_name,
+        family=cfg.family.value,
+        parameters=cfg.parameters,
+        layers=cfg.num_layers,
+        heads=cfg.num_heads,
+        kv_heads=cfg.num_kv_heads,
+        hidden_dim=cfg.hidden_dim,
+        intermediate_dim=cfg.intermediate_dim,
+        vocab_size=cfg.vocab_size,
+        max_seq_len=cfg.max_seq_len,
+        gpu_tier=cfg.gpu_tier,
+    )
+
+
+@router.get("/families")
+async def list_families():
+    """
+    List model families with their models.
+
+    Returns models grouped by family (smollm, gemma, qwen).
+    """
+    families = {}
+    for model_id, cfg in OPEN_SOURCE_MODELS.items():
+        family = cfg.family.value
+        if family not in families:
+            families[family] = {
+                "name": family,
+                "display_name": family.title(),
+                "models": []
+            }
+        families[family]["models"].append({
+            "id": model_id,
+            "display_name": cfg.display_name,
+            "parameters": cfg.parameters,
+            "gpu_tier": cfg.gpu_tier,
+        })
+
+    return list(families.values())
+
+
+# Cache Management Endpoints
+
+@router.get("/cache", response_model=list[dict])
+async def list_cached_models():
+    """
+    List all models cached in the HuggingFace volume.
+
+    Returns list of cached models with their sizes.
+    """
+    try:
+        _, _, list_cached_fn, _ = _get_download_functions()
+        cached = list_cached_fn.remote()
+        return cached
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list cached models: {str(e)}")
+
+
+@router.get("/cache/{model_id}/status", response_model=ModelCacheStatus)
+async def get_cache_status(model_id: str):
+    """
+    Check if a model is cached and ready for inference.
+
+    Args:
+        model_id: Internal model ID (e.g., "smollm-135m")
+    """
+    if model_id not in OPEN_SOURCE_MODELS:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
+
+    cfg = OPEN_SOURCE_MODELS[model_id]
+
+    try:
+        _, check_status_fn, _, _ = _get_download_functions()
+        status = check_status_fn.remote(cfg.hf_id)
+        return ModelCacheStatus(**status)
+    except Exception as e:
+        return ModelCacheStatus(
+            status="error",
+            hf_id=cfg.hf_id,
+            error=str(e)
+        )
+
+
+@router.post("/cache/{model_id}/download", response_model=DownloadResponse)
+async def trigger_download(model_id: str, force: bool = False):
+    """
+    Trigger download of a model to the Modal HuggingFace cache.
+
+    Args:
+        model_id: Internal model ID (e.g., "smollm-135m")
+        force: Force re-download even if already cached
+    """
+    if model_id not in OPEN_SOURCE_MODELS:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
+
+    cfg = OPEN_SOURCE_MODELS[model_id]
+
+    try:
+        download_fn, _, _, _ = _get_download_functions()
+        result = download_fn.remote(cfg.hf_id, force=force)
+        return DownloadResponse(**result)
+    except Exception as e:
+        return DownloadResponse(
+            status="error",
+            hf_id=cfg.hf_id,
+            error=str(e)
+        )
+
+
+@router.delete("/cache/{model_id}")
+async def delete_cached_model(model_id: str):
+    """
+    Delete a cached model from the HuggingFace volume.
+
+    Args:
+        model_id: Internal model ID (e.g., "smollm-135m")
+    """
+    if model_id not in OPEN_SOURCE_MODELS:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
+
+    cfg = OPEN_SOURCE_MODELS[model_id]
+
+    try:
+        _, _, _, delete_fn = _get_download_functions()
+        result = delete_fn.remote(cfg.hf_id)
+
+        if result.get("status") == "not_found":
+            raise HTTPException(status_code=404, detail=f"Model not cached: {model_id}")
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete model: {str(e)}")
+
+
+# Warmup Endpoint
+
+@router.post("/models/{model_id}/warmup")
+async def warmup_model(model_id: str):
+    """
+    Pre-load a model into GPU memory for faster inference.
+
+    This triggers the model to be loaded into the inference worker's cache.
+    Subsequent generation requests will be faster.
+
+    Args:
+        model_id: Internal model ID (e.g., "smollm-135m")
+    """
+    if model_id not in OPEN_SOURCE_MODELS:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
+
+    cfg = OPEN_SOURCE_MODELS[model_id]
+
+    try:
+        worker = _get_inference_worker(model_id)
+        success = worker().warmup.remote(model_id)
+
+        if success:
+            return {
+                "status": "ready",
+                "model": model_id,
+                "display_name": cfg.display_name,
+                "parameters": cfg.parameters,
+                "gpu_tier": cfg.gpu_tier,
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to warmup model. Ensure it's downloaded first."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Warmup failed: {str(e)}")
+
+
+# Generation Endpoints
+
+@router.post("/generate")
+async def generate(
+    request: GenerateRequest,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate text using an open-source model.
+
+    Charges user credits if authenticated.
+    """
+    if request.model not in OPEN_SOURCE_MODELS:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {request.model}")
+
+    # Check credits
+    if current_user:
+        estimated_cost = calculate_inference_cost(
+            prompt_tokens=len(request.prompt.split()) * 2,
+            generated_tokens=request.max_tokens
+        )
+        if not check_sufficient_balance(db, current_user.id, estimated_cost):
+            raise HTTPException(
+                status_code=402,
+                detail="Insufficient credits. Please add more credits to continue."
+            )
+
+    try:
+        worker = _get_inference_worker(request.model)
+        result = worker().generate.remote(
+            model_id=request.model,
+            prompt=request.prompt,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+            top_k=request.top_k,
+            top_p=request.top_p,
+        )
+
+        # Charge user
+        if current_user:
+            try:
+                charge_inference(
+                    db=db,
+                    user_id=current_user.id,
+                    prompt_tokens=result.get('prompt_tokens', 0),
+                    generated_tokens=result.get('generated_tokens', 0),
+                    model_name=request.model,
+                )
+                result['charged'] = True
+            except Exception as charge_error:
+                print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+                result['charged'] = False
+        else:
+            result['charged'] = False
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+
+
+@router.post("/generate/stream")
+async def generate_stream(
+    request: GenerateRequest,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Stream text generation using an open-source model.
+
+    Returns Server-Sent Events with generated tokens.
+    Charges user credits if authenticated.
+    """
+    if request.model not in OPEN_SOURCE_MODELS:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {request.model}")
+
+    # Check credits
+    if current_user:
+        estimated_cost = calculate_inference_cost(
+            prompt_tokens=len(request.prompt.split()) * 2,
+            generated_tokens=request.max_tokens
+        )
+        if not check_sufficient_balance(db, current_user.id, estimated_cost):
+            raise HTTPException(
+                status_code=402,
+                detail="Insufficient credits. Please add more credits to continue."
+            )
+
+    async def event_stream():
+        token_count = 0
+        prompt_token_estimate = len(request.prompt.split()) * 2
+
+        try:
+            # Send start event
+            data = json.dumps({'type': 'start', 'prompt': request.prompt}, ensure_ascii=False)
+            yield f"data: {data}\n\n".encode('utf-8')
+
+            # Get worker and stream tokens
+            worker = _get_inference_worker(request.model)
+
+            for token in worker().generate_stream.remote(
+                model_id=request.model,
+                prompt=request.prompt,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+                top_k=request.top_k,
+                top_p=request.top_p,
+            ):
+                token_count += 1
+                data = json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)
+                yield f"data: {data}\n\n".encode('utf-8')
+
+            # Charge user
+            if current_user:
+                try:
+                    charge_inference(
+                        db=db,
+                        user_id=current_user.id,
+                        prompt_tokens=prompt_token_estimate,
+                        generated_tokens=token_count,
+                        model_name=request.model,
+                    )
+                except Exception as charge_error:
+                    print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+
+            # Send done event
+            data = json.dumps({
+                'type': 'done',
+                'token_count': token_count,
+                'charged': current_user is not None
+            }, ensure_ascii=False)
+            yield f"data: {data}\n\n".encode('utf-8')
+
+        except Exception as e:
+            data = json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)
+            yield f"data: {data}\n\n".encode('utf-8')
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "Content-Type": "text/event-stream; charset=utf-8"
+        }
+    )
+
+
+@router.post("/generate/with-activations")
+async def generate_with_activations(
+    request: GenerateRequest,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate text and capture activations for interpretability visualization.
+
+    Returns an activation_id that can be used to retrieve full activation data.
+    Charges user credits if authenticated.
+    """
+    if request.model not in OPEN_SOURCE_MODELS:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {request.model}")
+
+    # Check credits
+    if current_user:
+        estimated_cost = calculate_inference_cost(
+            prompt_tokens=len(request.prompt.split()) * 2,
+            generated_tokens=request.max_tokens
+        )
+        if not check_sufficient_balance(db, current_user.id, estimated_cost):
+            raise HTTPException(
+                status_code=402,
+                detail="Insufficient credits. Please add more credits to continue."
+            )
+
+    try:
+        worker = _get_inference_worker(request.model)
+        result = worker().generate_with_activations.remote(
+            model_id=request.model,
+            prompt=request.prompt,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+            top_k=request.top_k,
+            top_p=request.top_p,
+        )
+
+        # Store activations and return ID
+        if 'activations' in result:
+            activation_id = activation_store.store_activations(
+                activations=result['activations'],
+                tokens=result.get('tokens', []),
+                prompt=result['prompt'],
+                model_name=result.get('model', request.model),
+                metadata={
+                    'temperature': result.get('temperature'),
+                    'top_k': result.get('top_k'),
+                    'top_p': result.get('top_p'),
+                    'prompt_tokens': result.get('prompt_tokens'),
+                    'generated_tokens': result.get('generated_tokens'),
+                    'total_tokens': result.get('total_tokens'),
+                    'generated_text': result.get('text'),
+                    'decoded_tokens': result.get('decoded_tokens', []),
+                    'model_family': OPEN_SOURCE_MODELS[request.model].family.value,
+                }
+            )
+            result['activation_id'] = activation_id
+            del result['activations']  # Don't send large activations inline
+
+        # Charge user
+        if current_user:
+            try:
+                charge_inference(
+                    db=db,
+                    user_id=current_user.id,
+                    prompt_tokens=result.get('prompt_tokens', 0),
+                    generated_tokens=result.get('generated_tokens', 0),
+                    model_name=request.model,
+                )
+                result['charged'] = True
+            except Exception as charge_error:
+                print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+                result['charged'] = False
+        else:
+            result['charged'] = False
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
