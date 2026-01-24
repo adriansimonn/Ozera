@@ -11,7 +11,8 @@ from services.credit_service import (
     get_credit_balance,
     get_user_transactions,
     GPU_PRICING,
-    INFERENCE_PRICING,
+    BASE_INFERENCE_PRICING,
+    MODEL_SIZE_MULTIPLIERS,
     MIN_CREDIT_PURCHASE,
     MAX_CREDIT_PURCHASE,
 )
@@ -102,13 +103,14 @@ async def get_pricing():
     ]
 
     inference_pricing = InferencePricing(
-        input_per_1k_tokens=INFERENCE_PRICING["input"],
-        output_per_1k_tokens=INFERENCE_PRICING["output"],
+        input_per_1k_tokens=BASE_INFERENCE_PRICING["input"],
+        output_per_1k_tokens=BASE_INFERENCE_PRICING["output"],
     )
 
     return PricingResponse(
         gpu_pricing=gpu_pricing,
         inference_pricing=inference_pricing,
+        model_multipliers=MODEL_SIZE_MULTIPLIERS,
         min_purchase=MIN_CREDIT_PURCHASE,
         max_purchase=MAX_CREDIT_PURCHASE,
     )

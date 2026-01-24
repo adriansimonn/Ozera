@@ -267,31 +267,60 @@ def check_sufficient_balance(db: Session, user_id: int, required_amount: float) 
     return credit_balance.available_balance >= required_amount
 
 
-# Inference pricing (per 1000 tokens, 30% markup on Modal GPU costs)
-# Based on T4 GPU usage: ~$0.01 per ~100 tokens = ~$0.10 per 1000 tokens
-INFERENCE_PRICING = {
+# Base inference pricing (per 1000 tokens, 30% markup on Modal GPU costs)
+# Based on T4 GPU usage for small models
+BASE_INFERENCE_PRICING = {
     "input": 0.05,    # $0.05 per 1000 input tokens ($50 per 1M)
     "output": 0.10,   # $0.10 per 1000 output tokens ($100 per 1M)
 }
+
+# Model size multipliers for inference pricing
+# Larger models use more GPU memory and compute, so they cost more
+# Multipliers based on approximate compute requirements relative to smallest model
+MODEL_SIZE_MULTIPLIERS = {
+    # Ozera models (small, run on T4)
+    "nano": 1.0,
+    "mini": 1.5,
+    # SmolLM family (T4)
+    "smollm-135m": 1.0,      # 135M params, baseline
+    "smollm-360m": 2.0,      # 360M params, ~2.7x compute
+    "smollm-1.7b": 5.0,      # 1.7B params, ~12x compute
+    # Qwen family
+    "qwen-0.5b": 2.5,        # 500M params (T4)
+    "qwen-1.5b": 5.0,        # 1.5B params (T4)
+    "qwen-3b": 12.0,         # 3B params (A10G, 2x GPU cost)
+    # Gemma family
+    "gemma-2-2b": 10.0,      # 2.6B params (A10G, 2x GPU cost)
+}
+
+# Default multiplier for unknown models
+DEFAULT_MODEL_MULTIPLIER = 1.0
 
 
 # Minimum charge per inference request (covers GPU cold start overhead)
 MIN_INFERENCE_CHARGE = 0.01  # $0.01 minimum
 
 
-def calculate_inference_cost(prompt_tokens: int, generated_tokens: int) -> float:
+def get_model_multiplier(model_id: str) -> float:
+    """Get the pricing multiplier for a model based on its size."""
+    return MODEL_SIZE_MULTIPLIERS.get(model_id, DEFAULT_MODEL_MULTIPLIER)
+
+
+def calculate_inference_cost(prompt_tokens: int, generated_tokens: int, model_id: str = None) -> float:
     """
     Calculate the cost for an inference request.
 
     Args:
         prompt_tokens: Number of input tokens
         generated_tokens: Number of output tokens
+        model_id: Model identifier for size-based pricing (optional)
 
     Returns:
         Cost in USD (minimum $0.01 per request)
     """
-    input_cost = (prompt_tokens / 1000) * INFERENCE_PRICING["input"]
-    output_cost = (generated_tokens / 1000) * INFERENCE_PRICING["output"]
+    multiplier = get_model_multiplier(model_id) if model_id else DEFAULT_MODEL_MULTIPLIER
+    input_cost = (prompt_tokens / 1000) * BASE_INFERENCE_PRICING["input"] * multiplier
+    output_cost = (generated_tokens / 1000) * BASE_INFERENCE_PRICING["output"] * multiplier
     return max(input_cost + output_cost, MIN_INFERENCE_CHARGE)
 
 
@@ -311,13 +340,13 @@ def charge_inference(
         user_id: User ID
         prompt_tokens: Number of input tokens
         generated_tokens: Number of output tokens
-        model_name: Name of the model used
+        model_name: Name of the model used (also used for size-based pricing)
         description: Optional description
 
     Returns:
         Created transaction record
     """
-    cost = calculate_inference_cost(prompt_tokens, generated_tokens)
+    cost = calculate_inference_cost(prompt_tokens, generated_tokens, model_id=model_name)
 
     credit_balance = get_credit_balance(db, user_id)
     if not credit_balance:

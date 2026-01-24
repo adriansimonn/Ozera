@@ -286,11 +286,12 @@ async def generate_stream(
     Returns:
         Stream of generated tokens
     """
-    # Check if user has sufficient balance (estimate based on max_tokens)
+    # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
     if current_user:
         estimated_cost = calculate_inference_cost(
             prompt_tokens=len(request.prompt.split()) * 2,  # Rough estimate
-            generated_tokens=request.max_tokens
+            generated_tokens=request.max_tokens,
+            model_id=request.model,
         )
         if not check_sufficient_balance(db, current_user.id, estimated_cost):
             raise HTTPException(
@@ -387,11 +388,12 @@ async def generate_with_activations(
     Returns:
         Generated text, metadata, and activation ID or inline activations
     """
-    # Check if user has sufficient balance (estimate based on max_tokens)
+    # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
     if current_user:
         estimated_cost = calculate_inference_cost(
             prompt_tokens=len(request.prompt.split()) * 2,  # Rough estimate
-            generated_tokens=request.max_tokens
+            generated_tokens=request.max_tokens,
+            model_id=request.model,
         )
         if not check_sufficient_balance(db, current_user.id, estimated_cost):
             raise HTTPException(

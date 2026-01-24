@@ -350,11 +350,12 @@ async def generate(
     if request.model not in OPEN_SOURCE_MODELS:
         raise HTTPException(status_code=404, detail=f"Unknown model: {request.model}")
 
-    # Check credits
+    # Check credits (with model-size-based pricing)
     if current_user:
         estimated_cost = calculate_inference_cost(
             prompt_tokens=len(request.prompt.split()) * 2,
-            generated_tokens=request.max_tokens
+            generated_tokens=request.max_tokens,
+            model_id=request.model,
         )
         if not check_sufficient_balance(db, current_user.id, estimated_cost):
             raise HTTPException(
@@ -411,11 +412,12 @@ async def generate_stream(
     if request.model not in OPEN_SOURCE_MODELS:
         raise HTTPException(status_code=404, detail=f"Unknown model: {request.model}")
 
-    # Check credits
+    # Check credits (with model-size-based pricing)
     if current_user:
         estimated_cost = calculate_inference_cost(
             prompt_tokens=len(request.prompt.split()) * 2,
-            generated_tokens=request.max_tokens
+            generated_tokens=request.max_tokens,
+            model_id=request.model,
         )
         if not check_sufficient_balance(db, current_user.id, estimated_cost):
             raise HTTPException(
@@ -499,11 +501,12 @@ async def generate_with_activations(
     if request.model not in OPEN_SOURCE_MODELS:
         raise HTTPException(status_code=404, detail=f"Unknown model: {request.model}")
 
-    # Check credits
+    # Check credits (with model-size-based pricing)
     if current_user:
         estimated_cost = calculate_inference_cost(
             prompt_tokens=len(request.prompt.split()) * 2,
-            generated_tokens=request.max_tokens
+            generated_tokens=request.max_tokens,
+            model_id=request.model,
         )
         if not check_sufficient_balance(db, current_user.id, estimated_cost):
             raise HTTPException(

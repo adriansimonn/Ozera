@@ -57,13 +57,14 @@ class GPUPricing(BaseModel):
 
 class InferencePricing(BaseModel):
     """Inference pricing information."""
-    input_per_1k_tokens: float = Field(..., description="Cost per 1000 input tokens in USD")
-    output_per_1k_tokens: float = Field(..., description="Cost per 1000 output tokens in USD")
+    input_per_1k_tokens: float = Field(..., description="Base cost per 1000 input tokens in USD")
+    output_per_1k_tokens: float = Field(..., description="Base cost per 1000 output tokens in USD")
 
 
 class PricingResponse(BaseModel):
     """Response schema for GPU pricing tiers, inference pricing, and credit purchase limits."""
     gpu_pricing: List[GPUPricing]
-    inference_pricing: InferencePricing = Field(..., description="Token-based inference pricing")
+    inference_pricing: InferencePricing = Field(..., description="Base token-based inference pricing (multiply by model_multipliers for actual cost)")
+    model_multipliers: dict[str, float] = Field(..., description="Pricing multipliers per model based on size")
     min_purchase: float = Field(..., description="Minimum credit purchase amount in USD")
     max_purchase: float = Field(..., description="Maximum credit purchase amount in USD")
