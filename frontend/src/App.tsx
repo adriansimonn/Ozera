@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import UnifiedPage from './pages/UnifiedPage'
 import TrainingPage from './pages/TrainingPage'
+import PatchingPlayground from './pages/PatchingPlayground'
 import { AnimatedBackground } from './components/common/AnimatedBackground'
 import { LoginModal } from './components/auth/LoginModal'
 import { SignupModal } from './components/auth/SignupModal'
@@ -61,6 +62,16 @@ function App() {
                   <TrainingPage
                     onShowLogin={() => setShowLogin(true)}
                     onShowSignup={() => setShowSignup(true)}
+                  />
+                }
+              />
+              <Route
+                path="/patching"
+                element={
+                  <PatchingPlayground
+                    onShowLogin={() => setShowLogin(true)}
+                    onShowSignup={() => setShowSignup(true)}
+                    onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
                   />
                 }
               />

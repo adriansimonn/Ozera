@@ -11,6 +11,17 @@ import type {
   ModelDownloadResponse,
   ModelFamilyInfo,
 } from '../types/model'
+import type {
+  CaptureActivationsRequest,
+  CaptureActivationsResponse,
+  CapturedActivationSummary,
+  CapturedActivationDetail,
+  RunPatchingRequest,
+  RunPatchingWithCapturedRequest,
+  PatchingResult,
+  PatchingModelInfo,
+  ModelLayerInfo,
+} from '../types/patching'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -1111,6 +1122,158 @@ class OzeraAPIClient {
         throw new Error('INSUFFICIENT_CREDITS')
       }
       throw new Error(error.detail || `Generation with activations failed: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  // ============= Activation Patching =============
+
+  /**
+   * Capture source activations for patching.
+   */
+  async captureActivations(request: CaptureActivationsRequest): Promise<CaptureActivationsResponse> {
+    const response = await fetch(`${this.baseUrl}/patching/capture`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      throw new Error(error.detail || `Failed to capture activations: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * List all captured activations.
+   */
+  async listCapturedActivations(): Promise<CapturedActivationSummary[]> {
+    const response = await fetch(`${this.baseUrl}/patching/activations`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to list captured activations: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get detailed info for a captured activation.
+   */
+  async getCapturedActivation(activationId: string): Promise<CapturedActivationDetail> {
+    const response = await fetch(`${this.baseUrl}/patching/activations/${activationId}`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get captured activation: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Delete a specific captured activation.
+   */
+  async deleteCapturedActivation(activationId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/patching/activations/${activationId}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete captured activation: ${response.statusText}`)
+    }
+  }
+
+  /**
+   * Clear all captured activations.
+   */
+  async clearCapturedActivations(): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/patching/activations`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to clear captured activations: ${response.statusText}`)
+    }
+  }
+
+  /**
+   * Run a full patching experiment (captures source, then runs patching).
+   */
+  async runPatchingExperiment(request: RunPatchingRequest): Promise<PatchingResult> {
+    const response = await fetch(`${this.baseUrl}/patching/run`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      throw new Error(error.detail || `Failed to run patching experiment: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Run patching with pre-captured activations.
+   */
+  async runPatchingWithCaptured(request: RunPatchingWithCapturedRequest): Promise<PatchingResult> {
+    const response = await fetch(`${this.baseUrl}/patching/run-with-captured`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      throw new Error(error.detail || `Failed to run patching with captured: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get list of available models for patching.
+   */
+  async getPatchingModels(): Promise<PatchingModelInfo[]> {
+    const response = await fetch(`${this.baseUrl}/patching/models`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get patching models: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get layer info for a specific model (for patch configuration).
+   */
+  async getModelLayerInfo(modelId: string): Promise<ModelLayerInfo> {
+    const response = await fetch(`${this.baseUrl}/patching/models/${modelId}/layers`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get model layer info: ${response.statusText}`)
     }
 
     return response.json()

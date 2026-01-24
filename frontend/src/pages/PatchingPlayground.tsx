@@ -1,0 +1,815 @@
+/**
+ * Activation Patching Playground - Interactive interface for swapping activations
+ * between different prompts to understand model behavior.
+ */
+
+import { useState, useEffect, useCallback } from 'react'
+import { NavBar } from '../components/common/NavBar'
+import { PatchConfigPanel } from '../components/patching/PatchConfigPanel'
+import { PromptComparer } from '../components/patching/PromptComparer'
+import { apiClient } from '../api/client'
+import type {
+  PatchSpec,
+  PatchingResult,
+  CapturedActivationSummary,
+  PatchingModelInfo,
+  ModelLayerInfo,
+} from '../types/patching'
+import { Play, Zap, Trash2, AlertCircle, Info, ChevronDown, ChevronUp } from 'lucide-react'
+
+interface PatchingPlaygroundProps {
+  onShowLogin: () => void
+  onShowSignup: () => void
+  onShowPurchaseCredits?: () => void
+}
+
+export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCredits }: PatchingPlaygroundProps) {
+  // Model selection
+  const [models, setModels] = useState<PatchingModelInfo[]>([])
+  const [selectedModel, setSelectedModel] = useState<string>('')
+  const [modelInfo, setModelInfo] = useState<ModelLayerInfo | null>(null)
+  const [loadingModels, setLoadingModels] = useState(true)
+
+  // Prompts
+  const [sourcePrompt, setSourcePrompt] = useState('The capital of France is')
+  const [targetPrompt, setTargetPrompt] = useState('The capital of Germany is')
+
+  // Patches
+  const [patches, setPatches] = useState<PatchSpec[]>([])
+
+  // Generation settings
+  const [maxTokens, setMaxTokens] = useState(20)
+  const [temperature, setTemperature] = useState(0)
+
+  // Captured activations
+  const [capturedActivations, setCapturedActivations] = useState<CapturedActivationSummary[]>([])
+  const [showCaptured, setShowCaptured] = useState(false)
+
+  // Results
+  const [result, setResult] = useState<PatchingResult | null>(null)
+
+  // Loading/error states
+  const [running, setRunning] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Load available models on mount
+  useEffect(() => {
+    loadModels()
+  }, [])
+
+  // Load model layer info when model changes
+  useEffect(() => {
+    if (selectedModel) {
+      loadModelInfo(selectedModel)
+    }
+  }, [selectedModel])
+
+  const loadModels = async () => {
+    try {
+      setLoadingModels(true)
+      const modelList = await apiClient.getPatchingModels()
+      setModels(modelList)
+      if (modelList.length > 0) {
+        setSelectedModel(modelList[0].model_id)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load models')
+    } finally {
+      setLoadingModels(false)
+    }
+  }
+
+  const loadModelInfo = async (modelId: string) => {
+    try {
+      const info = await apiClient.getModelLayerInfo(modelId)
+      setModelInfo(info)
+    } catch (err) {
+      console.error('Failed to load model info:', err)
+      setModelInfo(null)
+    }
+  }
+
+  const loadCapturedActivations = useCallback(async () => {
+    try {
+      const activations = await apiClient.listCapturedActivations()
+      setCapturedActivations(activations)
+    } catch (err) {
+      console.error('Failed to load captured activations:', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadCapturedActivations()
+  }, [loadCapturedActivations])
+
+  const handleRunExperiment = async () => {
+    if (!selectedModel || patches.length === 0) {
+      setError('Please select a model and add at least one patch')
+      return
+    }
+
+    if (!sourcePrompt.trim() || !targetPrompt.trim()) {
+      setError('Please enter both source and target prompts')
+      return
+    }
+
+    try {
+      setRunning(true)
+      setError(null)
+      setResult(null)
+
+      const patchResult = await apiClient.runPatchingExperiment({
+        source_prompt: sourcePrompt,
+        target_prompt: targetPrompt,
+        model: selectedModel,
+        patches,
+        max_tokens: maxTokens,
+        temperature,
+      })
+
+      setResult(patchResult)
+      // Refresh captured activations list
+      loadCapturedActivations()
+    } catch (err) {
+      if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') {
+        onShowPurchaseCredits?.()
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to run experiment')
+      }
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const handleAddPatch = (patch: PatchSpec) => {
+    setPatches(prev => [...prev, patch])
+  }
+
+  const handleRemovePatch = (index: number) => {
+    setPatches(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleClearPatches = () => {
+    setPatches([])
+  }
+
+  const handleDeleteCaptured = async (activationId: string) => {
+    try {
+      await apiClient.deleteCapturedActivation(activationId)
+      loadCapturedActivations()
+    } catch (err) {
+      console.error('Failed to delete activation:', err)
+    }
+  }
+
+  const handleClearAllCaptured = async () => {
+    try {
+      await apiClient.clearCapturedActivations()
+      setCapturedActivations([])
+    } catch (err) {
+      console.error('Failed to clear activations:', err)
+    }
+  }
+
+  const numLayers = modelInfo?.num_layers ?? 6
+  const numHeads = modelInfo?.num_heads ?? 8
+
+  return (
+    <div className="patching-playground">
+      <NavBar onShowLogin={onShowLogin} onShowSignup={onShowSignup} />
+
+      <div className="playground-content">
+        <div className="playground-header">
+          <div className="header-title">
+            <Zap className="title-icon" />
+            <h1>Activation Patching Playground</h1>
+          </div>
+          <p className="header-description">
+            Swap activations between prompts to understand how the model processes information.
+            Capture activations from a source prompt, configure patches, and see how the output changes.
+          </p>
+        </div>
+
+        {error && (
+          <div className="error-banner">
+            <AlertCircle className="error-icon" />
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="dismiss-btn">Dismiss</button>
+          </div>
+        )}
+
+        <div className="playground-grid">
+          {/* Left Column: Prompts and Settings */}
+          <div className="left-column">
+            <div className="section model-section">
+              <h2>Model</h2>
+              <select
+                value={selectedModel}
+                onChange={e => setSelectedModel(e.target.value)}
+                disabled={loadingModels || running}
+                className="model-select"
+              >
+                {loadingModels ? (
+                  <option>Loading models...</option>
+                ) : (
+                  models.map(model => (
+                    <option key={model.model_id} value={model.model_id}>
+                      {model.display_name} ({model.num_layers} layers)
+                    </option>
+                  ))
+                )}
+              </select>
+              {modelInfo && (
+                <div className="model-info-row">
+                  <span className="info-badge">{modelInfo.model_type}</span>
+                  <span className="info-text">{modelInfo.num_layers} layers, {modelInfo.num_heads} heads</span>
+                </div>
+              )}
+            </div>
+
+            <div className="section prompts-section">
+              <h2>Prompts</h2>
+
+              <div className="prompt-group">
+                <label>
+                  <span className="label-main">Source Prompt</span>
+                  <span className="label-hint">Activations will be captured from this prompt</span>
+                </label>
+                <textarea
+                  value={sourcePrompt}
+                  onChange={e => setSourcePrompt(e.target.value)}
+                  placeholder="Enter source prompt..."
+                  disabled={running}
+                  rows={3}
+                />
+              </div>
+
+              <div className="prompt-group">
+                <label>
+                  <span className="label-main">Target Prompt</span>
+                  <span className="label-hint">Generation will run on this prompt with patches applied</span>
+                </label>
+                <textarea
+                  value={targetPrompt}
+                  onChange={e => setTargetPrompt(e.target.value)}
+                  placeholder="Enter target prompt..."
+                  disabled={running}
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            <div className="section settings-section">
+              <h2>Generation Settings</h2>
+              <div className="settings-row">
+                <div className="setting-group">
+                  <label>Max Tokens</label>
+                  <input
+                    type="number"
+                    value={maxTokens}
+                    onChange={e => setMaxTokens(parseInt(e.target.value) || 20)}
+                    min={1}
+                    max={100}
+                    disabled={running}
+                  />
+                </div>
+                <div className="setting-group">
+                  <label>Temperature</label>
+                  <input
+                    type="number"
+                    value={temperature}
+                    onChange={e => setTemperature(parseFloat(e.target.value) || 0)}
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    disabled={running}
+                  />
+                </div>
+              </div>
+              <div className="settings-hint">
+                <Info className="hint-icon" />
+                <span>Temperature 0 recommended for deterministic comparison</span>
+              </div>
+            </div>
+
+            <button
+              className="run-experiment-btn"
+              onClick={handleRunExperiment}
+              disabled={running || !selectedModel || patches.length === 0}
+            >
+              {running ? (
+                <>
+                  <div className="spinner" />
+                  Running Experiment...
+                </>
+              ) : (
+                <>
+                  <Play className="btn-icon" />
+                  Run Patching Experiment
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Center Column: Patch Configuration */}
+          <div className="center-column">
+            <div className="section">
+              <h2>Patches</h2>
+              <PatchConfigPanel
+                modelId={selectedModel}
+                numLayers={numLayers}
+                numHeads={numHeads}
+                patches={patches}
+                onAddPatch={handleAddPatch}
+                onRemovePatch={handleRemovePatch}
+                onClearPatches={handleClearPatches}
+                disabled={running}
+              />
+            </div>
+
+            {/* Captured Activations */}
+            <div className="section captured-section">
+              <button
+                className="section-toggle"
+                onClick={() => setShowCaptured(!showCaptured)}
+              >
+                <h2>Captured Activations ({capturedActivations.length})</h2>
+                {showCaptured ? <ChevronUp /> : <ChevronDown />}
+              </button>
+
+              {showCaptured && (
+                <div className="captured-list">
+                  {capturedActivations.length === 0 ? (
+                    <div className="empty-state">No captured activations yet</div>
+                  ) : (
+                    <>
+                      <button
+                        className="clear-all-btn"
+                        onClick={handleClearAllCaptured}
+                      >
+                        Clear All
+                      </button>
+                      {capturedActivations.map(activation => (
+                        <div key={activation.id} className="captured-item">
+                          <div className="captured-info">
+                            <span className="captured-model">{activation.model_id}</span>
+                            <span className="captured-prompt">"{activation.prompt.slice(0, 50)}..."</span>
+                            <span className="captured-meta">{activation.num_tokens} tokens, {activation.num_layers} layers</span>
+                          </div>
+                          <button
+                            className="delete-btn"
+                            onClick={() => handleDeleteCaptured(activation.id)}
+                          >
+                            <Trash2 className="delete-icon" />
+                          </button>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Results */}
+          <div className="right-column">
+            <div className="section results-section">
+              <h2>Results</h2>
+              {result ? (
+                <PromptComparer
+                  baselineOutput={result.baseline_output}
+                  patchedOutput={result.patched_output}
+                  baselineDecoded={result.baseline_decoded}
+                  patchedDecoded={result.patched_decoded}
+                  effectSummary={result.effect_summary}
+                />
+              ) : (
+                <div className="results-placeholder">
+                  <div className="placeholder-content">
+                    <Zap className="placeholder-icon" />
+                    <p>Configure patches and run an experiment to see results</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        .patching-playground {
+          min-height: 100vh;
+          padding-top: 70px;
+        }
+
+        .playground-content {
+          max-width: 1800px;
+          margin: 0 auto;
+          padding: 2rem;
+        }
+
+        .playground-header {
+          margin-bottom: 2rem;
+        }
+
+        .header-title {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .title-icon {
+          width: 28px;
+          height: 28px;
+          color: rgba(59, 130, 246, 0.8);
+        }
+
+        .header-title h1 {
+          margin: 0;
+          font-size: 1.75rem;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.95);
+          letter-spacing: -0.02em;
+        }
+
+        .header-description {
+          margin: 0;
+          font-size: 0.9rem;
+          color: rgba(255, 255, 255, 0.5);
+          max-width: 700px;
+          line-height: 1.5;
+        }
+
+        .error-banner {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.875rem 1rem;
+          background: rgba(239, 68, 68, 0.15);
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          color: rgba(239, 68, 68, 0.9);
+          margin-bottom: 1.5rem;
+        }
+
+        .error-icon {
+          width: 18px;
+          height: 18px;
+          flex-shrink: 0;
+        }
+
+        .dismiss-btn {
+          margin-left: auto;
+          padding: 0.25rem 0.75rem;
+          background: transparent;
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          color: rgba(239, 68, 68, 0.8);
+          font-size: 0.8rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .dismiss-btn:hover {
+          background: rgba(239, 68, 68, 0.1);
+        }
+
+        .playground-grid {
+          display: grid;
+          grid-template-columns: 350px 400px 1fr;
+          gap: 1.5rem;
+          align-items: start;
+        }
+
+        .section {
+          margin-bottom: 1.5rem;
+        }
+
+        .section h2 {
+          margin: 0 0 1rem 0;
+          font-size: 0.9rem;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.8);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .model-select {
+          width: 100%;
+          padding: 0.75rem 1rem;
+          background: rgba(0, 0, 0, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 0.9rem;
+          cursor: pointer;
+        }
+
+        .model-select:focus {
+          outline: none;
+          border-color: rgba(59, 130, 246, 0.5);
+        }
+
+        .model-info-row {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin-top: 0.75rem;
+        }
+
+        .info-badge {
+          padding: 0.25rem 0.5rem;
+          background: rgba(59, 130, 246, 0.2);
+          border: 1px solid rgba(59, 130, 246, 0.3);
+          color: rgba(59, 130, 246, 0.9);
+          font-size: 0.7rem;
+          font-weight: 500;
+          text-transform: uppercase;
+        }
+
+        .info-text {
+          font-size: 0.8rem;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .prompt-group {
+          margin-bottom: 1rem;
+        }
+
+        .prompt-group label {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .label-main {
+          font-size: 0.85rem;
+          font-weight: 500;
+          color: rgba(255, 255, 255, 0.8);
+        }
+
+        .label-hint {
+          font-size: 0.75rem;
+          color: rgba(255, 255, 255, 0.4);
+        }
+
+        .prompt-group textarea {
+          width: 100%;
+          padding: 0.75rem;
+          background: rgba(0, 0, 0, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 0.9rem;
+          font-family: inherit;
+          resize: vertical;
+          min-height: 80px;
+        }
+
+        .prompt-group textarea:focus {
+          outline: none;
+          border-color: rgba(59, 130, 246, 0.5);
+        }
+
+        .settings-row {
+          display: flex;
+          gap: 1rem;
+        }
+
+        .setting-group {
+          flex: 1;
+        }
+
+        .setting-group label {
+          display: block;
+          font-size: 0.8rem;
+          color: rgba(255, 255, 255, 0.6);
+          margin-bottom: 0.375rem;
+        }
+
+        .setting-group input {
+          width: 100%;
+          padding: 0.625rem 0.75rem;
+          background: rgba(0, 0, 0, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 0.9rem;
+        }
+
+        .setting-group input:focus {
+          outline: none;
+          border-color: rgba(59, 130, 246, 0.5);
+        }
+
+        .settings-hint {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-top: 0.75rem;
+          font-size: 0.75rem;
+          color: rgba(255, 255, 255, 0.4);
+        }
+
+        .hint-icon {
+          width: 14px;
+          height: 14px;
+        }
+
+        .run-experiment-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.75rem;
+          padding: 1rem 1.5rem;
+          background: rgba(59, 130, 246, 0.8);
+          border: 1px solid rgba(59, 130, 246, 0.3);
+          color: #ffffff;
+          font-size: 0.95rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          letter-spacing: 0.025em;
+        }
+
+        .run-experiment-btn:hover:not(:disabled) {
+          background: rgba(59, 130, 246, 1);
+          box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+        }
+
+        .run-experiment-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .btn-icon {
+          width: 18px;
+          height: 18px;
+        }
+
+        .spinner {
+          width: 18px;
+          height: 18px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: #ffffff;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .section-toggle {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0.75rem 0;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          color: rgba(255, 255, 255, 0.8);
+        }
+
+        .section-toggle h2 {
+          margin: 0;
+        }
+
+        .captured-list {
+          margin-top: 0.75rem;
+        }
+
+        .empty-state {
+          padding: 1.5rem;
+          text-align: center;
+          color: rgba(255, 255, 255, 0.4);
+          font-size: 0.85rem;
+          background: rgba(0, 0, 0, 0.3);
+          border: 1px dashed rgba(255, 255, 255, 0.1);
+        }
+
+        .clear-all-btn {
+          width: 100%;
+          padding: 0.5rem;
+          background: transparent;
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          color: rgba(239, 68, 68, 0.8);
+          font-size: 0.8rem;
+          cursor: pointer;
+          margin-bottom: 0.75rem;
+          transition: all 0.2s;
+        }
+
+        .clear-all-btn:hover {
+          background: rgba(239, 68, 68, 0.1);
+        }
+
+        .captured-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0.75rem;
+          background: rgba(0, 0, 0, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          margin-bottom: 0.5rem;
+        }
+
+        .captured-info {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+          flex: 1;
+          min-width: 0;
+        }
+
+        .captured-model {
+          font-size: 0.8rem;
+          font-weight: 500;
+          color: rgba(59, 130, 246, 0.9);
+        }
+
+        .captured-prompt {
+          font-size: 0.8rem;
+          color: rgba(255, 255, 255, 0.6);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .captured-meta {
+          font-size: 0.7rem;
+          color: rgba(255, 255, 255, 0.4);
+        }
+
+        .delete-btn {
+          padding: 0.375rem;
+          background: transparent;
+          border: none;
+          color: rgba(255, 255, 255, 0.3);
+          cursor: pointer;
+          transition: color 0.2s;
+        }
+
+        .delete-btn:hover {
+          color: rgba(239, 68, 68, 0.8);
+        }
+
+        .delete-icon {
+          width: 16px;
+          height: 16px;
+        }
+
+        .results-section {
+          height: 100%;
+        }
+
+        .results-placeholder {
+          height: 400px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0, 0, 0, 0.3);
+          border: 1px dashed rgba(255, 255, 255, 0.1);
+        }
+
+        .placeholder-content {
+          text-align: center;
+          color: rgba(255, 255, 255, 0.4);
+        }
+
+        .placeholder-icon {
+          width: 48px;
+          height: 48px;
+          margin-bottom: 1rem;
+          opacity: 0.3;
+        }
+
+        .placeholder-content p {
+          margin: 0;
+          font-size: 0.9rem;
+        }
+
+        @media (max-width: 1400px) {
+          .playground-grid {
+            grid-template-columns: 1fr 1fr;
+          }
+
+          .right-column {
+            grid-column: span 2;
+          }
+        }
+
+        @media (max-width: 900px) {
+          .playground-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .right-column {
+            grid-column: span 1;
+          }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+export default PatchingPlayground
