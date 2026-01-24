@@ -11,11 +11,12 @@ from .hooks import (
     create_mlp_patch_hook,
     create_residual_patch_hook,
 )
-from .engine import PatchConfig, PatchingEngine
+from .engine import PatchConfig, PatchingEngine, get_patching_engine
 
 __all__ = [
     "PatchConfig",
     "PatchingEngine",
+    "get_patching_engine",
     "create_replacement_hook",
     "create_attention_patch_hook",
     "create_mlp_patch_hook",

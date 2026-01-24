@@ -36,6 +36,7 @@ from api.credits import router as credits_router
 from api.payments import router as payments_router
 from api.webhooks import router as webhooks_router
 from api.open_source import router as open_source_router
+from api.patching import router as patching_router
 from middleware.auth_middleware import get_optional_current_user
 from models.database import User
 from db import get_db
@@ -72,6 +73,7 @@ app.include_router(credits_router)
 app.include_router(payments_router)
 app.include_router(webhooks_router)
 app.include_router(open_source_router)
+app.include_router(patching_router)
 
 
 class GenerateRequest(BaseModel):
