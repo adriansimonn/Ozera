@@ -166,8 +166,9 @@ class OpenSourceModelLoader(ABC):
         """
         Generate text and capture activations for visualization.
 
-        Optimized to reuse generated token IDs directly for the activation capture
-        forward pass, avoiding re-tokenization overhead.
+        Uses a single forward pass on the complete generated sequence to capture
+        logits, matching how Ozera base models work. This ensures logits[i] correctly
+        predicts tokens[i+1] for accurate top-k token visualization.
 
         Args:
             prompt: Input text
@@ -206,7 +207,7 @@ class OpenSourceModelLoader(ABC):
         if top_p is not None:
             gen_kwargs["top_p"] = top_p
 
-        # Step 1: Generate tokens (hooks fire but activations will be overwritten)
+        # Step 1: Generate tokens
         with torch.no_grad():
             generated_ids = self.model.generate(inputs.input_ids, **gen_kwargs)[0]
 
@@ -214,7 +215,8 @@ class OpenSourceModelLoader(ABC):
         generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
 
         # Step 2: Single forward pass on complete sequence to capture activations
-        # Reuse the generated token IDs directly instead of re-tokenizing
+        # This gives us logits where logits[0][i] predicts tokens[i+1]
+        # (standard autoregressive transformer behavior)
         self._clear_activations()
 
         with torch.no_grad():
@@ -225,6 +227,8 @@ class OpenSourceModelLoader(ABC):
             )
 
         # Store logits from forward pass
+        # Shape: [1, total_tokens, vocab_size]
+        # logits[0][i] contains probabilities for what token should come at position i+1
         self._activations["logits"] = forward_outputs.logits.detach()
 
         # Store attention weights if available (hooks may have already captured them

@@ -354,6 +354,15 @@ class InferenceWorkerT4:
         }
 
     @modal.method()
+    def decode_tokens(self, model_id: str, token_ids: list[int]) -> list[str]:
+        """Decode token IDs to strings using the appropriate tokenizer for the model."""
+        if self._is_open_source_model(model_id):
+            loader = self._get_open_source_loader(model_id)
+            return [loader.tokenizer.decode([tid]) for tid in token_ids]
+        else:
+            return [self._tokenizer.decode([tid]) for tid in token_ids]
+
+    @modal.method()
     def generate_stream(
         self,
         model_id: str,
@@ -977,6 +986,15 @@ class InferenceWorkerA10G:
             "top_k": top_k,
             "top_p": top_p,
         }
+
+    @modal.method()
+    def decode_tokens(self, model_id: str, token_ids: list[int]) -> list[str]:
+        """Decode token IDs to strings using the appropriate tokenizer for the model."""
+        if self._is_open_source_model(model_id):
+            loader = self._get_open_source_loader(model_id)
+            return [loader.tokenizer.decode([tid]) for tid in token_ids]
+        else:
+            return [self._tokenizer.decode([tid]) for tid in token_ids]
 
     @modal.method()
     def generate_with_activations(

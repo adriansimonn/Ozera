@@ -568,3 +568,33 @@ async def generate_with_activations(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+
+
+class DecodeTokensRequest(BaseModel):
+    """Request for decoding token IDs."""
+    model: str = Field(..., description="Model ID to use for decoding")
+    token_ids: list[int] = Field(..., description="Token IDs to decode")
+
+
+@router.post("/decode-tokens")
+async def decode_tokens(request: DecodeTokensRequest):
+    """
+    Decode token IDs to their string representations using the model's tokenizer.
+
+    This endpoint uses the correct tokenizer for the specified model, ensuring
+    that token IDs are decoded accurately for visualization purposes.
+    """
+    try:
+        if request.model not in OPEN_SOURCE_MODELS:
+            raise HTTPException(status_code=400, detail=f"Unknown model: {request.model}")
+
+        config = OPEN_SOURCE_MODELS[request.model]
+        gpu_tier = "a10g" if config.parameters > 500_000_000 else "t4"
+
+        worker = get_worker(gpu_tier)
+        decoded = worker().decode_tokens.remote(request.model, request.token_ids)
+
+        return {"decoded_tokens": decoded}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Token decoding failed: {str(e)}")
