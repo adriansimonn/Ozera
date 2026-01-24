@@ -108,6 +108,35 @@ class ActivationStore:
             return None
 
         data = self._store[activation_id]
+        activations = data['activations']
+
+        # Build layer info with shapes but no values
+        layer_info = []
+        for layer in activations.get('layers', []):
+            layer_shapes = {}
+            for key, value in layer.items():
+                if isinstance(value, dict) and 'shape' in value:
+                    layer_shapes[key] = {
+                        'shape': value['shape'],
+                        'mean': value.get('mean'),
+                        'std': value.get('std'),
+                        'min': value.get('min'),
+                        'max': value.get('max'),
+                    }
+            layer_info.append(layer_shapes)
+
+        # Build top-level tensor info
+        tensor_info = {}
+        for key in ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits']:
+            value = activations.get(key)
+            if isinstance(value, dict) and 'shape' in value:
+                tensor_info[key] = {
+                    'shape': value['shape'],
+                    'mean': value.get('mean'),
+                    'std': value.get('std'),
+                    'min': value.get('min'),
+                    'max': value.get('max'),
+                }
 
         return {
             'id': data['id'],
@@ -116,7 +145,70 @@ class ActivationStore:
             'timestamp': data['timestamp'],
             'num_tokens': len(data['tokens']),
             'num_layers': len(data['activations'].get('layers', [])),
-            'metadata': data['metadata']
+            'metadata': data['metadata'],
+            'layer_info': layer_info,
+            'tensor_info': tensor_info,
+        }
+
+    def get_layer_activations(self, activation_id: str, layer_idx: int) -> Optional[Dict[str, Any]]:
+        """
+        Get activations for a specific layer.
+
+        Args:
+            activation_id: ID of activations
+            layer_idx: Layer index to retrieve
+
+        Returns:
+            Layer activation data or None if not found
+        """
+        if activation_id not in self._store:
+            return None
+
+        data = self._store[activation_id]
+        layers = data['activations'].get('layers', [])
+
+        if layer_idx < 0 or layer_idx >= len(layers):
+            return None
+
+        # Update access time
+        self._access_times[activation_id] = datetime.now()
+
+        return {
+            'layer_idx': layer_idx,
+            'activations': layers[layer_idx]
+        }
+
+    def get_tensor_activation(self, activation_id: str, tensor_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a specific top-level tensor activation (embeddings, logits, etc).
+
+        Args:
+            activation_id: ID of activations
+            tensor_name: Name of tensor to retrieve
+
+        Returns:
+            Tensor data or None if not found
+        """
+        if activation_id not in self._store:
+            return None
+
+        data = self._store[activation_id]
+        activations = data['activations']
+
+        valid_tensors = ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits']
+        if tensor_name not in valid_tensors:
+            return None
+
+        tensor_data = activations.get(tensor_name)
+        if tensor_data is None:
+            return None
+
+        # Update access time
+        self._access_times[activation_id] = datetime.now()
+
+        return {
+            'tensor_name': tensor_name,
+            'data': tensor_data
         }
 
     def list_activations(self) -> List[Dict[str, Any]]:

@@ -190,6 +190,41 @@ export interface ActivationSummary {
   metadata: Record<string, any>
 }
 
+/**
+ * Tensor statistics for lazy loading (shape and stats only, no values)
+ */
+export interface TensorStats {
+  shape: number[]
+  mean?: number
+  std?: number
+  min?: number
+  max?: number
+}
+
+/**
+ * Extended activation summary with layer info for lazy loading
+ */
+export interface ActivationSummaryWithInfo extends ActivationSummary {
+  layer_info: Record<string, TensorStats>[]
+  tensor_info: Record<string, TensorStats>
+}
+
+/**
+ * Response from lazy loading a single layer
+ */
+export interface LayerActivationResponse {
+  layer_idx: number
+  activations: LayerActivations
+}
+
+/**
+ * Response from lazy loading a single tensor
+ */
+export interface TensorActivationResponse {
+  tensor_name: string
+  data: TensorData
+}
+
 export interface GenerateWithActivationsResponse {
   text: string
   activation_id: string

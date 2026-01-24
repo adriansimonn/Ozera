@@ -50,10 +50,14 @@ class GemmaLoader(OpenSourceModelLoader):
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
+        # Use bfloat16 for better numerical stability (avoids inf/nan in logits)
+        # Fall back to float16 if bfloat16 is not supported
+        dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+
         self.model = AutoModelForCausalLM.from_pretrained(
             self.config.hf_id,
             cache_dir=cache_dir,
-            torch_dtype=torch.float16,
+            torch_dtype=dtype,
             device_map=self.device,
             trust_remote_code=False,
             attn_implementation="eager",  # Required for output_attentions=True
@@ -178,70 +182,20 @@ class GemmaLoader(OpenSourceModelLoader):
 
         return hook
 
-    def generate_with_activations(
-        self,
-        prompt: str,
-        max_new_tokens: int = 50,
-        temperature: float = 1.0,
-        top_k: Optional[int] = None,
-        top_p: Optional[float] = None,
-        do_sample: bool = True,
-    ) -> dict:
+    def _normalize_attention_weights(self, attn_weights: torch.Tensor, layer_idx: int) -> torch.Tensor:
         """
-        Generate text and capture activations.
+        Normalize attention weights for GQA models.
 
-        Overrides base to ensure output_attentions=True for weight capture.
+        Gemma uses Grouped Query Attention where num_kv_heads < num_heads.
+        This expands the attention weights to full head count for visualization.
         """
-        if self.model is None or self.tokenizer is None:
-            raise RuntimeError("Model not loaded. Call load() first.")
-
-        # First, generate the full sequence
-        result = self.generate(
-            prompt=prompt,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            do_sample=do_sample,
-        )
-
-        # Forward pass on full sequence to capture activations
-        self._clear_activations()
-
-        full_text = result["text"]
-        inputs = self.tokenizer(full_text, return_tensors="pt").to(self.device)
-
-        with torch.no_grad():
-            outputs = self.model(
-                inputs.input_ids,
-                output_attentions=True,
-                return_dict=True,
+        if self.config.num_kv_heads != self.config.num_heads:
+            return normalize_gqa_attention(
+                attn_weights,
+                self.config.num_heads,
+                self.config.num_kv_heads
             )
-
-        # Store logits
-        self._activations["logits"] = outputs.logits.detach()
-
-        # Store attention weights from output if not captured by hooks
-        if hasattr(outputs, "attentions") and outputs.attentions is not None:
-            for i, attn in enumerate(outputs.attentions):
-                if f"layer_{i}_attn_weights" not in self._activations:
-                    attn_weights = attn.detach()
-                    if self.config.num_kv_heads != self.config.num_heads:
-                        attn_weights = normalize_gqa_attention(
-                            attn_weights,
-                            self.config.num_heads,
-                            self.config.num_kv_heads
-                        )
-                    self._activations[f"layer_{i}_attn_weights"] = attn_weights
-
-        result["activations"] = self.get_activations_for_frontend()
-
-        # Add decoded tokens for frontend
-        result["decoded_tokens"] = [
-            self.tokenizer.decode([tok]) for tok in inputs.input_ids[0].tolist()
-        ]
-
-        return result
+        return attn_weights
 
     def get_activations_for_frontend(self) -> dict:
         """

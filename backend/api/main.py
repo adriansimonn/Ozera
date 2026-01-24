@@ -535,6 +535,71 @@ async def list_activations():
     return activation_store.list_activations()
 
 
+@app.get("/activations/{activation_id}/layer/{layer_idx}")
+async def get_layer_activations(activation_id: str, layer_idx: int):
+    """
+    Get activations for a specific layer (lazy loading).
+
+    This endpoint supports lazy loading of activation data by allowing
+    the frontend to fetch individual layers on-demand instead of loading
+    all layers at once.
+
+    Args:
+        activation_id: UUID of stored activations
+        layer_idx: Index of the layer to retrieve (0-indexed)
+
+    Returns:
+        Layer activation data including attention weights, hidden states, etc.
+    """
+    result = activation_store.get_layer_activations(activation_id, layer_idx)
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Layer {layer_idx} not found for activation {activation_id}"
+        )
+
+    return result
+
+
+@app.get("/activations/{activation_id}/tensor/{tensor_name}")
+async def get_tensor_activation(activation_id: str, tensor_name: str):
+    """
+    Get a specific top-level tensor activation (lazy loading).
+
+    This endpoint supports lazy loading of activation data by allowing
+    the frontend to fetch specific tensors on-demand.
+
+    Args:
+        activation_id: UUID of stored activations
+        tensor_name: Name of tensor to retrieve. Valid options:
+            - token_embeddings
+            - positional_embeddings
+            - combined_embeddings
+            - final_layer_norm
+            - logits
+
+    Returns:
+        Tensor data with values, shape, and statistics
+    """
+    valid_tensors = ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits']
+    if tensor_name not in valid_tensors:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid tensor name: {tensor_name}. Valid options: {valid_tensors}"
+        )
+
+    result = activation_store.get_tensor_activation(activation_id, tensor_name)
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Tensor {tensor_name} not found for activation {activation_id}"
+        )
+
+    return result
+
+
 @app.delete("/activations/{activation_id}")
 async def delete_activations(activation_id: str):
     """

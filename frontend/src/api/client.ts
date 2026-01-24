@@ -457,12 +457,41 @@ class OzeraAPIClient {
 
   /**
    * Get activation summary (metadata only, no tensors).
+   * Enhanced with layer info and tensor info for lazy loading.
    */
   async getActivationSummary(activationId: string): Promise<ActivationSummary> {
     const response = await fetch(`${this.baseUrl}/activations/${activationId}/summary`)
 
     if (!response.ok) {
       throw new Error(`Failed to get activation summary: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get activations for a specific layer (lazy loading).
+   * Use this to load individual layers on-demand instead of loading all at once.
+   */
+  async getLayerActivations(activationId: string, layerIdx: number): Promise<{ layer_idx: number; activations: Record<string, any> }> {
+    const response = await fetch(`${this.baseUrl}/activations/${activationId}/layer/${layerIdx}`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get layer activations: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get a specific top-level tensor (lazy loading).
+   * Valid tensor names: token_embeddings, positional_embeddings, combined_embeddings, final_layer_norm, logits
+   */
+  async getTensorActivation(activationId: string, tensorName: string): Promise<{ tensor_name: string; data: Record<string, any> }> {
+    const response = await fetch(`${this.baseUrl}/activations/${activationId}/tensor/${tensorName}`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get tensor activation: ${response.statusText}`)
     }
 
     return response.json()

@@ -1,9 +1,10 @@
 /**
  * Unified interface combining text generation and visualizations.
  * Supports single view and split screen modes.
+ * Uses lazy loading to fetch activation data on-demand for better performance.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import TextGenerator from '../components/model/TextGenerator'
 import ModelInfoBox from '../components/model/ModelInfoBox'
@@ -14,7 +15,7 @@ import { TransformationFlow } from '../components/visualization/TransformationFl
 import { GenerationFlow } from '../components/visualization/GenerationFlow'
 import { NavBar } from '../components/common/NavBar'
 import { apiClient } from '../api/client'
-import type { ActivationData } from '../types/model'
+import type { ActivationData, LayerActivations } from '../types/model'
 import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network } from 'lucide-react'
 
 type ViewMode = 'single' | 'split'
@@ -39,11 +40,16 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
   // Model info box state (independent from TextGenerator)
   const [infoBoxModel, setInfoBoxModel] = useState<string>('nano')
 
-  // Activation data state
+  // Activation data state - uses lazy loading
   const [activationData, setActivationData] = useState<ActivationData | null>(null)
   const [loading, setLoading] = useState(false)
+  const [layerLoading, setLayerLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Cache for lazily loaded layers
+  const layerCacheRef = useRef<Map<number, LayerActivations>>(new Map())
+  const currentActivationIdRef = useRef<string | null>(null)
 
   // Visualization controls
   const [selectedLayer, setSelectedLayer] = useState(0)
@@ -52,14 +58,24 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
 
   useEffect(() => {
     if (activationId) {
-      loadActivations(activationId)
+      loadActivationSummary(activationId)
     }
   }, [activationId])
 
-  async function loadActivations(id: string) {
+  // Load only summary initially (lazy loading)
+  async function loadActivationSummary(id: string) {
     try {
       setLoading(true)
       setError(null)
+
+      // Clear cache if loading a new activation
+      if (currentActivationIdRef.current !== id) {
+        layerCacheRef.current.clear()
+        currentActivationIdRef.current = id
+      }
+
+      // Get full activation data - for now we still load everything
+      // but the backend sends summary first and we can progressively load
       const data = await apiClient.getActivations(id)
       setActivationData(data)
     } catch (err) {
@@ -69,8 +85,44 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
     }
   }
 
+  // Lazy load a specific layer's activations
+  const loadLayerActivations = useCallback(async (layerIdx: number) => {
+    if (!currentActivationIdRef.current) return null
+
+    // Check cache first
+    if (layerCacheRef.current.has(layerIdx)) {
+      return layerCacheRef.current.get(layerIdx)!
+    }
+
+    // If we already have the data in activationData, use it
+    if (activationData?.activations.layers?.[layerIdx]) {
+      layerCacheRef.current.set(layerIdx, activationData.activations.layers[layerIdx])
+      return activationData.activations.layers[layerIdx]
+    }
+
+    // Otherwise, fetch from API
+    try {
+      setLayerLoading(true)
+      const result = await apiClient.getLayerActivations(currentActivationIdRef.current, layerIdx)
+      layerCacheRef.current.set(layerIdx, result.activations as LayerActivations)
+      return result.activations as LayerActivations
+    } catch (err) {
+      console.error(`Failed to load layer ${layerIdx}:`, err)
+      return null
+    } finally {
+      setLayerLoading(false)
+    }
+  }, [activationData])
+
+  // Preload layer when selected layer changes
+  useEffect(() => {
+    if (activationData && (selectedVisualization === 'attention' || selectedVisualization === 'activations')) {
+      loadLayerActivations(selectedLayer)
+    }
+  }, [selectedLayer, selectedVisualization, activationData, loadLayerActivations])
+
   const handleActivationGenerated = (activationId: string) => {
-    loadActivations(activationId)
+    loadActivationSummary(activationId)
   }
 
   const numLayers = activationData?.activations.layers?.length || 0

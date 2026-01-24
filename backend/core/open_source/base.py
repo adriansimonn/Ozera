@@ -63,6 +63,24 @@ class OpenSourceModelLoader(ABC):
         """Clear captured activations before a new forward pass."""
         self._activations.clear()
 
+    def _normalize_attention_weights(self, attn_weights: torch.Tensor, layer_idx: int) -> torch.Tensor:
+        """
+        Normalize attention weights, handling GQA if needed.
+
+        Subclasses can override this to apply model-specific normalization
+        (e.g., expanding grouped query attention to full head count).
+
+        Args:
+            attn_weights: Raw attention weights tensor
+            layer_idx: Layer index (for model-specific handling)
+
+        Returns:
+            Normalized attention weights tensor
+        """
+        # Default implementation: no normalization
+        # Subclasses override this for GQA normalization
+        return attn_weights
+
     def _remove_hooks(self) -> None:
         """Remove all registered hooks."""
         for hook in self._hooks:
@@ -97,12 +115,23 @@ class OpenSourceModelLoader(ABC):
 
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
 
+        # Handle temperature edge cases
+        # Temperature <= 0 or very close to 0 should use greedy decoding
+        if temperature <= 0.01:
+            temperature = 1.0
+            do_sample = False
+
         gen_kwargs = {
             "max_new_tokens": max_new_tokens,
             "temperature": temperature,
             "do_sample": do_sample,
             "pad_token_id": self.tokenizer.eos_token_id,
         }
+
+        # Add attention mask to avoid unexpected behavior when pad_token == eos_token
+        if hasattr(inputs, "attention_mask"):
+            gen_kwargs["attention_mask"] = inputs.attention_mask
+
         if top_k is not None:
             gen_kwargs["top_k"] = top_k
         if top_p is not None:
@@ -137,7 +166,8 @@ class OpenSourceModelLoader(ABC):
         """
         Generate text and capture activations for visualization.
 
-        Activations are captured for the final forward pass (last token generation).
+        Optimized to reuse generated token IDs directly for the activation capture
+        forward pass, avoiding re-tokenization overhead.
 
         Args:
             prompt: Input text
@@ -153,38 +183,72 @@ class OpenSourceModelLoader(ABC):
         if self.model is None or self.tokenizer is None:
             raise RuntimeError("Model not loaded. Call load() first.")
 
-        # First, generate the full sequence
-        result = self.generate(
-            prompt=prompt,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            do_sample=do_sample,
-        )
+        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+        prompt_tokens = inputs.input_ids.shape[1]
 
-        # Now do a forward pass on the full generated sequence to capture activations
+        # Handle temperature edge cases
+        if temperature <= 0.01:
+            temperature = 1.0
+            do_sample = False
+
+        gen_kwargs = {
+            "max_new_tokens": max_new_tokens,
+            "temperature": temperature,
+            "do_sample": do_sample,
+            "pad_token_id": self.tokenizer.eos_token_id,
+        }
+
+        if hasattr(inputs, "attention_mask"):
+            gen_kwargs["attention_mask"] = inputs.attention_mask
+
+        if top_k is not None:
+            gen_kwargs["top_k"] = top_k
+        if top_p is not None:
+            gen_kwargs["top_p"] = top_p
+
+        # Step 1: Generate tokens (hooks fire but activations will be overwritten)
+        with torch.no_grad():
+            generated_ids = self.model.generate(inputs.input_ids, **gen_kwargs)[0]
+
+        total_tokens = generated_ids.shape[0]
+        generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
+
+        # Step 2: Single forward pass on complete sequence to capture activations
+        # Reuse the generated token IDs directly instead of re-tokenizing
         self._clear_activations()
 
-        full_text = result["text"]
-        inputs = self.tokenizer(full_text, return_tensors="pt").to(self.device)
-
         with torch.no_grad():
-            outputs = self.model(
-                inputs.input_ids,
+            forward_outputs = self.model(
+                generated_ids.unsqueeze(0),  # Add batch dimension
                 output_attentions=True,
                 return_dict=True,
             )
 
-        # Store logits
-        self._activations["logits"] = outputs.logits.detach()
+        # Store logits from forward pass
+        self._activations["logits"] = forward_outputs.logits.detach()
 
-        # Store attention weights if available
-        if hasattr(outputs, "attentions") and outputs.attentions is not None:
-            for i, attn in enumerate(outputs.attentions):
-                self._activations[f"layer_{i}_attn_weights"] = attn.detach()
+        # Store attention weights if available (hooks may have already captured them
+        # with GQA normalization, so only store if not already present)
+        if hasattr(forward_outputs, "attentions") and forward_outputs.attentions is not None:
+            for i, attn in enumerate(forward_outputs.attentions):
+                if f"layer_{i}_attn_weights" not in self._activations:
+                    # Apply GQA normalization if needed
+                    attn_weights = self._normalize_attention_weights(attn.detach(), i)
+                    self._activations[f"layer_{i}_attn_weights"] = attn_weights
 
-        result["activations"] = self.get_activations_for_frontend()
+        result = {
+            "text": generated_text,
+            "prompt": prompt,
+            "prompt_tokens": prompt_tokens,
+            "generated_tokens": total_tokens - prompt_tokens,
+            "total_tokens": total_tokens,
+            "tokens": generated_ids.tolist(),
+            "activations": self.get_activations_for_frontend(),
+            "decoded_tokens": [
+                self.tokenizer.decode([tok]) for tok in generated_ids.tolist()
+            ],
+        }
+
         return result
 
     def get_activations_for_frontend(self) -> dict:
