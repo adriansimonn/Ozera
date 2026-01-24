@@ -49,7 +49,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   const [isWarmingUp, setIsWarmingUp] = useState(false)
   const warmupTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  const { models, loading: modelsLoading, error: modelsError } = useModels()
+  const { models, modelNames, modelFamilies, loading: modelsLoading, error: modelsError } = useModels()
   const { text, loading, streaming, error, insufficientCredits, generate, reset, clearInsufficientCredits } = useStreamingGeneration()
   const [activationInsufficientCredits, setActivationInsufficientCredits] = useState(false)
 
@@ -172,19 +172,40 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
             {models.length === 0 && (
               <option value="">No models available</option>
             )}
-            {/* Base models */}
+            {/* Base Ozera models */}
             {models.filter(m => m === 'nano' || m === 'mini').map((m) => (
               <option key={m} value={m}>
                 ozera-{m}
               </option>
             ))}
-            {/* Custom models - show with different formatting */}
-            {models.filter(m => m !== 'nano' && m !== 'mini').length > 0 && (
+            {/* Open Source models - non-ozera families */}
+            {models.filter(m => {
+              const family = modelFamilies[m]
+              return family && family !== 'ozera'
+            }).length > 0 && (
+              <option disabled>── Open Source ──</option>
+            )}
+            {models.filter(m => {
+              const family = modelFamilies[m]
+              return family && family !== 'ozera'
+            }).map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+            {/* Custom Ozera models - ozera family but not nano/mini */}
+            {models.filter(m => {
+              const family = modelFamilies[m]
+              return (family === 'ozera' || !family) && m !== 'nano' && m !== 'mini'
+            }).length > 0 && (
               <option disabled>── Custom Models ──</option>
             )}
-            {models.filter(m => m !== 'nano' && m !== 'mini').map((m) => (
+            {models.filter(m => {
+              const family = modelFamilies[m]
+              return (family === 'ozera' || !family) && m !== 'nano' && m !== 'mini'
+            }).map((m) => (
               <option key={m} value={m}>
-                {m} (custom)
+                {modelNames[m] || m}
               </option>
             ))}
           </select>
