@@ -322,3 +322,139 @@ class TextGenerator:
             'top_k': top_k,
             'top_p': top_p
         }
+
+    @torch.no_grad()
+    def generate_with_patches(
+        self,
+        prompt: str,
+        patches: Dict[str, Dict[str, Any]],
+        max_tokens: int = 50,
+        temperature: float = 0.0,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate text with activation patches applied.
+
+        Patches are applied during the forward pass to replace activations
+        at specified layers with source activations from a different prompt.
+
+        Args:
+            prompt: Text prompt to generate from
+            patches: Dict mapping activation keys to patch info:
+                {
+                    "layer_0_attn_output": {
+                        "source": tensor,  # Source activation to patch in
+                        "positions": [0, 1, 2] or None,  # Positions to patch
+                        "blend_factor": 1.0,  # 1.0 = full replacement
+                    },
+                    ...
+                }
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature (0 = deterministic)
+            top_k: Top-k sampling parameter
+            top_p: Nucleus sampling parameter
+
+        Returns:
+            Dict with generated text, tokens, and patching info
+        """
+        # Encode prompt
+        prompt_ids = self.tokenizer.encode(prompt)
+        input_ids = torch.tensor([prompt_ids], dtype=torch.long).to(self.device)
+
+        self.model.eval()
+
+        # Generate with patches
+        generated_ids, _ = self.model.generate_with_patches(
+            input_ids,
+            patches=patches,
+            max_new_tokens=max_tokens,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+        )
+
+        # Decode
+        token_list = generated_ids[0].cpu().tolist()
+        generated_text = self.tokenizer.decode(token_list)
+        decoded_tokens = [self.tokenizer.decode([t]) for t in token_list]
+
+        return {
+            'text': generated_text,
+            'prompt': prompt,
+            'prompt_tokens': len(prompt_ids),
+            'generated_tokens': len(token_list) - len(prompt_ids),
+            'total_tokens': len(token_list),
+            'tokens': token_list,
+            'decoded_tokens': decoded_tokens,
+            'patched': True,
+            'num_patches': len(patches),
+        }
+
+    @torch.no_grad()
+    def capture_activations(
+        self,
+        prompt: str,
+    ) -> Dict[str, Any]:
+        """
+        Capture activations for a prompt without generating new tokens.
+
+        This is used to capture source activations for patching experiments.
+
+        Args:
+            prompt: Text prompt to capture activations for
+
+        Returns:
+            Dict with activation tensors and metadata
+        """
+        # Encode prompt
+        prompt_ids = self.tokenizer.encode(prompt)
+        input_ids = torch.tensor([prompt_ids], dtype=torch.long).to(self.device)
+
+        self.model.eval()
+
+        # Forward pass with activation capture
+        _, _, activations = self.model.forward(
+            input_ids,
+            return_attention=True,
+            capture_activations=True,
+        )
+
+        # Flatten activations to dict format
+        flat_activations = {}
+
+        # Top-level activations
+        for key in ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits']:
+            if key in activations and activations[key] is not None:
+                flat_activations[key] = activations[key]
+
+        # Layer activations
+        if 'layers' in activations:
+            for layer_idx, layer_data in enumerate(activations['layers']):
+                if layer_data is None:
+                    continue
+                for key, tensor in layer_data.items():
+                    if tensor is not None:
+                        flat_activations[f"layer_{layer_idx}_{key}"] = tensor
+
+        # Decode tokens
+        token_list = input_ids[0].cpu().tolist()
+        decoded_tokens = [self.tokenizer.decode([t]) for t in token_list]
+
+        return {
+            'prompt': prompt,
+            'tokens': token_list,
+            'decoded_tokens': decoded_tokens,
+            'activations': flat_activations,
+            'num_layers': self.model.config.num_layers,
+            'model_name': self.model_name,
+        }
+
+    def get_patchable_keys(self) -> list[str]:
+        """
+        Get list of all patchable activation keys.
+
+        Returns:
+            List of activation key strings that can be patched
+        """
+        return self.model.get_patchable_activation_keys()

@@ -1,0 +1,780 @@
+"""
+Core patching engine for activation patching experiments.
+
+Orchestrates capturing source activations, applying patches during generation,
+and comparing baseline vs patched outputs.
+"""
+
+from dataclasses import dataclass, field
+from typing import Optional, Literal, Any
+import torch
+import torch.nn.functional as F
+import uuid
+
+from .hooks import (
+    create_replacement_hook,
+    create_attention_patch_hook,
+    create_mlp_patch_hook,
+    create_residual_patch_hook,
+    create_zero_ablation_hook,
+)
+
+
+@dataclass
+class PatchConfig:
+    """
+    Configuration for a single activation patch.
+
+    Specifies which layer, what type of activation, which positions/heads
+    to patch, and how to blend the patched values.
+    """
+    layer: int
+    patch_type: Literal['attention', 'mlp', 'residual', 'attn_output', 'ff_output', 'post_attn', 'post_ff']
+    positions: Optional[list[int]] = None  # None = all positions
+    heads: Optional[list[int]] = None  # None = all heads (for attention)
+    neurons: Optional[list[int]] = None  # None = all neurons (for MLP)
+    blend_factor: float = 1.0  # 1.0 = full replacement
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for serialization."""
+        return {
+            'layer': self.layer,
+            'patch_type': self.patch_type,
+            'positions': self.positions,
+            'heads': self.heads,
+            'neurons': self.neurons,
+            'blend_factor': self.blend_factor,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'PatchConfig':
+        """Create from dictionary."""
+        return cls(
+            layer=data['layer'],
+            patch_type=data['patch_type'],
+            positions=data.get('positions'),
+            heads=data.get('heads'),
+            neurons=data.get('neurons'),
+            blend_factor=data.get('blend_factor', 1.0),
+        )
+
+
+@dataclass
+class CapturedActivations:
+    """
+    Container for captured activations from a forward pass.
+    """
+    id: str
+    prompt: str
+    tokens: list[int]
+    decoded_tokens: list[str]
+    activations: dict[str, torch.Tensor]
+    model_type: Literal['ozera', 'open_source']
+    model_id: str
+    num_layers: int
+
+    def get_layer_activation(self, layer: int, key: str) -> Optional[torch.Tensor]:
+        """Get a specific activation from a layer."""
+        full_key = f"layer_{layer}_{key}"
+        return self.activations.get(full_key)
+
+    def get_activation(self, key: str) -> Optional[torch.Tensor]:
+        """Get a top-level activation (embeddings, logits, etc)."""
+        return self.activations.get(key)
+
+
+@dataclass
+class PatchingResult:
+    """
+    Result of a patching experiment.
+    """
+    baseline_output: str
+    patched_output: str
+    baseline_tokens: list[int]
+    patched_tokens: list[int]
+    baseline_decoded: list[str]
+    patched_decoded: list[str]
+    source_activation_id: str
+    patches_applied: list[PatchConfig]
+    effect_summary: dict = field(default_factory=dict)
+
+
+class PatchingEngine:
+    """
+    Core engine for activation patching experiments.
+
+    Supports both Ozera custom models and open-source HuggingFace models.
+    Captures activations from a source prompt, then applies patches during
+    generation on a target prompt.
+    """
+
+    def __init__(self):
+        """Initialize the patching engine."""
+        self._captured_activations: dict[str, CapturedActivations] = {}
+        self._intervention_hooks: list = []
+
+    def capture_source_activations(
+        self,
+        prompt: str,
+        model_loader: Any,
+        model_type: Literal['ozera', 'open_source'],
+        model_id: str,
+        tokenizer: Any = None,
+    ) -> CapturedActivations:
+        """
+        Capture activations from a source prompt.
+
+        For open-source models, uses model_loader.generate_with_activations().
+        For Ozera models, uses the TextGenerator with activation capture.
+
+        Args:
+            prompt: Source prompt to capture activations from.
+            model_loader: Model loader (OpenSourceModelLoader for HF, TextGenerator for Ozera).
+            model_type: 'ozera' or 'open_source'.
+            model_id: Model identifier string.
+            tokenizer: Tokenizer (required for Ozera models).
+
+        Returns:
+            CapturedActivations object with source activations.
+        """
+        activation_id = str(uuid.uuid4())
+
+        if model_type == 'open_source':
+            # Use the open-source model's activation capture
+            result = model_loader.generate_with_activations(
+                prompt=prompt,
+                max_new_tokens=1,  # Just need one forward pass
+                temperature=0.0,  # Deterministic
+                do_sample=False,
+            )
+
+            # Extract activations from the model loader
+            activations = self._extract_open_source_activations(model_loader)
+            tokens = result['tokens']
+            decoded_tokens = result.get('decoded_tokens', [])
+            num_layers = model_loader.config.num_layers
+
+        else:  # Ozera model
+            # Use TextGenerator's activation capture
+            if tokenizer is None:
+                raise ValueError("Tokenizer required for Ozera models")
+
+            # Encode prompt
+            prompt_ids = tokenizer.encode(prompt)
+            input_ids = torch.tensor([prompt_ids], dtype=torch.long)
+
+            if hasattr(model_loader, 'device'):
+                input_ids = input_ids.to(model_loader.device)
+            elif hasattr(model_loader, 'model') and hasattr(model_loader.model, 'token_embedding'):
+                input_ids = input_ids.to(next(model_loader.model.parameters()).device)
+
+            # Get the model
+            if hasattr(model_loader, 'model'):
+                model = model_loader.model
+            else:
+                model = model_loader
+
+            # Forward pass with activation capture
+            with torch.no_grad():
+                _, _, raw_activations = model.forward(
+                    input_ids,
+                    return_attention=True,
+                    capture_activations=True,
+                )
+
+            # Convert to flat dict format
+            activations = self._flatten_ozera_activations(raw_activations)
+            tokens = input_ids[0].cpu().tolist()
+            decoded_tokens = [tokenizer.decode([t]) for t in tokens]
+            num_layers = model.config.num_layers
+
+        captured = CapturedActivations(
+            id=activation_id,
+            prompt=prompt,
+            tokens=tokens,
+            decoded_tokens=decoded_tokens,
+            activations=activations,
+            model_type=model_type,
+            model_id=model_id,
+            num_layers=num_layers,
+        )
+
+        self._captured_activations[activation_id] = captured
+        return captured
+
+    def _extract_open_source_activations(self, model_loader: Any) -> dict[str, torch.Tensor]:
+        """Extract activations from an open-source model loader."""
+        activations = {}
+
+        # Copy all captured activations
+        for key, tensor in model_loader._activations.items():
+            if isinstance(tensor, torch.Tensor):
+                activations[key] = tensor.clone()
+
+        return activations
+
+    def _flatten_ozera_activations(self, raw_activations: dict) -> dict[str, torch.Tensor]:
+        """Flatten Ozera model activations to a flat dict format."""
+        activations = {}
+
+        # Top-level activations
+        for key in ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits']:
+            if key in raw_activations and raw_activations[key] is not None:
+                activations[key] = raw_activations[key].clone()
+
+        # Layer activations
+        if 'layers' in raw_activations:
+            for layer_idx, layer_data in enumerate(raw_activations['layers']):
+                if layer_data is None:
+                    continue
+                for key, tensor in layer_data.items():
+                    if tensor is not None:
+                        activations[f"layer_{layer_idx}_{key}"] = tensor.clone()
+
+        return activations
+
+    def run_patched_generation(
+        self,
+        target_prompt: str,
+        source_activation_id: str,
+        patches: list[PatchConfig],
+        model_loader: Any,
+        model_type: Literal['ozera', 'open_source'],
+        tokenizer: Any = None,
+        max_new_tokens: int = 50,
+        temperature: float = 0.0,
+    ) -> PatchingResult:
+        """
+        Run generation with patches applied.
+
+        First generates baseline output without patches, then generates
+        patched output with interventions applied.
+
+        Args:
+            target_prompt: Prompt to run generation on.
+            source_activation_id: ID of captured source activations.
+            patches: List of patch configurations to apply.
+            model_loader: Model loader or generator.
+            model_type: 'ozera' or 'open_source'.
+            tokenizer: Tokenizer (required for Ozera).
+            max_new_tokens: Maximum tokens to generate.
+            temperature: Sampling temperature (0 = deterministic).
+
+        Returns:
+            PatchingResult with baseline and patched outputs.
+        """
+        source = self._captured_activations.get(source_activation_id)
+        if source is None:
+            raise ValueError(f"Source activations not found: {source_activation_id}")
+
+        # Generate baseline (no patches)
+        if model_type == 'open_source':
+            baseline_result = model_loader.generate(
+                prompt=target_prompt,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                do_sample=temperature > 0,
+            )
+            baseline_output = baseline_result['text']
+            baseline_tokens = baseline_result['tokens']
+            baseline_decoded = [model_loader.tokenizer.decode([t]) for t in baseline_tokens]
+        else:
+            # Ozera model
+            if hasattr(model_loader, 'generate'):
+                baseline_result = model_loader.generate(
+                    prompt=target_prompt,
+                    max_tokens=max_new_tokens,
+                    temperature=temperature,
+                    return_metadata=True,
+                )
+                baseline_output = baseline_result['text']
+                prompt_ids = tokenizer.encode(target_prompt)
+                input_ids = torch.tensor([prompt_ids])
+                if hasattr(model_loader, 'device'):
+                    input_ids = input_ids.to(model_loader.device)
+                model = model_loader.model if hasattr(model_loader, 'model') else model_loader
+                with torch.no_grad():
+                    gen_ids, _ = model.generate(
+                        input_ids,
+                        max_new_tokens=max_new_tokens,
+                        temperature=temperature,
+                    )
+                baseline_tokens = gen_ids[0].cpu().tolist()
+                baseline_decoded = [tokenizer.decode([t]) for t in baseline_tokens]
+            else:
+                raise ValueError("Model loader must have generate method")
+
+        # Generate with patches
+        patched_output, patched_tokens, patched_decoded = self._generate_with_patches(
+            target_prompt=target_prompt,
+            source=source,
+            patches=patches,
+            model_loader=model_loader,
+            model_type=model_type,
+            tokenizer=tokenizer,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+        )
+
+        # Compute effect summary
+        effect_summary = self._compute_effect_summary(
+            baseline_tokens=baseline_tokens,
+            patched_tokens=patched_tokens,
+            baseline_decoded=baseline_decoded,
+            patched_decoded=patched_decoded,
+        )
+
+        return PatchingResult(
+            baseline_output=baseline_output,
+            patched_output=patched_output,
+            baseline_tokens=baseline_tokens,
+            patched_tokens=patched_tokens,
+            baseline_decoded=baseline_decoded,
+            patched_decoded=patched_decoded,
+            source_activation_id=source_activation_id,
+            patches_applied=patches,
+            effect_summary=effect_summary,
+        )
+
+    def _generate_with_patches(
+        self,
+        target_prompt: str,
+        source: CapturedActivations,
+        patches: list[PatchConfig],
+        model_loader: Any,
+        model_type: Literal['ozera', 'open_source'],
+        tokenizer: Any,
+        max_new_tokens: int,
+        temperature: float,
+    ) -> tuple[str, list[int], list[str]]:
+        """Generate with patches applied via hooks."""
+
+        if model_type == 'open_source':
+            return self._generate_with_patches_open_source(
+                target_prompt, source, patches, model_loader,
+                max_new_tokens, temperature,
+            )
+        else:
+            return self._generate_with_patches_ozera(
+                target_prompt, source, patches, model_loader,
+                tokenizer, max_new_tokens, temperature,
+            )
+
+    def _generate_with_patches_open_source(
+        self,
+        target_prompt: str,
+        source: CapturedActivations,
+        patches: list[PatchConfig],
+        model_loader: Any,
+        max_new_tokens: int,
+        temperature: float,
+    ) -> tuple[str, list[int], list[str]]:
+        """Apply patches to open-source model generation."""
+        registered_hooks = []
+
+        try:
+            # Register intervention hooks
+            for patch in patches:
+                hook_handle = self._register_open_source_patch_hook(
+                    model_loader, source, patch
+                )
+                if hook_handle is not None:
+                    registered_hooks.append(hook_handle)
+
+            # Generate with patches active
+            result = model_loader.generate(
+                prompt=target_prompt,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                do_sample=temperature > 0,
+            )
+
+            output = result['text']
+            tokens = result['tokens']
+            decoded = [model_loader.tokenizer.decode([t]) for t in tokens]
+
+            return output, tokens, decoded
+
+        finally:
+            # Clean up hooks
+            for hook in registered_hooks:
+                hook.remove()
+
+    def _register_open_source_patch_hook(
+        self,
+        model_loader: Any,
+        source: CapturedActivations,
+        patch: PatchConfig,
+    ):
+        """Register a patch hook on an open-source model."""
+        # Map patch_type to activation key
+        key_map = {
+            'attention': 'attn_output',
+            'attn_output': 'attn_output',
+            'mlp': 'ff_output',
+            'ff_output': 'ff_output',
+            'residual': 'post_ff',
+            'post_attn': 'post_attn',
+            'post_ff': 'post_ff',
+        }
+
+        activation_key = key_map.get(patch.patch_type, patch.patch_type)
+        full_key = f"layer_{patch.layer}_{activation_key}"
+
+        # Get source activation
+        source_activation = source.activations.get(full_key)
+        if source_activation is None:
+            return None
+
+        # Get the module to hook
+        module = self._get_open_source_module(model_loader, patch.layer, activation_key)
+        if module is None:
+            return None
+
+        # Create appropriate hook
+        if patch.patch_type in ['attention', 'attn_output']:
+            hook_fn = create_attention_patch_hook(
+                source_attention=source_activation,
+                heads=patch.heads,
+                positions=patch.positions,
+                blend_factor=patch.blend_factor,
+            )
+        elif patch.patch_type in ['mlp', 'ff_output']:
+            hook_fn = create_mlp_patch_hook(
+                source_mlp_output=source_activation,
+                positions=patch.positions,
+                neurons=patch.neurons,
+                blend_factor=patch.blend_factor,
+            )
+        else:
+            hook_fn = create_residual_patch_hook(
+                source_residual=source_activation,
+                positions=patch.positions,
+                blend_factor=patch.blend_factor,
+            )
+
+        return module.register_forward_hook(hook_fn)
+
+    def _get_open_source_module(self, model_loader: Any, layer: int, activation_key: str):
+        """Get the module to hook for an open-source model."""
+        model = model_loader.model
+
+        # Try common HuggingFace model structures
+        # SmolLM/Llama-style
+        if hasattr(model, 'model') and hasattr(model.model, 'layers'):
+            layers = model.model.layers
+            if layer >= len(layers):
+                return None
+            layer_module = layers[layer]
+
+            if activation_key == 'attn_output':
+                return layer_module.self_attn if hasattr(layer_module, 'self_attn') else None
+            elif activation_key == 'ff_output':
+                return layer_module.mlp if hasattr(layer_module, 'mlp') else None
+            elif activation_key == 'post_ff':
+                return layer_module
+            elif activation_key == 'post_attn':
+                # This is after attention but before MLP
+                return layer_module.post_attention_layernorm if hasattr(layer_module, 'post_attention_layernorm') else None
+
+        # GPT-2 style
+        elif hasattr(model, 'transformer') and hasattr(model.transformer, 'h'):
+            layers = model.transformer.h
+            if layer >= len(layers):
+                return None
+            layer_module = layers[layer]
+
+            if activation_key == 'attn_output':
+                return layer_module.attn if hasattr(layer_module, 'attn') else None
+            elif activation_key == 'ff_output':
+                return layer_module.mlp if hasattr(layer_module, 'mlp') else None
+            elif activation_key in ['post_ff', 'post_attn']:
+                return layer_module
+
+        return None
+
+    def _generate_with_patches_ozera(
+        self,
+        target_prompt: str,
+        source: CapturedActivations,
+        patches: list[PatchConfig],
+        model_loader: Any,
+        tokenizer: Any,
+        max_new_tokens: int,
+        temperature: float,
+    ) -> tuple[str, list[int], list[str]]:
+        """Apply patches to Ozera model generation."""
+        # Get the model
+        if hasattr(model_loader, 'model'):
+            model = model_loader.model
+            device = model_loader.device if hasattr(model_loader, 'device') else 'cpu'
+        else:
+            model = model_loader
+            device = next(model.parameters()).device
+
+        # Encode prompt
+        prompt_ids = tokenizer.encode(target_prompt)
+        input_ids = torch.tensor([prompt_ids], dtype=torch.long).to(device)
+
+        model.eval()
+
+        # Set up patches in model
+        patch_dict = {}
+        for patch in patches:
+            key_map = {
+                'attention': 'attn_output',
+                'attn_output': 'attn_output',
+                'mlp': 'ff_output',
+                'ff_output': 'ff_output',
+                'residual': 'post_ff',
+                'post_attn': 'post_attn',
+                'post_ff': 'post_ff',
+            }
+            activation_key = key_map.get(patch.patch_type, patch.patch_type)
+            full_key = f"layer_{patch.layer}_{activation_key}"
+
+            source_activation = source.activations.get(full_key)
+            if source_activation is not None:
+                patch_dict[full_key] = {
+                    'source': source_activation.to(device),
+                    'positions': patch.positions,
+                    'heads': patch.heads,
+                    'neurons': patch.neurons,
+                    'blend_factor': patch.blend_factor,
+                }
+
+        # Generate tokens with patching
+        with torch.no_grad():
+            for _ in range(max_new_tokens):
+                # Truncate if needed
+                idx_cond = input_ids if input_ids.size(1) <= model.config.max_seq_len else input_ids[:, -model.config.max_seq_len:]
+
+                # Forward pass with patching
+                logits, _, _ = self._forward_with_patches_ozera(
+                    model, idx_cond, patch_dict
+                )
+
+                # Get logits for last position
+                logits = logits[:, -1, :]
+
+                if temperature == 0.0:
+                    next_token = torch.argmax(logits, dim=-1, keepdim=True)
+                else:
+                    logits = logits / temperature
+                    probs = F.softmax(logits, dim=-1)
+                    next_token = torch.multinomial(probs, num_samples=1)
+
+                # Clamp and append
+                next_token = torch.clamp(next_token, 0, tokenizer.vocab_size - 1)
+                input_ids = torch.cat([input_ids, next_token], dim=1)
+
+        # Decode
+        tokens = input_ids[0].cpu().tolist()
+        output = tokenizer.decode(tokens)
+        decoded = [tokenizer.decode([t]) for t in tokens]
+
+        return output, tokens, decoded
+
+    def _forward_with_patches_ozera(
+        self,
+        model: Any,
+        input_ids: torch.Tensor,
+        patch_dict: dict,
+    ) -> tuple:
+        """
+        Forward pass with patches applied to Ozera model.
+
+        Patches are applied by modifying activations during the forward pass.
+        """
+        batch_size, seq_len = input_ids.shape
+        device = input_ids.device
+
+        # Token embeddings
+        import math
+        token_emb = model.token_embedding(input_ids)
+        token_emb = token_emb * math.sqrt(model.config.d_model)
+
+        # Positional embeddings
+        if model.config.learned_pos_emb:
+            positions = torch.arange(seq_len, device=device).unsqueeze(0)
+            pos_emb = model.pos_embedding(positions)
+        else:
+            pos_emb = model.pos_embedding[:seq_len, :].unsqueeze(0)
+
+        x = token_emb + pos_emb
+        x = model.emb_dropout(x)
+
+        # Causal mask
+        causal_mask = torch.tril(torch.ones(seq_len, seq_len, device=device)).unsqueeze(0).unsqueeze(0)
+
+        # Process each block
+        for layer_idx, block in enumerate(model.blocks):
+            # Pre-norm attention
+            attn_input = block.ln1(x)
+
+            # Check for attn_input patch
+            patch_key = f"layer_{layer_idx}_attn_input"
+            if patch_key in patch_dict:
+                attn_input = self._apply_patch(attn_input, patch_dict[patch_key])
+
+            attn_output, attn_weights = block.attention(attn_input, causal_mask, return_attention=False)
+
+            # Check for attn_output patch
+            patch_key = f"layer_{layer_idx}_attn_output"
+            if patch_key in patch_dict:
+                attn_output = self._apply_patch(attn_output, patch_dict[patch_key])
+
+            x = x + attn_output
+
+            # Check for post_attn patch
+            patch_key = f"layer_{layer_idx}_post_attn"
+            if patch_key in patch_dict:
+                x = self._apply_patch(x, patch_dict[patch_key])
+
+            # Pre-norm feed-forward
+            ff_input = block.ln2(x)
+
+            # Check for ff_input patch
+            patch_key = f"layer_{layer_idx}_ff_input"
+            if patch_key in patch_dict:
+                ff_input = self._apply_patch(ff_input, patch_dict[patch_key])
+
+            ff_output = block.feed_forward(ff_input)
+
+            # Check for ff_output patch
+            patch_key = f"layer_{layer_idx}_ff_output"
+            if patch_key in patch_dict:
+                ff_output = self._apply_patch(ff_output, patch_dict[patch_key])
+
+            x = x + ff_output
+
+            # Check for post_ff patch
+            patch_key = f"layer_{layer_idx}_post_ff"
+            if patch_key in patch_dict:
+                x = self._apply_patch(x, patch_dict[patch_key])
+
+        # Final layer norm
+        x = model.ln_f(x)
+
+        # Project to vocabulary
+        logits = model.lm_head(x)
+
+        return logits, None, None
+
+    def _apply_patch(self, tensor: torch.Tensor, patch_info: dict) -> torch.Tensor:
+        """Apply a patch to a tensor."""
+        source = patch_info['source']
+        positions = patch_info.get('positions')
+        blend_factor = patch_info.get('blend_factor', 1.0)
+
+        # Ensure source matches batch size
+        if source.shape[0] != tensor.shape[0]:
+            source = source.expand(tensor.shape[0], -1, -1)
+
+        if positions is None:
+            # Patch all positions
+            min_seq = min(tensor.shape[1], source.shape[1])
+            if blend_factor == 1.0:
+                result = tensor.clone()
+                result[:, :min_seq] = source[:, :min_seq]
+            else:
+                result = tensor.clone()
+                result[:, :min_seq] = (
+                    (1 - blend_factor) * tensor[:, :min_seq] +
+                    blend_factor * source[:, :min_seq]
+                )
+        else:
+            result = tensor.clone()
+            for pos in positions:
+                if pos < tensor.shape[1] and pos < source.shape[1]:
+                    if blend_factor == 1.0:
+                        result[:, pos] = source[:, pos]
+                    else:
+                        result[:, pos] = (
+                            (1 - blend_factor) * tensor[:, pos] +
+                            blend_factor * source[:, pos]
+                        )
+
+        return result
+
+    def _compute_effect_summary(
+        self,
+        baseline_tokens: list[int],
+        patched_tokens: list[int],
+        baseline_decoded: list[str],
+        patched_decoded: list[str],
+    ) -> dict:
+        """Compute summary of patching effects."""
+        # Find first divergence
+        first_divergence = None
+        for i in range(min(len(baseline_tokens), len(patched_tokens))):
+            if baseline_tokens[i] != patched_tokens[i]:
+                first_divergence = i
+                break
+
+        # Count token changes
+        min_len = min(len(baseline_tokens), len(patched_tokens))
+        token_changes = sum(
+            1 for i in range(min_len)
+            if baseline_tokens[i] != patched_tokens[i]
+        )
+        token_changes += abs(len(baseline_tokens) - len(patched_tokens))
+
+        # Find changed token pairs
+        changed_tokens = []
+        for i in range(min_len):
+            if baseline_tokens[i] != patched_tokens[i]:
+                changed_tokens.append({
+                    'position': i,
+                    'baseline_token': baseline_decoded[i] if i < len(baseline_decoded) else '?',
+                    'patched_token': patched_decoded[i] if i < len(patched_decoded) else '?',
+                })
+
+        return {
+            'first_divergence_position': first_divergence,
+            'token_changes': token_changes,
+            'changed_tokens': changed_tokens[:10],  # Limit to first 10
+            'baseline_length': len(baseline_tokens),
+            'patched_length': len(patched_tokens),
+        }
+
+    def get_captured_activations(self, activation_id: str) -> Optional[CapturedActivations]:
+        """Retrieve captured activations by ID."""
+        return self._captured_activations.get(activation_id)
+
+    def list_captured_activations(self) -> list[dict]:
+        """List all captured activation summaries."""
+        return [
+            {
+                'id': act.id,
+                'prompt': act.prompt,
+                'model_type': act.model_type,
+                'model_id': act.model_id,
+                'num_tokens': len(act.tokens),
+                'num_layers': act.num_layers,
+            }
+            for act in self._captured_activations.values()
+        ]
+
+    def delete_captured_activations(self, activation_id: str) -> bool:
+        """Delete captured activations."""
+        if activation_id in self._captured_activations:
+            del self._captured_activations[activation_id]
+            return True
+        return False
+
+    def clear_all_activations(self):
+        """Clear all captured activations."""
+        self._captured_activations.clear()
+
+
+# Global patching engine instance
+_global_engine = None
+
+
+def get_patching_engine() -> PatchingEngine:
+    """Get global patching engine instance."""
+    global _global_engine
+    if _global_engine is None:
+        _global_engine = PatchingEngine()
+    return _global_engine

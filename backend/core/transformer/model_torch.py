@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
@@ -377,3 +377,325 @@ class TransformerLM(nn.Module):
     def count_parameters(self) -> int:
         # Count total trainable params
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+    def forward_with_patches(
+        self,
+        input_ids: torch.Tensor,
+        patches: dict[str, dict],
+        return_attention: bool = False,
+        capture_activations: bool = False,
+    ) -> Tuple[torch.Tensor, Optional[list], Optional[dict]]:
+        """
+        Forward pass with activation patches applied.
+
+        Patches are applied by replacing activations at specified layers
+        with source activations from a different prompt.
+
+        Args:
+            input_ids: Token IDs (batch_size, seq_len)
+            patches: Dict mapping activation keys to patch info:
+                {
+                    "layer_0_attn_output": {
+                        "source": tensor,  # Source activation to patch in
+                        "positions": [0, 1, 2] or None,  # Positions to patch
+                        "blend_factor": 1.0,  # 1.0 = full replacement
+                    },
+                    ...
+                }
+            return_attention: Whether to return attention weights
+            capture_activations: Whether to capture intermediate activations
+
+        Returns:
+            logits: Output logits (batch_size, seq_len, vocab_size)
+            attention_weights: Optional list of attention weights per layer
+            activations: Optional dict containing all intermediate activations
+        """
+        batch_size, seq_len = input_ids.shape
+        device = input_ids.device
+
+        # Initialize activation storage
+        all_activations = {} if capture_activations else None
+
+        # Token embeddings
+        token_emb = self.token_embedding(input_ids)
+        token_emb = token_emb * math.sqrt(self.config.d_model)
+
+        if capture_activations:
+            all_activations['token_embeddings'] = token_emb.detach()
+
+        # Check for token embedding patch
+        if 'token_embeddings' in patches:
+            token_emb = self._apply_patch(token_emb, patches['token_embeddings'])
+
+        # Positional embeddings
+        if self.config.learned_pos_emb:
+            positions = torch.arange(seq_len, device=device).unsqueeze(0)
+            pos_emb = self.pos_embedding(positions)
+        else:
+            pos_emb = self.pos_embedding[:seq_len, :].unsqueeze(0)
+
+        if capture_activations:
+            all_activations['positional_embeddings'] = pos_emb.detach()
+
+        # Combine embeddings
+        x = token_emb + pos_emb
+        x = self.emb_dropout(x)
+
+        if capture_activations:
+            all_activations['combined_embeddings'] = x.detach()
+
+        # Check for combined embeddings patch
+        if 'combined_embeddings' in patches:
+            x = self._apply_patch(x, patches['combined_embeddings'])
+
+        # Create causal mask
+        causal_mask = torch.tril(torch.ones(seq_len, seq_len, device=device)).unsqueeze(0).unsqueeze(0)
+
+        # Apply transformer blocks with patching
+        all_attention_weights = [] if return_attention else None
+        layer_activations = [] if capture_activations else None
+
+        for layer_idx, block in enumerate(self.blocks):
+            x, attn_weights, block_activations = self._forward_block_with_patches(
+                block, layer_idx, x, causal_mask, patches,
+                return_attention, capture_activations
+            )
+            if return_attention:
+                all_attention_weights.append(attn_weights)
+            if capture_activations:
+                layer_activations.append(block_activations)
+
+        if capture_activations:
+            all_activations['layers'] = layer_activations
+
+        # Final layer norm
+        x = self.ln_f(x)
+
+        if capture_activations:
+            all_activations['final_layer_norm'] = x.detach()
+
+        # Check for final layer norm patch
+        if 'final_layer_norm' in patches:
+            x = self._apply_patch(x, patches['final_layer_norm'])
+
+        # Project to vocabulary
+        logits = self.lm_head(x)
+
+        if capture_activations:
+            all_activations['logits'] = logits.detach()
+
+        return logits, all_attention_weights, all_activations
+
+    def _forward_block_with_patches(
+        self,
+        block: 'TransformerBlock',
+        layer_idx: int,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        patches: dict[str, dict],
+        return_attention: bool,
+        capture_activations: bool,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[dict]]:
+        """Forward through a single block with patching support."""
+        activations = {} if capture_activations else None
+
+        # 1. Attention with residual
+        attn_input = block.ln1(x)
+        if capture_activations:
+            activations['attn_input'] = attn_input.detach()
+
+        # Check for attn_input patch
+        patch_key = f"layer_{layer_idx}_attn_input"
+        if patch_key in patches:
+            attn_input = self._apply_patch(attn_input, patches[patch_key])
+
+        attn_output, attn_weights = block.attention(
+            attn_input, mask, return_attention or capture_activations
+        )
+        if capture_activations:
+            activations['attn_output'] = attn_output.detach()
+            if attn_weights is not None:
+                activations['attn_weights'] = attn_weights.detach()
+
+        # Check for attn_output patch
+        patch_key = f"layer_{layer_idx}_attn_output"
+        if patch_key in patches:
+            attn_output = self._apply_patch(attn_output, patches[patch_key])
+
+        x = x + attn_output
+        if capture_activations:
+            activations['post_attn'] = x.detach()
+
+        # Check for post_attn patch
+        patch_key = f"layer_{layer_idx}_post_attn"
+        if patch_key in patches:
+            x = self._apply_patch(x, patches[patch_key])
+
+        # 2. Feed-forward with residual
+        ff_input = block.ln2(x)
+        if capture_activations:
+            activations['ff_input'] = ff_input.detach()
+
+        # Check for ff_input patch
+        patch_key = f"layer_{layer_idx}_ff_input"
+        if patch_key in patches:
+            ff_input = self._apply_patch(ff_input, patches[patch_key])
+
+        ff_output = block.feed_forward(ff_input)
+        if capture_activations:
+            activations['ff_output'] = ff_output.detach()
+
+        # Check for ff_output patch
+        patch_key = f"layer_{layer_idx}_ff_output"
+        if patch_key in patches:
+            ff_output = self._apply_patch(ff_output, patches[patch_key])
+
+        x = x + ff_output
+        if capture_activations:
+            activations['post_ff'] = x.detach()
+
+        # Check for post_ff patch
+        patch_key = f"layer_{layer_idx}_post_ff"
+        if patch_key in patches:
+            x = self._apply_patch(x, patches[patch_key])
+
+        return x, attn_weights, activations
+
+    def _apply_patch(
+        self,
+        tensor: torch.Tensor,
+        patch_info: dict,
+    ) -> torch.Tensor:
+        """
+        Apply a patch to a tensor.
+
+        Args:
+            tensor: Original activation tensor [batch, seq_len, d_model]
+            patch_info: Dict with:
+                - source: Source tensor to patch in
+                - positions: Optional list of positions to patch
+                - blend_factor: Interpolation factor (1.0 = full replacement)
+
+        Returns:
+            Patched tensor
+        """
+        source = patch_info['source'].to(tensor.device)
+        positions = patch_info.get('positions')
+        blend_factor = patch_info.get('blend_factor', 1.0)
+
+        # Ensure source matches batch size
+        if source.dim() == tensor.dim() and source.shape[0] != tensor.shape[0]:
+            source = source.expand(tensor.shape[0], -1, -1)
+
+        if positions is None:
+            # Patch all positions
+            min_seq = min(tensor.shape[1], source.shape[1])
+            if blend_factor == 1.0:
+                result = tensor.clone()
+                result[:, :min_seq] = source[:, :min_seq]
+            else:
+                result = tensor.clone()
+                result[:, :min_seq] = (
+                    (1 - blend_factor) * tensor[:, :min_seq] +
+                    blend_factor * source[:, :min_seq]
+                )
+        else:
+            result = tensor.clone()
+            for pos in positions:
+                if pos < tensor.shape[1] and pos < source.shape[1]:
+                    if blend_factor == 1.0:
+                        result[:, pos] = source[:, pos]
+                    else:
+                        result[:, pos] = (
+                            (1 - blend_factor) * tensor[:, pos] +
+                            blend_factor * source[:, pos]
+                        )
+
+        return result
+
+    @torch.no_grad()
+    def generate_with_patches(
+        self,
+        input_ids: torch.Tensor,
+        patches: dict[str, dict],
+        max_new_tokens: int = 50,
+        temperature: float = 1.0,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+    ) -> Tuple[torch.Tensor, Optional[list]]:
+        """
+        Generate tokens with activation patches applied.
+
+        Args:
+            input_ids: Starting token IDs (batch_size, prompt_len)
+            patches: Dict mapping activation keys to patch info
+            max_new_tokens: Number of tokens to generate
+            temperature: Sampling temperature
+            top_k: Top-k sampling
+            top_p: Nucleus sampling
+
+        Returns:
+            generated_ids: Generated token IDs
+            attention_weights: Attention weights from final step
+        """
+        self.eval()
+        attn_weights = None
+
+        for _ in range(max_new_tokens):
+            # Get logits for current sequence
+            idx_cond = input_ids if input_ids.size(1) <= self.config.max_seq_len else input_ids[:, -self.config.max_seq_len:]
+
+            logits, attn_weights, _ = self.forward_with_patches(
+                idx_cond, patches, return_attention=False, capture_activations=False
+            )
+
+            # Get logits for last position
+            logits = logits[:, -1, :]
+
+            if temperature == 0.0:
+                next_token = torch.argmax(logits, dim=-1, keepdim=True)
+            else:
+                logits = logits / temperature
+
+                # Apply top-k filtering
+                if top_k is not None:
+                    v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                    logits[logits < v[:, [-1]]] = float('-inf')
+
+                # Apply top-p filtering
+                if top_p is not None:
+                    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+                    cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+                    sorted_indices_to_remove = cumulative_probs > top_p
+                    sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[:, :-1].clone()
+                    sorted_indices_to_remove[:, 0] = False
+                    indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+                    logits[indices_to_remove] = float('-inf')
+
+                probs = F.softmax(logits, dim=-1)
+                next_token = torch.multinomial(probs, num_samples=1)
+
+            input_ids = torch.cat([input_ids, next_token], dim=1)
+
+        return input_ids, attn_weights
+
+    def get_patchable_activation_keys(self) -> list[str]:
+        """
+        Get list of all patchable activation keys.
+
+        Returns:
+            List of activation key strings that can be patched.
+        """
+        keys = ['token_embeddings', 'combined_embeddings', 'final_layer_norm']
+
+        for i in range(self.config.num_layers):
+            keys.extend([
+                f"layer_{i}_attn_input",
+                f"layer_{i}_attn_output",
+                f"layer_{i}_post_attn",
+                f"layer_{i}_ff_input",
+                f"layer_{i}_ff_output",
+                f"layer_{i}_post_ff",
+            ])
+
+        return keys
