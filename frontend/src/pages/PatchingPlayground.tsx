@@ -6,7 +6,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { NavBar } from '../components/common/NavBar'
 import { PatchConfigPanel } from '../components/patching/PatchConfigPanel'
+import { PatchSelector } from '../components/patching/PatchSelector'
 import { PromptComparer } from '../components/patching/PromptComparer'
+import { ExperimentsList } from '../components/patching/ExperimentsList'
 import { apiClient } from '../api/client'
 import type {
   PatchSpec,
@@ -14,6 +16,7 @@ import type {
   CapturedActivationSummary,
   PatchingModelInfo,
   ModelLayerInfo,
+  PatchingExperiment,
 } from '../types/patching'
 import { Play, Zap, Trash2, AlertCircle, Info, ChevronDown, ChevronUp } from 'lucide-react'
 
@@ -31,8 +34,8 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
   const [loadingModels, setLoadingModels] = useState(true)
 
   // Prompts
-  const [sourcePrompt, setSourcePrompt] = useState('The capital of France is')
-  const [targetPrompt, setTargetPrompt] = useState('The capital of Germany is')
+  const [sourcePrompt, setSourcePrompt] = useState('')
+  const [targetPrompt, setTargetPrompt] = useState('')
 
   // Patches
   const [patches, setPatches] = useState<PatchSpec[]>([])
@@ -170,6 +173,35 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
       console.error('Failed to clear activations:', err)
     }
   }
+
+  const handleLoadExperiment = useCallback((experiment: PatchingExperiment) => {
+    setSourcePrompt(experiment.source_prompt)
+    setTargetPrompt(experiment.target_prompt)
+    setPatches(experiment.patches)
+
+    // Switch to the experiment's model if available
+    const model = models.find(m => m.model_id === experiment.model_id)
+    if (model) {
+      setSelectedModel(experiment.model_id)
+    }
+
+    // If experiment has results, show them
+    if (experiment.baseline_output && experiment.patched_output && experiment.effect_summary) {
+      setResult({
+        baseline_output: experiment.baseline_output,
+        patched_output: experiment.patched_output,
+        baseline_tokens: [],
+        patched_tokens: [],
+        baseline_decoded: experiment.baseline_output.split(''),
+        patched_decoded: experiment.patched_output.split(''),
+        source_activation_id: '',
+        patches_applied: experiment.patches,
+        effect_summary: experiment.effect_summary,
+      })
+    } else {
+      setResult(null)
+    }
+  }, [models])
 
   const numLayers = modelInfo?.num_layers ?? 6
   const numHeads = modelInfo?.num_heads ?? 8
@@ -313,8 +345,19 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
 
           {/* Center Column: Patch Configuration */}
           <div className="center-column">
+            {/* Visual Layer Selector */}
             <div className="section">
-              <h2>Patches</h2>
+              <PatchSelector
+                modelInfo={modelInfo}
+                patches={patches}
+                onAddPatch={handleAddPatch}
+                disabled={running}
+              />
+            </div>
+
+            {/* Detailed Patch Configuration */}
+            <div className="section">
+              <h2>Patch Configuration</h2>
               <PatchConfigPanel
                 modelId={selectedModel}
                 numLayers={numLayers}
@@ -368,6 +411,21 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Saved Experiments */}
+            <div className="section">
+              <ExperimentsList
+                currentExperiment={{
+                  sourcePrompt,
+                  targetPrompt,
+                  modelId: selectedModel,
+                  patches,
+                  result: result || undefined,
+                }}
+                onLoadExperiment={handleLoadExperiment}
+                disabled={running}
+              />
             </div>
           </div>
 
@@ -475,7 +533,7 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
 
         .playground-grid {
           display: grid;
-          grid-template-columns: 350px 400px 1fr;
+          grid-template-columns: 350px 480px 1fr;
           gap: 1.5rem;
           align-items: start;
         }

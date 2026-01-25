@@ -151,3 +151,47 @@ export interface ModelLayerInfo {
   layers: LayerPatchInfo[]
   patch_types: PatchType[]
 }
+
+/**
+ * Saved patching experiment.
+ */
+export interface PatchingExperiment {
+  id: string
+  name: string
+  source_prompt: string
+  target_prompt: string
+  model_id: string
+  model_type: 'ozera' | 'open_source'
+  patches: PatchSpec[]
+  baseline_output?: string
+  patched_output?: string
+  effect_summary?: EffectSummary
+  created_at: string
+  updated_at?: string
+}
+
+/**
+ * Request to save a patching experiment.
+ */
+export interface SaveExperimentRequest {
+  name: string
+  source_prompt: string
+  target_prompt: string
+  model_id: string
+  patches: PatchSpec[]
+  result?: PatchingResult
+}
+
+/**
+ * Summary of a saved experiment for listing.
+ */
+export interface ExperimentSummary {
+  id: string
+  name: string
+  model_id: string
+  source_prompt_preview: string
+  target_prompt_preview: string
+  patch_count: number
+  has_result: boolean
+  created_at: string
+}

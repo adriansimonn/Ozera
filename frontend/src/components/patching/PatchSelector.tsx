@@ -1,0 +1,674 @@
+/**
+ * Visual layer selector for activation patching.
+ * Displays a network diagram where users can click layers to add patches.
+ * Reuses patterns from GenerationFlow visualization.
+ */
+
+import { useRef, useEffect, useState, useCallback } from 'react'
+import { Network, Plus, Eye } from 'lucide-react'
+import type { PatchSpec, PatchType, ModelLayerInfo } from '../../types/patching'
+
+interface PatchSelectorProps {
+  modelInfo: ModelLayerInfo | null
+  patches: PatchSpec[]
+  onAddPatch: (patch: PatchSpec) => void
+  disabled?: boolean
+}
+
+// Color scheme for different patch types
+const PATCH_TYPE_COLORS: Record<PatchType, { primary: string; secondary: string; label: string }> = {
+  residual: { primary: '147, 51, 234', secondary: '168, 85, 247', label: 'Residual' },  // Purple
+  attention: { primary: '59, 130, 246', secondary: '96, 165, 250', label: 'Attention' }, // Blue
+  mlp: { primary: '34, 197, 94', secondary: '74, 222, 128', label: 'MLP' },              // Green
+  attn_output: { primary: '6, 182, 212', secondary: '34, 211, 238', label: 'Attn Out' },  // Cyan
+  ff_output: { primary: '245, 158, 11', secondary: '251, 191, 36', label: 'FF Out' },     // Amber
+  post_attn: { primary: '236, 72, 153', secondary: '244, 114, 182', label: 'Post-Attn' }, // Pink
+  post_ff: { primary: '249, 115, 22', secondary: '251, 146, 60', label: 'Post-FF' },      // Orange
+}
+
+interface LayerNode {
+  x: number
+  y: number
+  layerIdx: number
+  label: string
+  isTransformerLayer: boolean
+}
+
+interface HoverInfo {
+  layerIdx: number
+  x: number
+  y: number
+  label: string
+  patchCount: number
+  activePatchTypes: PatchType[]
+}
+
+export function PatchSelector({
+  modelInfo,
+  patches,
+  onAddPatch,
+  disabled = false,
+}: PatchSelectorProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [dimensions, setDimensions] = useState({ width: 800, height: 300 })
+  const [hoveredLayer, setHoveredLayer] = useState<HoverInfo | null>(null)
+  const [showPatchMenu, setShowPatchMenu] = useState<{ layerIdx: number; x: number; y: number } | null>(null)
+  const layerNodesRef = useRef<LayerNode[]>([])
+
+  const numLayers = modelInfo?.num_layers ?? 6
+  const numHeads = modelInfo?.num_heads ?? 8
+
+  // Get patches for a specific layer
+  const getLayerPatches = useCallback((layerIdx: number): PatchSpec[] => {
+    return patches.filter(p => p.layer === layerIdx)
+  }, [patches])
+
+  // Count patches by type for a layer
+  const getLayerPatchTypes = useCallback((layerIdx: number): PatchType[] => {
+    const layerPatches = getLayerPatches(layerIdx)
+    return [...new Set(layerPatches.map(p => p.patch_type))]
+  }, [getLayerPatches])
+
+  // Update dimensions on resize
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const width = containerRef.current.clientWidth
+        setDimensions({ width, height: Math.max(280, Math.min(350, width * 0.4)) })
+      }
+    }
+
+    updateDimensions()
+    const resizeObserver = new ResizeObserver(updateDimensions)
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current)
+    }
+
+    return () => resizeObserver.disconnect()
+  }, [])
+
+  // Draw the network visualization
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const { width, height } = dimensions
+    canvas.width = width
+    canvas.height = height
+
+    // Clear canvas
+    ctx.fillStyle = 'rgba(10, 10, 10, 1)'
+    ctx.fillRect(0, 0, width, height)
+
+    // Layout calculations
+    const padding = { left: 60, right: 60, top: 50, bottom: 40 }
+    const networkWidth = width - padding.left - padding.right
+
+    // Total layers: Input -> Embed -> [L0...Ln-1] -> Output
+    const totalVisualLayers = numLayers + 3 // Input, Embed, n transformer layers, Output
+    const layerSpacing = networkWidth / (totalVisualLayers - 1)
+
+    const nodeRadius = 18
+    const nodesPerLayer = 4
+
+    // Create layer positions
+    const layers: LayerNode[] = []
+
+    // Input layer
+    layers.push({
+      x: padding.left,
+      y: height / 2,
+      layerIdx: -2,
+      label: 'Input',
+      isTransformerLayer: false,
+    })
+
+    // Embed layer
+    layers.push({
+      x: padding.left + layerSpacing,
+      y: height / 2,
+      layerIdx: -1,
+      label: 'Embed',
+      isTransformerLayer: false,
+    })
+
+    // Transformer layers
+    for (let i = 0; i < numLayers; i++) {
+      layers.push({
+        x: padding.left + layerSpacing * (i + 2),
+        y: height / 2,
+        layerIdx: i,
+        label: `L${i}`,
+        isTransformerLayer: true,
+      })
+    }
+
+    // Output layer
+    layers.push({
+      x: padding.left + layerSpacing * (numLayers + 2),
+      y: height / 2,
+      layerIdx: -3,
+      label: 'Output',
+      isTransformerLayer: false,
+    })
+
+    layerNodesRef.current = layers
+
+    // Draw connections between layers
+    for (let i = 0; i < layers.length - 1; i++) {
+      const from = layers[i]
+      const to = layers[i + 1]
+
+      // Multiple connection lines for visual depth
+      for (let n = 0; n < nodesPerLayer; n++) {
+        const yOffset = (n - (nodesPerLayer - 1) / 2) * 15
+
+        ctx.beginPath()
+        ctx.moveTo(from.x, from.y + yOffset)
+        ctx.lineTo(to.x, to.y + yOffset)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)'
+        ctx.lineWidth = 1
+        ctx.stroke()
+      }
+    }
+
+    // Draw layer nodes
+    layers.forEach(layer => {
+      const isHovered = hoveredLayer?.layerIdx === layer.layerIdx
+      const layerPatchTypes = layer.isTransformerLayer ? getLayerPatchTypes(layer.layerIdx) : []
+      const hasPatch = layerPatchTypes.length > 0
+      const isClickable = layer.isTransformerLayer && !disabled
+
+      // Draw outer glow for patched layers
+      if (hasPatch) {
+        const primaryColor = PATCH_TYPE_COLORS[layerPatchTypes[0]].primary
+        const gradient = ctx.createRadialGradient(
+          layer.x, layer.y, nodeRadius * 0.5,
+          layer.x, layer.y, nodeRadius * 2.5
+        )
+        gradient.addColorStop(0, `rgba(${primaryColor}, 0.4)`)
+        gradient.addColorStop(1, `rgba(${primaryColor}, 0)`)
+
+        ctx.beginPath()
+        ctx.arc(layer.x, layer.y, nodeRadius * 2.5, 0, Math.PI * 2)
+        ctx.fillStyle = gradient
+        ctx.fill()
+      }
+
+      // Draw main node
+      const baseColor = hasPatch
+        ? PATCH_TYPE_COLORS[layerPatchTypes[0]].primary
+        : isClickable
+          ? '100, 100, 100'
+          : '60, 60, 60'
+
+      const nodeGradient = ctx.createRadialGradient(
+        layer.x - nodeRadius * 0.3, layer.y - nodeRadius * 0.3, 0,
+        layer.x, layer.y, nodeRadius
+      )
+      nodeGradient.addColorStop(0, `rgba(${baseColor}, ${isHovered ? 1 : 0.9})`)
+      nodeGradient.addColorStop(1, `rgba(${baseColor}, ${isHovered ? 0.8 : 0.6})`)
+
+      ctx.beginPath()
+      ctx.arc(layer.x, layer.y, isHovered ? nodeRadius * 1.15 : nodeRadius, 0, Math.PI * 2)
+      ctx.fillStyle = nodeGradient
+      ctx.fill()
+
+      // Draw border
+      ctx.strokeStyle = hasPatch
+        ? `rgba(${PATCH_TYPE_COLORS[layerPatchTypes[0]].secondary}, ${isHovered ? 1 : 0.8})`
+        : isClickable
+          ? `rgba(255, 255, 255, ${isHovered ? 0.5 : 0.2})`
+          : 'rgba(255, 255, 255, 0.1)'
+      ctx.lineWidth = isHovered ? 2.5 : 1.5
+      ctx.stroke()
+
+      // Draw patch count badge if multiple patches
+      if (layerPatchTypes.length > 1) {
+        const badgeX = layer.x + nodeRadius * 0.7
+        const badgeY = layer.y - nodeRadius * 0.7
+        const badgeRadius = 8
+
+        ctx.beginPath()
+        ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'
+        ctx.fill()
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 1)'
+        ctx.font = 'bold 10px Inter, system-ui, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(layerPatchTypes.length.toString(), badgeX, badgeY)
+      }
+
+      // Draw label below node
+      ctx.fillStyle = isHovered
+        ? 'rgba(255, 255, 255, 0.95)'
+        : hasPatch
+          ? `rgba(${PATCH_TYPE_COLORS[layerPatchTypes[0]].secondary}, 0.9)`
+          : 'rgba(255, 255, 255, 0.6)'
+      ctx.font = `${isHovered ? '600' : '500'} 11px Inter, system-ui, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'top'
+      ctx.fillText(layer.label, layer.x, layer.y + nodeRadius + 8)
+
+      // Draw clickable indicator for transformer layers
+      if (isClickable && isHovered && !hasPatch) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
+        ctx.font = 'bold 16px Inter, system-ui, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('+', layer.x, layer.y)
+      }
+    })
+
+    // Draw title
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
+    ctx.font = '500 12px Inter, system-ui, sans-serif'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'top'
+    ctx.fillText('Click a layer to add a patch', padding.left, 15)
+
+    // Draw legend
+    const legendX = width - padding.right
+    const legendY = 12
+    ctx.textAlign = 'right'
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'
+    ctx.font = '400 10px Inter, system-ui, sans-serif'
+    ctx.fillText('Hover for details', legendX, legendY)
+
+  }, [dimensions, numLayers, hoveredLayer, patches, getLayerPatchTypes, disabled])
+
+  // Handle mouse movement for hover detection
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (disabled) return
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const rect = canvas.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    // Check if hovering over any layer node
+    const nodeRadius = 18
+    let foundLayer: HoverInfo | null = null
+
+    for (const layer of layerNodesRef.current) {
+      if (!layer.isTransformerLayer) continue
+
+      const dx = x - layer.x
+      const dy = y - layer.y
+      const distance = Math.sqrt(dx * dx + dy * dy)
+
+      if (distance <= nodeRadius * 1.5) {
+        const layerPatches = getLayerPatches(layer.layerIdx)
+        foundLayer = {
+          layerIdx: layer.layerIdx,
+          x: layer.x,
+          y: layer.y,
+          label: layer.label,
+          patchCount: layerPatches.length,
+          activePatchTypes: getLayerPatchTypes(layer.layerIdx),
+        }
+        break
+      }
+    }
+
+    setHoveredLayer(foundLayer)
+
+    // Update cursor
+    if (canvas) {
+      canvas.style.cursor = foundLayer ? 'pointer' : 'default'
+    }
+  }, [disabled, getLayerPatches, getLayerPatchTypes])
+
+  // Handle mouse leave
+  const handleMouseLeave = useCallback(() => {
+    setHoveredLayer(null)
+    setShowPatchMenu(null)
+  }, [])
+
+  // Handle click to show patch menu
+  const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (disabled || !hoveredLayer) return
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const rect = canvas.getBoundingClientRect()
+
+    setShowPatchMenu({
+      layerIdx: hoveredLayer.layerIdx,
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    })
+  }, [disabled, hoveredLayer])
+
+  // Handle adding a patch from menu
+  const handleAddPatchType = useCallback((patchType: PatchType) => {
+    if (!showPatchMenu) return
+
+    const patch: PatchSpec = {
+      layer: showPatchMenu.layerIdx,
+      patch_type: patchType,
+      blend_factor: 1.0,
+      positions: null,
+      heads: null,
+    }
+
+    onAddPatch(patch)
+    setShowPatchMenu(null)
+  }, [showPatchMenu, onAddPatch])
+
+  return (
+    <div className="patch-selector" ref={containerRef}>
+      <div className="selector-header">
+        <Network className="header-icon" />
+        <h3>Visual Layer Selector</h3>
+      </div>
+
+      <div className="canvas-container">
+        <canvas
+          ref={canvasRef}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          onClick={handleClick}
+        />
+
+        {/* Hover tooltip */}
+        {hoveredLayer && !showPatchMenu && (
+          <div
+            className="layer-tooltip"
+            style={{
+              left: hoveredLayer.x,
+              top: hoveredLayer.y - 70,
+            }}
+          >
+            <div className="tooltip-header">
+              <span className="tooltip-layer">{hoveredLayer.label}</span>
+              <span className="tooltip-heads">{numHeads} heads</span>
+            </div>
+            {hoveredLayer.patchCount > 0 ? (
+              <div className="tooltip-patches">
+                {hoveredLayer.activePatchTypes.map(type => (
+                  <span
+                    key={type}
+                    className="patch-badge"
+                    style={{
+                      backgroundColor: `rgba(${PATCH_TYPE_COLORS[type].primary}, 0.2)`,
+                      borderColor: `rgba(${PATCH_TYPE_COLORS[type].primary}, 0.5)`,
+                      color: `rgba(${PATCH_TYPE_COLORS[type].secondary}, 1)`,
+                    }}
+                  >
+                    {PATCH_TYPE_COLORS[type].label}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="tooltip-hint">Click to add patch</div>
+            )}
+          </div>
+        )}
+
+        {/* Patch type selection menu */}
+        {showPatchMenu && (
+          <>
+            <div className="menu-backdrop" onClick={() => setShowPatchMenu(null)} />
+            <div
+              className="patch-menu"
+              style={{
+                left: Math.min(showPatchMenu.x, dimensions.width - 180),
+                top: showPatchMenu.y + 10,
+              }}
+            >
+              <div className="menu-header">
+                <Plus className="menu-icon" />
+                <span>Add Patch to L{showPatchMenu.layerIdx}</span>
+              </div>
+              <div className="menu-items">
+                {Object.entries(PATCH_TYPE_COLORS).map(([type, colors]) => (
+                  <button
+                    key={type}
+                    className="menu-item"
+                    onClick={() => handleAddPatchType(type as PatchType)}
+                    style={{
+                      '--patch-color': `rgb(${colors.primary})`,
+                      '--patch-color-light': `rgb(${colors.secondary})`,
+                    } as React.CSSProperties}
+                  >
+                    <span className="item-dot" />
+                    <span className="item-label">{colors.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Active patches legend */}
+      {patches.length > 0 && (
+        <div className="patches-legend">
+          <Eye className="legend-icon" />
+          <span className="legend-label">Active:</span>
+          <div className="legend-badges">
+            {patches.map((patch, idx) => (
+              <span
+                key={idx}
+                className="legend-badge"
+                style={{
+                  backgroundColor: `rgba(${PATCH_TYPE_COLORS[patch.patch_type].primary}, 0.15)`,
+                  borderColor: `rgba(${PATCH_TYPE_COLORS[patch.patch_type].primary}, 0.4)`,
+                  color: `rgba(${PATCH_TYPE_COLORS[patch.patch_type].secondary}, 1)`,
+                }}
+              >
+                L{patch.layer} {PATCH_TYPE_COLORS[patch.patch_type].label}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        .patch-selector {
+          background: rgba(0, 0, 0, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          margin-bottom: 1rem;
+        }
+
+        .selector-header {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.875rem 1rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .selector-header h3 {
+          margin: 0;
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.9);
+          letter-spacing: 0.025em;
+        }
+
+        .header-icon {
+          width: 16px;
+          height: 16px;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .canvas-container {
+          position: relative;
+          width: 100%;
+        }
+
+        .canvas-container canvas {
+          display: block;
+          width: 100%;
+        }
+
+        .layer-tooltip {
+          position: absolute;
+          transform: translateX(-50%);
+          background: rgba(20, 20, 20, 0.98);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          padding: 0.625rem 0.875rem;
+          pointer-events: none;
+          z-index: 10;
+          min-width: 120px;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .tooltip-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          margin-bottom: 0.375rem;
+        }
+
+        .tooltip-layer {
+          font-weight: 600;
+          font-size: 0.9rem;
+          color: rgba(255, 255, 255, 0.95);
+        }
+
+        .tooltip-heads {
+          font-size: 0.7rem;
+          color: rgba(255, 255, 255, 0.4);
+        }
+
+        .tooltip-patches {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.375rem;
+        }
+
+        .patch-badge {
+          font-size: 0.7rem;
+          padding: 0.125rem 0.375rem;
+          border: 1px solid;
+          font-weight: 500;
+        }
+
+        .tooltip-hint {
+          font-size: 0.75rem;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .menu-backdrop {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 15;
+        }
+
+        .patch-menu {
+          position: absolute;
+          background: rgba(20, 20, 20, 0.98);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          z-index: 20;
+          min-width: 160px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+        }
+
+        .menu-header {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.625rem 0.75rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.9);
+        }
+
+        .menu-icon {
+          width: 14px;
+          height: 14px;
+          color: rgba(59, 130, 246, 0.8);
+        }
+
+        .menu-items {
+          padding: 0.375rem 0;
+        }
+
+        .menu-item {
+          display: flex;
+          align-items: center;
+          gap: 0.625rem;
+          width: 100%;
+          padding: 0.5rem 0.75rem;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          font-size: 0.8rem;
+          color: rgba(255, 255, 255, 0.8);
+          text-align: left;
+          transition: all 0.15s;
+        }
+
+        .menu-item:hover {
+          background: rgba(255, 255, 255, 0.05);
+          color: rgba(255, 255, 255, 1);
+        }
+
+        .item-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: var(--patch-color);
+          box-shadow: 0 0 6px var(--patch-color);
+        }
+
+        .item-label {
+          flex: 1;
+        }
+
+        .patches-legend {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.625rem 1rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          flex-wrap: wrap;
+        }
+
+        .legend-icon {
+          width: 14px;
+          height: 14px;
+          color: rgba(255, 255, 255, 0.4);
+        }
+
+        .legend-label {
+          font-size: 0.75rem;
+          color: rgba(255, 255, 255, 0.5);
+          margin-right: 0.25rem;
+        }
+
+        .legend-badges {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.375rem;
+        }
+
+        .legend-badge {
+          font-size: 0.7rem;
+          padding: 0.125rem 0.5rem;
+          border: 1px solid;
+          font-weight: 500;
+        }
+      `}</style>
+    </div>
+  )
+}
+
+export default PatchSelector

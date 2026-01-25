@@ -429,25 +429,24 @@ async def list_available_models():
     # Add Ozera base models
     for model_id in BASE_MODELS:
         models.append({
-            "id": model_id,
-            "type": "ozera",
+            "model_id": model_id,
+            "model_type": "ozera",
             "display_name": f"Ozera {model_id.title()}",
-            "supports_patching": True,
+            "num_layers": 6,  # Default for Ozera models
+            "num_heads": 8,   # Default for Ozera models
         })
 
     # Add open-source models
     for model_id, config in OPEN_SOURCE_MODELS.items():
         models.append({
-            "id": model_id,
-            "type": "open_source",
+            "model_id": model_id,
+            "model_type": "open_source",
             "display_name": config.display_name,
-            "family": config.family.value,
-            "parameters": config.parameters,
             "num_layers": config.num_layers,
-            "supports_patching": True,
+            "num_heads": config.num_heads,
         })
 
-    return {"models": models}
+    return models
 
 
 @router.get("/models/{model_id}/layers")
