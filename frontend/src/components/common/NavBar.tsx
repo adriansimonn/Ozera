@@ -66,7 +66,7 @@ export function NavBar({
               className={`nav-link ${isActive('/patching') ? 'active' : ''}`}
             >
               <Zap className="nav-icon" />
-              Patching
+              Activation Patching
             </Link>
           </div>
         </div>

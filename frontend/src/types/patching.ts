@@ -165,6 +165,8 @@ export interface PatchingExperiment {
   patches: PatchSpec[]
   baseline_output?: string
   patched_output?: string
+  baseline_decoded?: string[]
+  patched_decoded?: string[]
   effect_summary?: EffectSummary
   created_at: string
   updated_at?: string

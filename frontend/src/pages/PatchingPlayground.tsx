@@ -192,8 +192,9 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
         patched_output: experiment.patched_output,
         baseline_tokens: [],
         patched_tokens: [],
-        baseline_decoded: experiment.baseline_output.split(''),
-        patched_decoded: experiment.patched_output.split(''),
+        // Use stored decoded tokens if available, otherwise fall back to output string as single token
+        baseline_decoded: experiment.baseline_decoded ?? [experiment.baseline_output],
+        patched_decoded: experiment.patched_decoded ?? [experiment.patched_output],
         source_activation_id: '',
         patches_applied: experiment.patches,
         effect_summary: experiment.effect_summary,
@@ -213,7 +214,6 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
       <div className="playground-content">
         <div className="playground-header">
           <div className="header-title">
-            <Zap className="title-icon" />
             <h1>Activation Patching Playground</h1>
           </div>
           <p className="header-description">

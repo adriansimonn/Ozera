@@ -113,6 +113,8 @@ export function ExperimentsList({
       patches: currentExperiment.patches,
       baseline_output: currentExperiment.result?.baseline_output,
       patched_output: currentExperiment.result?.patched_output,
+      baseline_decoded: currentExperiment.result?.baseline_decoded,
+      patched_decoded: currentExperiment.result?.patched_decoded,
       effect_summary: currentExperiment.result?.effect_summary,
       created_at: new Date().toISOString(),
     }
