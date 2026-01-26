@@ -118,6 +118,7 @@ export interface EffectSummary {
 
 /**
  * Result of a patching experiment.
+ * source_activation_id is null for ablation-only experiments.
  */
 export interface PatchingResult {
   baseline_output: string
@@ -126,7 +127,7 @@ export interface PatchingResult {
   patched_tokens: number[]
   baseline_decoded: string[]
   patched_decoded: string[]
-  source_activation_id: string
+  source_activation_id: string | null
   patches_applied: PatchSpec[]
   effect_summary: EffectSummary
 }

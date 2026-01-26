@@ -33,6 +33,19 @@ const ABLATION_TYPE_COLORS: Record<string, { primary: string; secondary: string;
   noise_ablate: { primary: '251, 191, 36', secondary: '253, 224, 71', label: 'Noise' },
 }
 
+// Helper to get colors and label for a patch based on its intervention type
+function getPatchColors(patchInfo: { patchType: PatchType; interventionType: InterventionType }) {
+  const isAblation = patchInfo.interventionType !== 'patch'
+  if (isAblation) {
+    const ablationColors = ABLATION_TYPE_COLORS[patchInfo.interventionType]
+    return {
+      ...ablationColors,
+      label: `${ablationColors.label} ${PATCH_TYPE_COLORS[patchInfo.patchType].label}`,
+    }
+  }
+  return PATCH_TYPE_COLORS[patchInfo.patchType]
+}
+
 interface LayerNode {
   x: number
   y: number
@@ -41,13 +54,18 @@ interface LayerNode {
   isTransformerLayer: boolean
 }
 
+interface PatchInfo {
+  patchType: PatchType
+  interventionType: InterventionType
+}
+
 interface HoverInfo {
   layerIdx: number
   x: number
   y: number
   label: string
   patchCount: number
-  activePatchTypes: PatchType[]
+  activePatches: PatchInfo[]
 }
 
 export function PatchSelector({
@@ -71,10 +89,17 @@ export function PatchSelector({
     return patches.filter(p => p.layer === layerIdx)
   }, [patches])
 
-  // Count patches by type for a layer
-  const getLayerPatchTypes = useCallback((layerIdx: number): PatchType[] => {
+  // Get unique patch info (type + intervention) for a layer
+  const getLayerPatchInfo = useCallback((layerIdx: number): PatchInfo[] => {
     const layerPatches = getLayerPatches(layerIdx)
-    return [...new Set(layerPatches.map(p => p.patch_type))]
+    // Create unique key for each patch type + intervention combination
+    const seen = new Set<string>()
+    return layerPatches.filter(p => {
+      const key = `${p.patch_type}-${p.intervention_type}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    }).map(p => ({ patchType: p.patch_type, interventionType: p.intervention_type }))
   }, [getLayerPatches])
 
   // Update dimensions on resize
@@ -186,13 +211,14 @@ export function PatchSelector({
     // Draw layer nodes
     layers.forEach(layer => {
       const isHovered = hoveredLayer?.layerIdx === layer.layerIdx
-      const layerPatchTypes = layer.isTransformerLayer ? getLayerPatchTypes(layer.layerIdx) : []
-      const hasPatch = layerPatchTypes.length > 0
+      const layerPatchInfo = layer.isTransformerLayer ? getLayerPatchInfo(layer.layerIdx) : []
+      const hasPatch = layerPatchInfo.length > 0
       const isClickable = layer.isTransformerLayer && !disabled
+      const firstPatchColors = hasPatch ? getPatchColors(layerPatchInfo[0]) : null
 
       // Draw outer glow for patched layers
-      if (hasPatch) {
-        const primaryColor = PATCH_TYPE_COLORS[layerPatchTypes[0]].primary
+      if (hasPatch && firstPatchColors) {
+        const primaryColor = firstPatchColors.primary
         const gradient = ctx.createRadialGradient(
           layer.x, layer.y, nodeRadius * 0.5,
           layer.x, layer.y, nodeRadius * 2.5
@@ -207,8 +233,8 @@ export function PatchSelector({
       }
 
       // Draw main node
-      const baseColor = hasPatch
-        ? PATCH_TYPE_COLORS[layerPatchTypes[0]].primary
+      const baseColor = hasPatch && firstPatchColors
+        ? firstPatchColors.primary
         : isClickable
           ? '100, 100, 100'
           : '60, 60, 60'
@@ -226,8 +252,8 @@ export function PatchSelector({
       ctx.fill()
 
       // Draw border
-      ctx.strokeStyle = hasPatch
-        ? `rgba(${PATCH_TYPE_COLORS[layerPatchTypes[0]].secondary}, ${isHovered ? 1 : 0.8})`
+      ctx.strokeStyle = hasPatch && firstPatchColors
+        ? `rgba(${firstPatchColors.secondary}, ${isHovered ? 1 : 0.8})`
         : isClickable
           ? `rgba(255, 255, 255, ${isHovered ? 0.5 : 0.2})`
           : 'rgba(255, 255, 255, 0.1)'
@@ -235,7 +261,7 @@ export function PatchSelector({
       ctx.stroke()
 
       // Draw patch count badge if multiple patches
-      if (layerPatchTypes.length > 1) {
+      if (layerPatchInfo.length > 1) {
         const badgeX = layer.x + nodeRadius * 0.7
         const badgeY = layer.y - nodeRadius * 0.7
         const badgeRadius = 8
@@ -249,14 +275,14 @@ export function PatchSelector({
         ctx.font = 'bold 10px Inter, system-ui, sans-serif'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(layerPatchTypes.length.toString(), badgeX, badgeY)
+        ctx.fillText(layerPatchInfo.length.toString(), badgeX, badgeY)
       }
 
       // Draw label below node
       ctx.fillStyle = isHovered
         ? 'rgba(255, 255, 255, 0.95)'
-        : hasPatch
-          ? `rgba(${PATCH_TYPE_COLORS[layerPatchTypes[0]].secondary}, 0.9)`
+        : hasPatch && firstPatchColors
+          ? `rgba(${firstPatchColors.secondary}, 0.9)`
           : 'rgba(255, 255, 255, 0.6)'
       ctx.font = `${isHovered ? '600' : '500'} 11px Inter, system-ui, sans-serif`
       ctx.textAlign = 'center'
@@ -288,7 +314,7 @@ export function PatchSelector({
     ctx.font = '400 10px Inter, system-ui, sans-serif'
     ctx.fillText('Hover for details', legendX, legendY)
 
-  }, [dimensions, numLayers, hoveredLayer, patches, getLayerPatchTypes, disabled])
+  }, [dimensions, numLayers, hoveredLayer, patches, getLayerPatchInfo, disabled])
 
   // Handle mouse movement for hover detection
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -320,7 +346,7 @@ export function PatchSelector({
           y: layer.y,
           label: layer.label,
           patchCount: layerPatches.length,
-          activePatchTypes: getLayerPatchTypes(layer.layerIdx),
+          activePatches: getLayerPatchInfo(layer.layerIdx),
         }
         break
       }
@@ -332,7 +358,7 @@ export function PatchSelector({
     if (canvas) {
       canvas.style.cursor = foundLayer ? 'pointer' : 'default'
     }
-  }, [disabled, getLayerPatches, getLayerPatchTypes])
+  }, [disabled, getLayerPatches, getLayerPatchInfo])
 
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
@@ -403,19 +429,22 @@ export function PatchSelector({
             </div>
             {hoveredLayer.patchCount > 0 ? (
               <div className="tooltip-patches">
-                {hoveredLayer.activePatchTypes.map(type => (
-                  <span
-                    key={type}
-                    className="patch-badge"
-                    style={{
-                      backgroundColor: `rgba(${PATCH_TYPE_COLORS[type].primary}, 0.2)`,
-                      borderColor: `rgba(${PATCH_TYPE_COLORS[type].primary}, 0.5)`,
-                      color: `rgba(${PATCH_TYPE_COLORS[type].secondary}, 1)`,
-                    }}
-                  >
-                    {PATCH_TYPE_COLORS[type].label}
-                  </span>
-                ))}
+                {hoveredLayer.activePatches.map((patchInfo, idx) => {
+                  const colors = getPatchColors(patchInfo)
+                  return (
+                    <span
+                      key={`${patchInfo.patchType}-${patchInfo.interventionType}-${idx}`}
+                      className="patch-badge"
+                      style={{
+                        backgroundColor: `rgba(${colors.primary}, 0.2)`,
+                        borderColor: `rgba(${colors.primary}, 0.5)`,
+                        color: `rgba(${colors.secondary}, 1)`,
+                      }}
+                    >
+                      {colors.label}
+                    </span>
+                  )
+                })}
               </div>
             ) : (
               <div className="tooltip-hint">Click to add patch</div>

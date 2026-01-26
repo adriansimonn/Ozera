@@ -578,46 +578,109 @@ class TransformerLM(nn.Module):
         Args:
             tensor: Original activation tensor [batch, seq_len, d_model]
             patch_info: Dict with:
-                - source: Source tensor to patch in
+                - source: Source tensor to patch in (optional for ablation types)
                 - positions: Optional list of positions to patch
                 - blend_factor: Interpolation factor (1.0 = full replacement)
+                - intervention_type: 'patch', 'zero_ablate', 'mean_ablate', or 'noise_ablate'
 
         Returns:
             Patched tensor
         """
-        source = patch_info['source'].to(tensor.device)
+        intervention_type = patch_info.get('intervention_type', 'patch')
         positions = patch_info.get('positions')
         blend_factor = patch_info.get('blend_factor', 1.0)
 
-        # Ensure source matches batch size
-        if source.dim() == tensor.dim() and source.shape[0] != tensor.shape[0]:
-            source = source.expand(tensor.shape[0], -1, -1)
+        result = tensor.clone()
 
-        if positions is None:
-            # Patch all positions
-            min_seq = min(tensor.shape[1], source.shape[1])
-            if blend_factor == 1.0:
-                result = tensor.clone()
-                result[:, :min_seq] = source[:, :min_seq]
+        if intervention_type == 'zero_ablate':
+            # Zero ablation: set activations to zero
+            if positions is None:
+                if blend_factor == 1.0:
+                    result.zero_()
+                else:
+                    result = (1 - blend_factor) * tensor
             else:
-                result = tensor.clone()
-                result[:, :min_seq] = (
-                    (1 - blend_factor) * tensor[:, :min_seq] +
-                    blend_factor * source[:, :min_seq]
-                )
-        else:
-            result = tensor.clone()
-            for pos in positions:
-                if pos < tensor.shape[1] and pos < source.shape[1]:
-                    if blend_factor == 1.0:
-                        result[:, pos] = source[:, pos]
-                    else:
-                        result[:, pos] = (
-                            (1 - blend_factor) * tensor[:, pos] +
-                            blend_factor * source[:, pos]
-                        )
+                for pos in positions:
+                    if pos < tensor.shape[1]:
+                        if blend_factor == 1.0:
+                            result[:, pos] = 0.0
+                        else:
+                            result[:, pos] = (1 - blend_factor) * tensor[:, pos]
+            return result
 
-        return result
+        elif intervention_type == 'mean_ablate':
+            # Mean ablation: replace with mean activation across sequence
+            mean_activation = tensor.mean(dim=1, keepdim=True)  # [batch, 1, d_model]
+
+            if positions is None:
+                if blend_factor == 1.0:
+                    result = mean_activation.expand_as(tensor)
+                else:
+                    result = (1 - blend_factor) * tensor + blend_factor * mean_activation.expand_as(tensor)
+            else:
+                for pos in positions:
+                    if pos < tensor.shape[1]:
+                        if blend_factor == 1.0:
+                            result[:, pos] = mean_activation.squeeze(1)
+                        else:
+                            result[:, pos] = (1 - blend_factor) * tensor[:, pos] + blend_factor * mean_activation.squeeze(1)
+            return result
+
+        elif intervention_type == 'noise_ablate':
+            # Noise ablation: replace with Gaussian noise matching activation statistics
+            mean = tensor.mean()
+            std = tensor.std()
+            noise = torch.randn_like(tensor) * std + mean
+
+            if positions is None:
+                if blend_factor == 1.0:
+                    result = noise
+                else:
+                    result = (1 - blend_factor) * tensor + blend_factor * noise
+            else:
+                for pos in positions:
+                    if pos < tensor.shape[1]:
+                        if blend_factor == 1.0:
+                            result[:, pos] = noise[:, pos]
+                        else:
+                            result[:, pos] = (1 - blend_factor) * tensor[:, pos] + blend_factor * noise[:, pos]
+            return result
+
+        else:
+            # Standard patching: replace with source activations
+            source = patch_info.get('source')
+            if source is None:
+                # No source provided, return original tensor unchanged
+                return tensor
+
+            source = source.to(tensor.device)
+
+            # Ensure source matches batch size
+            if source.dim() == tensor.dim() and source.shape[0] != tensor.shape[0]:
+                source = source.expand(tensor.shape[0], -1, -1)
+
+            if positions is None:
+                # Patch all positions
+                min_seq = min(tensor.shape[1], source.shape[1])
+                if blend_factor == 1.0:
+                    result[:, :min_seq] = source[:, :min_seq]
+                else:
+                    result[:, :min_seq] = (
+                        (1 - blend_factor) * tensor[:, :min_seq] +
+                        blend_factor * source[:, :min_seq]
+                    )
+            else:
+                for pos in positions:
+                    if pos < tensor.shape[1] and pos < source.shape[1]:
+                        if blend_factor == 1.0:
+                            result[:, pos] = source[:, pos]
+                        else:
+                            result[:, pos] = (
+                                (1 - blend_factor) * tensor[:, pos] +
+                                blend_factor * source[:, pos]
+                            )
+
+            return result
 
     @torch.no_grad()
     def generate_with_patches(

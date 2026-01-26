@@ -73,12 +73,19 @@ def _get_open_source_loader(model_id: str) -> OpenSourceModelLoader:
 def _get_inference_worker(model_id: str):
     """Get the appropriate Modal inference worker for a model."""
     import modal
-    if model_id not in OPEN_SOURCE_MODELS:
-        raise ValueError(f"Unknown open-source model: {model_id}")
-    config = OPEN_SOURCE_MODELS[model_id]
-    gpu_tier = config.gpu_tier
-    worker_class = "InferenceWorkerT4" if gpu_tier == "t4" else "InferenceWorkerA10G"
-    return modal.Cls.from_name("ozera-inference", worker_class)
+
+    # Ozera base models use T4 GPU
+    if model_id in BASE_MODELS:
+        return modal.Cls.from_name("ozera-inference", "InferenceWorkerT4")
+
+    # Open-source models use tier specified in config
+    if model_id in OPEN_SOURCE_MODELS:
+        config = OPEN_SOURCE_MODELS[model_id]
+        gpu_tier = config.gpu_tier
+        worker_class = "InferenceWorkerT4" if gpu_tier == "t4" else "InferenceWorkerA10G"
+        return modal.Cls.from_name("ozera-inference", worker_class)
+
+    raise ValueError(f"Unknown model: {model_id}")
 
 
 def _get_ozera_generator(model_id: str):
@@ -141,19 +148,55 @@ async def capture_activations(request: CaptureActivationsRequest):
     Returns:
         Activation ID and metadata for the captured activations
     """
+    import torch
+    from core.patching import CapturedActivations
+
     model_type = _get_model_type(request.model)
     engine = get_patching_engine()
 
     try:
-        if model_type == "open_source":
-            loader = _get_open_source_loader(request.model)
-            captured = engine.capture_source_activations(
-                prompt=request.prompt,
-                model_loader=loader,
-                model_type="open_source",
+        # Open-source models and Ozera base models run on Modal GPU
+        if model_type == "open_source" or request.model in BASE_MODELS:
+            worker = _get_inference_worker(request.model)
+
+            # Capture activations on Modal
+            result = worker().capture_activations.remote(
                 model_id=request.model,
+                prompt=request.prompt,
+            )
+
+            # Reconstruct activations locally for caching
+            reconstructed_activations = {}
+            for key, value in result['activations'].items():
+                if isinstance(value, list):
+                    reconstructed_activations[key] = torch.tensor(value)
+                else:
+                    reconstructed_activations[key] = value
+
+            # Create and cache CapturedActivations object locally
+            captured = CapturedActivations(
+                id=result['id'],
+                prompt=result['prompt'],
+                tokens=result['tokens'],
+                decoded_tokens=result['decoded_tokens'],
+                activations=reconstructed_activations,
+                model_type=result['model_type'],
+                model_id=result['model_id'],
+                num_layers=result['num_layers'],
+            )
+            engine._captured_activations[captured.id] = captured
+
+            return CaptureActivationsResponse(
+                activation_id=captured.id,
+                prompt=captured.prompt,
+                model_type=captured.model_type,
+                model_id=captured.model_id,
+                num_tokens=len(captured.tokens),
+                num_layers=captured.num_layers,
+                decoded_tokens=captured.decoded_tokens,
             )
         else:
+            # Custom trained Ozera models run locally
             generator = _get_ozera_generator(request.model)
             tokenizer = _get_ozera_tokenizer()
             captured = engine.capture_source_activations(
@@ -164,15 +207,15 @@ async def capture_activations(request: CaptureActivationsRequest):
                 tokenizer=tokenizer,
             )
 
-        return CaptureActivationsResponse(
-            activation_id=captured.id,
-            prompt=captured.prompt,
-            model_type=captured.model_type,
-            model_id=captured.model_id,
-            num_tokens=len(captured.tokens),
-            num_layers=captured.num_layers,
-            decoded_tokens=captured.decoded_tokens,
-        )
+            return CaptureActivationsResponse(
+                activation_id=captured.id,
+                prompt=captured.prompt,
+                model_type=captured.model_type,
+                model_id=captured.model_id,
+                num_tokens=len(captured.tokens),
+                num_layers=captured.num_layers,
+                decoded_tokens=captured.decoded_tokens,
+            )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to capture activations: {str(e)}")
@@ -311,8 +354,8 @@ async def run_patching_experiment(
             )
 
     try:
-        # Open-source models run on Modal GPU workers
-        if model_type == "open_source":
+        # Open-source models and Ozera base models run on Modal GPU workers
+        if model_type == "open_source" or request.model in BASE_MODELS:
             worker = _get_inference_worker(request.model)
 
             # Convert patches to dict format for Modal
@@ -363,7 +406,7 @@ async def run_patching_experiment(
             return _convert_modal_result_to_response(result, request.patches)
 
         else:
-            # Ozera models run locally
+            # Custom trained Ozera models run locally (fallback)
             engine = get_patching_engine()
             generator = _get_ozera_generator(request.model)
             tokenizer = _get_ozera_tokenizer()
@@ -439,6 +482,8 @@ async def run_patching_with_captured(
     Returns:
         Baseline and patched outputs with comparison metrics
     """
+    import torch
+
     engine = get_patching_engine()
 
     # Verify activations exist
@@ -474,20 +519,69 @@ async def run_patching_with_captured(
             )
 
     try:
-        patches = [_patch_spec_to_config(p) for p in request.patches]
+        # Open-source models and Ozera base models run on Modal GPU
+        if model_type == "open_source" or request.model in BASE_MODELS:
+            worker = _get_inference_worker(request.model)
 
-        if model_type == "open_source":
-            loader = _get_open_source_loader(request.model)
-            result = engine.run_patched_generation(
+            # Serialize activations for transfer to Modal
+            serialized_activations = {
+                'id': captured.id,
+                'prompt': captured.prompt,
+                'tokens': captured.tokens,
+                'decoded_tokens': captured.decoded_tokens,
+                'model_type': captured.model_type,
+                'model_id': captured.model_id,
+                'num_layers': captured.num_layers,
+                'activations': {
+                    key: tensor.cpu().tolist() if isinstance(tensor, torch.Tensor) else tensor
+                    for key, tensor in captured.activations.items()
+                },
+            }
+
+            # Convert patches to dict format for Modal
+            patches_dicts = [
+                {
+                    "layer": p.layer,
+                    "patch_type": p.patch_type,
+                    "positions": p.positions,
+                    "heads": p.heads,
+                    "neurons": p.neurons,
+                    "blend_factor": p.blend_factor,
+                    "intervention_type": p.intervention_type,
+                }
+                for p in request.patches
+            ]
+
+            # Run patching on Modal with pre-captured activations
+            result = worker().run_patching_with_activations.remote(
+                model_id=request.model,
                 target_prompt=request.target_prompt,
-                source_activation_id=request.source_activation_id,
-                patches=patches,
-                model_loader=loader,
-                model_type="open_source",
-                max_new_tokens=request.max_tokens,
+                patches=patches_dicts,
+                source_activations=serialized_activations,
+                max_tokens=request.max_tokens,
                 temperature=request.temperature,
             )
+
+            # Charge user after successful experiment
+            if current_user:
+                try:
+                    charge_patching(
+                        db=db,
+                        user_id=current_user.id,
+                        source_tokens=len(captured.tokens),
+                        target_tokens=len(result.get('baseline_tokens', [])),
+                        generated_tokens=len(result.get('patched_tokens', [])) - len(result.get('baseline_tokens', [])),
+                        model_name=request.model,
+                        num_patches=len(request.patches),
+                    )
+                except Exception as charge_error:
+                    print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+
+            return _convert_modal_result_to_response(result, request.patches)
+
         else:
+            # Custom trained Ozera models run locally
+            patches = [_patch_spec_to_config(p) for p in request.patches]
             generator = _get_ozera_generator(request.model)
             tokenizer = _get_ozera_tokenizer()
             result = engine.run_patched_generation(
@@ -501,22 +595,22 @@ async def run_patching_with_captured(
                 temperature=request.temperature,
             )
 
-        # Charge user after successful experiment
-        if current_user:
-            try:
-                charge_patching(
-                    db=db,
-                    user_id=current_user.id,
-                    source_tokens=len(captured.tokens),
-                    target_tokens=len(result.baseline_tokens),
-                    generated_tokens=len(result.patched_tokens) - len(result.baseline_tokens),
-                    model_name=request.model,
-                    num_patches=len(request.patches),
-                )
-            except Exception as charge_error:
-                print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+            # Charge user after successful experiment
+            if current_user:
+                try:
+                    charge_patching(
+                        db=db,
+                        user_id=current_user.id,
+                        source_tokens=len(captured.tokens),
+                        target_tokens=len(result.baseline_tokens),
+                        generated_tokens=len(result.patched_tokens) - len(result.baseline_tokens),
+                        model_name=request.model,
+                        num_patches=len(request.patches),
+                    )
+                except Exception as charge_error:
+                    print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
 
-        return _convert_result_to_response(result, request.patches)
+            return _convert_result_to_response(result, request.patches)
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -628,6 +722,13 @@ async def list_available_models():
     return models
 
 
+# Base model configurations (avoid loading model just for config)
+BASE_MODEL_CONFIGS = {
+    "nano": {"num_layers": 6, "num_heads": 6},
+    "mini": {"num_layers": 8, "num_heads": 8},
+}
+
+
 @router.get("/models/{model_id}/layers")
 async def get_model_layers(model_id: str):
     """
@@ -643,8 +744,13 @@ async def get_model_layers(model_id: str):
         config = OPEN_SOURCE_MODELS[model_id]
         num_layers = config.num_layers
         num_heads = config.num_heads
+    elif model_id in BASE_MODEL_CONFIGS:
+        # Use hardcoded config for base models (avoid loading model on CPU)
+        config = BASE_MODEL_CONFIGS[model_id]
+        num_layers = config["num_layers"]
+        num_heads = config["num_heads"]
     else:
-        # Ozera models
+        # Custom trained Ozera models - need to load to get config
         try:
             from inference.model_loader import ModelLoader
             backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

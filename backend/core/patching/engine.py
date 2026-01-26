@@ -97,7 +97,7 @@ class PatchingResult:
     patched_tokens: list[int]
     baseline_decoded: list[str]
     patched_decoded: list[str]
-    source_activation_id: str
+    source_activation_id: Optional[str]  # None for ablation-only experiments
     patches_applied: list[PatchConfig]
     effect_summary: dict = field(default_factory=dict)
 
@@ -166,10 +166,14 @@ class PatchingEngine:
             prompt_ids = tokenizer.encode(prompt)
             input_ids = torch.tensor([prompt_ids], dtype=torch.long)
 
+            # Move input_ids to the model's device
             if hasattr(model_loader, 'device'):
                 input_ids = input_ids.to(model_loader.device)
             elif hasattr(model_loader, 'model') and hasattr(model_loader.model, 'token_embedding'):
                 input_ids = input_ids.to(next(model_loader.model.parameters()).device)
+            else:
+                # model_loader is the model itself (e.g., raw TransformerLM)
+                input_ids = input_ids.to(next(model_loader.parameters()).device)
 
             # Get the model
             if hasattr(model_loader, 'model'):
@@ -292,30 +296,33 @@ class PatchingEngine:
             baseline_tokens = baseline_result['tokens']
             baseline_decoded = [model_loader.tokenizer.decode([t]) for t in baseline_tokens]
         else:
-            # Ozera model
-            if hasattr(model_loader, 'generate'):
-                baseline_result = model_loader.generate(
-                    prompt=target_prompt,
-                    max_tokens=max_new_tokens,
-                    temperature=temperature,
-                    return_metadata=True,
-                )
-                baseline_output = baseline_result['text']
-                prompt_ids = tokenizer.encode(target_prompt)
-                input_ids = torch.tensor([prompt_ids])
-                if hasattr(model_loader, 'device'):
-                    input_ids = input_ids.to(model_loader.device)
-                model = model_loader.model if hasattr(model_loader, 'model') else model_loader
-                with torch.no_grad():
-                    gen_ids, _ = model.generate(
-                        input_ids,
-                        max_new_tokens=max_new_tokens,
-                        temperature=temperature,
-                    )
-                baseline_tokens = gen_ids[0].cpu().tolist()
-                baseline_decoded = [tokenizer.decode([t]) for t in baseline_tokens]
+            # Ozera model - handle both TextGenerator wrapper and raw TransformerLM
+            if tokenizer is None:
+                raise ValueError("Tokenizer required for Ozera models")
+
+            # Check if this is a TextGenerator wrapper (has .model attribute) or raw TransformerLM
+            if hasattr(model_loader, 'model'):
+                # TextGenerator wrapper
+                model = model_loader.model
+                device = model_loader.device if hasattr(model_loader, 'device') else 'cpu'
             else:
-                raise ValueError("Model loader must have generate method")
+                # Raw TransformerLM model
+                model = model_loader
+                device = next(model.parameters()).device
+
+            # Tokenize and generate baseline
+            prompt_ids = tokenizer.encode(target_prompt)
+            input_ids = torch.tensor([prompt_ids], dtype=torch.long).to(device)
+
+            with torch.no_grad():
+                gen_ids, _ = model.generate(
+                    input_ids,
+                    max_new_tokens=max_new_tokens,
+                    temperature=temperature,
+                )
+            baseline_tokens = gen_ids[0].cpu().tolist()
+            baseline_output = tokenizer.decode(baseline_tokens)
+            baseline_decoded = [tokenizer.decode([t]) for t in baseline_tokens]
 
         # Generate with patches
         patched_output, patched_tokens, patched_decoded = self._generate_with_patches(

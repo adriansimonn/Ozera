@@ -363,7 +363,7 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
               ) : (
                 <>
                   <Play className="btn-icon" />
-                  Run Patching Experiment
+                  Run Experiment
                 </>
               )}
             </button>
@@ -720,9 +720,9 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
           justify-content: center;
           gap: 0.75rem;
           padding: 1rem 1.5rem;
-          background: rgba(59, 130, 246, 0.8);
-          border: 1px solid rgba(59, 130, 246, 0.3);
-          color: #ffffff;
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.25);
+          color: rgba(255, 255, 255, 0.95);
           font-size: 0.95rem;
           font-weight: 600;
           cursor: pointer;
@@ -731,8 +731,8 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
         }
 
         .run-experiment-btn:hover:not(:disabled) {
-          background: rgba(59, 130, 246, 1);
-          box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+          background: rgba(255, 255, 255, 0.15);
+          border-color: rgba(255, 255, 255, 0.4);
         }
 
         .run-experiment-btn:disabled {

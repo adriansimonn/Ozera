@@ -108,7 +108,10 @@ class PatchingResult(BaseModel):
     patched_tokens: list[int]
     baseline_decoded: list[str]
     patched_decoded: list[str]
-    source_activation_id: str
+    source_activation_id: Optional[str] = Field(
+        default=None,
+        description="ID of source activations used (None for ablation-only experiments)"
+    )
     patches_applied: list[PatchSpec]
     effect_summary: EffectSummary
 

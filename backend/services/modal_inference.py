@@ -803,6 +803,171 @@ class InferenceWorkerT4:
             "effect_summary": result.effect_summary,
         }
 
+    @modal.method()
+    def capture_activations(
+        self,
+        model_id: str,
+        prompt: str,
+    ) -> dict:
+        """
+        Capture activations from a forward pass.
+
+        Args:
+            model_id: Model ID (Ozera or open-source)
+            prompt: Prompt to capture activations from
+
+        Returns:
+            Dict with activation metadata and serialized activations
+        """
+        import torch
+        from core.patching import get_patching_engine
+
+        engine = get_patching_engine()
+
+        if self._is_open_source_model(model_id):
+            loader = self._get_open_source_loader(model_id)
+            captured = engine.capture_source_activations(
+                prompt=prompt,
+                model_loader=loader,
+                model_type="open_source",
+                model_id=model_id,
+            )
+        else:
+            # Ozera model
+            model, config = self._get_model(model_id)
+            captured = engine.capture_source_activations(
+                prompt=prompt,
+                model_loader=model,
+                model_type="ozera",
+                model_id=model_id,
+                tokenizer=self._tokenizer,
+            )
+
+        # Serialize activations for transfer
+        serialized_activations = {}
+        for key, tensor in captured.activations.items():
+            if isinstance(tensor, torch.Tensor):
+                serialized_activations[key] = tensor.cpu().tolist()
+            else:
+                serialized_activations[key] = tensor
+
+        return {
+            "id": captured.id,
+            "prompt": captured.prompt,
+            "tokens": captured.tokens,
+            "decoded_tokens": captured.decoded_tokens,
+            "model_type": captured.model_type,
+            "model_id": captured.model_id,
+            "num_layers": captured.num_layers,
+            "activations": serialized_activations,
+        }
+
+    @modal.method()
+    def run_patching_with_activations(
+        self,
+        model_id: str,
+        target_prompt: str,
+        patches: list[dict],
+        source_activations: dict,
+        max_tokens: int = 50,
+        temperature: float = 0.0,
+    ) -> dict:
+        """
+        Run patching experiment using provided source activations.
+
+        Args:
+            model_id: Model ID (Ozera or open-source)
+            target_prompt: Prompt to run generation on
+            patches: List of patch configurations
+            source_activations: Pre-captured source activations (serialized)
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature
+
+        Returns:
+            Dict with baseline and patched outputs
+        """
+        import torch
+        from core.patching import get_patching_engine, PatchConfig, CapturedActivations
+
+        engine = get_patching_engine()
+
+        # Reconstruct activations from serialized data
+        reconstructed_activations = {}
+        for key, value in source_activations['activations'].items():
+            if isinstance(value, list):
+                reconstructed_activations[key] = torch.tensor(value)
+            else:
+                reconstructed_activations[key] = value
+
+        # Create CapturedActivations object and register it
+        captured = CapturedActivations(
+            id=source_activations['id'],
+            prompt=source_activations['prompt'],
+            tokens=source_activations['tokens'],
+            decoded_tokens=source_activations['decoded_tokens'],
+            activations=reconstructed_activations,
+            model_type=source_activations['model_type'],
+            model_id=source_activations['model_id'],
+            num_layers=source_activations['num_layers'],
+        )
+
+        # Register in engine's cache
+        engine._captured_activations[captured.id] = captured
+
+        # Convert patch dicts to PatchConfig objects
+        patch_configs = [
+            PatchConfig(
+                layer=p['layer'],
+                patch_type=p['patch_type'],
+                positions=p.get('positions'),
+                heads=p.get('heads'),
+                neurons=p.get('neurons'),
+                blend_factor=p.get('blend_factor', 1.0),
+                intervention_type=p.get('intervention_type', 'patch'),
+            )
+            for p in patches
+        ]
+
+        if self._is_open_source_model(model_id):
+            loader = self._get_open_source_loader(model_id)
+            result = engine.run_patched_generation(
+                target_prompt=target_prompt,
+                source_activation_id=captured.id,
+                patches=patch_configs,
+                model_loader=loader,
+                model_type="open_source",
+                max_new_tokens=max_tokens,
+                temperature=temperature,
+            )
+        else:
+            # Ozera model
+            model, config = self._get_model(model_id)
+            result = engine.run_patched_generation(
+                target_prompt=target_prompt,
+                source_activation_id=captured.id,
+                patches=patch_configs,
+                model_loader=model,
+                model_type="ozera",
+                tokenizer=self._tokenizer,
+                max_new_tokens=max_tokens,
+                temperature=temperature,
+            )
+
+        # Clean up cached activations
+        engine.delete_captured_activations(captured.id)
+
+        return {
+            "baseline_output": result.baseline_output,
+            "patched_output": result.patched_output,
+            "baseline_tokens": result.baseline_tokens,
+            "patched_tokens": result.patched_tokens,
+            "baseline_decoded": result.baseline_decoded,
+            "patched_decoded": result.patched_decoded,
+            "source_activation_id": result.source_activation_id if result.source_activation_id else "",
+            "patches_applied": [p.to_dict() for p in result.patches_applied],
+            "effect_summary": result.effect_summary,
+        }
+
 
 @app.cls(
     image=inference_image,

@@ -181,7 +181,7 @@ export function PatchConfigPanel({
           disabled={disabled}
         >
           <Plus className="btn-icon" />
-          Add Patch
+          Add Intervention
         </button>
       </div>
 
@@ -342,9 +342,9 @@ export function PatchConfigPanel({
           justify-content: center;
           gap: 0.5rem;
           padding: 0.75rem 1rem;
-          background: rgba(59, 130, 246, 0.2);
-          border: 1px solid rgba(59, 130, 246, 0.3);
-          color: rgba(59, 130, 246, 1);
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          color: rgba(255, 255, 255, 0.9);
           font-size: 0.875rem;
           font-weight: 500;
           cursor: pointer;
@@ -352,8 +352,8 @@ export function PatchConfigPanel({
         }
 
         .add-patch-btn:hover:not(:disabled) {
-          background: rgba(59, 130, 246, 0.3);
-          border-color: rgba(59, 130, 246, 0.5);
+          background: rgba(255, 255, 255, 0.12);
+          border-color: rgba(255, 255, 255, 0.35);
         }
 
         .add-patch-btn:disabled {
