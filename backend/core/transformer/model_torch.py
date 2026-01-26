@@ -343,31 +343,37 @@ class TransformerLM(nn.Module):
             logits, attn_weights, _ = self.forward(idx_cond, return_attention, capture_activations=False)
 
             # Get logits for last position
-            logits = logits[:, -1, :] / temperature
+            logits = logits[:, -1, :]
 
-            # Apply top-k filtering
-            if top_k is not None:
-                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                logits[logits < v[:, [-1]]] = float('-inf')
+            # Handle temperature=0 as greedy decoding
+            if temperature == 0.0 or temperature < 1e-6:
+                next_token = torch.argmax(logits, dim=-1, keepdim=True)
+            else:
+                logits = logits / temperature
 
-            # Apply top-p (nucleus) filtering
-            if top_p is not None:
-                sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-                cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+                # Apply top-k filtering
+                if top_k is not None:
+                    v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                    logits[logits < v[:, [-1]]] = float('-inf')
 
-                # Remove tokens with cumulative probability above threshold
-                sorted_indices_to_remove = cumulative_probs > top_p
-                # Shift right to keep first token above threshold
-                sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[:, :-1].clone()
-                sorted_indices_to_remove[:, 0] = False
+                # Apply top-p (nucleus) filtering
+                if top_p is not None:
+                    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+                    cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
 
-                # Scatter back to original indexing
-                indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
-                logits[indices_to_remove] = float('-inf')
+                    # Remove tokens with cumulative probability above threshold
+                    sorted_indices_to_remove = cumulative_probs > top_p
+                    # Shift right to keep first token above threshold
+                    sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[:, :-1].clone()
+                    sorted_indices_to_remove[:, 0] = False
 
-            # Sample from distribution
-            probs = F.softmax(logits, dim=-1)
-            next_token = torch.multinomial(probs, num_samples=1)
+                    # Scatter back to original indexing
+                    indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+                    logits[indices_to_remove] = float('-inf')
+
+                # Sample from distribution
+                probs = F.softmax(logits, dim=-1)
+                next_token = torch.multinomial(probs, num_samples=1)
 
             # Append to sequence
             input_ids = torch.cat([input_ids, next_token], dim=1)
@@ -652,6 +658,16 @@ class TransformerLM(nn.Module):
             # Get logits for last position
             logits = logits[:, -1, :]
 
+            # Check for NaN/inf in logits (can happen with incompatible patches)
+            if torch.isnan(logits).any() or torch.isinf(logits).all():
+                # Fall back to uniform sampling if logits are completely invalid
+                next_token = torch.randint(0, self.config.vocab_size, (logits.shape[0], 1), device=logits.device)
+                input_ids = torch.cat([input_ids, next_token], dim=1)
+                continue
+
+            # Clamp logits for numerical stability
+            logits = torch.clamp(logits, min=-100, max=100)
+
             if temperature == 0.0:
                 next_token = torch.argmax(logits, dim=-1, keepdim=True)
             else:
@@ -672,8 +688,17 @@ class TransformerLM(nn.Module):
                     indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
                     logits[indices_to_remove] = float('-inf')
 
-                probs = F.softmax(logits, dim=-1)
-                next_token = torch.multinomial(probs, num_samples=1)
+                # Check if all logits are -inf (can happen with aggressive filtering)
+                if torch.isinf(logits).all():
+                    # Fall back to argmax on original (unclamped) logits
+                    next_token = torch.argmax(logits, dim=-1, keepdim=True)
+                else:
+                    probs = F.softmax(logits, dim=-1)
+                    # Handle NaN in probs (can happen if logits are extreme)
+                    if torch.isnan(probs).any():
+                        next_token = torch.argmax(logits, dim=-1, keepdim=True)
+                    else:
+                        next_token = torch.multinomial(probs, num_samples=1)
 
             input_ids = torch.cat([input_ids, next_token], dim=1)
 

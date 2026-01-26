@@ -518,7 +518,7 @@ class PatchingEngine:
 
         model.eval()
 
-        # Set up patches in model
+        # Set up patches in model's expected format
         patch_dict = {}
         for patch in patches:
             key_map = {
@@ -534,35 +534,92 @@ class PatchingEngine:
             full_key = f"layer_{patch.layer}_{activation_key}"
 
             source_activation = source.activations.get(full_key)
-            if source_activation is not None:
-                patch_dict[full_key] = {
-                    'source': source_activation.to(device),
-                    'positions': patch.positions,
-                    'heads': patch.heads,
-                    'neurons': patch.neurons,
-                    'blend_factor': patch.blend_factor,
-                }
+            if source_activation is None:
+                available_keys = [k for k in source.activations.keys() if f"layer_{patch.layer}" in k]
+                raise ValueError(
+                    f"Cannot find activation for patch type '{patch.patch_type}' at layer {patch.layer}. "
+                    f"Tried key '{full_key}'. Available keys for layer {patch.layer}: {available_keys}"
+                )
 
-        # Generate tokens with patching
+            # Check for NaN/inf in source activation
+            if torch.isnan(source_activation).any() or torch.isinf(source_activation).any():
+                raise ValueError(
+                    f"Source activation for '{full_key}' contains NaN/inf values. "
+                    "The model may have produced unstable activations during capture."
+                )
+
+            patch_dict[full_key] = {
+                'source': source_activation.to(device),
+                'positions': patch.positions,
+                'blend_factor': patch.blend_factor,
+            }
+
+        # Use the model's built-in generate_with_patches method if available
+        if hasattr(model, 'generate_with_patches'):
+            with torch.no_grad():
+                generated_ids, _ = model.generate_with_patches(
+                    input_ids=input_ids,
+                    patches=patch_dict,
+                    max_new_tokens=max_new_tokens,
+                    temperature=temperature,
+                )
+            tokens = generated_ids[0].cpu().tolist()
+            output = tokenizer.decode(tokens)
+            decoded = [tokenizer.decode([t]) for t in tokens]
+            return output, tokens, decoded
+
+        # Fallback to manual implementation if model doesn't have the method
         with torch.no_grad():
             for _ in range(max_new_tokens):
                 # Truncate if needed
                 idx_cond = input_ids if input_ids.size(1) <= model.config.max_seq_len else input_ids[:, -model.config.max_seq_len:]
 
-                # Forward pass with patching
-                logits, _, _ = self._forward_with_patches_ozera(
-                    model, idx_cond, patch_dict
-                )
+                # Forward pass with patching using model's method
+                if hasattr(model, 'forward_with_patches'):
+                    logits, _, _ = model.forward_with_patches(
+                        idx_cond, patch_dict, return_attention=False, capture_activations=False
+                    )
+                else:
+                    logits, _, _ = self._forward_with_patches_ozera(
+                        model, idx_cond, patch_dict
+                    )
 
                 # Get logits for last position
                 logits = logits[:, -1, :]
+
+                # Check for NaN/inf in logits (can happen with incompatible patches)
+                has_nan = torch.isnan(logits).any()
+                all_inf = torch.isinf(logits).all()
+
+                if has_nan or all_inf:
+                    # Try to recover: if any valid values, use those; otherwise sample random
+                    valid_mask = ~(torch.isnan(logits) | torch.isinf(logits))
+                    if valid_mask.any():
+                        # Replace invalid values with very negative number
+                        logits = torch.where(valid_mask, logits, torch.tensor(-1e10, device=logits.device))
+                    else:
+                        # Fall back to random sampling if completely invalid
+                        next_token = torch.randint(0, tokenizer.vocab_size, (logits.shape[0], 1), device=logits.device)
+                        input_ids = torch.cat([input_ids, next_token], dim=1)
+                        continue
+
+                # Clamp logits for numerical stability
+                logits = torch.clamp(logits, min=-100, max=100)
 
                 if temperature == 0.0:
                     next_token = torch.argmax(logits, dim=-1, keepdim=True)
                 else:
                     logits = logits / temperature
                     probs = F.softmax(logits, dim=-1)
-                    next_token = torch.multinomial(probs, num_samples=1)
+
+                    # Final safety check for multinomial
+                    if torch.isnan(probs).any() or (probs <= 0).all():
+                        next_token = torch.argmax(logits, dim=-1, keepdim=True)
+                    else:
+                        # Ensure probabilities are valid (positive and sum to 1)
+                        probs = torch.clamp(probs, min=1e-10)
+                        probs = probs / probs.sum(dim=-1, keepdim=True)
+                        next_token = torch.multinomial(probs, num_samples=1)
 
                 # Clamp and append
                 next_token = torch.clamp(next_token, 0, tokenizer.vocab_size - 1)
@@ -667,9 +724,18 @@ class PatchingEngine:
         positions = patch_info.get('positions')
         blend_factor = patch_info.get('blend_factor', 1.0)
 
+        # Ensure source is on the same device
+        source = source.to(tensor.device)
+
         # Ensure source matches batch size
         if source.shape[0] != tensor.shape[0]:
             source = source.expand(tensor.shape[0], -1, -1)
+
+        # Check for NaN/inf in source (shouldn't happen, but be safe)
+        if torch.isnan(source).any() or torch.isinf(source).any():
+            # Replace invalid values with corresponding tensor values
+            valid_mask = ~(torch.isnan(source) | torch.isinf(source))
+            source = torch.where(valid_mask, source, tensor[:, :source.shape[1], :] if tensor.shape[1] >= source.shape[1] else torch.zeros_like(source))
 
         if positions is None:
             # Patch all positions

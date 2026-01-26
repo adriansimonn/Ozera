@@ -695,6 +695,106 @@ class InferenceWorkerT4:
             print(f"Warmup failed for {model_id}: {e}")
             return False
 
+    @modal.method()
+    def run_patching_experiment(
+        self,
+        model_id: str,
+        source_prompt: str,
+        target_prompt: str,
+        patches: list[dict],
+        max_tokens: int = 50,
+        temperature: float = 0.0,
+    ) -> dict:
+        """
+        Run a patching experiment (capture source activations, run baseline, run patched).
+
+        Args:
+            model_id: Model ID (Ozera or open-source)
+            source_prompt: Prompt to capture source activations from
+            target_prompt: Prompt to run generation on
+            patches: List of patch configurations (layer, patch_type, positions, etc.)
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature (0 = deterministic)
+
+        Returns:
+            Dict with baseline and patched outputs
+        """
+        from core.patching import get_patching_engine, PatchConfig
+
+        engine = get_patching_engine()
+
+        # Convert patch dicts to PatchConfig objects
+        patch_configs = [
+            PatchConfig(
+                layer=p['layer'],
+                patch_type=p['patch_type'],
+                positions=p.get('positions'),
+                heads=p.get('heads'),
+                neurons=p.get('neurons'),
+                blend_factor=p.get('blend_factor', 1.0),
+            )
+            for p in patches
+        ]
+
+        if self._is_open_source_model(model_id):
+            loader = self._get_open_source_loader(model_id)
+
+            # Capture source activations
+            captured = engine.capture_source_activations(
+                prompt=source_prompt,
+                model_loader=loader,
+                model_type="open_source",
+                model_id=model_id,
+            )
+
+            # Run patched generation
+            result = engine.run_patched_generation(
+                target_prompt=target_prompt,
+                source_activation_id=captured.id,
+                patches=patch_configs,
+                model_loader=loader,
+                model_type="open_source",
+                max_new_tokens=max_tokens,
+                temperature=temperature,
+            )
+        else:
+            # Ozera model
+            model, config = self._get_model(model_id)
+
+            # Capture source activations
+            captured = engine.capture_source_activations(
+                prompt=source_prompt,
+                model_loader=model,
+                model_type="ozera",
+                model_id=model_id,
+                tokenizer=self._tokenizer,
+            )
+
+            # Run patched generation
+            result = engine.run_patched_generation(
+                target_prompt=target_prompt,
+                source_activation_id=captured.id,
+                patches=patch_configs,
+                model_loader=model,
+                model_type="ozera",
+                tokenizer=self._tokenizer,
+                max_new_tokens=max_tokens,
+                temperature=temperature,
+            )
+
+        # Convert to serializable format
+        return {
+            "baseline_output": result.baseline_output,
+            "patched_output": result.patched_output,
+            "baseline_tokens": result.baseline_tokens,
+            "patched_tokens": result.patched_tokens,
+            "baseline_decoded": result.baseline_decoded,
+            "patched_decoded": result.patched_decoded,
+            "source_activation_id": result.source_activation_id,
+            "patches_applied": [p.to_dict() for p in result.patches_applied],
+            "effect_summary": result.effect_summary,
+        }
+
 
 @app.cls(
     image=inference_image,
@@ -1039,6 +1139,67 @@ class InferenceWorkerA10G:
         except Exception as e:
             print(f"Warmup failed for {model_id}: {e}")
             return False
+
+    @modal.method()
+    def run_patching_experiment(
+        self,
+        model_id: str,
+        source_prompt: str,
+        target_prompt: str,
+        patches: list[dict],
+        max_tokens: int = 50,
+        temperature: float = 0.0,
+    ) -> dict:
+        """Run a patching experiment (A10G worker version)."""
+        from core.patching import get_patching_engine, PatchConfig
+
+        engine = get_patching_engine()
+
+        patch_configs = [
+            PatchConfig(
+                layer=p['layer'],
+                patch_type=p['patch_type'],
+                positions=p.get('positions'),
+                heads=p.get('heads'),
+                neurons=p.get('neurons'),
+                blend_factor=p.get('blend_factor', 1.0),
+            )
+            for p in patches
+        ]
+
+        if self._is_open_source_model(model_id):
+            loader = self._get_open_source_loader(model_id)
+
+            captured = engine.capture_source_activations(
+                prompt=source_prompt,
+                model_loader=loader,
+                model_type="open_source",
+                model_id=model_id,
+            )
+
+            result = engine.run_patched_generation(
+                target_prompt=target_prompt,
+                source_activation_id=captured.id,
+                patches=patch_configs,
+                model_loader=loader,
+                model_type="open_source",
+                max_new_tokens=max_tokens,
+                temperature=temperature,
+            )
+        else:
+            raise ValueError(f"Patching not implemented for Ozera models on A10G: {model_id}")
+
+        return {
+            "baseline_output": result.baseline_output,
+            "patched_output": result.patched_output,
+            "baseline_tokens": result.baseline_tokens,
+            "patched_tokens": result.patched_tokens,
+            "baseline_decoded": result.baseline_decoded,
+            "patched_decoded": result.patched_decoded,
+            "source_activation_id": result.source_activation_id,
+            "patches_applied": [p.to_dict() for p in result.patches_applied],
+            "effect_summary": result.effect_summary,
+        }
 
     @modal.method()
     def list_models(self) -> list:

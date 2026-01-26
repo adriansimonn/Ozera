@@ -14,7 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from core.open_source import OPEN_SOURCE_MODELS, OpenSourceModelLoader
+from core.open_source import OPEN_SOURCE_MODELS, OpenSourceModelLoader, get_loader_for_model
 from core.patching import get_patching_engine, PatchConfig
 from api.schemas.patching import (
     CaptureActivationsRequest,
@@ -54,9 +54,22 @@ def _get_open_source_loader(model_id: str) -> OpenSourceModelLoader:
     if cache_key not in _model_loaders:
         if model_id not in OPEN_SOURCE_MODELS:
             raise ValueError(f"Unknown open-source model: {model_id}")
-        config = OPEN_SOURCE_MODELS[model_id]
-        _model_loaders[cache_key] = OpenSourceModelLoader(config)
+        loader = get_loader_for_model(model_id)
+        # Load the model (models are loaded from Modal inference server)
+        # For now, we'll initialize but the actual load happens on first use
+        _model_loaders[cache_key] = loader
     return _model_loaders[cache_key]
+
+
+def _get_inference_worker(model_id: str):
+    """Get the appropriate Modal inference worker for a model."""
+    import modal
+    if model_id not in OPEN_SOURCE_MODELS:
+        raise ValueError(f"Unknown open-source model: {model_id}")
+    config = OPEN_SOURCE_MODELS[model_id]
+    gpu_tier = config.gpu_tier
+    worker_class = "InferenceWorkerT4" if gpu_tier == "t4" else "InferenceWorkerA10G"
+    return modal.Cls.from_name("ozera-inference", worker_class)
 
 
 def _get_ozera_generator(model_id: str):
@@ -252,33 +265,41 @@ async def run_patching_experiment(request: RunPatchingRequest):
         Baseline and patched outputs with comparison metrics
     """
     model_type = _get_model_type(request.model)
-    engine = get_patching_engine()
 
     try:
-        # First capture source activations
+        # Open-source models run on Modal GPU workers
         if model_type == "open_source":
-            loader = _get_open_source_loader(request.model)
-            captured = engine.capture_source_activations(
-                prompt=request.source_prompt,
-                model_loader=loader,
-                model_type="open_source",
+            worker = _get_inference_worker(request.model)
+
+            # Convert patches to dict format for Modal
+            patches_dicts = [
+                {
+                    "layer": p.layer,
+                    "patch_type": p.patch_type,
+                    "positions": p.positions,
+                    "heads": p.heads,
+                    "neurons": p.neurons,
+                    "blend_factor": p.blend_factor,
+                }
+                for p in request.patches
+            ]
+
+            # Run patching on Modal
+            result = worker().run_patching_experiment.remote(
                 model_id=request.model,
-            )
-
-            # Convert patch specs to configs
-            patches = [_patch_spec_to_config(p) for p in request.patches]
-
-            # Run patched generation
-            result = engine.run_patched_generation(
+                source_prompt=request.source_prompt,
                 target_prompt=request.target_prompt,
-                source_activation_id=captured.id,
-                patches=patches,
-                model_loader=loader,
-                model_type="open_source",
-                max_new_tokens=request.max_tokens,
+                patches=patches_dicts,
+                max_tokens=request.max_tokens,
                 temperature=request.temperature,
             )
+
+            # Convert Modal result to response
+            return _convert_modal_result_to_response(result, request.patches)
+
         else:
+            # Ozera models run locally
+            engine = get_patching_engine()
             generator = _get_ozera_generator(request.model)
             tokenizer = _get_ozera_tokenizer()
 
@@ -303,8 +324,8 @@ async def run_patching_experiment(request: RunPatchingRequest):
                 temperature=request.temperature,
             )
 
-        # Convert result to response
-        return _convert_result_to_response(result, request.patches)
+            # Convert result to response
+            return _convert_result_to_response(result, request.patches)
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -409,6 +430,40 @@ def _convert_result_to_response(result, patches: list[PatchSpec]) -> PatchingRes
         baseline_decoded=result.baseline_decoded,
         patched_decoded=result.patched_decoded,
         source_activation_id=result.source_activation_id,
+        patches_applied=patches,
+        effect_summary=effect_summary,
+    )
+
+
+def _convert_modal_result_to_response(result: dict, patches: list[PatchSpec]) -> PatchingResult:
+    """Convert Modal worker result dict to API response."""
+    # Convert changed tokens
+    effect_summary_data = result.get('effect_summary', {})
+    changed_tokens = [
+        ChangedToken(
+            position=ct['position'],
+            baseline_token=ct['baseline_token'],
+            patched_token=ct['patched_token'],
+        )
+        for ct in effect_summary_data.get('changed_tokens', [])
+    ]
+
+    effect_summary = EffectSummary(
+        first_divergence_position=effect_summary_data.get('first_divergence_position'),
+        token_changes=effect_summary_data.get('token_changes', 0),
+        changed_tokens=changed_tokens,
+        baseline_length=effect_summary_data.get('baseline_length', len(result.get('baseline_tokens', []))),
+        patched_length=effect_summary_data.get('patched_length', len(result.get('patched_tokens', []))),
+    )
+
+    return PatchingResult(
+        baseline_output=result['baseline_output'],
+        patched_output=result['patched_output'],
+        baseline_tokens=result['baseline_tokens'],
+        patched_tokens=result['patched_tokens'],
+        baseline_decoded=result['baseline_decoded'],
+        patched_decoded=result['patched_decoded'],
+        source_activation_id=result['source_activation_id'],
         patches_applied=patches,
         effect_summary=effect_summary,
     )

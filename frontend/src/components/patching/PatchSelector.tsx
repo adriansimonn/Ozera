@@ -330,7 +330,7 @@ export function PatchSelector({
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
     setHoveredLayer(null)
-    setShowPatchMenu(null)
+    // Don't dismiss the patch menu on mouse leave - let the backdrop handle closing it
   }, [])
 
   // Handle click to show patch menu
