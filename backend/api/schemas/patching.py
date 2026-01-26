@@ -26,6 +26,10 @@ class PatchSpec(BaseModel):
     blend_factor: float = Field(
         default=1.0, ge=0.0, le=1.0, description="Blend factor (0 = original, 1 = full replacement)"
     )
+    intervention_type: Literal['patch', 'zero_ablate', 'mean_ablate', 'noise_ablate'] = Field(
+        default='patch',
+        description="Type of intervention: 'patch' (replace with source activations), 'zero_ablate' (zero out), 'mean_ablate' (replace with mean), 'noise_ablate' (replace with noise)"
+    )
 
 
 # Request schemas
@@ -38,7 +42,10 @@ class CaptureActivationsRequest(BaseModel):
 
 class RunPatchingRequest(BaseModel):
     """Request to run a patching experiment."""
-    source_prompt: str = Field(..., min_length=1, description="Source prompt (activations to copy from)")
+    source_prompt: Optional[str] = Field(
+        default=None,
+        description="Source prompt (activations to copy from). Required for 'patch' intervention type, optional for ablation types."
+    )
     target_prompt: str = Field(..., min_length=1, description="Target prompt (to run generation on)")
     model: str = Field(..., description="Model ID")
     patches: list[PatchSpec] = Field(..., min_length=1, description="List of patches to apply")

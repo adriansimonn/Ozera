@@ -6,12 +6,21 @@
 import { GitCompare, AlertCircle, CheckCircle2 } from 'lucide-react'
 import type { EffectSummary } from '../../types/patching'
 
+type InterventionMode = 'patch' | 'ablation' | 'mixed'
+
 interface PromptComparerProps {
   baselineOutput: string
   patchedOutput: string
   baselineDecoded: string[]
   patchedDecoded: string[]
   effectSummary: EffectSummary
+  interventionMode?: InterventionMode
+}
+
+const OUTPUT_LABELS: Record<InterventionMode, string> = {
+  patch: 'Patched Output',
+  ablation: 'Ablated Output',
+  mixed: 'Intervened Output',
 }
 
 export function PromptComparer({
@@ -20,6 +29,7 @@ export function PromptComparer({
   baselineDecoded,
   patchedDecoded,
   effectSummary,
+  interventionMode = 'patch',
 }: PromptComparerProps) {
   const { first_divergence_position, token_changes, changed_tokens, baseline_length, patched_length } = effectSummary
 
@@ -70,7 +80,7 @@ export function PromptComparer({
 
         <div className="output-column patched">
           <div className="column-header">
-            <span className="column-label">Patched Output</span>
+            <span className="column-label">{OUTPUT_LABELS[interventionMode]}</span>
             <span className="token-count">{patched_length} tokens</span>
           </div>
           <div className="output-content">

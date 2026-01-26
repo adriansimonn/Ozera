@@ -369,3 +369,146 @@ def charge_inference(
     db.refresh(transaction)
 
     return transaction
+
+
+# Patching experiment pricing
+# Patching is more compute-intensive than regular inference because it:
+# 1. Captures activations from source prompt (forward pass with hooks)
+# 2. Runs baseline generation (multiple forward passes)
+# 3. Runs patched generation (multiple forward passes with activation injection)
+# We charge a multiplier on top of regular inference pricing
+PATCHING_MULTIPLIER = 3.0  # 3x cost of regular inference
+
+# Minimum charge per patching experiment (covers overhead)
+MIN_PATCHING_CHARGE = 0.02  # $0.02 minimum
+
+
+def calculate_patching_cost(
+    source_tokens: int,
+    target_tokens: int,
+    generated_tokens: int,
+    model_id: str,
+    num_patches: int = 1,
+) -> float:
+    """
+    Calculate the cost for a patching experiment.
+
+    Args:
+        source_tokens: Number of tokens in source prompt
+        target_tokens: Number of tokens in target prompt
+        generated_tokens: Number of tokens generated (for both baseline and patched)
+        model_id: Model identifier for size-based pricing
+        num_patches: Number of patches applied (more patches = more compute)
+
+    Returns:
+        Cost in USD
+    """
+    model_multiplier = get_model_multiplier(model_id)
+
+    # Input cost: source prompt + target prompt (both processed)
+    total_input_tokens = source_tokens + target_tokens
+    input_cost = (total_input_tokens / 1000) * BASE_INFERENCE_PRICING["input"] * model_multiplier
+
+    # Output cost: 2x generated tokens (baseline + patched generation)
+    total_output_tokens = generated_tokens * 2
+    output_cost = (total_output_tokens / 1000) * BASE_INFERENCE_PRICING["output"] * model_multiplier
+
+    # Apply patching multiplier (for activation capture and injection overhead)
+    base_cost = (input_cost + output_cost) * PATCHING_MULTIPLIER
+
+    # Small additional cost per patch (more hooks = more overhead)
+    patch_overhead = num_patches * 0.001 * model_multiplier  # $0.001 per patch
+
+    return max(base_cost + patch_overhead, MIN_PATCHING_CHARGE)
+
+
+def estimate_patching_cost(
+    source_prompt_length: int,
+    target_prompt_length: int,
+    max_tokens: int,
+    model_id: str,
+    num_patches: int = 1,
+) -> float:
+    """
+    Estimate the cost for a patching experiment before running.
+
+    Uses character counts to estimate token counts (rough approximation).
+
+    Args:
+        source_prompt_length: Character length of source prompt
+        target_prompt_length: Character length of target prompt
+        max_tokens: Maximum tokens to generate
+        model_id: Model identifier
+        num_patches: Number of patches to apply
+
+    Returns:
+        Estimated cost in USD
+    """
+    # Rough estimate: 4 characters per token on average
+    estimated_source_tokens = max(source_prompt_length // 4, 1)
+    estimated_target_tokens = max(target_prompt_length // 4, 1)
+
+    return calculate_patching_cost(
+        source_tokens=estimated_source_tokens,
+        target_tokens=estimated_target_tokens,
+        generated_tokens=max_tokens,
+        model_id=model_id,
+        num_patches=num_patches,
+    )
+
+
+def charge_patching(
+    db: Session,
+    user_id: int,
+    source_tokens: int,
+    target_tokens: int,
+    generated_tokens: int,
+    model_name: str,
+    num_patches: int,
+    description: Optional[str] = None,
+) -> Transaction:
+    """
+    Charge credits for a patching experiment.
+
+    Args:
+        db: Database session
+        user_id: User ID
+        source_tokens: Number of tokens in source prompt
+        target_tokens: Number of tokens in target prompt
+        generated_tokens: Number of tokens generated
+        model_name: Name of the model used
+        num_patches: Number of patches applied
+        description: Optional description
+
+    Returns:
+        Created transaction record
+    """
+    cost = calculate_patching_cost(
+        source_tokens=source_tokens,
+        target_tokens=target_tokens,
+        generated_tokens=generated_tokens,
+        model_id=model_name,
+        num_patches=num_patches,
+    )
+
+    credit_balance = get_credit_balance(db, user_id)
+    if not credit_balance:
+        credit_balance = CreditBalance(user_id=user_id, balance_usd=0.0, reserved_usd=0.0)
+        db.add(credit_balance)
+
+    # Deduct cost from balance
+    credit_balance.balance_usd -= cost
+    credit_balance.updated_at = datetime.utcnow()
+
+    # Create transaction record
+    transaction = Transaction(
+        user_id=user_id,
+        amount_usd=-cost,  # Negative for deduction
+        transaction_type=TransactionType.PATCHING_CHARGE,
+        description=description or f"Patching ({model_name}): {num_patches} patches, {generated_tokens} tokens generated",
+    )
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+
+    return transaction

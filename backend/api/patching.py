@@ -7,7 +7,8 @@ Provides endpoints for:
 - Managing captured activation storage
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 from typing import Optional
 import os
 import sys
@@ -27,6 +28,14 @@ from api.schemas.patching import (
     PatchSpec,
     EffectSummary,
     ChangedToken,
+)
+from middleware.auth_middleware import get_optional_current_user
+from models.database import User
+from db import get_db
+from services.credit_service import (
+    estimate_patching_cost,
+    charge_patching,
+    check_sufficient_balance,
 )
 
 router = APIRouter(prefix="/patching", tags=["Activation Patching"])
@@ -112,6 +121,7 @@ def _patch_spec_to_config(spec: PatchSpec) -> PatchConfig:
         heads=spec.heads,
         neurons=spec.neurons,
         blend_factor=spec.blend_factor,
+        intervention_type=spec.intervention_type,
     )
 
 
@@ -248,23 +258,57 @@ async def clear_all_activations():
 # Patching experiment endpoints
 
 @router.post("/run", response_model=PatchingResult)
-async def run_patching_experiment(request: RunPatchingRequest):
+async def run_patching_experiment(
+    request: RunPatchingRequest,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Run a patching experiment.
 
     This performs the following steps:
-    1. Captures activations from the source prompt
+    1. Captures activations from the source prompt (if needed for patching)
     2. Generates baseline output from the target prompt (no patches)
-    3. Generates patched output from target prompt with source activations injected
+    3. Generates patched output from target prompt with interventions applied
     4. Compares baseline and patched outputs
 
+    For ablation experiments (zero_ablate, mean_ablate, noise_ablate), source_prompt is not required.
+    For standard patching, source_prompt is required.
+
+    Charges user credits if authenticated.
+
     Args:
-        request: Contains source prompt, target prompt, model, and patch specifications
+        request: Contains source prompt (optional for ablation), target prompt, model, and patch specifications
 
     Returns:
         Baseline and patched outputs with comparison metrics
     """
     model_type = _get_model_type(request.model)
+
+    # Check if any patches require source activations (patch intervention type)
+    requires_source = any(p.intervention_type == 'patch' for p in request.patches)
+
+    if requires_source and not request.source_prompt:
+        raise HTTPException(
+            status_code=400,
+            detail="source_prompt is required when using 'patch' intervention type. Use ablation types (zero_ablate, mean_ablate, noise_ablate) or provide a source prompt."
+        )
+
+    # Check credits before running experiment
+    if current_user:
+        source_prompt_length = len(request.source_prompt) if request.source_prompt else 0
+        estimated_cost = estimate_patching_cost(
+            source_prompt_length=source_prompt_length,
+            target_prompt_length=len(request.target_prompt),
+            max_tokens=request.max_tokens,
+            model_id=request.model,
+            num_patches=len(request.patches),
+        )
+        if not check_sufficient_balance(db, current_user.id, estimated_cost):
+            raise HTTPException(
+                status_code=402,
+                detail="INSUFFICIENT_CREDITS"
+            )
 
     try:
         # Open-source models run on Modal GPU workers
@@ -280,6 +324,7 @@ async def run_patching_experiment(request: RunPatchingRequest):
                     "heads": p.heads,
                     "neurons": p.neurons,
                     "blend_factor": p.blend_factor,
+                    "intervention_type": p.intervention_type,
                 }
                 for p in request.patches
             ]
@@ -287,12 +332,32 @@ async def run_patching_experiment(request: RunPatchingRequest):
             # Run patching on Modal
             result = worker().run_patching_experiment.remote(
                 model_id=request.model,
-                source_prompt=request.source_prompt,
+                source_prompt=request.source_prompt,  # Can be None for ablation
                 target_prompt=request.target_prompt,
                 patches=patches_dicts,
                 max_tokens=request.max_tokens,
                 temperature=request.temperature,
             )
+
+            # Charge user after successful experiment
+            if current_user:
+                try:
+                    # Calculate actual token counts from result
+                    source_tokens = len(request.source_prompt.split()) if request.source_prompt else 0
+                    target_tokens = len(result.get('baseline_tokens', []))
+                    generated_tokens = len(result.get('patched_tokens', [])) - target_tokens
+
+                    charge_patching(
+                        db=db,
+                        user_id=current_user.id,
+                        source_tokens=source_tokens,
+                        target_tokens=target_tokens,
+                        generated_tokens=max(generated_tokens, request.max_tokens),
+                        model_name=request.model,
+                        num_patches=len(request.patches),
+                    )
+                except Exception as charge_error:
+                    print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
 
             # Convert Modal result to response
             return _convert_modal_result_to_response(result, request.patches)
@@ -303,19 +368,22 @@ async def run_patching_experiment(request: RunPatchingRequest):
             generator = _get_ozera_generator(request.model)
             tokenizer = _get_ozera_tokenizer()
 
-            captured = engine.capture_source_activations(
-                prompt=request.source_prompt,
-                model_loader=generator,
-                model_type="ozera",
-                model_id=request.model,
-                tokenizer=tokenizer,
-            )
+            # Only capture source activations if we have a source prompt
+            captured = None
+            if request.source_prompt:
+                captured = engine.capture_source_activations(
+                    prompt=request.source_prompt,
+                    model_loader=generator,
+                    model_type="ozera",
+                    model_id=request.model,
+                    tokenizer=tokenizer,
+                )
 
             patches = [_patch_spec_to_config(p) for p in request.patches]
 
             result = engine.run_patched_generation(
                 target_prompt=request.target_prompt,
-                source_activation_id=captured.id,
+                source_activation_id=captured.id if captured else None,
                 patches=patches,
                 model_loader=generator,
                 model_type="ozera",
@@ -324,22 +392,46 @@ async def run_patching_experiment(request: RunPatchingRequest):
                 temperature=request.temperature,
             )
 
+            # Charge user after successful experiment
+            if current_user:
+                try:
+                    source_tokens = len(captured.tokens) if captured else 0
+                    charge_patching(
+                        db=db,
+                        user_id=current_user.id,
+                        source_tokens=source_tokens,
+                        target_tokens=len(result.baseline_tokens),
+                        generated_tokens=len(result.patched_tokens) - len(result.baseline_tokens),
+                        model_name=request.model,
+                        num_patches=len(request.patches),
+                    )
+                except Exception as charge_error:
+                    print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+
             # Convert result to response
             return _convert_result_to_response(result, request.patches)
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Patching experiment failed: {str(e)}")
 
 
 @router.post("/run-with-captured", response_model=PatchingResult)
-async def run_patching_with_captured(request: RunPatchingWithCapturedRequest):
+async def run_patching_with_captured(
+    request: RunPatchingWithCapturedRequest,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Run a patching experiment using pre-captured activations.
 
     Use this when you've already captured source activations and want to run
     multiple experiments with different target prompts or patch configurations.
+
+    Charges user credits if authenticated.
 
     Args:
         request: Contains activation ID, target prompt, model, and patch specifications
@@ -365,6 +457,21 @@ async def run_patching_with_captured(request: RunPatchingWithCapturedRequest):
         )
 
     model_type = captured.model_type
+
+    # Check credits before running experiment
+    if current_user:
+        estimated_cost = estimate_patching_cost(
+            source_prompt_length=len(captured.prompt),
+            target_prompt_length=len(request.target_prompt),
+            max_tokens=request.max_tokens,
+            model_id=request.model,
+            num_patches=len(request.patches),
+        )
+        if not check_sufficient_balance(db, current_user.id, estimated_cost):
+            raise HTTPException(
+                status_code=402,
+                detail="INSUFFICIENT_CREDITS"
+            )
 
     try:
         patches = [_patch_spec_to_config(p) for p in request.patches]
@@ -394,10 +501,27 @@ async def run_patching_with_captured(request: RunPatchingWithCapturedRequest):
                 temperature=request.temperature,
             )
 
+        # Charge user after successful experiment
+        if current_user:
+            try:
+                charge_patching(
+                    db=db,
+                    user_id=current_user.id,
+                    source_tokens=len(captured.tokens),
+                    target_tokens=len(result.baseline_tokens),
+                    generated_tokens=len(result.patched_tokens) - len(result.baseline_tokens),
+                    model_name=request.model,
+                    num_patches=len(request.patches),
+                )
+            except Exception as charge_error:
+                print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+
         return _convert_result_to_response(result, request.patches)
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Patching experiment failed: {str(e)}")
 

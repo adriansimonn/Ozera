@@ -105,14 +105,26 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
     loadCapturedActivations()
   }, [loadCapturedActivations])
 
+  // Check if any patches require source activations (patch intervention type)
+  // Show source prompt by default (when no patches added), hide only when all patches are ablation
+  const hasPatches = patches.some(p => p.intervention_type === 'patch')
+  const hasAblations = patches.some(p => p.intervention_type !== 'patch')
+  const isMixed = hasPatches && hasAblations
+  const requiresSourcePrompt = patches.length === 0 || hasPatches
+
   const handleRunExperiment = async () => {
     if (!selectedModel || patches.length === 0) {
       setError('Please select a model and add at least one patch')
       return
     }
 
-    if (!sourcePrompt.trim() || !targetPrompt.trim()) {
-      setError('Please enter both source and target prompts')
+    if (!targetPrompt.trim()) {
+      setError('Please enter a target prompt')
+      return
+    }
+
+    if (requiresSourcePrompt && !sourcePrompt.trim()) {
+      setError('Please enter a source prompt (required for patching interventions)')
       return
     }
 
@@ -122,7 +134,7 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
       setResult(null)
 
       const patchResult = await apiClient.runPatchingExperiment({
-        source_prompt: sourcePrompt,
+        source_prompt: requiresSourcePrompt ? sourcePrompt : undefined,
         target_prompt: targetPrompt,
         model: selectedModel,
         patches,
@@ -175,7 +187,7 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
   }
 
   const handleLoadExperiment = useCallback((experiment: PatchingExperiment) => {
-    setSourcePrompt(experiment.source_prompt)
+    setSourcePrompt(experiment.source_prompt ?? '')
     setTargetPrompt(experiment.target_prompt)
     setPatches(experiment.patches)
 
@@ -217,8 +229,8 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
             <h1>Activation Patching Playground</h1>
           </div>
           <p className="header-description">
-            Swap activations between prompts to understand how the model processes information.
-            Capture activations from a source prompt, configure patches, and see how the output changes.
+            Perform causal interventions to understand how the model processes information.
+            Swap activations between prompts (patching) or ablate activations (zero, mean, noise) to measure component importance.
           </p>
         </div>
 
@@ -262,29 +274,43 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
             <div className="section prompts-section">
               <h2>Prompts</h2>
 
-              <div className="prompt-group">
-                <label>
-                  <span className="label-main">Source Prompt</span>
-                  <span className="label-hint">Activations will be captured from this prompt</span>
-                </label>
-                <textarea
-                  value={sourcePrompt}
-                  onChange={e => setSourcePrompt(e.target.value)}
-                  placeholder="Enter source prompt..."
-                  disabled={running}
-                  rows={3}
-                />
-              </div>
+              {requiresSourcePrompt && (
+                <div className="prompt-group">
+                  <label>
+                    <span className="label-main">Source Prompt</span>
+                    <span className="label-hint">Activations will be captured from this prompt</span>
+                  </label>
+                  <textarea
+                    value={sourcePrompt}
+                    onChange={e => setSourcePrompt(e.target.value)}
+                    placeholder="Enter source prompt..."
+                    disabled={running}
+                    rows={3}
+                  />
+                </div>
+              )}
+
+              {!requiresSourcePrompt && patches.length > 0 && (
+                <div className="ablation-notice">
+                  <span>Ablation mode: No source prompt needed. Activations will be zeroed, averaged, or replaced with noise.</span>
+                </div>
+              )}
 
               <div className="prompt-group">
                 <label>
-                  <span className="label-main">Target Prompt</span>
-                  <span className="label-hint">Generation will run on this prompt with patches applied</span>
+                  <span className="label-main">{requiresSourcePrompt ? 'Target Prompt' : 'Prompt'}</span>
+                  <span className="label-hint">
+                    {isMixed
+                      ? 'Generation will run on this prompt with interventions applied'
+                      : requiresSourcePrompt
+                        ? 'Generation will run on this prompt with patches applied'
+                        : 'Generation will run on this prompt with ablations applied'}
+                  </span>
                 </label>
                 <textarea
                   value={targetPrompt}
                   onChange={e => setTargetPrompt(e.target.value)}
-                  placeholder="Enter target prompt..."
+                  placeholder={requiresSourcePrompt ? 'Enter target prompt...' : 'Enter prompt...'}
                   disabled={running}
                   rows={3}
                 />
@@ -343,7 +369,7 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
             </button>
           </div>
 
-          {/* Center Column: Patch Configuration */}
+          {/* Center Column: Intervention Configuration */}
           <div className="center-column">
             {/* Visual Layer Selector */}
             <div className="section">
@@ -355,9 +381,8 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
               />
             </div>
 
-            {/* Detailed Patch Configuration */}
+            {/* Detailed Intervention Configuration */}
             <div className="section">
-              <h2>Patch Configuration</h2>
               <PatchConfigPanel
                 modelId={selectedModel}
                 numLayers={numLayers}
@@ -440,6 +465,7 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
                   baselineDecoded={result.baseline_decoded}
                   patchedDecoded={result.patched_decoded}
                   effectSummary={result.effect_summary}
+                  interventionMode={isMixed ? 'mixed' : hasAblations ? 'ablation' : 'patch'}
                 />
               ) : (
                 <div className="results-placeholder">
@@ -625,6 +651,22 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
         .prompt-group textarea:focus {
           outline: none;
           border-color: rgba(59, 130, 246, 0.5);
+        }
+
+        .ablation-notice {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.875rem 1rem;
+          background: rgba(168, 85, 247, 0.1);
+          border: 1px solid rgba(168, 85, 247, 0.25);
+          color: rgba(168, 85, 247, 0.9);
+          margin-bottom: 1rem;
+          font-size: 0.85rem;
+        }
+
+        .notice-icon {
+          font-size: 1rem;
         }
 
         .settings-row {

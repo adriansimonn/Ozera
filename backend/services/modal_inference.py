@@ -699,7 +699,7 @@ class InferenceWorkerT4:
     def run_patching_experiment(
         self,
         model_id: str,
-        source_prompt: str,
+        source_prompt: Optional[str],
         target_prompt: str,
         patches: list[dict],
         max_tokens: int = 50,
@@ -710,9 +710,9 @@ class InferenceWorkerT4:
 
         Args:
             model_id: Model ID (Ozera or open-source)
-            source_prompt: Prompt to capture source activations from
+            source_prompt: Prompt to capture source activations from (optional for ablation)
             target_prompt: Prompt to run generation on
-            patches: List of patch configurations (layer, patch_type, positions, etc.)
+            patches: List of patch configurations (layer, patch_type, positions, intervention_type, etc.)
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature (0 = deterministic)
 
@@ -723,7 +723,7 @@ class InferenceWorkerT4:
 
         engine = get_patching_engine()
 
-        # Convert patch dicts to PatchConfig objects
+        # Convert patch dicts to PatchConfig objects (including intervention_type)
         patch_configs = [
             PatchConfig(
                 layer=p['layer'],
@@ -732,25 +732,31 @@ class InferenceWorkerT4:
                 heads=p.get('heads'),
                 neurons=p.get('neurons'),
                 blend_factor=p.get('blend_factor', 1.0),
+                intervention_type=p.get('intervention_type', 'patch'),
             )
             for p in patches
         ]
 
+        # Check if any patches require source activations (patch intervention type)
+        requires_source = any(p.get('intervention_type', 'patch') == 'patch' for p in patches)
+
         if self._is_open_source_model(model_id):
             loader = self._get_open_source_loader(model_id)
 
-            # Capture source activations
-            captured = engine.capture_source_activations(
-                prompt=source_prompt,
-                model_loader=loader,
-                model_type="open_source",
-                model_id=model_id,
-            )
+            # Only capture source activations if needed
+            captured = None
+            if source_prompt and requires_source:
+                captured = engine.capture_source_activations(
+                    prompt=source_prompt,
+                    model_loader=loader,
+                    model_type="open_source",
+                    model_id=model_id,
+                )
 
             # Run patched generation
             result = engine.run_patched_generation(
                 target_prompt=target_prompt,
-                source_activation_id=captured.id,
+                source_activation_id=captured.id if captured else None,
                 patches=patch_configs,
                 model_loader=loader,
                 model_type="open_source",
@@ -761,19 +767,21 @@ class InferenceWorkerT4:
             # Ozera model
             model, config = self._get_model(model_id)
 
-            # Capture source activations
-            captured = engine.capture_source_activations(
-                prompt=source_prompt,
-                model_loader=model,
-                model_type="ozera",
-                model_id=model_id,
-                tokenizer=self._tokenizer,
-            )
+            # Only capture source activations if needed
+            captured = None
+            if source_prompt and requires_source:
+                captured = engine.capture_source_activations(
+                    prompt=source_prompt,
+                    model_loader=model,
+                    model_type="ozera",
+                    model_id=model_id,
+                    tokenizer=self._tokenizer,
+                )
 
             # Run patched generation
             result = engine.run_patched_generation(
                 target_prompt=target_prompt,
-                source_activation_id=captured.id,
+                source_activation_id=captured.id if captured else None,
                 patches=patch_configs,
                 model_loader=model,
                 model_type="ozera",
@@ -790,7 +798,7 @@ class InferenceWorkerT4:
             "patched_tokens": result.patched_tokens,
             "baseline_decoded": result.baseline_decoded,
             "patched_decoded": result.patched_decoded,
-            "source_activation_id": result.source_activation_id,
+            "source_activation_id": result.source_activation_id if result.source_activation_id else "",
             "patches_applied": [p.to_dict() for p in result.patches_applied],
             "effect_summary": result.effect_summary,
         }
@@ -1144,17 +1152,18 @@ class InferenceWorkerA10G:
     def run_patching_experiment(
         self,
         model_id: str,
-        source_prompt: str,
+        source_prompt: Optional[str],
         target_prompt: str,
         patches: list[dict],
         max_tokens: int = 50,
         temperature: float = 0.0,
     ) -> dict:
-        """Run a patching experiment (A10G worker version)."""
+        """Run a patching experiment (A10G worker version, supports ablation)."""
         from core.patching import get_patching_engine, PatchConfig
 
         engine = get_patching_engine()
 
+        # Convert patch dicts to PatchConfig objects (including intervention_type)
         patch_configs = [
             PatchConfig(
                 layer=p['layer'],
@@ -1163,23 +1172,30 @@ class InferenceWorkerA10G:
                 heads=p.get('heads'),
                 neurons=p.get('neurons'),
                 blend_factor=p.get('blend_factor', 1.0),
+                intervention_type=p.get('intervention_type', 'patch'),
             )
             for p in patches
         ]
 
+        # Check if any patches require source activations (patch intervention type)
+        requires_source = any(p.get('intervention_type', 'patch') == 'patch' for p in patches)
+
         if self._is_open_source_model(model_id):
             loader = self._get_open_source_loader(model_id)
 
-            captured = engine.capture_source_activations(
-                prompt=source_prompt,
-                model_loader=loader,
-                model_type="open_source",
-                model_id=model_id,
-            )
+            # Only capture source activations if needed
+            captured = None
+            if source_prompt and requires_source:
+                captured = engine.capture_source_activations(
+                    prompt=source_prompt,
+                    model_loader=loader,
+                    model_type="open_source",
+                    model_id=model_id,
+                )
 
             result = engine.run_patched_generation(
                 target_prompt=target_prompt,
-                source_activation_id=captured.id,
+                source_activation_id=captured.id if captured else None,
                 patches=patch_configs,
                 model_loader=loader,
                 model_type="open_source",
@@ -1196,7 +1212,7 @@ class InferenceWorkerA10G:
             "patched_tokens": result.patched_tokens,
             "baseline_decoded": result.baseline_decoded,
             "patched_decoded": result.patched_decoded,
-            "source_activation_id": result.source_activation_id,
+            "source_activation_id": result.source_activation_id if result.source_activation_id else "",
             "patches_applied": [p.to_dict() for p in result.patches_applied],
             "effect_summary": result.effect_summary,
         }

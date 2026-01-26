@@ -34,6 +34,7 @@ class PatchConfig:
     heads: Optional[list[int]] = None  # None = all heads (for attention)
     neurons: Optional[list[int]] = None  # None = all neurons (for MLP)
     blend_factor: float = 1.0  # 1.0 = full replacement
+    intervention_type: Literal['patch', 'zero_ablate', 'mean_ablate', 'noise_ablate'] = 'patch'
 
     def to_dict(self) -> dict:
         """Convert to dictionary for serialization."""
@@ -44,6 +45,7 @@ class PatchConfig:
             'heads': self.heads,
             'neurons': self.neurons,
             'blend_factor': self.blend_factor,
+            'intervention_type': self.intervention_type,
         }
 
     @classmethod
@@ -56,6 +58,7 @@ class PatchConfig:
             heads=data.get('heads'),
             neurons=data.get('neurons'),
             blend_factor=data.get('blend_factor', 1.0),
+            intervention_type=data.get('intervention_type', 'patch'),
         )
 
 
@@ -236,7 +239,7 @@ class PatchingEngine:
     def run_patched_generation(
         self,
         target_prompt: str,
-        source_activation_id: str,
+        source_activation_id: Optional[str],
         patches: list[PatchConfig],
         model_loader: Any,
         model_type: Literal['ozera', 'open_source'],
@@ -252,7 +255,7 @@ class PatchingEngine:
 
         Args:
             target_prompt: Prompt to run generation on.
-            source_activation_id: ID of captured source activations.
+            source_activation_id: ID of captured source activations. Can be None for ablation-only experiments.
             patches: List of patch configurations to apply.
             model_loader: Model loader or generator.
             model_type: 'ozera' or 'open_source'.
@@ -263,9 +266,19 @@ class PatchingEngine:
         Returns:
             PatchingResult with baseline and patched outputs.
         """
-        source = self._captured_activations.get(source_activation_id)
-        if source is None:
-            raise ValueError(f"Source activations not found: {source_activation_id}")
+        # Check if any patches require source activations (patch intervention type)
+        requires_source = any(
+            (patch.intervention_type if hasattr(patch, 'intervention_type') else 'patch') == 'patch'
+            for patch in patches
+        )
+
+        source = None
+        if source_activation_id:
+            source = self._captured_activations.get(source_activation_id)
+            if source is None and requires_source:
+                raise ValueError(f"Source activations not found: {source_activation_id}")
+        elif requires_source:
+            raise ValueError("Source activations required for patching interventions. Use ablation types (zero_ablate, mean_ablate, noise_ablate) or provide source activations.")
 
         # Generate baseline (no patches)
         if model_type == 'open_source':
@@ -339,7 +352,7 @@ class PatchingEngine:
     def _generate_with_patches(
         self,
         target_prompt: str,
-        source: CapturedActivations,
+        source: Optional[CapturedActivations],
         patches: list[PatchConfig],
         model_loader: Any,
         model_type: Literal['ozera', 'open_source'],
@@ -363,7 +376,7 @@ class PatchingEngine:
     def _generate_with_patches_open_source(
         self,
         target_prompt: str,
-        source: CapturedActivations,
+        source: Optional[CapturedActivations],
         patches: list[PatchConfig],
         model_loader: Any,
         max_new_tokens: int,
@@ -403,7 +416,7 @@ class PatchingEngine:
     def _register_open_source_patch_hook(
         self,
         model_loader: Any,
-        source: CapturedActivations,
+        source: Optional[CapturedActivations],
         patch: PatchConfig,
     ):
         """Register a patch hook on an open-source model."""
@@ -419,16 +432,31 @@ class PatchingEngine:
         }
 
         activation_key = key_map.get(patch.patch_type, patch.patch_type)
-        full_key = f"layer_{patch.layer}_{activation_key}"
-
-        # Get source activation
-        source_activation = source.activations.get(full_key)
-        if source_activation is None:
-            return None
 
         # Get the module to hook
         module = self._get_open_source_module(model_loader, patch.layer, activation_key)
         if module is None:
+            return None
+
+        # Get intervention type
+        intervention_type = patch.intervention_type if hasattr(patch, 'intervention_type') else 'patch'
+
+        # Handle ablation types (don't need source activations)
+        if intervention_type in ['zero_ablate', 'mean_ablate', 'noise_ablate']:
+            hook_fn = create_zero_ablation_hook(
+                positions=patch.positions,
+                blend_factor=patch.blend_factor,
+                ablation_type=intervention_type,
+            )
+            return module.register_forward_hook(hook_fn)
+
+        # Standard patching requires source activations
+        if source is None:
+            return None
+
+        full_key = f"layer_{patch.layer}_{activation_key}"
+        source_activation = source.activations.get(full_key)
+        if source_activation is None:
             return None
 
         # Create appropriate hook
@@ -496,7 +524,7 @@ class PatchingEngine:
     def _generate_with_patches_ozera(
         self,
         target_prompt: str,
-        source: CapturedActivations,
+        source: Optional[CapturedActivations],
         patches: list[PatchConfig],
         model_loader: Any,
         tokenizer: Any,
@@ -533,26 +561,44 @@ class PatchingEngine:
             activation_key = key_map.get(patch.patch_type, patch.patch_type)
             full_key = f"layer_{patch.layer}_{activation_key}"
 
-            source_activation = source.activations.get(full_key)
-            if source_activation is None:
-                available_keys = [k for k in source.activations.keys() if f"layer_{patch.layer}" in k]
-                raise ValueError(
-                    f"Cannot find activation for patch type '{patch.patch_type}' at layer {patch.layer}. "
-                    f"Tried key '{full_key}'. Available keys for layer {patch.layer}: {available_keys}"
-                )
+            # For ablation types, we don't need source activations
+            intervention_type = patch.intervention_type if hasattr(patch, 'intervention_type') else 'patch'
 
-            # Check for NaN/inf in source activation
-            if torch.isnan(source_activation).any() or torch.isinf(source_activation).any():
-                raise ValueError(
-                    f"Source activation for '{full_key}' contains NaN/inf values. "
-                    "The model may have produced unstable activations during capture."
-                )
+            if intervention_type == 'patch':
+                # Standard patching requires source activations
+                if source is None:
+                    raise ValueError(
+                        f"Source activations required for patch intervention at layer {patch.layer}. "
+                        "Use ablation types (zero_ablate, mean_ablate, noise_ablate) or provide source activations."
+                    )
+                source_activation = source.activations.get(full_key)
+                if source_activation is None:
+                    available_keys = [k for k in source.activations.keys() if f"layer_{patch.layer}" in k]
+                    raise ValueError(
+                        f"Cannot find activation for patch type '{patch.patch_type}' at layer {patch.layer}. "
+                        f"Tried key '{full_key}'. Available keys for layer {patch.layer}: {available_keys}"
+                    )
 
-            patch_dict[full_key] = {
-                'source': source_activation.to(device),
-                'positions': patch.positions,
-                'blend_factor': patch.blend_factor,
-            }
+                # Check for NaN/inf in source activation
+                if torch.isnan(source_activation).any() or torch.isinf(source_activation).any():
+                    raise ValueError(
+                        f"Source activation for '{full_key}' contains NaN/inf values. "
+                        "The model may have produced unstable activations during capture."
+                    )
+
+                patch_dict[full_key] = {
+                    'source': source_activation.to(device),
+                    'positions': patch.positions,
+                    'blend_factor': patch.blend_factor,
+                    'intervention_type': intervention_type,
+                }
+            else:
+                # Ablation types don't need source activations
+                patch_dict[full_key] = {
+                    'positions': patch.positions,
+                    'blend_factor': patch.blend_factor,
+                    'intervention_type': intervention_type,
+                }
 
         # Use the model's built-in generate_with_patches method if available
         if hasattr(model, 'generate_with_patches'):
@@ -719,49 +765,117 @@ class PatchingEngine:
         return logits, None, None
 
     def _apply_patch(self, tensor: torch.Tensor, patch_info: dict) -> torch.Tensor:
-        """Apply a patch to a tensor."""
-        source = patch_info['source']
+        """Apply a patch to a tensor.
+
+        Supports multiple intervention types:
+        - 'patch': Replace with source activations (standard activation patching)
+        - 'zero_ablate': Zero out activations
+        - 'mean_ablate': Replace with mean activation (computed from current tensor)
+        - 'noise_ablate': Replace with Gaussian noise matching activation statistics
+        """
+        intervention_type = patch_info.get('intervention_type', 'patch')
         positions = patch_info.get('positions')
         blend_factor = patch_info.get('blend_factor', 1.0)
 
-        # Ensure source is on the same device
-        source = source.to(tensor.device)
+        result = tensor.clone()
 
-        # Ensure source matches batch size
-        if source.shape[0] != tensor.shape[0]:
-            source = source.expand(tensor.shape[0], -1, -1)
-
-        # Check for NaN/inf in source (shouldn't happen, but be safe)
-        if torch.isnan(source).any() or torch.isinf(source).any():
-            # Replace invalid values with corresponding tensor values
-            valid_mask = ~(torch.isnan(source) | torch.isinf(source))
-            source = torch.where(valid_mask, source, tensor[:, :source.shape[1], :] if tensor.shape[1] >= source.shape[1] else torch.zeros_like(source))
-
-        if positions is None:
-            # Patch all positions
-            min_seq = min(tensor.shape[1], source.shape[1])
-            if blend_factor == 1.0:
-                result = tensor.clone()
-                result[:, :min_seq] = source[:, :min_seq]
+        if intervention_type == 'zero_ablate':
+            # Zero ablation: set activations to zero
+            if positions is None:
+                if blend_factor == 1.0:
+                    result.zero_()
+                else:
+                    result = (1 - blend_factor) * tensor
             else:
-                result = tensor.clone()
-                result[:, :min_seq] = (
-                    (1 - blend_factor) * tensor[:, :min_seq] +
-                    blend_factor * source[:, :min_seq]
-                )
-        else:
-            result = tensor.clone()
-            for pos in positions:
-                if pos < tensor.shape[1] and pos < source.shape[1]:
-                    if blend_factor == 1.0:
-                        result[:, pos] = source[:, pos]
-                    else:
-                        result[:, pos] = (
-                            (1 - blend_factor) * tensor[:, pos] +
-                            blend_factor * source[:, pos]
-                        )
+                for pos in positions:
+                    if pos < tensor.shape[1]:
+                        if blend_factor == 1.0:
+                            result[:, pos] = 0.0
+                        else:
+                            result[:, pos] = (1 - blend_factor) * tensor[:, pos]
+            return result
 
-        return result
+        elif intervention_type == 'mean_ablate':
+            # Mean ablation: replace with mean activation
+            # Compute mean across sequence dimension for each batch
+            mean_activation = tensor.mean(dim=1, keepdim=True)  # [batch, 1, d_model]
+
+            if positions is None:
+                if blend_factor == 1.0:
+                    result = mean_activation.expand_as(tensor)
+                else:
+                    result = (1 - blend_factor) * tensor + blend_factor * mean_activation.expand_as(tensor)
+            else:
+                for pos in positions:
+                    if pos < tensor.shape[1]:
+                        if blend_factor == 1.0:
+                            result[:, pos] = mean_activation.squeeze(1)
+                        else:
+                            result[:, pos] = (1 - blend_factor) * tensor[:, pos] + blend_factor * mean_activation.squeeze(1)
+            return result
+
+        elif intervention_type == 'noise_ablate':
+            # Noise ablation: replace with Gaussian noise matching activation statistics
+            mean = tensor.mean()
+            std = tensor.std()
+            noise = torch.randn_like(tensor) * std + mean
+
+            if positions is None:
+                if blend_factor == 1.0:
+                    result = noise
+                else:
+                    result = (1 - blend_factor) * tensor + blend_factor * noise
+            else:
+                for pos in positions:
+                    if pos < tensor.shape[1]:
+                        if blend_factor == 1.0:
+                            result[:, pos] = noise[:, pos]
+                        else:
+                            result[:, pos] = (1 - blend_factor) * tensor[:, pos] + blend_factor * noise[:, pos]
+            return result
+
+        else:
+            # Standard patching: replace with source activations
+            source = patch_info.get('source')
+            if source is None:
+                # No source provided, return original tensor unchanged
+                return tensor
+
+            # Ensure source is on the same device
+            source = source.to(tensor.device)
+
+            # Ensure source matches batch size
+            if source.shape[0] != tensor.shape[0]:
+                source = source.expand(tensor.shape[0], -1, -1)
+
+            # Check for NaN/inf in source (shouldn't happen, but be safe)
+            if torch.isnan(source).any() or torch.isinf(source).any():
+                # Replace invalid values with corresponding tensor values
+                valid_mask = ~(torch.isnan(source) | torch.isinf(source))
+                source = torch.where(valid_mask, source, tensor[:, :source.shape[1], :] if tensor.shape[1] >= source.shape[1] else torch.zeros_like(source))
+
+            if positions is None:
+                # Patch all positions
+                min_seq = min(tensor.shape[1], source.shape[1])
+                if blend_factor == 1.0:
+                    result[:, :min_seq] = source[:, :min_seq]
+                else:
+                    result[:, :min_seq] = (
+                        (1 - blend_factor) * tensor[:, :min_seq] +
+                        blend_factor * source[:, :min_seq]
+                    )
+            else:
+                for pos in positions:
+                    if pos < tensor.shape[1] and pos < source.shape[1]:
+                        if blend_factor == 1.0:
+                            result[:, pos] = source[:, pos]
+                        else:
+                            result[:, pos] = (
+                                (1 - blend_factor) * tensor[:, pos] +
+                                blend_factor * source[:, pos]
+                            )
+
+            return result
 
     def _compute_effect_summary(
         self,

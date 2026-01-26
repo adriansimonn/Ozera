@@ -5,8 +5,8 @@
  */
 
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { Network, Plus, Eye } from 'lucide-react'
-import type { PatchSpec, PatchType, ModelLayerInfo } from '../../types/patching'
+import { Network, Plus, Eye, Zap, CircleOff } from 'lucide-react'
+import type { PatchSpec, PatchType, InterventionType, ModelLayerInfo } from '../../types/patching'
 
 interface PatchSelectorProps {
   modelInfo: ModelLayerInfo | null
@@ -24,6 +24,13 @@ const PATCH_TYPE_COLORS: Record<PatchType, { primary: string; secondary: string;
   ff_output: { primary: '245, 158, 11', secondary: '251, 191, 36', label: 'FF Out' },     // Amber
   post_attn: { primary: '236, 72, 153', secondary: '244, 114, 182', label: 'Post-Attn' }, // Pink
   post_ff: { primary: '249, 115, 22', secondary: '251, 146, 60', label: 'Post-FF' },      // Orange
+}
+
+// Color scheme for ablation types
+const ABLATION_TYPE_COLORS: Record<string, { primary: string; secondary: string; label: string }> = {
+  zero_ablate: { primary: '239, 68, 68', secondary: '248, 113, 113', label: 'Zero' },
+  mean_ablate: { primary: '168, 85, 247', secondary: '192, 132, 252', label: 'Mean' },
+  noise_ablate: { primary: '251, 191, 36', secondary: '253, 224, 71', label: 'Noise' },
 }
 
 interface LayerNode {
@@ -350,12 +357,13 @@ export function PatchSelector({
   }, [disabled, hoveredLayer])
 
   // Handle adding a patch from menu
-  const handleAddPatchType = useCallback((patchType: PatchType) => {
+  const handleAddPatchType = useCallback((patchType: PatchType, interventionType: InterventionType = 'patch') => {
     if (!showPatchMenu) return
 
     const patch: PatchSpec = {
       layer: showPatchMenu.layerIdx,
       patch_type: patchType,
+      intervention_type: interventionType,
       blend_factor: 1.0,
       positions: null,
       heads: null,
@@ -422,29 +430,61 @@ export function PatchSelector({
             <div
               className="patch-menu"
               style={{
-                left: Math.min(showPatchMenu.x, dimensions.width - 180),
+                left: Math.min(showPatchMenu.x, dimensions.width - 200),
                 top: showPatchMenu.y + 10,
               }}
             >
               <div className="menu-header">
                 <Plus className="menu-icon" />
-                <span>Add Patch to L{showPatchMenu.layerIdx}</span>
+                <span>Add Intervention to L{showPatchMenu.layerIdx}</span>
               </div>
-              <div className="menu-items">
-                {Object.entries(PATCH_TYPE_COLORS).map(([type, colors]) => (
-                  <button
-                    key={type}
-                    className="menu-item"
-                    onClick={() => handleAddPatchType(type as PatchType)}
-                    style={{
-                      '--patch-color': `rgb(${colors.primary})`,
-                      '--patch-color-light': `rgb(${colors.secondary})`,
-                    } as React.CSSProperties}
-                  >
-                    <span className="item-dot" />
-                    <span className="item-label">{colors.label}</span>
-                  </button>
-                ))}
+
+              {/* Patch section */}
+              <div className="menu-section">
+                <div className="section-label">
+                  <Zap className="section-icon" />
+                  <span>Patch from Source</span>
+                </div>
+                <div className="menu-items">
+                  {Object.entries(PATCH_TYPE_COLORS).map(([type, colors]) => (
+                    <button
+                      key={type}
+                      className="menu-item"
+                      onClick={() => handleAddPatchType(type as PatchType, 'patch')}
+                      style={{
+                        '--patch-color': `rgb(${colors.primary})`,
+                        '--patch-color-light': `rgb(${colors.secondary})`,
+                      } as React.CSSProperties}
+                    >
+                      <span className="item-dot" />
+                      <span className="item-label">{colors.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ablation section */}
+              <div className="menu-section">
+                <div className="section-label">
+                  <CircleOff className="section-icon" />
+                  <span>Ablate</span>
+                </div>
+                <div className="menu-items">
+                  {Object.entries(ABLATION_TYPE_COLORS).map(([ablationType, colors]) => (
+                    <button
+                      key={ablationType}
+                      className="menu-item"
+                      onClick={() => handleAddPatchType('residual' as PatchType, ablationType as InterventionType)}
+                      style={{
+                        '--patch-color': `rgb(${colors.primary})`,
+                        '--patch-color-light': `rgb(${colors.secondary})`,
+                      } as React.CSSProperties}
+                    >
+                      <span className="item-dot" />
+                      <span className="item-label">{colors.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </>
@@ -457,19 +497,29 @@ export function PatchSelector({
           <Eye className="legend-icon" />
           <span className="legend-label">Active:</span>
           <div className="legend-badges">
-            {patches.map((patch, idx) => (
-              <span
-                key={idx}
-                className="legend-badge"
-                style={{
-                  backgroundColor: `rgba(${PATCH_TYPE_COLORS[patch.patch_type].primary}, 0.15)`,
-                  borderColor: `rgba(${PATCH_TYPE_COLORS[patch.patch_type].primary}, 0.4)`,
-                  color: `rgba(${PATCH_TYPE_COLORS[patch.patch_type].secondary}, 1)`,
-                }}
-              >
-                L{patch.layer} {PATCH_TYPE_COLORS[patch.patch_type].label}
-              </span>
-            ))}
+            {patches.map((patch, idx) => {
+              const isAblation = patch.intervention_type !== 'patch'
+              const colors = isAblation
+                ? ABLATION_TYPE_COLORS[patch.intervention_type]
+                : PATCH_TYPE_COLORS[patch.patch_type]
+              const label = isAblation
+                ? `${ABLATION_TYPE_COLORS[patch.intervention_type]?.label || patch.intervention_type}`
+                : PATCH_TYPE_COLORS[patch.patch_type].label
+
+              return (
+                <span
+                  key={idx}
+                  className="legend-badge"
+                  style={{
+                    backgroundColor: `rgba(${colors.primary}, 0.15)`,
+                    borderColor: `rgba(${colors.primary}, 0.4)`,
+                    color: `rgba(${colors.secondary}, 1)`,
+                  }}
+                >
+                  L{patch.layer} {label}
+                </span>
+              )
+            })}
           </div>
         </div>
       )}
@@ -597,8 +647,33 @@ export function PatchSelector({
           color: rgba(59, 130, 246, 0.8);
         }
 
+        .menu-section {
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .menu-section:first-of-type {
+          border-top: none;
+        }
+
+        .section-label {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          padding: 0.5rem 0.75rem 0.25rem;
+          font-size: 0.65rem;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.4);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .section-icon {
+          width: 10px;
+          height: 10px;
+        }
+
         .menu-items {
-          padding: 0.375rem 0;
+          padding: 0.25rem 0;
         }
 
         .menu-item {
@@ -631,6 +706,12 @@ export function PatchSelector({
 
         .item-label {
           flex: 1;
+        }
+
+        .item-hint {
+          font-size: 0.65rem;
+          color: rgba(255, 255, 255, 0.35);
+          margin-left: auto;
         }
 
         .patches-legend {

@@ -1,11 +1,11 @@
 /**
  * Panel for configuring activation patches.
- * Allows users to select layers, patch types, positions, heads, and blend factors.
+ * Allows users to select layers, patch types, positions, heads, blend factors, and intervention types.
  */
 
 import { useState } from 'react'
 import { Plus, X, Layers, Settings2 } from 'lucide-react'
-import type { PatchSpec, PatchType } from '../../types/patching'
+import type { PatchSpec, PatchType, InterventionType } from '../../types/patching'
 
 interface PatchConfigPanelProps {
   modelId: string
@@ -28,6 +28,13 @@ const PATCH_TYPES: { value: PatchType; label: string; description: string }[] = 
   { value: 'post_ff', label: 'Post-FF', description: 'After feedforward residual connection' },
 ]
 
+const INTERVENTION_TYPES: { value: InterventionType; label: string; description: string }[] = [
+  { value: 'patch', label: 'Patch', description: 'Replace with source activations (requires source prompt)' },
+  { value: 'zero_ablate', label: 'Zero Ablation', description: 'Zero out activations to measure importance' },
+  { value: 'mean_ablate', label: 'Mean Ablation', description: 'Replace with mean activation value' },
+  { value: 'noise_ablate', label: 'Noise Ablation', description: 'Replace with Gaussian noise' },
+]
+
 export function PatchConfigPanel({
   numLayers,
   numHeads,
@@ -39,6 +46,7 @@ export function PatchConfigPanel({
 }: PatchConfigPanelProps) {
   const [layer, setLayer] = useState(0)
   const [patchType, setPatchType] = useState<PatchType>('residual')
+  const [interventionType, setInterventionType] = useState<InterventionType>('patch')
   const [blendFactor, setBlendFactor] = useState(1.0)
   const [positions, setPositions] = useState<string>('')
   const [heads, setHeads] = useState<string>('')
@@ -47,6 +55,7 @@ export function PatchConfigPanel({
     const patch: PatchSpec = {
       layer,
       patch_type: patchType,
+      intervention_type: interventionType,
       blend_factor: blendFactor,
       positions: positions.trim() ? positions.split(',').map(p => parseInt(p.trim())).filter(n => !isNaN(n)) : null,
       heads: heads.trim() ? heads.split(',').map(h => parseInt(h.trim())).filter(n => !isNaN(n)) : null,
@@ -58,15 +67,37 @@ export function PatchConfigPanel({
   }
 
   const isAttentionType = patchType === 'attention' || patchType === 'attn_output'
+  const isAblationType = interventionType !== 'patch'
 
   return (
     <div className="patch-config-panel">
       <div className="panel-header">
         <Settings2 className="header-icon" />
-        <h3>Patch Configuration</h3>
+        <h3>Intervention Configuration</h3>
       </div>
 
       <div className="config-form">
+        <div className="form-row">
+          <div className="form-group">
+            <label>Intervention Type</label>
+            <select
+              value={interventionType}
+              onChange={e => setInterventionType(e.target.value as InterventionType)}
+              disabled={disabled}
+              className={isAblationType ? 'ablation-select' : ''}
+            >
+              {INTERVENTION_TYPES.map(it => (
+                <option key={it.value} value={it.value}>
+                  {it.label}
+                </option>
+              ))}
+            </select>
+            <span className="intervention-hint">
+              {INTERVENTION_TYPES.find(it => it.value === interventionType)?.description}
+            </span>
+          </div>
+        </div>
+
         <div className="form-row">
           <div className="form-group">
             <label>Layer</label>
@@ -84,7 +115,7 @@ export function PatchConfigPanel({
           </div>
 
           <div className="form-group">
-            <label>Patch Type</label>
+            <label>Activation Type</label>
             <select
               value={patchType}
               onChange={e => setPatchType(e.target.value as PatchType)}
@@ -139,7 +170,7 @@ export function PatchConfigPanel({
             />
             <div className="blend-labels">
               <span>Original</span>
-              <span>Full Replace</span>
+              <span>{isAblationType ? 'Full Ablation' : 'Full Replace'}</span>
             </div>
           </div>
         </div>
@@ -169,8 +200,13 @@ export function PatchConfigPanel({
           </div>
 
           {patches.map((patch, index) => (
-            <div key={index} className="patch-item">
+            <div key={index} className={`patch-item ${patch.intervention_type !== 'patch' ? 'ablation-item' : ''}`}>
               <div className="patch-info">
+                <span className={`patch-intervention ${patch.intervention_type !== 'patch' ? 'ablation' : ''}`}>
+                  {patch.intervention_type === 'patch' ? 'PATCH' :
+                   patch.intervention_type === 'zero_ablate' ? 'ZERO' :
+                   patch.intervention_type === 'mean_ablate' ? 'MEAN' : 'NOISE'}
+                </span>
                 <span className="patch-layer">L{patch.layer}</span>
                 <span className="patch-type">{patch.patch_type}</span>
                 {patch.positions && (
@@ -376,6 +412,37 @@ export function PatchConfigPanel({
           align-items: center;
           gap: 0.75rem;
           flex-wrap: wrap;
+        }
+
+        .intervention-hint {
+          font-size: 0.7rem;
+          color: rgba(255, 255, 255, 0.4);
+          margin-top: 0.25rem;
+        }
+
+        .ablation-select {
+          border-color: rgba(168, 85, 247, 0.4) !important;
+        }
+
+        .patch-intervention {
+          font-size: 0.65rem;
+          font-weight: 600;
+          padding: 0.125rem 0.375rem;
+          background: rgba(59, 130, 246, 0.2);
+          border: 1px solid rgba(59, 130, 246, 0.3);
+          color: rgba(59, 130, 246, 0.9);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .patch-intervention.ablation {
+          background: rgba(168, 85, 247, 0.2);
+          border-color: rgba(168, 85, 247, 0.3);
+          color: rgba(168, 85, 247, 0.9);
+        }
+
+        .patch-item.ablation-item {
+          border-color: rgba(168, 85, 247, 0.2);
         }
 
         .patch-layer {

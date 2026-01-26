@@ -25,7 +25,7 @@ import type {
 
 interface ExperimentsListProps {
   currentExperiment?: {
-    sourcePrompt: string
+    sourcePrompt?: string
     targetPrompt: string
     modelId: string
     patches: PatchSpec[]
@@ -193,10 +193,13 @@ export function ExperimentsList({
     e.target.value = ''
   }, [experiments, saveToStorage])
 
+  // Check if source prompt is required (any patch uses 'patch' intervention type)
+  const requiresSourcePrompt = currentExperiment?.patches.some(p => p.intervention_type === 'patch') ?? false
+
   const canSave = currentExperiment &&
     currentExperiment.patches.length > 0 &&
-    currentExperiment.sourcePrompt.trim() &&
-    currentExperiment.targetPrompt.trim()
+    currentExperiment.targetPrompt.trim() &&
+    (!requiresSourcePrompt || (currentExperiment.sourcePrompt?.trim() ?? false))
 
   return (
     <div className="experiments-list">
@@ -311,13 +314,21 @@ export function ExperimentsList({
                   </div>
 
                   <div className="card-body">
-                    <div className="prompt-preview">
-                      <span className="prompt-label">Source:</span>
-                      <span className="prompt-text">{truncate(experiment.source_prompt, 40)}</span>
-                    </div>
-                    <div className="prompt-arrow">
-                      <ArrowRight className="arrow-icon" />
-                    </div>
+                    {experiment.source_prompt ? (
+                      <>
+                        <div className="prompt-preview">
+                          <span className="prompt-label">Source:</span>
+                          <span className="prompt-text">{truncate(experiment.source_prompt, 40)}</span>
+                        </div>
+                        <div className="prompt-arrow">
+                          <ArrowRight className="arrow-icon" />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="ablation-badge">
+                        <span className="ablation-label">Ablation</span>
+                      </div>
+                    )}
                     <div className="prompt-preview">
                       <span className="prompt-label">Target:</span>
                       <span className="prompt-text">{truncate(experiment.target_prompt, 40)}</span>
@@ -628,6 +639,23 @@ export function ExperimentsList({
         .prompt-preview {
           flex: 1;
           min-width: 0;
+        }
+
+        .ablation-badge {
+          flex-shrink: 0;
+          margin-right: 0.5rem;
+        }
+
+        .ablation-label {
+          display: inline-block;
+          padding: 0.25rem 0.5rem;
+          background: rgba(168, 85, 247, 0.2);
+          border: 1px solid rgba(168, 85, 247, 0.3);
+          color: rgba(168, 85, 247, 0.9);
+          font-size: 0.65rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
         }
 
         .prompt-label {

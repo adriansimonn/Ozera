@@ -15,6 +15,7 @@ class TransactionTypeEnum(str, Enum):
     TRAINING_REFUND = "training_refund"
     ADMIN_ADJUSTMENT = "admin_adjustment"
     INFERENCE_CHARGE = "inference_charge"
+    PATCHING_CHARGE = "patching_charge"
 
 
 class CreditBalanceResponse(BaseModel):

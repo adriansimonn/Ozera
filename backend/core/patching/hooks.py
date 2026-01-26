@@ -338,17 +338,24 @@ def create_residual_patch_hook(
 def create_zero_ablation_hook(
     positions: Optional[list[int]] = None,
     dimensions: Optional[list[int]] = None,
+    blend_factor: float = 1.0,
+    ablation_type: Literal['zero_ablate', 'mean_ablate', 'noise_ablate'] = 'zero_ablate',
     storage: Optional[dict] = None,
     storage_key: Optional[str] = None,
 ) -> Callable:
     """
-    Create a hook that zeros out activations (ablation).
+    Create a hook that ablates activations (zero, mean, or noise ablation).
 
-    Useful for measuring component importance by removing its contribution.
+    Useful for measuring component importance by removing or modifying its contribution.
 
     Args:
-        positions: If provided, only zero these positions. None = all.
-        dimensions: If provided, only zero these dimensions. None = all.
+        positions: If provided, only ablate these positions. None = all.
+        dimensions: If provided, only ablate these dimensions. None = all.
+        blend_factor: Interpolation factor (1.0 = full ablation, 0.0 = no change).
+        ablation_type: Type of ablation to perform:
+            - 'zero_ablate': Set to zero
+            - 'mean_ablate': Replace with mean activation (computed from current tensor)
+            - 'noise_ablate': Replace with Gaussian noise matching activation statistics
         storage: Optional dict to store original values.
         storage_key: Key prefix for storage.
 
@@ -367,26 +374,53 @@ def create_zero_ablation_hook(
         if storage is not None and storage_key is not None:
             storage[f"{storage_key}_original"] = tensor.detach().clone()
 
+        # Compute the ablation value based on type
+        if ablation_type == 'zero_ablate':
+            ablation_value = torch.zeros_like(tensor)
+        elif ablation_type == 'mean_ablate':
+            # Compute mean across sequence dimension
+            mean_val = tensor.mean(dim=1, keepdim=True).expand_as(tensor)
+            ablation_value = mean_val
+        elif ablation_type == 'noise_ablate':
+            # Generate noise matching tensor statistics
+            mean = tensor.mean()
+            std = tensor.std()
+            ablation_value = torch.randn_like(tensor) * std + mean
+        else:
+            ablation_value = torch.zeros_like(tensor)
+
         ablated = tensor.clone()
 
         if positions is None and dimensions is None:
-            # Zero everything
-            ablated.zero_()
+            # Ablate everything
+            if blend_factor == 1.0:
+                ablated = ablation_value
+            else:
+                ablated = (1 - blend_factor) * tensor + blend_factor * ablation_value
         elif dimensions is not None:
-            # Zero specific dimensions
+            # Ablate specific dimensions
             for dim in dimensions:
                 if dim < tensor.shape[-1]:
                     if positions is None:
-                        ablated[:, :, dim] = 0.0
+                        if blend_factor == 1.0:
+                            ablated[:, :, dim] = ablation_value[:, :, dim]
+                        else:
+                            ablated[:, :, dim] = (1 - blend_factor) * tensor[:, :, dim] + blend_factor * ablation_value[:, :, dim]
                     else:
                         for pos in positions:
                             if pos < tensor.shape[1]:
-                                ablated[:, pos, dim] = 0.0
+                                if blend_factor == 1.0:
+                                    ablated[:, pos, dim] = ablation_value[:, pos, dim]
+                                else:
+                                    ablated[:, pos, dim] = (1 - blend_factor) * tensor[:, pos, dim] + blend_factor * ablation_value[:, pos, dim]
         else:
-            # Zero specific positions (all dimensions)
+            # Ablate specific positions (all dimensions)
             for pos in positions:
                 if pos < tensor.shape[1]:
-                    ablated[:, pos] = 0.0
+                    if blend_factor == 1.0:
+                        ablated[:, pos] = ablation_value[:, pos]
+                    else:
+                        ablated[:, pos] = (1 - blend_factor) * tensor[:, pos] + blend_factor * ablation_value[:, pos]
 
         # Store ablated
         if storage is not None and storage_key is not None:

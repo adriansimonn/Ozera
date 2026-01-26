@@ -8,6 +8,15 @@
 export type PatchType = 'attention' | 'mlp' | 'residual' | 'attn_output' | 'ff_output' | 'post_attn' | 'post_ff'
 
 /**
+ * Types of interventions supported.
+ * - 'patch': Replace with source activations (requires source prompt)
+ * - 'zero_ablate': Zero out activations
+ * - 'mean_ablate': Replace with mean activation
+ * - 'noise_ablate': Replace with Gaussian noise matching activation statistics
+ */
+export type InterventionType = 'patch' | 'zero_ablate' | 'mean_ablate' | 'noise_ablate'
+
+/**
  * Specification for a single activation patch.
  */
 export interface PatchSpec {
@@ -17,6 +26,7 @@ export interface PatchSpec {
   heads?: number[] | null
   neurons?: number[] | null
   blend_factor: number
+  intervention_type: InterventionType
 }
 
 /**
@@ -63,9 +73,10 @@ export interface CapturedActivationDetail extends CapturedActivationSummary {
 
 /**
  * Request to run a patching experiment.
+ * source_prompt is optional for ablation-only experiments.
  */
 export interface RunPatchingRequest {
-  source_prompt: string
+  source_prompt?: string | null
   target_prompt: string
   model: string
   patches: PatchSpec[]
@@ -158,7 +169,7 @@ export interface ModelLayerInfo {
 export interface PatchingExperiment {
   id: string
   name: string
-  source_prompt: string
+  source_prompt?: string | null
   target_prompt: string
   model_id: string
   model_type: 'ozera' | 'open_source'
@@ -177,7 +188,7 @@ export interface PatchingExperiment {
  */
 export interface SaveExperimentRequest {
   name: string
-  source_prompt: string
+  source_prompt?: string | null
   target_prompt: string
   model_id: string
   patches: PatchSpec[]
