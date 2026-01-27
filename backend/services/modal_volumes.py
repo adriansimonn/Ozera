@@ -361,9 +361,8 @@ async def delete_model_from_volume(user_id: int, model_name: str) -> bool:
     try:
         remote_dir = f"/{user_id}/{model_name}"
 
-        # List and delete all files in the directory
-        for entry in models_volume.listdir(remote_dir):
-            models_volume.remove_file(entry.path)
+        # Delete the entire directory recursively
+        models_volume.remove_file(remote_dir, recursive=True)
 
         return True
     except Exception as e:

@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react'
-import { Upload, X, Box, Check, AlertCircle, Loader2 } from 'lucide-react'
+import { Upload, X, Box, Check, AlertCircle, Loader2, Info } from 'lucide-react'
 import { useModelUpload, useCustomModelCount } from '../../hooks/useTraining'
 
 interface ModelUploadPanelProps {
@@ -462,10 +462,34 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
         </div>
       )}
 
-      {/* Info section */}
+      {/* Architecture warning */}
       <div
         style={{
           marginTop: '16px',
+          padding: '10px 12px',
+          background: 'rgba(245, 158, 11, 0.1)',
+          border: '1px solid rgba(245, 158, 11, 0.3)',
+          borderRadius: '4px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '10px',
+        }}
+      >
+        <Info size={14} color="#f59e0b" style={{ flexShrink: 0, marginTop: '2px' }} />
+        <div style={{ fontSize: '11px' }}>
+          <div style={{ color: '#f59e0b', fontWeight: 500, marginBottom: '4px' }}>
+            Architecture Compatibility
+          </div>
+          <div style={{ color: 'rgba(251, 191, 36, 0.9)' }}>
+            Only models trained with the Ozera architecture are supported. Models from other architectures (SmolLM, Gemma, Qwen, Llama, etc.) will produce incorrect outputs. For open-source models, use the pre-registered models from the dropdown menu instead.
+          </div>
+        </div>
+      </div>
+
+      {/* Info section */}
+      <div
+        style={{
+          marginTop: '12px',
           padding: '12px',
           background: 'rgba(0,0,0,0.2)',
           borderRadius: '0',
