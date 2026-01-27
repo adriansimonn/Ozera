@@ -137,7 +137,7 @@ export interface PatchingResult {
  */
 export interface PatchingModelInfo {
   model_id: string
-  model_type: 'ozera' | 'open_source'
+  model_type: 'ozera' | 'open_source' | 'custom'
   display_name: string
   num_layers: number
   num_heads: number

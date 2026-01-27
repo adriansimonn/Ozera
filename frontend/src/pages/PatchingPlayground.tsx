@@ -256,11 +256,44 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
                 {loadingModels ? (
                   <option>Loading models...</option>
                 ) : (
-                  models.map(model => (
-                    <option key={model.model_id} value={model.model_id}>
-                      {model.display_name} ({model.num_layers} layers)
-                    </option>
-                  ))
+                  <>
+                    {/* Ozera Base Models */}
+                    {models.filter(m => m.model_type === 'ozera' && (m.model_id === 'nano' || m.model_id === 'mini')).length > 0 && (
+                      <optgroup label="Ozera Models">
+                        {models
+                          .filter(m => m.model_type === 'ozera' && (m.model_id === 'nano' || m.model_id === 'mini'))
+                          .map(model => (
+                            <option key={model.model_id} value={model.model_id}>
+                              {model.display_name} · {model.num_layers}L / {model.num_heads}H
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                    {/* Open Source Models */}
+                    {models.filter(m => m.model_type === 'open_source').length > 0 && (
+                      <optgroup label="Open Source">
+                        {models
+                          .filter(m => m.model_type === 'open_source')
+                          .map(model => (
+                            <option key={model.model_id} value={model.model_id}>
+                              {model.display_name} · {model.num_layers}L / {model.num_heads}H
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                    {/* Custom Models */}
+                    {models.filter(m => m.model_type === 'custom').length > 0 && (
+                      <optgroup label="Custom Models">
+                        {models
+                          .filter(m => m.model_type === 'custom')
+                          .map(model => (
+                            <option key={model.model_id} value={model.model_id}>
+                              {model.display_name} · {model.num_layers}L / {model.num_heads}H
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                  </>
                 )}
               </select>
               {modelInfo && (

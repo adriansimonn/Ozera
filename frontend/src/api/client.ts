@@ -1260,7 +1260,11 @@ class OzeraAPIClient {
    * Get list of available models for patching.
    */
   async getPatchingModels(): Promise<PatchingModelInfo[]> {
-    const response = await fetch(`${this.baseUrl}/patching/models`)
+    const response = await fetch(`${this.baseUrl}/patching/models`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to get patching models: ${response.statusText}`)
