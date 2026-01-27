@@ -46,9 +46,9 @@ psycopg2-binary>=2.9.9  # PostgreSQL adapter
 # redis>=5.0.0
 # celery>=5.3.0
 
-# # File formats
+# File formats
 # h5py>=3.9.0
-# safetensors>=0.4.0
+safetensors>=0.4.0
 
 # # Data sources
 # datasets>=2.14.0  # HuggingFace datasets

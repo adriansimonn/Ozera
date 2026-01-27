@@ -58,23 +58,41 @@ class ModelLoader:
 
         print(f"Loading {model_name} model from {checkpoint_path}")
 
-        checkpoint = torch.load(
-            checkpoint_path,
-            map_location=device,
-            weights_only=False
-        )
+        if checkpoint_path.endswith('.safetensors'):
+            # Load safetensors format
+            from safetensors.torch import load_file as load_safetensors
+            state_dict = load_safetensors(checkpoint_path)
 
-        config = checkpoint['config']
+            # Try to load metadata from safetensors header or metadata.json
+            config = self._load_config_for_safetensors(checkpoint_path)
 
-        print(f"  Layers: {config.num_layers}")
-        print(f"  Heads: {config.num_heads}")
-        print(f"  Hidden dim: {config.d_model}")
-        print(f"  Parameters: {config.count_parameters():,}")
-        print(f"  Validation loss: {checkpoint.get('val_loss', 'N/A')}")
+            print(f"  Layers: {config.num_layers}")
+            print(f"  Heads: {config.num_heads}")
+            print(f"  Hidden dim: {config.d_model}")
+            print(f"  Parameters: {config.count_parameters():,}")
 
-        model = TransformerLM(config).to(device)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        model.eval()
+            model = TransformerLM(config).to(device)
+            model.load_state_dict(state_dict)
+            model.eval()
+        else:
+            # Load .pt format (legacy)
+            checkpoint = torch.load(
+                checkpoint_path,
+                map_location=device,
+                weights_only=False
+            )
+
+            config = checkpoint['config']
+
+            print(f"  Layers: {config.num_layers}")
+            print(f"  Heads: {config.num_heads}")
+            print(f"  Hidden dim: {config.d_model}")
+            print(f"  Parameters: {config.count_parameters():,}")
+            print(f"  Validation loss: {checkpoint.get('val_loss', 'N/A')}")
+
+            model = TransformerLM(config).to(device)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            model.eval()
 
         self._loaded_models[cache_key] = (model, config)
 
@@ -92,6 +110,56 @@ class ModelLoader:
         """
         self._custom_model_registry[model_name] = user_id
 
+    def _load_config_for_safetensors(self, checkpoint_path: str) -> TransformerConfig:
+        """
+        Load config for a safetensors model.
+
+        First tries to read from safetensors metadata, then metadata.json,
+        then infers from state dict.
+        """
+        import json
+        from safetensors import safe_open
+
+        # Try to get config from safetensors metadata
+        try:
+            with safe_open(checkpoint_path, framework="pt") as f:
+                metadata = f.metadata()
+                if metadata and "d_model" in metadata:
+                    return TransformerConfig(
+                        vocab_size=int(metadata.get("vocab_size", 50257)),
+                        max_seq_len=int(metadata.get("max_seq_len", 256)),
+                        d_model=int(metadata["d_model"]),
+                        num_layers=int(metadata.get("num_layers", 6)),
+                        num_heads=int(metadata.get("num_heads", 6)),
+                        d_ff=int(metadata.get("d_ff", int(metadata["d_model"]) * 4)),
+                        dropout_rate=float(metadata.get("dropout_rate", 0.0)),
+                    )
+        except Exception as e:
+            print(f"Could not read safetensors metadata: {e}")
+
+        # Try metadata.json in same directory
+        metadata_path = os.path.join(os.path.dirname(checkpoint_path), 'metadata.json')
+        if os.path.exists(metadata_path):
+            try:
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                # Get base config if specified
+                base_config = metadata.get('base_config', 'nano')
+                from core.transformer.config import get_config
+                config = get_config(base_config)
+                # Override with any specific values
+                if 'vocab_size' in metadata:
+                    config.vocab_size = metadata['vocab_size']
+                if 'seq_len' in metadata:
+                    config.max_seq_len = metadata['seq_len']
+                return config
+            except Exception as e:
+                print(f"Could not read metadata.json: {e}")
+
+        # Fall back to default nano config
+        from core.transformer.config import get_config
+        return get_config('nano')
+
     def _ensure_custom_model_available(self, model_name: str) -> Optional[str]:
         """
         Ensure a custom model is available locally, downloading from Modal if needed.
@@ -103,11 +171,14 @@ class ModelLoader:
             Path to the model checkpoint, or None if not available
         """
         custom_dir = os.path.join(self.models_dir, 'custom', model_name)
-        custom_path = os.path.join(custom_dir, 'model.pt')
+        custom_path_safetensors = os.path.join(custom_dir, 'model.safetensors')
+        custom_path_pt = os.path.join(custom_dir, 'model.pt')
 
-        # If already exists locally, return it
-        if os.path.exists(custom_path):
-            return custom_path
+        # If already exists locally, return it (prefer safetensors)
+        if os.path.exists(custom_path_safetensors):
+            return custom_path_safetensors
+        if os.path.exists(custom_path_pt):
+            return custom_path_pt
 
         # Check if we know the user_id for this model
         user_id = self._custom_model_registry.get(model_name)
@@ -132,12 +203,17 @@ class ModelLoader:
 
             success = download_model_from_volume(user_id, model_name, Path(custom_dir))
 
-            if success and os.path.exists(custom_path):
-                print(f"Successfully downloaded model '{model_name}'")
-                return custom_path
-            else:
-                print(f"Failed to download model '{model_name}'")
-                return None
+            if success:
+                # Check which format was downloaded (prefer safetensors)
+                if os.path.exists(custom_path_safetensors):
+                    print(f"Successfully downloaded model '{model_name}' (safetensors)")
+                    return custom_path_safetensors
+                elif os.path.exists(custom_path_pt):
+                    print(f"Successfully downloaded model '{model_name}' (pt)")
+                    return custom_path_pt
+
+            print(f"Failed to download model '{model_name}'")
+            return None
 
         except Exception as e:
             print(f"Error downloading custom model: {e}")
@@ -181,10 +257,13 @@ class ModelLoader:
             'mini': 'ozera-mini'
         }
 
-        # Check for custom model first (local)
-        custom_path = os.path.join(self.models_dir, 'custom', model_name, 'model.pt')
-        if os.path.exists(custom_path):
-            return custom_path
+        # Check for custom model first (local) - prefer safetensors
+        custom_path_safetensors = os.path.join(self.models_dir, 'custom', model_name, 'model.safetensors')
+        custom_path_pt = os.path.join(self.models_dir, 'custom', model_name, 'model.pt')
+        if os.path.exists(custom_path_safetensors):
+            return custom_path_safetensors
+        if os.path.exists(custom_path_pt):
+            return custom_path_pt
 
         # Check if this is a base model
         if model_name in model_map:
@@ -240,8 +319,9 @@ class ModelLoader:
         custom_dir = os.path.join(self.models_dir, 'custom')
         if os.path.exists(custom_dir):
             for model_dir in os.listdir(custom_dir):
-                model_path = os.path.join(custom_dir, model_dir, 'model.pt')
-                if os.path.exists(model_path):
+                model_path_safetensors = os.path.join(custom_dir, model_dir, 'model.safetensors')
+                model_path_pt = os.path.join(custom_dir, model_dir, 'model.pt')
+                if os.path.exists(model_path_safetensors) or os.path.exists(model_path_pt):
                     available.append(model_dir)
 
         # Optionally include custom models from database (may need download)

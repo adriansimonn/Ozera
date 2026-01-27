@@ -15,6 +15,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
+from safetensors.torch import save_model
 
 # Import transformer components
 import sys
@@ -290,15 +291,21 @@ def run_training(
             # Save best model
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                checkpoint = {
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'config': model_config,
-                    'train_loss': train_loss,
-                    'val_loss': val_loss,
+                # Save model weights as safetensors with config metadata
+                metadata = {
+                    "format": "ozera",
+                    "epoch": str(epoch),
+                    "train_loss": str(train_loss),
+                    "val_loss": str(val_loss),
+                    "vocab_size": str(model_config.vocab_size),
+                    "max_seq_len": str(model_config.max_seq_len),
+                    "d_model": str(model_config.d_model),
+                    "num_layers": str(model_config.num_layers),
+                    "num_heads": str(model_config.num_heads),
+                    "d_ff": str(model_config.d_ff),
+                    "dropout_rate": str(model_config.dropout_rate),
                 }
-                torch.save(checkpoint, output_dir / 'model.pt')
+                save_model(model, output_dir / 'model.safetensors', metadata=metadata)
 
         # Save model metadata
         metadata = {

@@ -32,6 +32,8 @@ training_image = (
         "scipy>=1.10.0",
         "tiktoken>=0.5.0",
         "requests>=2.28.0",
+        "safetensors>=0.4.0",
+        "packaging",
     )
     # Add only the necessary backend code directories
     .add_local_dir(os.path.join(BACKEND_DIR, "core"), remote_path="/app/backend/core")

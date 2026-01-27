@@ -795,6 +795,9 @@ class OzeraAPIClient {
   async deleteCustomModel(modelId: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}/training/models/${modelId}`, {
       method: 'DELETE',
+      headers: {
+        ...getAuthHeaders(),
+      },
     })
 
     if (!response.ok) {

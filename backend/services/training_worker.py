@@ -16,6 +16,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
+from safetensors.torch import save_model
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -294,28 +295,38 @@ def run_training_job(job_id: str, cancel_event: Event) -> None:
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
 
-                # Save checkpoint to job directory
-                checkpoint = {
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'config': model_config,
-                    'train_loss': train_loss,
-                    'val_loss': val_loss,
+                # Save checkpoint to job directory as safetensors
+                st_metadata = {
+                    "format": "ozera",
+                    "epoch": str(epoch),
+                    "train_loss": str(train_loss),
+                    "val_loss": str(val_loss),
+                    "vocab_size": str(model_config.vocab_size),
+                    "max_seq_len": str(model_config.max_seq_len),
+                    "d_model": str(model_config.d_model),
+                    "num_layers": str(model_config.num_layers),
+                    "num_heads": str(model_config.num_heads),
+                    "d_ff": str(model_config.d_ff),
+                    "dropout_rate": str(model_config.dropout_rate),
                 }
-                torch.save(checkpoint, job_dir / 'best_model.pt')
+                save_model(model, job_dir / 'best_model.safetensors', metadata=st_metadata)
 
             # Save periodic checkpoints every 5 epochs
             if (epoch + 1) % 5 == 0:
-                checkpoint = {
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'config': model_config,
-                    'train_loss': train_loss,
-                    'val_loss': val_loss,
+                st_metadata = {
+                    "format": "ozera",
+                    "epoch": str(epoch),
+                    "train_loss": str(train_loss),
+                    "val_loss": str(val_loss),
+                    "vocab_size": str(model_config.vocab_size),
+                    "max_seq_len": str(model_config.max_seq_len),
+                    "d_model": str(model_config.d_model),
+                    "num_layers": str(model_config.num_layers),
+                    "num_heads": str(model_config.num_heads),
+                    "d_ff": str(model_config.d_ff),
+                    "dropout_rate": str(model_config.dropout_rate),
                 }
-                torch.save(checkpoint, job_dir / f'checkpoint_epoch_{epoch+1}.pt')
+                save_model(model, job_dir / f'checkpoint_epoch_{epoch+1}.safetensors', metadata=st_metadata)
 
         # Training complete - save final model to custom models directory
         model_name = config["model_name"]
@@ -323,7 +334,7 @@ def run_training_job(job_id: str, cancel_event: Event) -> None:
         model_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy best model
-        shutil.copy(job_dir / 'best_model.pt', model_dir / 'model.pt')
+        shutil.copy(job_dir / 'best_model.safetensors', model_dir / 'model.safetensors')
 
         # Save model metadata
         metadata = {

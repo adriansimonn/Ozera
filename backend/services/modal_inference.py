@@ -149,6 +149,7 @@ class InferenceWorkerT4:
         """Load a model from safetensors format."""
         import torch
         from safetensors.torch import load_file
+        from safetensors import safe_open
 
         from core.transformer.model_torch import TransformerLM
         from core.transformer.config import TransformerConfig
@@ -156,8 +157,28 @@ class InferenceWorkerT4:
         # Load safetensors file
         state_dict = load_file(checkpoint_path)
 
-        # Try to infer config from state dict
-        config = self._infer_config_from_state_dict(state_dict)
+        # Try to get config from safetensors metadata first (for trained models)
+        config = None
+        try:
+            with safe_open(checkpoint_path, framework="pt") as f:
+                metadata = f.metadata()
+                if metadata and metadata.get("format") == "ozera" and "d_model" in metadata:
+                    config = TransformerConfig(
+                        vocab_size=int(metadata.get("vocab_size", 50257)),
+                        max_seq_len=int(metadata.get("max_seq_len", 256)),
+                        d_model=int(metadata["d_model"]),
+                        num_layers=int(metadata.get("num_layers", 6)),
+                        num_heads=int(metadata.get("num_heads", 6)),
+                        d_ff=int(metadata.get("d_ff", int(metadata["d_model"]) * 4)),
+                        dropout_rate=float(metadata.get("dropout_rate", 0.0)),
+                    )
+                    print(f"Loaded config from safetensors metadata")
+        except Exception as e:
+            print(f"Could not read safetensors metadata: {e}")
+
+        # Fall back to inferring config from state dict
+        if config is None:
+            config = self._infer_config_from_state_dict(state_dict)
 
         # Create model and load state dict
         model = TransformerLM(config).to("cuda")
@@ -272,7 +293,10 @@ class InferenceWorkerT4:
 
     def _find_custom_model(self, model_id: str) -> Optional[str]:
         """Find a custom model in the volume (supports both .pt and .safetensors)."""
-        # Custom models are stored at /models/{user_id}/{model_name}/model.pt or model.safetensors
+        # Reload volume to ensure we see newly trained models
+        models_volume.reload()
+
+        # Custom models are stored at /models/{user_id}/{model_name}/model.safetensors or model.pt
         models_root = "/models"
 
         for user_dir in os.listdir(models_root):
@@ -282,15 +306,15 @@ class InferenceWorkerT4:
             if not os.path.isdir(user_path):
                 continue
 
-            # Check for .pt file (trained models)
-            pt_path = os.path.join(user_path, model_id, "model.pt")
-            if os.path.exists(pt_path):
-                return pt_path
-
-            # Check for .safetensors file (uploaded models)
+            # Check for .safetensors file first (preferred format for both trained and uploaded)
             safetensors_path = os.path.join(user_path, model_id, "model.safetensors")
             if os.path.exists(safetensors_path):
                 return safetensors_path
+
+            # Check for .pt file (legacy trained models)
+            pt_path = os.path.join(user_path, model_id, "model.pt")
+            if os.path.exists(pt_path):
+                return pt_path
 
         return None
 
@@ -638,6 +662,9 @@ class InferenceWorkerT4:
     @modal.method()
     def list_models(self) -> list:
         """List available models in the volume (includes open-source models)."""
+        # Reload volume to ensure we see newly trained models
+        models_volume.reload()
+
         available = []
 
         # Add open-source models
@@ -672,8 +699,9 @@ class InferenceWorkerT4:
                 if not os.path.isdir(user_path):
                     continue
                 for model_name in os.listdir(user_path):
-                    model_path = os.path.join(user_path, model_name, "model.pt")
-                    if os.path.exists(model_path):
+                    model_path_safetensors = os.path.join(user_path, model_name, "model.safetensors")
+                    model_path_pt = os.path.join(user_path, model_name, "model.pt")
+                    if os.path.exists(model_path_safetensors) or os.path.exists(model_path_pt):
                         available.append({
                             "id": model_name,
                             "type": "custom",
@@ -1066,6 +1094,9 @@ class InferenceWorkerA10G:
 
     def _find_custom_model(self, model_id: str) -> Optional[str]:
         """Find a custom model in the volume (supports both .pt and .safetensors)."""
+        # Reload volume to ensure we see newly trained models
+        models_volume.reload()
+
         models_root = "/models"
 
         for user_dir in os.listdir(models_root):
@@ -1075,15 +1106,15 @@ class InferenceWorkerA10G:
             if not os.path.isdir(user_path):
                 continue
 
-            # Check for .pt file (trained models)
-            pt_path = os.path.join(user_path, model_id, "model.pt")
-            if os.path.exists(pt_path):
-                return pt_path
-
-            # Check for .safetensors file (uploaded models)
+            # Check for .safetensors file first (preferred format for both trained and uploaded)
             safetensors_path = os.path.join(user_path, model_id, "model.safetensors")
             if os.path.exists(safetensors_path):
                 return safetensors_path
+
+            # Check for .pt file (legacy trained models)
+            pt_path = os.path.join(user_path, model_id, "model.pt")
+            if os.path.exists(pt_path):
+                return pt_path
 
         return None
 
@@ -1091,6 +1122,7 @@ class InferenceWorkerA10G:
         """Load a model from safetensors format."""
         import torch
         from safetensors.torch import load_file
+        from safetensors import safe_open
 
         from core.transformer.model_torch import TransformerLM
         from core.transformer.config import TransformerConfig
@@ -1098,8 +1130,28 @@ class InferenceWorkerA10G:
         # Load safetensors file
         state_dict = load_file(checkpoint_path)
 
-        # Try to infer config from state dict
-        config = self._infer_config_from_state_dict(state_dict)
+        # Try to get config from safetensors metadata first (for trained models)
+        config = None
+        try:
+            with safe_open(checkpoint_path, framework="pt") as f:
+                metadata = f.metadata()
+                if metadata and metadata.get("format") == "ozera" and "d_model" in metadata:
+                    config = TransformerConfig(
+                        vocab_size=int(metadata.get("vocab_size", 50257)),
+                        max_seq_len=int(metadata.get("max_seq_len", 256)),
+                        d_model=int(metadata["d_model"]),
+                        num_layers=int(metadata.get("num_layers", 6)),
+                        num_heads=int(metadata.get("num_heads", 6)),
+                        d_ff=int(metadata.get("d_ff", int(metadata["d_model"]) * 4)),
+                        dropout_rate=float(metadata.get("dropout_rate", 0.0)),
+                    )
+                    print(f"Loaded config from safetensors metadata")
+        except Exception as e:
+            print(f"Could not read safetensors metadata: {e}")
+
+        # Fall back to inferring config from state dict
+        if config is None:
+            config = self._infer_config_from_state_dict(state_dict)
 
         # Create model and load state dict
         model = TransformerLM(config).to("cuda")

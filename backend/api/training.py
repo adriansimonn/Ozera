@@ -631,8 +631,8 @@ async def download_custom_model(
             # List and download all model files
             for entry in models_volume.listdir(remote_dir):
                 print(f"[Download] Found entry: {entry.path}, type: {getattr(entry, 'type', 'unknown')}")
-                # Only download model.pt file
-                if str(entry.path).endswith('.pt'):
+                # Download model.safetensors file (or .pt for backwards compatibility)
+                if str(entry.path).endswith('.safetensors') or str(entry.path).endswith('.pt'):
                     file_name = Path(entry.path).name
                     # Read file content from volume
                     file_content = b""
