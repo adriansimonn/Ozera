@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import UnifiedPage from './pages/UnifiedPage'
 import TrainingPage from './pages/TrainingPage'
 import PatchingPlayground from './pages/PatchingPlayground'
+import AnalysisPage from './pages/AnalysisPage'
 import { AnimatedBackground } from './components/common/AnimatedBackground'
 import { LoginModal } from './components/auth/LoginModal'
 import { SignupModal } from './components/auth/SignupModal'
@@ -69,6 +70,16 @@ function App() {
                 path="/patching"
                 element={
                   <PatchingPlayground
+                    onShowLogin={() => setShowLogin(true)}
+                    onShowSignup={() => setShowSignup(true)}
+                    onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                  />
+                }
+              />
+              <Route
+                path="/analysis"
+                element={
+                  <AnalysisPage
                     onShowLogin={() => setShowLogin(true)}
                     onShowSignup={() => setShowSignup(true)}
                     onShowPurchaseCredits={() => setShowPurchaseCredits(true)}

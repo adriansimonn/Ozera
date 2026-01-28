@@ -5,7 +5,7 @@
  */
 
 import { Link, useLocation } from 'react-router-dom'
-import { Cpu, Square, SplitSquareVertical, Sparkles, GraduationCap, Upload, Zap } from 'lucide-react'
+import { Cpu, Square, SplitSquareVertical, Sparkles, GraduationCap, Upload, Zap, Search } from 'lucide-react'
 import { UserMenu } from './UserMenu'
 import { useAuthStore } from '../../stores/authStore'
 
@@ -67,6 +67,13 @@ export function NavBar({
             >
               <Zap className="nav-icon" />
               Activation Patching
+            </Link>
+            <Link
+              to="/analysis"
+              className={`nav-link ${isActive('/analysis') ? 'active' : ''}`}
+            >
+              <Search className="nav-icon" />
+              Analysis
             </Link>
           </div>
         </div>

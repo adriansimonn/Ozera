@@ -22,6 +22,16 @@ import type {
   PatchingModelInfo,
   ModelLayerInfo,
 } from '../types/patching'
+import type {
+  ClassifyHeadsRequest,
+  ClassifyHeadsResponse,
+  CompareAttentionRequest,
+  CompareAttentionResponse,
+  MinePatternRequest,
+  MinePatternResponse,
+  HeadImportanceRequest,
+  HeadImportanceResponse,
+} from '../types/analysis'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -1281,6 +1291,89 @@ class OzeraAPIClient {
 
     if (!response.ok) {
       throw new Error(`Failed to get model layer info: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  // ============= Attention Pattern Analysis =============
+
+  /**
+   * Classify attention heads for a captured activation.
+   * Identifies head types: induction, previous token, positional, copying.
+   */
+  async classifyHeads(request: ClassifyHeadsRequest): Promise<ClassifyHeadsResponse> {
+    const response = await fetch(`${this.baseUrl}/analysis/attention/classify-heads`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to classify heads: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Compare attention patterns between two captured activations.
+   */
+  async compareAttention(request: CompareAttentionRequest): Promise<CompareAttentionResponse> {
+    const response = await fetch(`${this.baseUrl}/analysis/attention/compare`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to compare attention: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Run comprehensive pattern mining on captured activations.
+   */
+  async minePatterns(request: MinePatternRequest): Promise<MinePatternResponse> {
+    const response = await fetch(`${this.baseUrl}/analysis/attention/mine-patterns`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to mine patterns: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get importance scores for attention heads.
+   */
+  async getHeadImportance(request: HeadImportanceRequest): Promise<HeadImportanceResponse> {
+    const response = await fetch(`${this.baseUrl}/analysis/attention/head-importance`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to get head importance: ${response.statusText}`)
     }
 
     return response.json()
