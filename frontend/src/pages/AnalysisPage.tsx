@@ -24,6 +24,9 @@ import {
   ChevronDown,
   ChevronUp,
   Zap,
+  Copy,
+  Check,
+  X,
 } from 'lucide-react'
 
 interface AnalysisPageProps {
@@ -63,6 +66,8 @@ export default function AnalysisPage({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showCapturedList, setShowCapturedList] = useState(true)
+  const [expandedPatternHeads, setExpandedPatternHeads] = useState<number | null>(null)
+  const [copiedPatternIdx, setCopiedPatternIdx] = useState<number | null>(null)
 
   // Load models and activations on mount
   useEffect(() => {
@@ -95,6 +100,25 @@ export default function AnalysisPage({
   const filteredActivations = capturedActivations.filter(
     (a) => a.model_id === selectedModel
   )
+
+  // Get head type from classification result (if available for same activation)
+  const getHeadType = (layer: number, head: number): HeadType | null => {
+    if (!classificationResult || classificationResult.activation_id !== selectedActivation1) {
+      return null
+    }
+    const classification = classificationResult.classifications.find(
+      c => c.layer === layer && c.head === head
+    )
+    return classification?.primary_type || null
+  }
+
+  // Copy heads list to clipboard
+  const copyHeadsList = async (heads: [number, number][], patternIdx: number) => {
+    const text = heads.map(([l, h]) => `L${l}H${h}`).join(', ')
+    await navigator.clipboard.writeText(text)
+    setCopiedPatternIdx(patternIdx)
+    setTimeout(() => setCopiedPatternIdx(null), 2000)
+  }
 
   // Capture new activations
   const handleCaptureActivations = async () => {
@@ -347,6 +371,11 @@ export default function AnalysisPage({
                   <span className="legend-secondary">●</span> Second prompt
                 </div>
               )}
+
+              <div className="storage-warning">
+                <AlertCircle size={12} />
+                <span>Activations are stored temporarily and may be cleared periodically.</span>
+              </div>
             </div>
 
             {/* Run Analysis Button */}
@@ -422,21 +451,27 @@ export default function AnalysisPage({
                 {/* Top Heads */}
                 <div className="result-section">
                   <h3>Top Important Heads</h3>
-                  <div className="top-heads-grid">
-                    {miningResult.top_heads.slice(0, 10).map(([layer, head, importance]) => (
-                      <button
-                        key={`${layer}-${head}`}
-                        onClick={() => setSelectedHead({ layer, head })}
-                        className="top-head-item"
-                      >
-                        <div className="head-label">
-                          L{layer} H{head}
-                        </div>
-                        <div className="head-importance">
-                          {(importance * 100).toFixed(0)}%
-                        </div>
-                      </button>
-                    ))}
+                  <div className="top-heads-grid-compact">
+                    {miningResult.top_heads.slice(0, 20).map(([layer, head, importance]) => {
+                      const headType = getHeadType(layer, head)
+                      const borderColor = headType ? HEAD_TYPE_COLORS[headType] : 'rgba(255, 255, 255, 0.15)'
+                      return (
+                        <button
+                          key={`${layer}-${head}`}
+                          onClick={() => setSelectedHead({ layer, head })}
+                          className="top-head-item-compact"
+                          style={{ borderColor }}
+                          title={headType ? `${HEAD_TYPE_NAMES[headType]}` : undefined}
+                        >
+                          <div className="head-label-compact">
+                            L{layer}H{head}
+                          </div>
+                          <div className="head-importance-compact">
+                            {(importance * 100).toFixed(0)}%
+                          </div>
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
 
@@ -490,11 +525,47 @@ export default function AnalysisPage({
                               </span>
                             ))}
                             {pattern.involved_heads.length > 8 && (
-                              <span className="head-tag more">
+                              <button
+                                className="head-tag more-btn"
+                                onClick={() => setExpandedPatternHeads(expandedPatternHeads === idx ? null : idx)}
+                              >
                                 +{pattern.involved_heads.length - 8} more
-                              </span>
+                              </button>
                             )}
                           </div>
+                          {/* Expanded heads popup */}
+                          {expandedPatternHeads === idx && (
+                            <div className="expanded-heads-popup">
+                              <div className="expanded-heads-header">
+                                <span>All Involved Heads ({pattern.involved_heads.length})</span>
+                                <div className="expanded-heads-actions">
+                                  <button
+                                    className="copy-heads-btn"
+                                    onClick={() => copyHeadsList(pattern.involved_heads, idx)}
+                                  >
+                                    {copiedPatternIdx === idx ? (
+                                      <><Check size={12} /> Copied</>
+                                    ) : (
+                                      <><Copy size={12} /> Copy</>
+                                    )}
+                                  </button>
+                                  <button
+                                    className="close-popup-btn"
+                                    onClick={() => setExpandedPatternHeads(null)}
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="expanded-heads-list">
+                                {pattern.involved_heads.map(([layer, head]) => (
+                                  <span key={`${layer}-${head}`} className="head-tag">
+                                    L{layer}H{head}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -828,6 +899,24 @@ export default function AnalysisPage({
           color: rgba(168, 85, 247, 0.9);
         }
 
+        .storage-warning {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.5rem;
+          margin-top: 0.75rem;
+          padding: 0.5rem 0.625rem;
+          background: rgba(245, 158, 11, 0.08);
+          border: 1px solid rgba(245, 158, 11, 0.2);
+          font-size: 0.7rem;
+          color: rgba(245, 158, 11, 0.8);
+          line-height: 1.4;
+        }
+
+        .storage-warning svg {
+          flex-shrink: 0;
+          margin-top: 1px;
+        }
+
         .run-analysis-btn {
           width: 100%;
           display: flex;
@@ -912,35 +1001,36 @@ export default function AnalysisPage({
           color: rgba(168, 85, 247, 0.9);
         }
 
-        .top-heads-grid {
+        .top-heads-grid-compact {
           display: grid;
-          grid-template-columns: repeat(5, 1fr);
-          gap: 0.5rem;
+          grid-template-columns: repeat(10, 1fr);
+          gap: 0.375rem;
         }
 
-        .top-head-item {
+        .top-head-item-compact {
           background: rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          padding: 0.75rem;
+          border: 2px solid rgba(255, 255, 255, 0.15);
+          padding: 0.375rem 0.25rem;
           cursor: pointer;
           transition: all 0.2s;
           text-align: center;
         }
 
-        .top-head-item:hover {
-          border-color: rgba(255, 255, 255, 0.35);
+        .top-head-item-compact:hover {
+          background: rgba(255, 255, 255, 0.08);
         }
 
-        .head-label {
-          font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.5);
+        .head-label-compact {
+          font-size: 0.6rem;
+          color: rgba(255, 255, 255, 0.6);
+          font-family: monospace;
         }
 
-        .head-importance {
-          font-size: 1.125rem;
+        .head-importance-compact {
+          font-size: 0.75rem;
           font-weight: 700;
           color: rgba(255, 255, 255, 0.9);
-          margin-top: 0.25rem;
+          margin-top: 0.125rem;
         }
 
         .type-distribution {
@@ -1031,8 +1121,81 @@ export default function AnalysisPage({
           color: rgba(255, 255, 255, 0.7);
         }
 
-        .head-tag.more {
+        .more-btn {
           color: rgba(255, 255, 255, 0.5);
+          cursor: pointer;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          transition: all 0.2s;
+        }
+
+        .more-btn:hover {
+          background: rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.8);
+          border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .expanded-heads-popup {
+          margin-top: 0.75rem;
+          background: rgba(0, 0, 0, 0.6);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          padding: 0.75rem;
+        }
+
+        .expanded-heads-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 0.625rem;
+          font-size: 0.75rem;
+          color: rgba(255, 255, 255, 0.6);
+        }
+
+        .expanded-heads-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .copy-heads-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
+          padding: 0.25rem 0.5rem;
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 0.7rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .copy-heads-btn:hover {
+          background: rgba(255, 255, 255, 0.15);
+          border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .close-popup-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.25rem;
+          background: transparent;
+          border: none;
+          color: rgba(255, 255, 255, 0.4);
+          cursor: pointer;
+          transition: color 0.2s;
+        }
+
+        .close-popup-btn:hover {
+          color: rgba(255, 255, 255, 0.8);
+        }
+
+        .expanded-heads-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.375rem;
+          max-height: 200px;
+          overflow-y: auto;
         }
 
         .results-placeholder {
@@ -1074,14 +1237,14 @@ export default function AnalysisPage({
             grid-template-columns: 1fr;
           }
 
-          .top-heads-grid {
-            grid-template-columns: repeat(4, 1fr);
+          .top-heads-grid-compact {
+            grid-template-columns: repeat(5, 1fr);
           }
         }
 
         @media (max-width: 600px) {
-          .top-heads-grid {
-            grid-template-columns: repeat(3, 1fr);
+          .top-heads-grid-compact {
+            grid-template-columns: repeat(4, 1fr);
           }
         }
       `}</style>

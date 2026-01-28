@@ -38,15 +38,15 @@ export function AttentionPatternGrid({
       if (!containerRef.current) return
 
       const containerWidth = containerRef.current.offsetWidth
-      const labelWidth = 64 // 4rem for row labels
-      const availableWidth = containerWidth - labelWidth - 20 // 20px buffer
-      const cellGap = 4 // 2px margin on each side
+      const labelWidth = 40 // Reduced for compact display
+      const availableWidth = containerWidth - labelWidth - 10
+      const cellGap = 1 // 0.5px margin on each side
 
       // Calculate max cell size that fits all heads
       const maxCellSize = Math.floor((availableWidth - (numHeads * cellGap)) / numHeads)
 
-      // Clamp between min (20px) and max (48px)
-      const newCellSize = Math.max(20, Math.min(48, maxCellSize))
+      // Clamp between min (6px for very wide models) and max (48px)
+      const newCellSize = Math.max(6, Math.min(48, maxCellSize))
       setCellSize(newCellSize)
     }
 
@@ -114,8 +114,9 @@ export function AttentionPatternGrid({
   }
 
   // Dynamic font size based on cell size
-  const fontSize = cellSize < 30 ? '0.5rem' : '0.75rem'
-  const showLabels = cellSize >= 24
+  const fontSize = cellSize < 16 ? '0.4rem' : cellSize < 30 ? '0.5rem' : '0.75rem'
+  const showLabels = cellSize >= 16
+  const showHeaderLabels = cellSize >= 12
 
   // Check if importance data is available
   const hasImportanceData = importance && importance.length > 0
@@ -155,20 +156,22 @@ export function AttentionPatternGrid({
       <div className="grid-container">
         <div className="grid-inner">
           {/* Header row with head indices */}
-          <div className="grid-row">
-            <div className="grid-corner" style={{ fontSize }}>
-              {showLabels ? 'L/H' : ''}
-            </div>
-            {Array.from({ length: numHeads }).map((_, headIdx) => (
-              <div
-                key={headIdx}
-                className="grid-header-cell"
-                style={{ width: cellSize, fontSize }}
-              >
-                {showLabels ? `H${headIdx}` : headIdx}
+          {showHeaderLabels && (
+            <div className="grid-row">
+              <div className="grid-corner" style={{ fontSize, width: cellSize < 16 ? '2rem' : '2.5rem' }}>
+                {showLabels ? 'L/H' : ''}
               </div>
-            ))}
-          </div>
+              {Array.from({ length: numHeads }).map((_, headIdx) => (
+                <div
+                  key={headIdx}
+                  className="grid-header-cell"
+                  style={{ width: cellSize, fontSize }}
+                >
+                  {showLabels ? headIdx : ''}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Grid rows */}
           {Array.from({ length: numLayers }).map((_, layerIdx) => (
@@ -176,9 +179,9 @@ export function AttentionPatternGrid({
               {/* Row label */}
               <div
                 className="grid-row-label"
-                style={{ height: cellSize, fontSize }}
+                style={{ height: cellSize, fontSize, width: cellSize < 16 ? '2rem' : '2.5rem' }}
               >
-                {showLabels ? `L${layerIdx}` : layerIdx}
+                {showLabels ? layerIdx : ''}
               </div>
 
               {/* Head cells */}
@@ -327,11 +330,31 @@ export function AttentionPatternGrid({
         }
 
         .grid-container {
-          overflow: visible;
+          overflow-x: auto;
+          overflow-y: visible;
+          max-width: 100%;
+          padding-bottom: 0.5rem;
+        }
+
+        .grid-container::-webkit-scrollbar {
+          height: 6px;
+        }
+
+        .grid-container::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.05);
+        }
+
+        .grid-container::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.2);
+        }
+
+        .grid-container::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.3);
         }
 
         .grid-inner {
           display: inline-block;
+          min-width: min-content;
         }
 
         .grid-row {
@@ -340,8 +363,7 @@ export function AttentionPatternGrid({
         }
 
         .grid-corner {
-          width: 4rem;
-          height: 1.5rem;
+          height: 1.25rem;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -350,7 +372,7 @@ export function AttentionPatternGrid({
         }
 
         .grid-header-cell {
-          height: 1.5rem;
+          height: 1.25rem;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -360,7 +382,6 @@ export function AttentionPatternGrid({
         }
 
         .grid-row-label {
-          width: 4rem;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -370,8 +391,8 @@ export function AttentionPatternGrid({
         }
 
         .grid-cell {
-          margin: 1px;
-          border-radius: 3px;
+          margin: 0.5px;
+          border-radius: 2px;
           transition: transform 0.15s, box-shadow 0.15s;
           position: relative;
           border: none;
@@ -380,7 +401,7 @@ export function AttentionPatternGrid({
         }
 
         .grid-cell:hover {
-          transform: scale(1.15);
+          transform: scale(1.2);
           z-index: 10;
         }
 
