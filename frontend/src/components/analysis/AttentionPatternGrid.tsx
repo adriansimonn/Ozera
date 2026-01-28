@@ -3,7 +3,7 @@
  * Shows head types, importance, and allows selection for detailed view.
  */
 
-import { useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import type { HeadClassification, HeadImportance, HeadType } from '../../types/analysis'
 import { HEAD_TYPE_COLORS, HEAD_TYPE_NAMES } from '../../types/analysis'
 
@@ -15,8 +15,9 @@ interface AttentionPatternGridProps {
   onHeadSelect?: (layer: number, head: number) => void
   selectedHead?: { layer: number; head: number } | null
   showImportance?: boolean
-  colorMode?: 'type' | 'importance' | 'confidence'
 }
+
+type ColorMode = 'type' | 'importance' | 'confidence'
 
 export function AttentionPatternGrid({
   classifications,
@@ -26,8 +27,39 @@ export function AttentionPatternGrid({
   onHeadSelect,
   selectedHead,
   showImportance = false,
-  colorMode = 'type',
 }: AttentionPatternGridProps) {
+  const [colorMode, setColorMode] = useState<ColorMode>('type')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [cellSize, setCellSize] = useState(48) // Default 3rem = 48px
+
+  // Calculate cell size based on container width and number of heads
+  useEffect(() => {
+    const calculateCellSize = () => {
+      if (!containerRef.current) return
+
+      const containerWidth = containerRef.current.offsetWidth
+      const labelWidth = 64 // 4rem for row labels
+      const availableWidth = containerWidth - labelWidth - 20 // 20px buffer
+      const cellGap = 4 // 2px margin on each side
+
+      // Calculate max cell size that fits all heads
+      const maxCellSize = Math.floor((availableWidth - (numHeads * cellGap)) / numHeads)
+
+      // Clamp between min (20px) and max (48px)
+      const newCellSize = Math.max(20, Math.min(48, maxCellSize))
+      setCellSize(newCellSize)
+    }
+
+    calculateCellSize()
+
+    const resizeObserver = new ResizeObserver(calculateCellSize)
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current)
+    }
+
+    return () => resizeObserver.disconnect()
+  }, [numHeads])
+
   // Create a map for quick lookup
   const classificationMap = useMemo(() => {
     const map = new Map<string, HeadClassification>()
@@ -81,46 +113,72 @@ export function AttentionPatternGrid({
     return 0.3
   }
 
+  // Dynamic font size based on cell size
+  const fontSize = cellSize < 30 ? '0.5rem' : '0.75rem'
+  const showLabels = cellSize >= 24
+
+  // Check if importance data is available
+  const hasImportanceData = importance && importance.length > 0
+
   return (
-    <div className="space-y-4">
+    <div className="attention-pattern-grid" ref={containerRef}>
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 p-3 bg-slate-900/50 border border-slate-700/50 rounded-lg">
-        <span className="text-xs text-slate-400 font-medium">Legend:</span>
-        {Object.entries(HEAD_TYPE_COLORS).map(([type, color]) => (
-          <div key={type} className="flex items-center gap-1.5">
+      <div className="legend">
+        <span className="legend-label">Legend:</span>
+        {colorMode === 'type' ? (
+          Object.entries(HEAD_TYPE_COLORS).map(([type, color]) => (
+            <div key={type} className="legend-item">
+              <div
+                className="legend-dot"
+                style={{ backgroundColor: color }}
+              />
+              <span>{HEAD_TYPE_NAMES[type as HeadType]}</span>
+            </div>
+          ))
+        ) : (
+          <div className="gradient-legend">
+            <span className="gradient-label">0%</span>
             <div
-              className="w-3 h-3 rounded"
-              style={{ backgroundColor: color }}
+              className="gradient-bar"
+              style={{
+                background: colorMode === 'confidence'
+                  ? 'linear-gradient(to right, rgb(25, 51, 64), rgb(102, 204, 255))'
+                  : 'linear-gradient(to right, rgb(0, 0, 0), rgb(51, 255, 230))'
+              }}
             />
-            <span className="text-xs text-slate-400">{HEAD_TYPE_NAMES[type as HeadType]}</span>
+            <span className="gradient-label">100%</span>
           </div>
-        ))}
+        )}
       </div>
 
       {/* Grid */}
-      <div className="overflow-x-auto">
-        <div className="inline-block min-w-full">
+      <div className="grid-container">
+        <div className="grid-inner">
           {/* Header row with head indices */}
-          <div className="flex items-center">
-            <div className="w-16 h-8 flex items-center justify-center text-xs text-slate-500">
-              Layer/Head
+          <div className="grid-row">
+            <div className="grid-corner" style={{ fontSize }}>
+              {showLabels ? 'L/H' : ''}
             </div>
             {Array.from({ length: numHeads }).map((_, headIdx) => (
               <div
                 key={headIdx}
-                className="w-12 h-8 flex items-center justify-center text-xs text-slate-400 font-mono"
+                className="grid-header-cell"
+                style={{ width: cellSize, fontSize }}
               >
-                H{headIdx}
+                {showLabels ? `H${headIdx}` : headIdx}
               </div>
             ))}
           </div>
 
           {/* Grid rows */}
           {Array.from({ length: numLayers }).map((_, layerIdx) => (
-            <div key={layerIdx} className="flex items-center">
+            <div key={layerIdx} className="grid-row">
               {/* Row label */}
-              <div className="w-16 h-12 flex items-center justify-center text-xs text-slate-400 font-mono">
-                L{layerIdx}
+              <div
+                className="grid-row-label"
+                style={{ height: cellSize, fontSize }}
+              >
+                {showLabels ? `L${layerIdx}` : layerIdx}
               </div>
 
               {/* Head cells */}
@@ -134,44 +192,48 @@ export function AttentionPatternGrid({
                   <button
                     key={headIdx}
                     onClick={() => onHeadSelect?.(layerIdx, headIdx)}
-                    className={`
-                      w-12 h-12 m-0.5 rounded-md transition-all relative group
-                      ${isSelected ? 'ring-2 ring-cyan-400 ring-offset-2 ring-offset-slate-900' : ''}
-                      hover:scale-110 hover:z-10
-                    `}
+                    className={`grid-cell ${isSelected ? 'selected' : ''}`}
                     style={{
+                      width: cellSize,
+                      height: cellSize,
                       backgroundColor: getCellColor(layerIdx, headIdx),
                       opacity: getCellOpacity(layerIdx, headIdx),
                     }}
                     title={classification
-                      ? `${HEAD_TYPE_NAMES[classification.primary_type]} (${(classification.confidence * 100).toFixed(0)}%)`
-                      : 'No classification'
+                      ? `L${layerIdx} H${headIdx}: ${HEAD_TYPE_NAMES[classification.primary_type]} (${(classification.confidence * 100).toFixed(0)}%)`
+                      : `L${layerIdx} H${headIdx}: No classification`
                     }
                   >
                     {/* Show importance indicator if enabled */}
                     {showImportance && imp && (
                       <div
-                        className="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1 rounded-full bg-white/80"
+                        className="importance-bar"
                         style={{ width: `${imp.overall_importance * 80}%` }}
                       />
                     )}
 
                     {/* Tooltip on hover */}
-                    <div className="absolute opacity-0 group-hover:opacity-100 bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 pointer-events-none transition-opacity">
-                      <div className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs whitespace-nowrap shadow-lg">
-                        {classification && (
+                    <div className="cell-tooltip">
+                      <div className="tooltip-content">
+                        <div className="tooltip-position">L{layerIdx} H{headIdx}</div>
+                        {classification && colorMode === 'type' && (
                           <>
-                            <div className="font-semibold" style={{ color: HEAD_TYPE_COLORS[classification.primary_type] }}>
+                            <div className="tooltip-type" style={{ color: HEAD_TYPE_COLORS[classification.primary_type] }}>
                               {HEAD_TYPE_NAMES[classification.primary_type]}
                             </div>
-                            <div className="text-slate-400">
-                              Conf: {(classification.confidence * 100).toFixed(0)}%
+                            <div className="tooltip-detail">
+                              Confidence: {(classification.confidence * 100).toFixed(0)}%
                             </div>
                           </>
                         )}
-                        {imp && (
-                          <div className="text-slate-400">
-                            Imp: {(imp.overall_importance * 100).toFixed(0)}%
+                        {classification && colorMode === 'confidence' && (
+                          <div className="tooltip-metric">
+                            Confidence: {(classification.confidence * 100).toFixed(1)}%
+                          </div>
+                        )}
+                        {imp && colorMode === 'importance' && (
+                          <div className="tooltip-metric">
+                            Importance: {(imp.overall_importance * 100).toFixed(1)}%
                           </div>
                         )}
                       </div>
@@ -185,25 +247,238 @@ export function AttentionPatternGrid({
       </div>
 
       {/* Color mode toggle */}
-      <div className="flex items-center gap-2 text-xs text-slate-400">
-        <span>View mode:</span>
-        <div className="flex gap-1 bg-slate-800 rounded-lg p-1">
-          {(['type', 'confidence', 'importance'] as const).map((mode) => (
+      <div className="view-mode">
+        <span className="view-mode-label">View mode:</span>
+        <div className="view-mode-buttons">
+          {(['type', 'confidence'] as const).map((mode) => (
             <button
               key={mode}
-              onClick={() => {
-                // This would need to be controlled by parent - just showing UI
-              }}
-              className={`
-                px-2 py-1 rounded text-xs capitalize transition-all
-                ${colorMode === mode ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'}
-              `}
+              onClick={() => setColorMode(mode)}
+              className={`view-mode-btn ${colorMode === mode ? 'active' : ''}`}
             >
               {mode}
             </button>
           ))}
+          {hasImportanceData && (
+            <button
+              onClick={() => setColorMode('importance')}
+              className={`view-mode-btn ${colorMode === 'importance' ? 'active' : ''}`}
+            >
+              importance
+            </button>
+          )}
         </div>
       </div>
+
+      <style>{`
+        .attention-pattern-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          width: 100%;
+        }
+
+        .legend {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 1rem;
+          padding: 0.75rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .legend-label {
+          font-size: 0.75rem;
+          color: rgba(255, 255, 255, 0.5);
+          font-weight: 500;
+        }
+
+        .legend-item {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          font-size: 0.75rem;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .legend-dot {
+          width: 0.75rem;
+          height: 0.75rem;
+        }
+
+        .gradient-legend {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          flex: 1;
+          max-width: 300px;
+        }
+
+        .gradient-bar {
+          flex: 1;
+          height: 0.75rem;
+          min-width: 120px;
+        }
+
+        .gradient-label {
+          font-size: 0.7rem;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .grid-container {
+          overflow: visible;
+        }
+
+        .grid-inner {
+          display: inline-block;
+        }
+
+        .grid-row {
+          display: flex;
+          align-items: center;
+        }
+
+        .grid-corner {
+          width: 4rem;
+          height: 1.5rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: rgba(255, 255, 255, 0.4);
+          flex-shrink: 0;
+        }
+
+        .grid-header-cell {
+          height: 1.5rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: rgba(255, 255, 255, 0.5);
+          font-family: monospace;
+          flex-shrink: 0;
+        }
+
+        .grid-row-label {
+          width: 4rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: rgba(255, 255, 255, 0.5);
+          font-family: monospace;
+          flex-shrink: 0;
+        }
+
+        .grid-cell {
+          margin: 1px;
+          border-radius: 3px;
+          transition: transform 0.15s, box-shadow 0.15s;
+          position: relative;
+          border: none;
+          cursor: pointer;
+          flex-shrink: 0;
+        }
+
+        .grid-cell:hover {
+          transform: scale(1.15);
+          z-index: 10;
+        }
+
+        .grid-cell.selected {
+          box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+        }
+
+        .importance-bar {
+          position: absolute;
+          bottom: 2px;
+          left: 50%;
+          transform: translateX(-50%);
+          height: 3px;
+          background: rgba(255, 255, 255, 0.8);
+        }
+
+        .cell-tooltip {
+          position: absolute;
+          opacity: 0;
+          bottom: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          margin-bottom: 0.5rem;
+          z-index: 20;
+          pointer-events: none;
+          transition: opacity 0.2s;
+        }
+
+        .grid-cell:hover .cell-tooltip {
+          opacity: 1;
+        }
+
+        .tooltip-content {
+          background: rgba(0, 0, 0, 0.95);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          padding: 0.375rem 0.5rem;
+          font-size: 0.7rem;
+          white-space: nowrap;
+        }
+
+        .tooltip-position {
+          color: rgba(255, 255, 255, 0.6);
+          margin-bottom: 0.25rem;
+          font-family: monospace;
+        }
+
+        .tooltip-type {
+          font-weight: 600;
+        }
+
+        .tooltip-detail {
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .tooltip-metric {
+          color: rgba(255, 255, 255, 0.9);
+          font-weight: 500;
+        }
+
+        .view-mode {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.75rem;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .view-mode-label {
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .view-mode-buttons {
+          display: flex;
+          gap: 2px;
+          background: rgba(0, 0, 0, 0.3);
+          padding: 2px;
+        }
+
+        .view-mode-btn {
+          padding: 0.375rem 0.625rem;
+          font-size: 0.75rem;
+          text-transform: capitalize;
+          transition: all 0.2s;
+          background: transparent;
+          border: none;
+          color: rgba(255, 255, 255, 0.5);
+          cursor: pointer;
+        }
+
+        .view-mode-btn:hover {
+          color: rgba(255, 255, 255, 0.8);
+        }
+
+        .view-mode-btn.active {
+          background: rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.95);
+        }
+      `}</style>
     </div>
   )
 }

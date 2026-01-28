@@ -73,7 +73,7 @@ export function NavBar({
               className={`nav-link ${isActive('/analysis') ? 'active' : ''}`}
             >
               <Search className="nav-icon" />
-              Analysis
+              Attention Analysis
             </Link>
           </div>
         </div>

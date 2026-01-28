@@ -41,27 +41,20 @@ export function HeadClassifier({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="head-classifier">
       {/* Summary Stats */}
-      <div className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-slate-300 mb-3">Classification Summary</h3>
-        <div className="flex flex-wrap gap-3">
+      <div className="summary-section">
+        <h3>Classification Summary</h3>
+        <div className="summary-buttons">
           {Object.entries(summary).map(([type, count]) => (
             <button
               key={type}
               onClick={() => setFilterType(filterType === type ? 'all' : type as HeadType)}
-              className={`
-                px-3 py-1.5 rounded-full text-xs font-medium transition-all
-                ${filterType === type
-                  ? 'ring-2 ring-offset-2 ring-offset-slate-900'
-                  : 'hover:opacity-80'
-                }
-              `}
+              className={`summary-btn ${filterType === type ? 'active' : ''}`}
               style={{
                 backgroundColor: `${HEAD_TYPE_COLORS[type as HeadType]}20`,
                 color: HEAD_TYPE_COLORS[type as HeadType],
                 borderColor: HEAD_TYPE_COLORS[type as HeadType],
-                borderWidth: '1px',
               }}
             >
               {HEAD_TYPE_NAMES[type as HeadType]}: {count}
@@ -70,7 +63,7 @@ export function HeadClassifier({
           {filterType !== 'all' && (
             <button
               onClick={() => setFilterType('all')}
-              className="px-3 py-1.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all"
+              className="show-all-btn"
             >
               Show All
             </button>
@@ -79,15 +72,15 @@ export function HeadClassifier({
       </div>
 
       {/* Classifications by Layer */}
-      <div className="space-y-4">
+      <div className="layers-container">
         {Array.from({ length: numLayers }).map((_, layerIdx) => {
           const layerHeads = groupedByLayer[layerIdx] || []
           if (filterType !== 'all' && layerHeads.length === 0) return null
 
           return (
-            <div key={layerIdx} className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-slate-400 mb-3">Layer {layerIdx}</h4>
-              <div className="flex flex-wrap gap-2">
+            <div key={layerIdx} className="layer-section">
+              <h4>Layer {layerIdx}</h4>
+              <div className="layer-heads">
                 {Array.from({ length: numHeads }).map((_, headIdx) => {
                   const classification = classifications.find(
                     c => c.layer === layerIdx && c.head === headIdx
@@ -104,22 +97,15 @@ export function HeadClassifier({
                       onClick={() => onHeadSelect?.(layerIdx, headIdx)}
                       onMouseEnter={() => setHoveredHead(classification)}
                       onMouseLeave={() => setHoveredHead(null)}
-                      className={`
-                        relative px-3 py-2 rounded-lg text-xs font-mono transition-all
-                        ${isFiltered ? 'opacity-30' : ''}
-                        ${isSelected ? 'ring-2 ring-cyan-400' : ''}
-                        ${isHovered && !isSelected ? 'ring-1 ring-white/50' : ''}
-                        hover:scale-105
-                      `}
+                      className={`head-btn ${isFiltered ? 'filtered' : ''} ${isSelected ? 'selected' : ''} ${isHovered && !isSelected ? 'hovered' : ''}`}
                       style={{
                         backgroundColor: `${HEAD_TYPE_COLORS[classification.primary_type]}30`,
                         borderColor: HEAD_TYPE_COLORS[classification.primary_type],
-                        borderWidth: '1px',
                         color: HEAD_TYPE_COLORS[classification.primary_type],
                       }}
                     >
-                      <div className="font-semibold">H{headIdx}</div>
-                      <div className="text-[10px] opacity-80">
+                      <div className="head-label">H{headIdx}</div>
+                      <div className="head-confidence">
                         {(classification.confidence * 100).toFixed(0)}%
                       </div>
                     </button>
@@ -133,46 +119,257 @@ export function HeadClassifier({
 
       {/* Hover Detail */}
       {hoveredHead && (
-        <div className="fixed bottom-4 right-4 z-50 bg-slate-800/95 border border-slate-600 rounded-lg p-4 shadow-xl backdrop-blur-sm max-w-sm">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="hover-detail">
+          <div className="hover-header">
             <span
-              className="w-3 h-3 rounded-full"
+              className="hover-dot"
               style={{ backgroundColor: HEAD_TYPE_COLORS[hoveredHead.primary_type] }}
             />
-            <span className="font-semibold text-slate-200">
+            <span className="hover-title">
               Layer {hoveredHead.layer}, Head {hoveredHead.head}
             </span>
           </div>
-          <div className="text-sm text-slate-400 mb-2">
+          <div className="hover-type">
             Type: <span style={{ color: HEAD_TYPE_COLORS[hoveredHead.primary_type] }}>
               {HEAD_TYPE_NAMES[hoveredHead.primary_type]}
             </span>
           </div>
-          <div className="text-sm text-slate-400 mb-2">
-            Confidence: <span className="text-cyan-400">{(hoveredHead.confidence * 100).toFixed(1)}%</span>
+          <div className="hover-confidence">
+            Confidence: <span>{(hoveredHead.confidence * 100).toFixed(1)}%</span>
           </div>
-          <div className="text-xs text-slate-500 border-t border-slate-700 pt-2 mt-2">
+          <div className="hover-summary">
             {hoveredHead.pattern_summary}
           </div>
-          <div className="mt-2 space-y-1">
+          <div className="hover-scores">
             {Object.entries(hoveredHead.scores).map(([type, score]) => (
-              <div key={type} className="flex items-center gap-2 text-xs">
-                <span className="text-slate-500 w-24">{type}:</span>
-                <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+              <div key={type} className="score-row">
+                <span className="score-label">{type}:</span>
+                <div className="score-bar-container">
                   <div
-                    className="h-full rounded-full transition-all"
+                    className="score-bar"
                     style={{
                       width: `${score * 100}%`,
                       backgroundColor: HEAD_TYPE_COLORS[type as HeadType] || '#6B7280',
                     }}
                   />
                 </div>
-                <span className="text-slate-400 w-10 text-right">{(score * 100).toFixed(0)}%</span>
+                <span className="score-value">{(score * 100).toFixed(0)}%</span>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      <style>{`
+        .head-classifier {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+        }
+
+        .summary-section {
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          padding: 1rem;
+        }
+
+        .summary-section h3 {
+          margin: 0 0 0.75rem 0;
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.7);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .summary-buttons {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.75rem;
+        }
+
+        .summary-btn {
+          padding: 0.375rem 0.75rem;
+          font-size: 0.75rem;
+          font-weight: 500;
+          transition: all 0.2s;
+          border: 1px solid;
+          cursor: pointer;
+        }
+
+        .summary-btn:hover {
+          opacity: 0.8;
+        }
+
+        .summary-btn.active {
+          box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.9), 0 0 0 4px currentColor;
+        }
+
+        .show-all-btn {
+          padding: 0.375rem 0.75rem;
+          font-size: 0.75rem;
+          font-weight: 500;
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          color: rgba(255, 255, 255, 0.7);
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .show-all-btn:hover {
+          background: rgba(255, 255, 255, 0.15);
+        }
+
+        .layers-container {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .layer-section {
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          padding: 1rem;
+        }
+
+        .layer-section h4 {
+          margin: 0 0 0.75rem 0;
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .layer-heads {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+
+        .head-btn {
+          position: relative;
+          padding: 0.5rem 0.75rem;
+          font-size: 0.75rem;
+          font-family: monospace;
+          transition: all 0.2s;
+          border: 1px solid;
+          cursor: pointer;
+        }
+
+        .head-btn:hover {
+          transform: scale(1.05);
+        }
+
+        .head-btn.filtered {
+          opacity: 0.3;
+        }
+
+        .head-btn.selected {
+          box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+        }
+
+        .head-btn.hovered {
+          box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+        }
+
+        .head-label {
+          font-weight: 600;
+        }
+
+        .head-confidence {
+          font-size: 0.625rem;
+          opacity: 0.8;
+        }
+
+        .hover-detail {
+          position: fixed;
+          bottom: 1rem;
+          right: 1rem;
+          z-index: 50;
+          background: rgba(0, 0, 0, 0.95);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          padding: 1rem;
+          max-width: 20rem;
+          backdrop-filter: blur(8px);
+        }
+
+        .hover-header {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .hover-dot {
+          width: 0.75rem;
+          height: 0.75rem;
+        }
+
+        .hover-title {
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.9);
+        }
+
+        .hover-type {
+          font-size: 0.875rem;
+          color: rgba(255, 255, 255, 0.5);
+          margin-bottom: 0.25rem;
+        }
+
+        .hover-confidence {
+          font-size: 0.875rem;
+          color: rgba(255, 255, 255, 0.5);
+          margin-bottom: 0.5rem;
+        }
+
+        .hover-confidence span {
+          color: rgba(255, 255, 255, 0.9);
+        }
+
+        .hover-summary {
+          font-size: 0.75rem;
+          color: rgba(255, 255, 255, 0.4);
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          padding-top: 0.5rem;
+          margin-top: 0.5rem;
+        }
+
+        .hover-scores {
+          margin-top: 0.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .score-row {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.75rem;
+        }
+
+        .score-label {
+          color: rgba(255, 255, 255, 0.4);
+          width: 6rem;
+        }
+
+        .score-bar-container {
+          flex: 1;
+          height: 0.375rem;
+          background: rgba(255, 255, 255, 0.1);
+          overflow: hidden;
+        }
+
+        .score-bar {
+          height: 100%;
+          transition: width 0.2s;
+        }
+
+        .score-value {
+          color: rgba(255, 255, 255, 0.5);
+          width: 2.5rem;
+          text-align: right;
+        }
+      `}</style>
     </div>
   )
 }
