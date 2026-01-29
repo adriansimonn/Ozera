@@ -307,24 +307,23 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
         onShowSignup={onShowSignup}
       />
 
-      {viewMode === 'single' && (
-        <div className="single-view-selector">
-          <button
-            onClick={() => setSingleViewType('generator')}
-            className={`view-selector-btn ${singleViewType === 'generator' ? 'active' : ''}`}
-          >
-            Text Generation
-          </button>
-          <button
-            onClick={() => setSingleViewType('visualizations')}
-            className={`view-selector-btn ${singleViewType === 'visualizations' ? 'active' : ''}`}
-          >
-            Visualizations
-          </button>
-        </div>
-      )}
-
       <div className={`page-content ${viewMode === 'split' ? 'split-view' : 'single-view'}`}>
+        {viewMode === 'single' && (
+          <div className="single-view-selector">
+            <button
+              onClick={() => setSingleViewType('generator')}
+              className={`view-selector-btn ${singleViewType === 'generator' ? 'active' : ''}`}
+            >
+              Text Generation
+            </button>
+            <button
+              onClick={() => setSingleViewType('visualizations')}
+              className={`view-selector-btn ${singleViewType === 'visualizations' ? 'active' : ''}`}
+            >
+              Visualizations
+            </button>
+          </div>
+        )}
         {(viewMode === 'split' || singleViewType === 'generator') && (
           <div className="generator-section">
             <TextGenerator
@@ -396,54 +395,63 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
       <style>{`
         .unified-page {
           min-height: 100vh;
-          padding-top: 100px;
+          padding-top: 70px;
         }
 
-        .page-main {
+        .page-content {
+          max-width: calc(100% - 4rem);
+          margin: 0 auto;
           padding: 2rem;
         }
 
+        @media (min-width: 1600px) {
+          .page-content {
+            max-width: calc(100% - 6rem);
+          }
+        }
+
+        @media (min-width: 2000px) {
+          .page-content {
+            max-width: 1900px;
+          }
+        }
+
         .single-view-selector {
-          max-width: 1800px;
-          margin: 0 auto 2rem;
           display: flex;
-          gap: 1rem;
+          gap: 0.5rem;
+          margin-bottom: 1.5rem;
           justify-content: center;
         }
 
         .view-selector-btn {
-          padding: 1rem 2rem;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.7);
-          font-size: 1rem;
-          font-weight: 500;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.625rem 1rem;
+          background: rgba(0, 0, 0, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.5);
+          font-size: 0.875rem;
           cursor: pointer;
           transition: all 0.2s;
-          letter-spacing: 0.05em;
         }
 
         .view-selector-btn:hover {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: rgba(255, 255, 255, 0.25);
+          background: rgba(255, 255, 255, 0.05);
+          border-color: rgba(255, 255, 255, 0.2);
+          color: rgba(255, 255, 255, 0.7);
         }
 
         .view-selector-btn.active {
-          background: rgba(255, 255, 255, 0.15);
-          border-color: rgba(255, 255, 255, 0.35);
-          color: #ffffff;
-          box-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
-        }
-
-        .page-content {
-          max-width: 1800px;
-          margin: 0 auto;
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.4);
+          color: rgba(255, 255, 255, 0.95);
         }
 
         .page-content.split-view {
           display: grid;
           grid-template-columns: 1fr 2fr;
-          gap: 2rem;
+          gap: 1.5rem;
         }
 
         .page-content.single-view {
@@ -459,66 +467,48 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
         .generator-section {
           display: flex;
           flex-direction: column;
-          gap: 1.5rem;
+          gap: 1rem;
           height: fit-content;
         }
 
         .generator-section > :first-child {
-          background: rgba(0, 0, 0, 0.5);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          box-shadow:
-            0 8px 32px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.1),
-            0 0 0 1px rgba(255, 255, 255, 0.05);
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .model-info-section {
-          background: rgba(0, 0, 0, 0.5);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          box-shadow:
-            0 8px 32px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.1),
-            0 0 0 1px rgba(255, 255, 255, 0.05);
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .visualization-section {
           display: flex;
           flex-direction: column;
-          gap: 1.5rem;
+          gap: 1rem;
         }
 
         .visualization-header {
-          background: rgba(0, 0, 0, 0.5);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          box-shadow:
-            0 8px 32px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.1),
-            0 0 0 1px rgba(255, 255, 255, 0.05);
-          padding: 1.5rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          padding: 1rem;
           display: flex;
           flex-wrap: wrap;
-          gap: 1.5rem;
+          gap: 1rem;
           align-items: center;
         }
 
         .visualization-dropdown {
           display: flex;
           align-items: center;
-          gap: 1rem;
+          gap: 0.75rem;
           flex: 1;
           min-width: 250px;
         }
 
         .visualization-dropdown label {
-          font-weight: 500;
-          font-size: 0.85rem;
-          color: rgba(255, 255, 255, 0.6);
+          font-weight: 600;
+          font-size: 0.8rem;
+          color: rgba(255, 255, 255, 0.7);
           letter-spacing: 0.05em;
           text-transform: uppercase;
           white-space: nowrap;
@@ -526,66 +516,54 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
 
         .visualization-select {
           flex: 1;
-          padding: 0.875rem 1rem;
-          background: rgba(0, 0, 0, 0.2);
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: #ffffff;
-          font-size: 0.95rem;
+          padding: 0.625rem 0.75rem;
+          background: rgba(0, 0, 0, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 0.875rem;
           cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+          transition: all 0.2s;
         }
 
         .visualization-select:hover {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.2);
-          box-shadow:
-            0 4px 12px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.25);
         }
 
         .visualization-select:focus {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.25);
-          box-shadow:
-            0 4px 16px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.12),
-            0 0 0 2px rgba(255, 255, 255, 0.05);
           outline: none;
+          border-color: rgba(255, 255, 255, 0.4);
         }
 
         .visualization-controls {
           display: flex;
           flex-wrap: wrap;
-          gap: 1.5rem;
+          gap: 1rem;
           align-items: center;
         }
 
         .control-item {
           display: flex;
           align-items: center;
-          gap: 0.75rem;
+          gap: 0.5rem;
         }
 
         .control-icon {
-          width: 18px;
-          height: 18px;
+          width: 16px;
+          height: 16px;
           color: rgba(255, 255, 255, 0.5);
         }
 
         .control-label {
-          font-size: 0.85rem;
+          font-size: 0.8rem;
           color: rgba(255, 255, 255, 0.6);
           font-weight: 500;
         }
 
         .control-btn {
-          padding: 0.5rem;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: rgba(255, 255, 255, 0.8);
+          padding: 0.375rem;
+          background: rgba(0, 0, 0, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.7);
           cursor: pointer;
           transition: all 0.2s;
           display: flex;
@@ -594,7 +572,7 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
         }
 
         .control-btn:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.05);
           border-color: rgba(255, 255, 255, 0.2);
         }
 
@@ -604,72 +582,67 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
         }
 
         .btn-icon {
-          width: 16px;
-          height: 16px;
+          width: 14px;
+          height: 14px;
         }
 
         .control-value {
-          padding: 0.5rem 1rem;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: #ffffff;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.9rem;
-          min-width: 50px;
+          padding: 0.375rem 0.75rem;
+          background: rgba(0, 0, 0, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.9);
+          font-family: monospace;
+          font-size: 0.8rem;
+          min-width: 40px;
           text-align: center;
         }
 
         .visualization-content {
-          background: rgba(0, 0, 0, 0.5);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          box-shadow:
-            0 8px 32px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.1),
-            0 0 0 1px rgba(255, 255, 255, 0.05);
-          min-height: 600px;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          min-height: 500px;
           overflow: auto;
         }
 
         .visualization-placeholder {
-          min-height: 600px;
+          min-height: 500px;
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 3rem;
+          padding: 2rem;
         }
 
         .placeholder-content {
           text-align: center;
           color: rgba(255, 255, 255, 0.4);
+          max-width: 400px;
         }
 
         .placeholder-icon {
-          width: 64px;
-          height: 64px;
-          margin: 0 auto 1.5rem;
+          width: 48px;
+          height: 48px;
+          margin: 0 auto 1rem;
           opacity: 0.3;
         }
 
         .placeholder-text {
-          font-size: 1rem;
+          font-size: 0.875rem;
           margin: 0;
         }
 
         .placeholder-error {
           color: rgba(255, 255, 255, 0.6);
-          font-size: 1rem;
+          font-size: 0.875rem;
         }
 
         .spinner {
-          width: 48px;
-          height: 48px;
-          border: 3px solid rgba(255, 255, 255, 0.1);
-          border-top-color: #ffffff;
+          width: 40px;
+          height: 40px;
+          border: 2px solid rgba(255, 255, 255, 0.1);
+          border-top-color: rgba(255, 255, 255, 0.8);
           border-radius: 50%;
           animation: spin 1s linear infinite;
-          margin: 0 auto 1.5rem;
+          margin: 0 auto 1rem;
         }
 
         @keyframes spin {
@@ -678,37 +651,31 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
 
         .visualization-metadata {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-          gap: 1rem;
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          gap: 0.75rem;
         }
 
         .metadata-card {
-          padding: 1.25rem;
-          background: rgba(0, 0, 0, 0.5);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          box-shadow:
-            0 8px 32px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.1),
-            0 0 0 1px rgba(255, 255, 255, 0.05);
+          padding: 0.875rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
           display: flex;
           flex-direction: column;
-          gap: 0.5rem;
+          gap: 0.375rem;
         }
 
         .metadata-label {
-          font-size: 0.75rem;
+          font-size: 0.7rem;
           color: rgba(255, 255, 255, 0.5);
           text-transform: uppercase;
-          letter-spacing: 0.1em;
-          font-weight: 400;
+          letter-spacing: 0.05em;
+          font-weight: 600;
         }
 
         .metadata-value {
-          font-size: 1rem;
-          color: #ffffff;
-          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.875rem;
+          color: rgba(255, 255, 255, 0.9);
+          font-family: monospace;
           font-weight: 500;
         }
       `}</style>

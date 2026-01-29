@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { useStreamingGeneration } from '../../hooks/useGeneration'
 import { useModels } from '../../hooks/useModels'
 import { apiClient } from '../../api/client'
@@ -49,6 +50,12 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   const [isWarmingUp, setIsWarmingUp] = useState(false)
   const warmupTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Generation mode dropdown state
+  type GenerationMode = 'visualize' | 'tokens'
+  const [generationMode, setGenerationMode] = useState<GenerationMode>('visualize')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
   const { models, modelNames, modelFamilies, loading: modelsLoading, error: modelsError } = useModels()
   const { text, loading, streaming, error, insufficientCredits, generate, reset, clearInsufficientCredits } = useStreamingGeneration()
   const [activationInsufficientCredits, setActivationInsufficientCredits] = useState(false)
@@ -60,6 +67,17 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         clearTimeout(warmupTimerRef.current)
       }
     }
+  }, [])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   const handleGenerate = async () => {
@@ -149,6 +167,14 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       setIsWarmingUp(false)
       setCapturingActivations(false)
       onGeneratingChange?.(false)
+    }
+  }
+
+  const handleGenerateClick = () => {
+    if (generationMode === 'visualize') {
+      handleGenerateWithActivations()
+    } else {
+      handleGenerate()
     }
   }
 
@@ -269,20 +295,51 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       </div>
 
       <div className="actions">
-        <button
-          onClick={handleGenerate}
-          disabled={loading || streaming || capturingActivations || !prompt.trim()}
-          className="btn-primary"
-        >
-          {loading && isWarmingUp ? 'Warming up model...' : loading ? 'Loading...' : streaming ? 'Generating...' : 'Generate'}
-        </button>
-        <button
-          onClick={handleGenerateWithActivations}
-          disabled={loading || streaming || capturingActivations || !prompt.trim()}
-          className="btn-visualize"
-        >
-          {capturingActivations && isWarmingUp ? 'Warming up...' : capturingActivations ? 'Capturing...' : 'Visualize'}
-        </button>
+        <div className="generate-dropdown" ref={dropdownRef}>
+          <button
+            onClick={handleGenerateClick}
+            disabled={loading || streaming || capturingActivations || !prompt.trim()}
+            className="btn-generate-main"
+          >
+            {loading && isWarmingUp ? 'Warming up model...' :
+             loading ? 'Loading...' :
+             streaming ? 'Generating...' :
+             capturingActivations && isWarmingUp ? 'Warming up...' :
+             capturingActivations ? 'Capturing...' :
+             generationMode === 'visualize' ? 'Generate + Visualize' : 'Generate'}
+          </button>
+          <button
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            disabled={loading || streaming || capturingActivations}
+            className="btn-generate-toggle"
+          >
+            <ChevronDown size={16} className={dropdownOpen ? 'chevron-up' : ''} />
+          </button>
+          {dropdownOpen && (
+            <div className="generate-dropdown-menu">
+              <button
+                onClick={() => {
+                  setGenerationMode('visualize')
+                  setDropdownOpen(false)
+                }}
+                className={`dropdown-item ${generationMode === 'visualize' ? 'active' : ''}`}
+              >
+                Generate + Visualize
+                <span className="dropdown-item-desc">Generate tokens and capture activations for visualization</span>
+              </button>
+              <button
+                onClick={() => {
+                  setGenerationMode('tokens')
+                  setDropdownOpen(false)
+                }}
+                className={`dropdown-item ${generationMode === 'tokens' ? 'active' : ''}`}
+              >
+                Generate
+                <span className="dropdown-item-desc">Generate tokens without visualization</span>
+              </button>
+            </div>
+          )}
+        </div>
         <button
           onClick={handleReset}
           disabled={loading || streaming || capturingActivations}
@@ -506,71 +563,134 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           margin-bottom: 2rem;
         }
 
-        .btn-primary,
-        .btn-secondary,
-        .btn-visualize {
-          padding: 1rem 2rem;
+        .generate-dropdown {
+          position: relative;
+          display: flex;
+        }
+
+        .btn-generate-main {
+          padding: 1rem 1.5rem;
+          background: rgba(255, 255, 255, 0.1);
           border: 1px solid rgba(255, 255, 255, 0.15);
+          border-right: none;
+          color: #ffffff;
           font-size: 0.9rem;
           font-weight: 500;
           cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: all 0.2s;
           letter-spacing: 0.05em;
           text-transform: uppercase;
-          position: relative;
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
-        .btn-primary {
+        .btn-generate-main:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.15);
+        }
+
+        .btn-generate-main:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+        }
+
+        .btn-generate-toggle {
+          padding: 1rem 0.75rem;
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          border-left: 1px solid rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.7);
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .btn-generate-toggle:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.15);
+          color: #ffffff;
+        }
+
+        .btn-generate-toggle:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+        }
+
+        .btn-generate-toggle .chevron-up {
+          transform: rotate(180deg);
+        }
+
+        .btn-generate-toggle svg {
+          transition: transform 0.2s;
+        }
+
+        .generate-dropdown-menu {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          margin-top: 4px;
+          background: rgba(20, 20, 20, 0.98);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          z-index: 100;
+          min-width: 240px;
+        }
+
+        .dropdown-item {
+          width: 100%;
+          padding: 0.875rem 1rem;
+          background: transparent;
+          border: none;
+          color: rgba(255, 255, 255, 0.8);
+          font-size: 0.85rem;
+          font-weight: 500;
+          text-align: left;
+          cursor: pointer;
+          transition: all 0.15s;
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .dropdown-item:hover {
+          background: rgba(255, 255, 255, 0.08);
+        }
+
+        .dropdown-item.active {
           background: rgba(255, 255, 255, 0.1);
           color: #ffffff;
         }
 
-        .btn-primary:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.15);
-          border-color: rgba(255, 255, 255, 0.3);
-          box-shadow:
-            0 6px 20px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.2);
-          transform: translateY(-2px);
+        .dropdown-item-desc {
+          font-size: 0.75rem;
+          font-weight: 400;
+          color: rgba(255, 255, 255, 0.4);
+          text-transform: none;
+          letter-spacing: normal;
         }
 
-        .btn-visualize {
-          background: rgba(255, 255, 255, 0.06);
-          color: #ffffff;
-          border-color: rgba(255, 255, 255, 0.12);
-        }
-
-        .btn-visualize:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.12);
-          border-color: rgba(255, 255, 255, 0.25);
-          box-shadow:
-            0 6px 20px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.15);
-          transform: translateY(-2px);
+        .dropdown-item + .dropdown-item {
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .btn-secondary {
+          padding: 1rem 2rem;
           background: rgba(255, 255, 255, 0.02);
           color: rgba(255, 255, 255, 0.7);
           border: 1px solid rgba(255, 255, 255, 0.1);
+          font-size: 0.9rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
         }
 
         .btn-secondary:hover:not(:disabled) {
           background: rgba(255, 255, 255, 0.06);
           border-color: rgba(255, 255, 255, 0.18);
           color: #ffffff;
-          box-shadow:
-            0 6px 16px rgba(0, 0, 0, 0.25),
-            inset 0 1px 0 rgba(255, 255, 255, 0.1);
-          transform: translateY(-2px);
         }
 
-        .btn-primary:disabled,
-        .btn-secondary:disabled,
-        .btn-visualize:disabled {
+        .btn-secondary:disabled {
           opacity: 0.3;
           cursor: not-allowed;
         }
