@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { TensorData } from '../../types/model'
+import { ExportButton } from '../export'
 
 interface AttentionHeatmapProps {
   attentionWeights: TensorData
@@ -13,6 +14,7 @@ interface AttentionHeatmapProps {
   headIndex: number
   tokens?: string[]
   className?: string
+  activationId?: string
 }
 
 export function AttentionHeatmap({
@@ -20,7 +22,8 @@ export function AttentionHeatmap({
   layerIndex,
   headIndex,
   tokens,
-  className = ''
+  className = '',
+  activationId,
 }: AttentionHeatmapProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -219,6 +222,17 @@ export function AttentionHeatmap({
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
+      {/* Export button */}
+      {activationId && (
+        <div className="absolute top-2 right-2 z-10">
+          <ExportButton
+            exportType="attention-heatmap"
+            activationId={activationId}
+            layer={layerIndex}
+            head={headIndex}
+          />
+        </div>
+      )}
       <svg
         ref={svgRef}
         width="100%"

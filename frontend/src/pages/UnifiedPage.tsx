@@ -30,7 +30,10 @@ interface UnifiedPageProps {
 
 export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }: UnifiedPageProps) {
   const [searchParams] = useSearchParams()
-  const activationId = searchParams.get('id')
+  const urlActivationId = searchParams.get('id')
+
+  // Current activation ID (from URL or newly generated)
+  const [currentActivationId, setCurrentActivationId] = useState<string | null>(urlActivationId)
 
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>('split')
@@ -57,10 +60,11 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
   const [selectedTokenIndex, setSelectedTokenIndex] = useState(0)
 
   useEffect(() => {
-    if (activationId) {
-      loadActivationSummary(activationId)
+    if (urlActivationId) {
+      setCurrentActivationId(urlActivationId)
+      loadActivationSummary(urlActivationId)
     }
-  }, [activationId])
+  }, [urlActivationId])
 
   // Load only summary initially (lazy loading)
   async function loadActivationSummary(id: string) {
@@ -121,8 +125,9 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
     }
   }, [selectedLayer, selectedVisualization, activationData, loadLayerActivations])
 
-  const handleActivationGenerated = (activationId: string) => {
-    loadActivationSummary(activationId)
+  const handleActivationGenerated = (newActivationId: string) => {
+    setCurrentActivationId(newActivationId)
+    loadActivationSummary(newActivationId)
   }
 
   const numLayers = activationData?.activations.layers?.length || 0
@@ -191,6 +196,7 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
             attentionWeights={activationData.activations.layers[selectedLayer].attn_weights!}
             layerIndex={selectedLayer}
             headIndex={selectedHead}
+            activationId={currentActivationId ?? undefined}
           />
         )}
 
@@ -198,6 +204,7 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
           <LayerActivationDisplay
             layerActivations={activationData.activations.layers[selectedLayer]}
             layerIndex={selectedLayer}
+            activationId={currentActivationId ?? undefined}
           />
         )}
 

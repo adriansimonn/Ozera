@@ -2,14 +2,24 @@
 Analysis API endpoints for attention pattern analysis.
 
 Provides endpoints for head classification, pattern comparison, and pattern mining.
+All endpoints require authentication and charge credits.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 from typing import Optional
 
 from core.patching import get_patching_engine
 from core.analysis import HeadClassifier, PatternMiner, HeadType
+from middleware.auth_middleware import get_current_user
+from models.database import User
+from db import get_db
+from services.credit_service import (
+    estimate_analysis_cost,
+    charge_analysis,
+    check_sufficient_balance,
+)
 
 
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
@@ -136,7 +146,11 @@ class HeadImportanceListResponse(BaseModel):
 # ============= API Endpoints =============
 
 @router.post("/attention/classify-heads", response_model=ClassifyHeadsResponse)
-async def classify_heads(request: ClassifyHeadsRequest):
+async def classify_heads(
+    request: ClassifyHeadsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Classify all attention heads for a captured activation.
 
@@ -145,6 +159,8 @@ async def classify_heads(request: ClassifyHeadsRequest):
     - Previous token heads (sub-diagonal attention)
     - Positional heads (fixed offset patterns)
     - Copying heads (attention to repeated tokens)
+
+    Requires authentication and charges credits.
 
     Args:
         request: ClassifyHeadsRequest with activation_id
@@ -161,6 +177,32 @@ async def classify_heads(request: ClassifyHeadsRequest):
             detail=f"Captured activations not found: {request.activation_id}"
         )
 
+    # Get model info for pricing
+    num_layers = captured.num_layers
+    # Estimate num_heads from activations (attention key has shape including heads)
+    num_heads = 6  # Default
+    for key in captured.activations:
+        if 'attention' in key or 'attn' in key:
+            tensor = captured.activations[key]
+            if len(tensor.shape) >= 3:
+                num_heads = tensor.shape[1] if tensor.shape[1] < 100 else tensor.shape[2]
+                break
+    num_tokens = len(captured.tokens)
+
+    # Check balance before running
+    estimated_cost = estimate_analysis_cost(
+        analysis_type="classify",
+        num_layers=num_layers,
+        num_heads=num_heads,
+        num_tokens=num_tokens,
+        model_id=captured.model_id,
+    )
+    if not check_sufficient_balance(db, current_user.id, estimated_cost):
+        raise HTTPException(
+            status_code=402,
+            detail="INSUFFICIENT_CREDITS"
+        )
+
     # Run head classification
     classifier = HeadClassifier()
     result = classifier.classify_all_heads(
@@ -172,6 +214,20 @@ async def classify_heads(request: ClassifyHeadsRequest):
         activation_id=captured.id,
         prompt=captured.prompt,
     )
+
+    # Charge credits after successful classification
+    try:
+        charge_analysis(
+            db=db,
+            user_id=current_user.id,
+            analysis_type="classify",
+            num_layers=num_layers,
+            num_heads=result.num_heads,
+            num_tokens=num_tokens,
+            model_name=captured.model_id,
+        )
+    except Exception as charge_error:
+        print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
 
     # Convert to response format
     classifications = [
@@ -204,12 +260,18 @@ async def classify_heads(request: ClassifyHeadsRequest):
 
 
 @router.post("/attention/compare", response_model=CompareAttentionResponse)
-async def compare_attention(request: CompareAttentionRequest):
+async def compare_attention(
+    request: CompareAttentionRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Compare attention patterns between two captured activations.
 
     Useful for understanding how attention differs between prompts,
     identifying which heads are most sensitive to input changes.
+
+    Requires authentication and charges credits.
 
     Args:
         request: CompareAttentionRequest with two activation IDs
@@ -240,6 +302,31 @@ async def compare_attention(request: CompareAttentionRequest):
             detail=f"Cannot compare activations from different models: {captured1.model_id} vs {captured2.model_id}"
         )
 
+    # Get model info for pricing (use combined token count)
+    num_layers = captured1.num_layers
+    num_heads = 6  # Default
+    for key in captured1.activations:
+        if 'attention' in key or 'attn' in key:
+            tensor = captured1.activations[key]
+            if len(tensor.shape) >= 3:
+                num_heads = tensor.shape[1] if tensor.shape[1] < 100 else tensor.shape[2]
+                break
+    num_tokens = len(captured1.tokens) + len(captured2.tokens)
+
+    # Check balance before running
+    estimated_cost = estimate_analysis_cost(
+        analysis_type="compare",
+        num_layers=num_layers,
+        num_heads=num_heads,
+        num_tokens=num_tokens,
+        model_id=captured1.model_id,
+    )
+    if not check_sufficient_balance(db, current_user.id, estimated_cost):
+        raise HTTPException(
+            status_code=402,
+            detail="INSUFFICIENT_CREDITS"
+        )
+
     # Run comparison
     miner = PatternMiner()
     comparison = miner.compare_attention_patterns(
@@ -253,6 +340,20 @@ async def compare_attention(request: CompareAttentionRequest):
         prompt2=captured2.prompt,
         num_layers=captured1.num_layers,
     )
+
+    # Charge credits after successful comparison
+    try:
+        charge_analysis(
+            db=db,
+            user_id=current_user.id,
+            analysis_type="compare",
+            num_layers=num_layers,
+            num_heads=num_heads,
+            num_tokens=num_tokens,
+            model_name=captured1.model_id,
+        )
+    except Exception as charge_error:
+        print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
 
     return CompareAttentionResponse(
         prompt1=comparison.prompt1,
@@ -271,7 +372,11 @@ async def compare_attention(request: CompareAttentionRequest):
 
 
 @router.post("/attention/mine-patterns", response_model=MinePatternResponse)
-async def mine_patterns(request: MinePatternRequest):
+async def mine_patterns(
+    request: MinePatternRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Run comprehensive pattern mining on captured activations.
 
@@ -280,6 +385,8 @@ async def mine_patterns(request: MinePatternRequest):
     - Head importance scoring
     - Cross-layer pattern detection
     - Circuit candidate identification
+
+    Requires authentication and charges credits.
 
     Args:
         request: MinePatternRequest with activation_id
@@ -296,6 +403,31 @@ async def mine_patterns(request: MinePatternRequest):
             detail=f"Captured activations not found: {request.activation_id}"
         )
 
+    # Get model info for pricing
+    num_layers = captured.num_layers
+    num_heads = 6  # Default
+    for key in captured.activations:
+        if 'attention' in key or 'attn' in key:
+            tensor = captured.activations[key]
+            if len(tensor.shape) >= 3:
+                num_heads = tensor.shape[1] if tensor.shape[1] < 100 else tensor.shape[2]
+                break
+    num_tokens = len(captured.tokens)
+
+    # Check balance before running
+    estimated_cost = estimate_analysis_cost(
+        analysis_type="mine",
+        num_layers=num_layers,
+        num_heads=num_heads,
+        num_tokens=num_tokens,
+        model_id=captured.model_id,
+    )
+    if not check_sufficient_balance(db, current_user.id, estimated_cost):
+        raise HTTPException(
+            status_code=402,
+            detail="INSUFFICIENT_CREDITS"
+        )
+
     # Run pattern mining
     miner = PatternMiner()
     result = miner.mine_patterns(
@@ -307,6 +439,20 @@ async def mine_patterns(request: MinePatternRequest):
         activation_id=captured.id,
         prompt=captured.prompt,
     )
+
+    # Charge credits after successful mining
+    try:
+        charge_analysis(
+            db=db,
+            user_id=current_user.id,
+            analysis_type="mine",
+            num_layers=num_layers,
+            num_heads=num_heads,
+            num_tokens=num_tokens,
+            model_name=captured.model_id,
+        )
+    except Exception as charge_error:
+        print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
 
     return MinePatternResponse(
         model_id=result.model_id,
@@ -341,7 +487,11 @@ async def mine_patterns(request: MinePatternRequest):
 
 
 @router.post("/attention/head-importance", response_model=HeadImportanceListResponse)
-async def get_head_importance(request: HeadImportanceRequest):
+async def get_head_importance(
+    request: HeadImportanceRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Compute importance scores for each attention head.
 
@@ -349,6 +499,8 @@ async def get_head_importance(request: HeadImportanceRequest):
     - Attention entropy (lower = more focused)
     - Maximum attention weight (higher = more concentrated)
     - Variance (higher = more dynamic patterns)
+
+    Requires authentication and charges credits.
 
     Args:
         request: HeadImportanceRequest with activation_id
@@ -365,12 +517,51 @@ async def get_head_importance(request: HeadImportanceRequest):
             detail=f"Captured activations not found: {request.activation_id}"
         )
 
+    # Get model info for pricing
+    num_layers = captured.num_layers
+    num_heads = 6  # Default
+    for key in captured.activations:
+        if 'attention' in key or 'attn' in key:
+            tensor = captured.activations[key]
+            if len(tensor.shape) >= 3:
+                num_heads = tensor.shape[1] if tensor.shape[1] < 100 else tensor.shape[2]
+                break
+    num_tokens = len(captured.tokens)
+
+    # Check balance before running
+    estimated_cost = estimate_analysis_cost(
+        analysis_type="importance",
+        num_layers=num_layers,
+        num_heads=num_heads,
+        num_tokens=num_tokens,
+        model_id=captured.model_id,
+    )
+    if not check_sufficient_balance(db, current_user.id, estimated_cost):
+        raise HTTPException(
+            status_code=402,
+            detail="INSUFFICIENT_CREDITS"
+        )
+
     # Compute importance scores
     classifier = HeadClassifier()
     importance = classifier.get_head_importance(
         activations=captured.activations,
         num_layers=captured.num_layers,
     )
+
+    # Charge credits after successful computation
+    try:
+        charge_analysis(
+            db=db,
+            user_id=current_user.id,
+            analysis_type="importance",
+            num_layers=num_layers,
+            num_heads=num_heads,
+            num_tokens=num_tokens,
+            model_name=captured.model_id,
+        )
+    except Exception as charge_error:
+        print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
 
     return HeadImportanceListResponse(
         activation_id=captured.id,

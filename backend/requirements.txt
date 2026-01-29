@@ -69,3 +69,6 @@ stripe>=7.0.0  # Stripe payment processing
 
 # Cloud GPU Training (Phase 3)
 modal>=0.55.0  # Modal for cloud GPU execution
+
+# Paper-ready figure export (Phase 2)
+matplotlib>=3.8.0  # Server-side figure generation

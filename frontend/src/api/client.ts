@@ -32,6 +32,14 @@ import type {
   HeadImportanceRequest,
   HeadImportanceResponse,
 } from '../types/analysis'
+import type {
+  PresetInfo,
+  AttentionHeatmapExportRequest,
+  MultiHeadHeatmapExportRequest,
+  ActivationHistogramExportRequest,
+  PatchingComparisonExportRequest,
+  BatchExportRequest,
+} from '../types/export'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -1301,18 +1309,23 @@ class OzeraAPIClient {
   /**
    * Classify attention heads for a captured activation.
    * Identifies head types: induction, previous token, positional, copying.
+   * Requires authentication and charges credits.
    */
   async classifyHeads(request: ClassifyHeadsRequest): Promise<ClassifyHeadsResponse> {
     const response = await fetch(`${this.baseUrl}/analysis/attention/classify-heads`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
 
     if (!response.ok) {
       const error = await response.json()
+      if (response.status === 402 || error.detail === 'INSUFFICIENT_CREDITS') {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
       throw new Error(error.detail || `Failed to classify heads: ${response.statusText}`)
     }
 
@@ -1321,18 +1334,23 @@ class OzeraAPIClient {
 
   /**
    * Compare attention patterns between two captured activations.
+   * Requires authentication and charges credits.
    */
   async compareAttention(request: CompareAttentionRequest): Promise<CompareAttentionResponse> {
     const response = await fetch(`${this.baseUrl}/analysis/attention/compare`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
 
     if (!response.ok) {
       const error = await response.json()
+      if (response.status === 402 || error.detail === 'INSUFFICIENT_CREDITS') {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
       throw new Error(error.detail || `Failed to compare attention: ${response.statusText}`)
     }
 
@@ -1341,18 +1359,23 @@ class OzeraAPIClient {
 
   /**
    * Run comprehensive pattern mining on captured activations.
+   * Requires authentication and charges credits.
    */
   async minePatterns(request: MinePatternRequest): Promise<MinePatternResponse> {
     const response = await fetch(`${this.baseUrl}/analysis/attention/mine-patterns`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
 
     if (!response.ok) {
       const error = await response.json()
+      if (response.status === 402 || error.detail === 'INSUFFICIENT_CREDITS') {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
       throw new Error(error.detail || `Failed to mine patterns: ${response.statusText}`)
     }
 
@@ -1361,9 +1384,50 @@ class OzeraAPIClient {
 
   /**
    * Get importance scores for attention heads.
+   * Requires authentication and charges credits.
    */
   async getHeadImportance(request: HeadImportanceRequest): Promise<HeadImportanceResponse> {
     const response = await fetch(`${this.baseUrl}/analysis/attention/head-importance`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      if (response.status === 402 || error.detail === 'INSUFFICIENT_CREDITS') {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      throw new Error(error.detail || `Failed to get head importance: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  // ============= Figure Export =============
+
+  /**
+   * Get available publication presets.
+   */
+  async getExportPresets(): Promise<Record<string, PresetInfo>> {
+    const response = await fetch(`${this.baseUrl}/export/presets`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get export presets: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Export attention heatmap as publication-ready figure.
+   * Returns the file as a Blob for download.
+   */
+  async exportAttentionHeatmap(request: AttentionHeatmapExportRequest): Promise<Blob> {
+    const response = await fetch(`${this.baseUrl}/export/attention-heatmap`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1373,10 +1437,94 @@ class OzeraAPIClient {
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.detail || `Failed to get head importance: ${response.statusText}`)
+      throw new Error(error.detail || `Failed to export attention heatmap: ${response.statusText}`)
     }
 
-    return response.json()
+    return response.blob()
+  }
+
+  /**
+   * Export multi-head attention heatmap as publication-ready figure.
+   * Returns the file as a Blob for download.
+   */
+  async exportMultiHeadHeatmap(request: MultiHeadHeatmapExportRequest): Promise<Blob> {
+    const response = await fetch(`${this.baseUrl}/export/attention-heatmap/multi-head`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to export multi-head heatmap: ${response.statusText}`)
+    }
+
+    return response.blob()
+  }
+
+  /**
+   * Export activation histogram as publication-ready figure.
+   * Returns the file as a Blob for download.
+   */
+  async exportActivationHistogram(request: ActivationHistogramExportRequest): Promise<Blob> {
+    const response = await fetch(`${this.baseUrl}/export/activation-histogram`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to export activation histogram: ${response.statusText}`)
+    }
+
+    return response.blob()
+  }
+
+  /**
+   * Export patching comparison figure.
+   * Returns the file as a Blob for download.
+   */
+  async exportPatchingComparison(request: PatchingComparisonExportRequest): Promise<Blob> {
+    const response = await fetch(`${this.baseUrl}/export/patching-comparison`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to export patching comparison: ${response.statusText}`)
+    }
+
+    return response.blob()
+  }
+
+  /**
+   * Export multiple figures as a ZIP archive.
+   * Returns the ZIP file as a Blob for download.
+   */
+  async exportBatch(request: BatchExportRequest): Promise<Blob> {
+    const response = await fetch(`${this.baseUrl}/export/batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to batch export: ${response.statusText}`)
+    }
+
+    return response.blob()
   }
 }
 

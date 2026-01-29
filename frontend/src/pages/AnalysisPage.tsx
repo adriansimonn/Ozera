@@ -171,7 +171,11 @@ export default function AnalysisPage({
 
       setClassificationResult(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to classify heads')
+      if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') {
+        onShowPurchaseCredits?.()
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to classify heads')
+      }
     } finally {
       setLoading(false)
     }
@@ -196,7 +200,11 @@ export default function AnalysisPage({
 
       setComparisonResult(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to compare attention patterns')
+      if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') {
+        onShowPurchaseCredits?.()
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to compare attention patterns')
+      }
     } finally {
       setLoading(false)
     }
@@ -220,7 +228,11 @@ export default function AnalysisPage({
 
       setMiningResult(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to mine patterns')
+      if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') {
+        onShowPurchaseCredits?.()
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to mine patterns')
+      }
     } finally {
       setLoading(false)
     }

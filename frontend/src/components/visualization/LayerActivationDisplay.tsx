@@ -6,17 +6,20 @@
 import { useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { LayerActivations } from '../../types/model'
+import { ExportButton } from '../export'
 
 interface LayerActivationDisplayProps {
   layerActivations: LayerActivations
   layerIndex: number
   className?: string
+  activationId?: string
 }
 
 export function LayerActivationDisplay({
   layerActivations,
   layerIndex,
-  className = ''
+  className = '',
+  activationId,
 }: LayerActivationDisplayProps) {
   const attnChartRef = useRef<SVGSVGElement>(null)
   const ffChartRef = useRef<SVGSVGElement>(null)
@@ -166,7 +169,16 @@ export function LayerActivationDisplay({
 
   return (
     <div className={`bg-slate-900/50 rounded-lg border border-slate-700/50 p-6 ${className}`} ref={containerRef}>
-      <h3 className="text-lg font-semibold text-slate-200 mb-4">Layer {layerIndex} Activations</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-slate-200">Layer {layerIndex} Activations</h3>
+        {activationId && (
+          <ExportButton
+            exportType="activation-histogram"
+            activationId={activationId}
+            layer={layerIndex}
+          />
+        )}
+      </div>
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

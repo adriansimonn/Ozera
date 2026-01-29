@@ -10,6 +10,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Zap,
+  Search,
+  MessageSquare,
 } from 'lucide-react';
 import { useTransactions, Transaction } from '../../hooks/useCredits';
 
@@ -25,6 +28,12 @@ function getTransactionIcon(type: Transaction['transaction_type']) {
       return <RefreshCcw size={16} className="text-blue-400" />;
     case 'admin_adjustment':
       return <ArrowUpRight size={16} className="text-purple-400" />;
+    case 'inference_charge':
+      return <MessageSquare size={16} className="text-yellow-400" />;
+    case 'patching_charge':
+      return <Zap size={16} className="text-pink-400" />;
+    case 'analysis_charge':
+      return <Search size={16} className="text-cyan-400" />;
     default:
       return <ArrowUpRight size={16} className="text-gray-400" />;
   }
@@ -40,6 +49,12 @@ function getTransactionLabel(type: Transaction['transaction_type']) {
       return 'Training Refund';
     case 'admin_adjustment':
       return 'Adjustment';
+    case 'inference_charge':
+      return 'Inference';
+    case 'patching_charge':
+      return 'Patching Experiment';
+    case 'analysis_charge':
+      return 'Pattern Analysis';
     default:
       return 'Transaction';
   }

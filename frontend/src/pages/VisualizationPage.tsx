@@ -238,6 +238,7 @@ export function VisualizationPage() {
               attentionWeights={activationData.activations.layers[selectedLayer].attn_weights!}
               layerIndex={selectedLayer}
               headIndex={selectedHead}
+              activationId={activationId ?? undefined}
             />
           </div>
         )}
@@ -246,6 +247,7 @@ export function VisualizationPage() {
           <LayerActivationDisplay
             layerActivations={activationData.activations.layers[selectedLayer]}
             layerIndex={selectedLayer}
+            activationId={activationId ?? undefined}
           />
         )}
 

@@ -38,6 +38,7 @@ from api.webhooks import router as webhooks_router
 from api.open_source import router as open_source_router
 from api.patching import router as patching_router
 from api.analysis import router as analysis_router
+from api.export import router as export_router
 from middleware.auth_middleware import get_optional_current_user
 from models.database import User
 from db import get_db
@@ -76,6 +77,7 @@ app.include_router(webhooks_router)
 app.include_router(open_source_router)
 app.include_router(patching_router)
 app.include_router(analysis_router)
+app.include_router(export_router)
 
 
 class GenerateRequest(BaseModel):

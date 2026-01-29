@@ -457,6 +457,144 @@ def estimate_patching_cost(
     )
 
 
+# Analysis pricing (attention pattern analysis)
+# Analysis operations process cached activations and are computationally lighter than generation
+# Base cost per analysis operation based on model complexity
+BASE_ANALYSIS_COST = 0.005  # $0.005 base cost per operation
+
+# Analysis type multipliers (some operations are more compute-intensive)
+ANALYSIS_TYPE_MULTIPLIERS = {
+    "classify": 1.0,     # Head classification - moderate compute
+    "compare": 1.5,      # Comparing two activation sets - more compute
+    "mine": 2.0,         # Pattern mining - most compute-intensive
+    "importance": 0.5,   # Simple importance scoring - lightweight
+}
+
+# Minimum charge per analysis operation
+MIN_ANALYSIS_CHARGE = 0.01  # $0.01 minimum
+
+
+def calculate_analysis_cost(
+    analysis_type: str,
+    num_layers: int,
+    num_heads: int,
+    num_tokens: int,
+    model_id: str = None,
+) -> float:
+    """
+    Calculate the cost for an analysis operation.
+
+    Args:
+        analysis_type: Type of analysis ('classify', 'compare', 'mine', 'importance')
+        num_layers: Number of layers in the model
+        num_heads: Number of attention heads per layer
+        num_tokens: Number of tokens in the activation
+        model_id: Model identifier for size-based pricing
+
+    Returns:
+        Cost in USD (minimum $0.01 per operation)
+    """
+    # Get analysis type multiplier
+    type_multiplier = ANALYSIS_TYPE_MULTIPLIERS.get(analysis_type, 1.0)
+
+    # Get model size multiplier
+    model_multiplier = get_model_multiplier(model_id) if model_id else DEFAULT_MODEL_MULTIPLIER
+
+    # Scale cost by model complexity (layers * heads) and token count
+    complexity_factor = (num_layers * num_heads) / 36  # Normalize to 6x6 model
+    token_factor = num_tokens / 100  # Normalize to 100 tokens
+
+    cost = BASE_ANALYSIS_COST * type_multiplier * model_multiplier * max(complexity_factor, 0.5) * max(token_factor, 0.5)
+
+    return max(cost, MIN_ANALYSIS_CHARGE)
+
+
+def charge_analysis(
+    db: Session,
+    user_id: int,
+    analysis_type: str,
+    num_layers: int,
+    num_heads: int,
+    num_tokens: int,
+    model_name: str,
+    description: Optional[str] = None,
+) -> Transaction:
+    """
+    Charge credits for an analysis operation.
+
+    Args:
+        db: Database session
+        user_id: User ID
+        analysis_type: Type of analysis ('classify', 'compare', 'mine', 'importance')
+        num_layers: Number of layers in the model
+        num_heads: Number of attention heads per layer
+        num_tokens: Number of tokens analyzed
+        model_name: Name of the model
+        description: Optional description
+
+    Returns:
+        Created transaction record
+    """
+    cost = calculate_analysis_cost(
+        analysis_type=analysis_type,
+        num_layers=num_layers,
+        num_heads=num_heads,
+        num_tokens=num_tokens,
+        model_id=model_name,
+    )
+
+    credit_balance = get_credit_balance(db, user_id)
+    if not credit_balance:
+        credit_balance = CreditBalance(user_id=user_id, balance_usd=0.0, reserved_usd=0.0)
+        db.add(credit_balance)
+
+    # Deduct cost from balance
+    credit_balance.balance_usd -= cost
+    credit_balance.updated_at = datetime.utcnow()
+
+    # Create transaction record
+    transaction = Transaction(
+        user_id=user_id,
+        amount_usd=-cost,  # Negative for deduction
+        transaction_type=TransactionType.ANALYSIS_CHARGE,
+        description=description or f"Analysis ({analysis_type}, {model_name}): {num_tokens} tokens, {num_layers}L x {num_heads}H",
+    )
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+
+    return transaction
+
+
+def estimate_analysis_cost(
+    analysis_type: str,
+    num_layers: int,
+    num_heads: int,
+    num_tokens: int,
+    model_id: str = None,
+) -> float:
+    """
+    Estimate the cost for an analysis operation before running.
+
+    Args:
+        analysis_type: Type of analysis
+        num_layers: Number of layers
+        num_heads: Number of heads per layer
+        num_tokens: Number of tokens
+        model_id: Model identifier
+
+    Returns:
+        Estimated cost in USD
+    """
+    return calculate_analysis_cost(
+        analysis_type=analysis_type,
+        num_layers=num_layers,
+        num_heads=num_heads,
+        num_tokens=num_tokens,
+        model_id=model_id,
+    )
+
+
 def charge_patching(
     db: Session,
     user_id: int,
