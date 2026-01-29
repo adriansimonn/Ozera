@@ -54,7 +54,7 @@ export function LayerActivationDisplay({
         attnChartRef.current,
         layerActivations.attn_output.values as number[][][],
         'Attention Output',
-        '#22d3ee', // cyan
+        '#9ca3af', // gray-400
         dimensions.width,
         dimensions.height
       )
@@ -65,7 +65,7 @@ export function LayerActivationDisplay({
         ffChartRef.current,
         layerActivations.ff_output.values as number[][][],
         'Feed-Forward Output',
-        '#a78bfa', // purple
+        '#d8b4fe', // purple-300
         dimensions.width,
         dimensions.height
       )
@@ -115,7 +115,7 @@ export function LayerActivationDisplay({
       .attr('y', 20)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-sm font-semibold')
-      .attr('fill', '#e2e8f0')
+      .attr('fill', '#e5e7eb')
       .text(title)
 
     // Draw bars
@@ -129,7 +129,6 @@ export function LayerActivationDisplay({
       .attr('height', d => innerHeight - yScale(d.length))
       .attr('fill', color)
       .attr('opacity', 0.7)
-      .attr('rx', 1)
 
     // Add axes
     const xAxis = d3.axisBottom(xScale).ticks(6).tickFormat(d => d3.format('.2f')(d as number))
@@ -140,13 +139,13 @@ export function LayerActivationDisplay({
       .call(xAxis)
       .attr('class', 'text-xs')
       .selectAll('text')
-      .attr('fill', '#94a3b8')
+      .attr('fill', '#9ca3af')
 
     g.append('g')
       .call(yAxis)
       .attr('class', 'text-xs')
       .selectAll('text')
-      .attr('fill', '#94a3b8')
+      .attr('fill', '#9ca3af')
 
     // Axis labels
     svg.append('text')
@@ -154,7 +153,7 @@ export function LayerActivationDisplay({
       .attr('y', height - 5)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-xs')
-      .attr('fill', '#cbd5e1')
+      .attr('fill', '#d1d5db')
       .text('Activation Value')
 
     svg.append('text')
@@ -163,14 +162,14 @@ export function LayerActivationDisplay({
       .attr('y', 15)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-xs')
-      .attr('fill', '#cbd5e1')
+      .attr('fill', '#d1d5db')
       .text('Frequency')
   }
 
   return (
-    <div className={`bg-slate-900/50 rounded-lg border border-slate-700/50 p-6 ${className}`} ref={containerRef}>
+    <div className={`bg-black/40 border border-gray-800 p-6 ${className}`} ref={containerRef}>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-slate-200">Layer {layerIndex} Activations</h3>
+        <h3 className="text-lg font-semibold text-gray-200 tracking-tight">Layer {layerIndex} Activations</h3>
         {activationId && (
           <ExportButton
             exportType="activation-histogram"
@@ -186,28 +185,28 @@ export function LayerActivationDisplay({
           <StatCard
             label="Attn Mean"
             value={layerActivations.attn_output.mean}
-            color="text-cyan-400"
+            color="text-gray-300"
           />
         )}
         {layerActivations.attn_output && (
           <StatCard
             label="Attn Std"
             value={layerActivations.attn_output.std}
-            color="text-cyan-400"
+            color="text-gray-300"
           />
         )}
         {layerActivations.ff_output && (
           <StatCard
             label="FF Mean"
             value={layerActivations.ff_output.mean}
-            color="text-purple-400"
+            color="text-purple-300"
           />
         )}
         {layerActivations.ff_output && (
           <StatCard
             label="FF Std"
             value={layerActivations.ff_output.std}
-            color="text-purple-400"
+            color="text-purple-300"
           />
         )}
       </div>
@@ -219,7 +218,7 @@ export function LayerActivationDisplay({
             ref={attnChartRef}
             width="100%"
             height={dimensions.height}
-            className="bg-slate-800/30 rounded border border-slate-700/30"
+            className="bg-black/30 border border-gray-800"
           />
         )}
         {layerActivations.ff_output && (
@@ -227,17 +226,17 @@ export function LayerActivationDisplay({
             ref={ffChartRef}
             width="100%"
             height={dimensions.height}
-            className="bg-slate-800/30 rounded border border-slate-700/30"
+            className="bg-black/30 border border-gray-800"
           />
         )}
       </div>
 
       {/* Attention Weights Info */}
       {layerActivations.attn_weights && (
-        <div className="mt-4 p-3 bg-slate-800/50 rounded border border-slate-700/30">
-          <div className="text-sm text-slate-300">
-            <span className="text-slate-400">Attention Weights Shape:</span>{' '}
-            <span className="font-mono text-cyan-400">
+        <div className="mt-4 p-3 bg-black/30 border border-gray-800">
+          <div className="text-sm text-gray-300">
+            <span className="text-gray-500 uppercase tracking-wide text-xs">Attention Weights Shape:</span>{' '}
+            <span className="font-mono text-white">
               {layerActivations.attn_weights.shape.join(' × ')}
             </span>
           </div>
@@ -255,8 +254,8 @@ interface StatCardProps {
 
 function StatCard({ label, value, color }: StatCardProps) {
   return (
-    <div className="bg-slate-800/50 rounded border border-slate-700/30 p-3">
-      <div className="text-xs text-slate-400 mb-1">{label}</div>
+    <div className="bg-black/30 border border-gray-800 p-3">
+      <div className="text-xs text-gray-500 mb-1 uppercase tracking-wide">{label}</div>
       <div className={`text-lg font-mono font-semibold ${color}`}>
         {value.toFixed(4)}
       </div>
