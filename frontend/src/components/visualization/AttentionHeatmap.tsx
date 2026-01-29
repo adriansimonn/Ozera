@@ -17,6 +17,14 @@ interface AttentionHeatmapProps {
   activationId?: string
 }
 
+interface HoveredCell {
+  from: number
+  to: number
+  value: number
+  x: number
+  y: number
+}
+
 export function AttentionHeatmap({
   attentionWeights,
   layerIndex,
@@ -27,7 +35,7 @@ export function AttentionHeatmap({
 }: AttentionHeatmapProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const [hoveredCell, setHoveredCell] = useState<{ from: number; to: number; value: number } | null>(null)
+  const [hoveredCell, setHoveredCell] = useState<HoveredCell | null>(null)
   const [dimensions, setDimensions] = useState({ width: 600, height: 600 })
 
   // Update dimensions based on container size
@@ -97,7 +105,7 @@ export function AttentionHeatmap({
       .attr('y', 25)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-lg font-semibold')
-      .attr('fill', '#e2e8f0')
+      .attr('fill', '#e5e7eb')
       .text(`Layer ${layerIndex} - Head ${headIndex}`)
 
     // Create heatmap cells
@@ -110,19 +118,42 @@ export function AttentionHeatmap({
       .attr('width', xScale.bandwidth())
       .attr('height', yScale.bandwidth())
       .attr('fill', d => colorScale(d.value))
-      .attr('stroke', '#1e293b')
+      .attr('stroke', '#1f2937')
       .attr('stroke-width', 0.5)
-      .attr('rx', 1)
       .style('cursor', 'pointer')
       .on('mouseenter', function(event, d) {
         d3.select(this)
-          .attr('stroke', '#60a5fa')
+          .attr('stroke', '#ffffff')
           .attr('stroke-width', 2)
-        setHoveredCell({ from: d.i, to: d.j, value: d.value })
+
+        // Get mouse position relative to container
+        const containerRect = containerRef.current?.getBoundingClientRect()
+        if (containerRect) {
+          setHoveredCell({
+            from: d.i,
+            to: d.j,
+            value: d.value,
+            x: event.clientX - containerRect.left,
+            y: event.clientY - containerRect.top
+          })
+        }
+      })
+      .on('mousemove', function(event, d) {
+        // Update position on mouse move
+        const containerRect = containerRef.current?.getBoundingClientRect()
+        if (containerRect) {
+          setHoveredCell({
+            from: d.i,
+            to: d.j,
+            value: d.value,
+            x: event.clientX - containerRect.left,
+            y: event.clientY - containerRect.top
+          })
+        }
       })
       .on('mouseleave', function() {
         d3.select(this)
-          .attr('stroke', '#1e293b')
+          .attr('stroke', '#1f2937')
           .attr('stroke-width', 0.5)
         setHoveredCell(null)
       })
@@ -147,7 +178,7 @@ export function AttentionHeatmap({
       .call(xAxis)
       .attr('class', 'text-xs')
       .selectAll('text')
-      .attr('fill', '#94a3b8')
+      .attr('fill', '#9ca3af')
       .attr('transform', 'rotate(-45)')
       .style('text-anchor', 'end')
 
@@ -155,7 +186,7 @@ export function AttentionHeatmap({
       .call(yAxis)
       .attr('class', 'text-xs')
       .selectAll('text')
-      .attr('fill', '#94a3b8')
+      .attr('fill', '#9ca3af')
 
     // Add axis labels
     svg.append('text')
@@ -163,7 +194,7 @@ export function AttentionHeatmap({
       .attr('y', height - 5)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-sm')
-      .attr('fill', '#cbd5e1')
+      .attr('fill', '#d1d5db')
       .text('To Token')
 
     svg.append('text')
@@ -172,7 +203,7 @@ export function AttentionHeatmap({
       .attr('y', 15)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-sm')
-      .attr('fill', '#cbd5e1')
+      .attr('fill', '#d1d5db')
       .text('From Token')
 
     // Add color legend
@@ -208,7 +239,7 @@ export function AttentionHeatmap({
       .attr('width', legendWidth)
       .attr('height', legendHeight)
       .style('fill', `url(#legend-gradient-${layerIndex}-${headIndex})`)
-      .attr('stroke', '#475569')
+      .attr('stroke', '#374151')
       .attr('stroke-width', 1)
 
     svg.append('g')
@@ -216,9 +247,34 @@ export function AttentionHeatmap({
       .call(legendAxis)
       .attr('class', 'text-xs')
       .selectAll('text')
-      .attr('fill', '#94a3b8')
+      .attr('fill', '#9ca3af')
 
   }, [attentionWeights, layerIndex, headIndex, tokens, dimensions])
+
+  // Calculate tooltip position with boundary checks
+  const getTooltipStyle = () => {
+    if (!hoveredCell) return {}
+
+    const tooltipWidth = 200
+    const tooltipHeight = 80
+    const offset = 12
+
+    let x = hoveredCell.x + offset
+    let y = hoveredCell.y + offset
+
+    // Keep tooltip within container bounds
+    if (x + tooltipWidth > dimensions.width) {
+      x = hoveredCell.x - tooltipWidth - offset
+    }
+    if (y + tooltipHeight > dimensions.height) {
+      y = hoveredCell.y - tooltipHeight - offset
+    }
+
+    return {
+      left: `${x}px`,
+      top: `${y}px`
+    }
+  }
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
@@ -237,16 +293,19 @@ export function AttentionHeatmap({
         ref={svgRef}
         width="100%"
         height={dimensions.height}
-        className="bg-slate-900/50 rounded-lg border border-slate-700/50"
+        className="bg-black/40 border border-gray-800"
       />
       {hoveredCell && (
-        <div className="absolute top-4 left-4 bg-slate-800/95 border border-cyan-500/30 rounded-lg px-4 py-2 text-sm backdrop-blur-sm">
-          <div className="text-cyan-400 font-semibold mb-1">Attention Weight</div>
-          <div className="text-slate-300">
+        <div
+          className="absolute z-20 bg-black/80 backdrop-blur-sm border border-gray-700 px-4 py-3 text-sm pointer-events-none"
+          style={getTooltipStyle()}
+        >
+          <div className="text-white font-semibold mb-1 text-xs uppercase tracking-wide">Attention Weight</div>
+          <div className="text-gray-400 text-xs">
             From token {hoveredCell.from} → To token {hoveredCell.to}
           </div>
-          <div className="text-slate-300">
-            Weight: <span className="text-cyan-400 font-mono">{hoveredCell.value.toFixed(4)}</span>
+          <div className="text-gray-300 mt-1">
+            Weight: <span className="text-white font-mono">{hoveredCell.value.toFixed(4)}</span>
           </div>
         </div>
       )}
