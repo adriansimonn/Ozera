@@ -12,7 +12,7 @@ Qwen 2.5 uses a transformer architecture with:
 import torch
 from typing import Optional
 
-from .base import OpenSourceModelLoader
+from .base import OpenSourceModelLoader, get_hf_token
 from .registry import ModelFamily
 from .hooks import create_capture_hook, normalize_gqa_attention
 
@@ -31,19 +31,24 @@ class QwenLoader(OpenSourceModelLoader):
 
     family = ModelFamily.QWEN
 
-    def load(self, cache_dir: str) -> None:
+    def load(self, cache_dir: str, token: Optional[str] = None) -> None:
         """
         Load Qwen model and tokenizer from cache.
 
         Args:
             cache_dir: Path to HuggingFace cache directory
+            token: Optional HuggingFace token for gated models
         """
         from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        # Get token from parameter or environment
+        hf_token = token or get_hf_token()
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.config.hf_id,
             cache_dir=cache_dir,
             trust_remote_code=True,  # Qwen requires trust_remote_code
+            token=hf_token,
         )
 
         # Ensure pad token is set
@@ -61,6 +66,7 @@ class QwenLoader(OpenSourceModelLoader):
             device_map=self.device,
             trust_remote_code=True,  # Qwen requires trust_remote_code
             attn_implementation="eager",  # Required for output_attentions=True
+            token=hf_token,
         )
 
         self.model.eval()

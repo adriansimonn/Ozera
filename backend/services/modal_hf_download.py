@@ -17,6 +17,9 @@ app = modal.App("ozera-hf-download")
 HF_VOLUME_NAME = "ozera-hf-models"
 hf_volume = modal.Volume.from_name(HF_VOLUME_NAME, create_if_missing=True)
 
+# HuggingFace token secret (create with: modal secret create huggingface-secret HF_TOKEN=hf_xxx)
+hf_secret = modal.Secret.from_name("huggingface-secret", required_keys=["HF_TOKEN"])
+
 # Docker image with download dependencies
 download_image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -33,6 +36,7 @@ download_image = (
 @app.function(
     image=download_image,
     volumes={"/hf_cache": hf_volume},
+    secrets=[hf_secret],
     timeout=1800,  # 30 minutes for large models
 )
 def download_model(hf_model_id: str, force: bool = False) -> dict:

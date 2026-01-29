@@ -22,6 +22,9 @@ models_volume = modal.Volume.from_name(MODELS_VOLUME_NAME, create_if_missing=Tru
 HF_VOLUME_NAME = "ozera-hf-models"
 hf_volume = modal.Volume.from_name(HF_VOLUME_NAME, create_if_missing=True)
 
+# HuggingFace token secret for gated models (create with: modal secret create huggingface-secret HF_TOKEN=hf_xxx)
+hf_secret = modal.Secret.from_name("huggingface-secret", required_keys=["HF_TOKEN"])
+
 # Get backend directory path
 BACKEND_DIR = os.path.join(os.path.dirname(__file__), "..")
 
@@ -52,6 +55,7 @@ BASE_MODEL_PATHS = {
 @app.cls(
     image=inference_image,
     volumes={"/models": models_volume, "/hf_cache": hf_volume},
+    secrets=[hf_secret],
     gpu="T4",
     timeout=300,
     scaledown_window=300,  # Keep warm for 5 minutes
@@ -1000,6 +1004,7 @@ class InferenceWorkerT4:
 @app.cls(
     image=inference_image,
     volumes={"/models": models_volume, "/hf_cache": hf_volume},
+    secrets=[hf_secret],
     gpu="A10G",
     timeout=600,
     scaledown_window=120,

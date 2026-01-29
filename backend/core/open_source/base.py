@@ -4,9 +4,15 @@ Abstract base class for open-source model loaders.
 
 from abc import ABC, abstractmethod
 from typing import Optional, Callable
+import os
 import torch
 
 from .registry import OPEN_SOURCE_MODELS, OpenSourceModelConfig
+
+
+def get_hf_token() -> Optional[str]:
+    """Get HuggingFace token from environment variables."""
+    return os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN")
 
 
 class OpenSourceModelLoader(ABC):
@@ -37,12 +43,14 @@ class OpenSourceModelLoader(ABC):
         self._activations: dict[str, torch.Tensor] = {}
 
     @abstractmethod
-    def load(self, cache_dir: str) -> None:
+    def load(self, cache_dir: str, token: Optional[str] = None) -> None:
         """
         Load model and tokenizer from cache directory.
 
         Args:
             cache_dir: Path to HuggingFace cache directory
+            token: Optional HuggingFace token for gated models. If None,
+                   will try to get from HF_TOKEN environment variable.
         """
         pass
 
