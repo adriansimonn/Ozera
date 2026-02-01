@@ -460,18 +460,18 @@ def estimate_patching_cost(
 # Analysis pricing (attention pattern analysis)
 # Analysis operations process cached activations and are computationally lighter than generation
 # Base cost per analysis operation based on model complexity
-BASE_ANALYSIS_COST = 0.005  # $0.005 base cost per operation
+BASE_ANALYSIS_COST = 0.002  # $0.002 base cost per operation
 
 # Analysis type multipliers (some operations are more compute-intensive)
 ANALYSIS_TYPE_MULTIPLIERS = {
-    "classify": 1.0,     # Head classification - moderate compute
-    "compare": 1.5,      # Comparing two activation sets - more compute
-    "mine": 2.0,         # Pattern mining - most compute-intensive
-    "importance": 0.5,   # Simple importance scoring - lightweight
+    "classify": 0.8,     # Head classification - moderate compute
+    "compare": 1.0,      # Comparing two activation sets - more compute
+    "mine": 1.5,         # Pattern mining - most compute-intensive
+    "importance": 0.3,   # Simple importance scoring - lightweight
 }
 
 # Minimum charge per analysis operation
-MIN_ANALYSIS_CHARGE = 0.01  # $0.01 minimum
+MIN_ANALYSIS_CHARGE = 0.005  # $0.005 minimum
 
 
 def calculate_analysis_cost(
