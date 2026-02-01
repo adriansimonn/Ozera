@@ -5,7 +5,7 @@
 /**
  * Types of attention heads that can be detected.
  */
-export type HeadType = 'induction' | 'previous_token' | 'positional' | 'copying' | 'mixed' | 'unknown'
+export type HeadType = 'induction' | 'previous_token' | 'positional' | 'copying' | 'bos_attention' | 'delimiter' | 'local_window' | 'distributed' | 'mixed' | 'unknown'
 
 /**
  * Classification result for a single attention head.
@@ -159,6 +159,10 @@ export const HEAD_TYPE_COLORS: Record<HeadType, string> = {
   previous_token: '#3B82F6',  // blue
   positional: '#8B5CF6',      // purple
   copying: '#F59E0B',         // amber
+  bos_attention: '#06B6D4',   // cyan
+  delimiter: '#F97316',       // orange
+  local_window: '#14B8A6',    // teal
+  distributed: '#A78BFA',     // light purple
   mixed: '#EC4899',           // pink
   unknown: '#6B7280',         // gray
 }
@@ -171,6 +175,10 @@ export const HEAD_TYPE_NAMES: Record<HeadType, string> = {
   previous_token: 'Previous Token',
   positional: 'Positional',
   copying: 'Copying',
+  bos_attention: 'BOS Attention',
+  delimiter: 'Delimiter',
+  local_window: 'Local Window',
+  distributed: 'Distributed',
   mixed: 'Mixed',
   unknown: 'Unknown',
 }

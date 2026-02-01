@@ -21,6 +21,10 @@ class HeadType(str, Enum):
     PREVIOUS_TOKEN = "previous_token"
     POSITIONAL = "positional"
     COPYING = "copying"
+    BOS_ATTENTION = "bos_attention"  # Attends to first token
+    DELIMITER = "delimiter"  # Attends to punctuation/structural tokens
+    LOCAL_WINDOW = "local_window"  # Attends to nearby tokens (broader than previous)
+    DISTRIBUTED = "distributed"  # Spreads attention broadly across sequence
     MIXED = "mixed"
     UNKNOWN = "unknown"
 
@@ -73,6 +77,10 @@ class HeadClassifier:
         previous_token_threshold: float = 0.5,
         positional_threshold: float = 0.4,
         copying_threshold: float = 0.3,
+        bos_attention_threshold: float = 0.25,
+        delimiter_threshold: float = 0.3,
+        local_window_threshold: float = 0.4,
+        distributed_threshold: float = 0.7,  # High entropy threshold
     ):
         """
         Initialize the classifier with detection thresholds.
@@ -82,11 +90,19 @@ class HeadClassifier:
             previous_token_threshold: Minimum score for previous token head detection.
             positional_threshold: Minimum score for positional head detection.
             copying_threshold: Minimum score for copying head detection.
+            bos_attention_threshold: Minimum score for BOS attention head detection.
+            delimiter_threshold: Minimum score for delimiter head detection.
+            local_window_threshold: Minimum score for local window head detection.
+            distributed_threshold: Minimum entropy ratio for distributed head detection.
         """
         self.induction_threshold = induction_threshold
         self.previous_token_threshold = previous_token_threshold
         self.positional_threshold = positional_threshold
         self.copying_threshold = copying_threshold
+        self.bos_attention_threshold = bos_attention_threshold
+        self.delimiter_threshold = delimiter_threshold
+        self.local_window_threshold = local_window_threshold
+        self.distributed_threshold = distributed_threshold
 
     def classify_all_heads(
         self,
@@ -179,9 +195,14 @@ class HeadClassifier:
             'previous_token': self._compute_previous_token_score(attn),
             'positional': self._compute_positional_score(attn),
             'copying': self._compute_copying_score(attn, tokens, decoded_tokens),
+            'bos_attention': self._compute_bos_attention_score(attn),
+            'delimiter': self._compute_delimiter_score(attn, decoded_tokens),
+            'local_window': self._compute_local_window_score(attn),
+            'distributed': self._compute_distributed_score(attn),
         }
 
         # Determine primary type based on scores and thresholds
+        # Check pattern-based types first (more specific), then fallback types
         primary_type = HeadType.UNKNOWN
         max_score = 0.0
 
@@ -201,9 +222,28 @@ class HeadClassifier:
             primary_type = HeadType.COPYING
             max_score = scores['copying']
 
-        # Check for mixed types (multiple high scores)
-        high_scores = sum(1 for s in scores.values() if s >= 0.3)
-        if high_scores >= 2 and primary_type != HeadType.UNKNOWN:
+        if scores['bos_attention'] >= self.bos_attention_threshold and scores['bos_attention'] > max_score:
+            primary_type = HeadType.BOS_ATTENTION
+            max_score = scores['bos_attention']
+
+        if scores['delimiter'] >= self.delimiter_threshold and scores['delimiter'] > max_score:
+            primary_type = HeadType.DELIMITER
+            max_score = scores['delimiter']
+
+        if scores['local_window'] >= self.local_window_threshold and scores['local_window'] > max_score:
+            primary_type = HeadType.LOCAL_WINDOW
+            max_score = scores['local_window']
+
+        # Distributed is a fallback - only classify as distributed if no other pattern found
+        # and the attention is sufficiently spread out
+        if primary_type == HeadType.UNKNOWN and scores['distributed'] >= self.distributed_threshold:
+            primary_type = HeadType.DISTRIBUTED
+            max_score = scores['distributed']
+
+        # Check for mixed types (multiple high scores among non-distributed types)
+        pattern_scores = {k: v for k, v in scores.items() if k != 'distributed'}
+        high_scores = sum(1 for s in pattern_scores.values() if s >= 0.25)
+        if high_scores >= 2 and primary_type not in (HeadType.UNKNOWN, HeadType.DISTRIBUTED):
             primary_type = HeadType.MIXED
 
         # Generate pattern summary
@@ -363,6 +403,152 @@ class HeadClassifier:
 
         return float(np.mean(copying_scores))
 
+    def _compute_bos_attention_score(self, attn: np.ndarray) -> float:
+        """
+        Compute BOS (beginning of sequence) attention score.
+
+        BOS attention heads strongly attend to the first token, which often
+        serves as a "no-op" or information aggregation position.
+
+        Args:
+            attn: Attention weights [seq_len, seq_len].
+
+        Returns:
+            BOS attention score between 0 and 1.
+        """
+        seq_len = attn.shape[0]
+        if seq_len < 2:
+            return 0.0
+
+        # Attention to the first token from all other positions
+        bos_attention = attn[1:, 0]  # Exclude self-attention at position 0
+        return float(np.mean(bos_attention))
+
+    def _compute_delimiter_score(
+        self,
+        attn: np.ndarray,
+        decoded_tokens: list[str],
+    ) -> float:
+        """
+        Compute delimiter attention score.
+
+        Delimiter heads attend to structural tokens like punctuation,
+        which often mark syntactic boundaries.
+
+        Args:
+            attn: Attention weights [seq_len, seq_len].
+            decoded_tokens: Decoded token strings.
+
+        Returns:
+            Delimiter attention score between 0 and 1.
+        """
+        seq_len = len(decoded_tokens)
+        if seq_len < 2:
+            return 0.0
+
+        # Common delimiter patterns (handles various tokenizer formats)
+        delimiter_chars = {'.', ',', '!', '?', ';', ':', '\n', '(', ')', '[', ']', '{', '}'}
+
+        # Find delimiter positions
+        delimiter_positions = []
+        for i, token in enumerate(decoded_tokens):
+            # Check if token contains delimiter characters
+            token_stripped = token.strip()
+            if any(c in token_stripped for c in delimiter_chars) or token_stripped in delimiter_chars:
+                delimiter_positions.append(i)
+
+        if not delimiter_positions:
+            return 0.0
+
+        # Compute mean attention to delimiter positions from non-delimiter positions
+        delimiter_attention = []
+        for i in range(seq_len):
+            if i not in delimiter_positions:
+                for j in delimiter_positions:
+                    if j < i:  # Only attend to earlier delimiters (causal)
+                        delimiter_attention.append(attn[i, j])
+
+        if not delimiter_attention:
+            return 0.0
+
+        return float(np.mean(delimiter_attention))
+
+    def _compute_local_window_score(self, attn: np.ndarray) -> float:
+        """
+        Compute local window attention score.
+
+        Local window heads attend to a range of nearby tokens, not just
+        the immediately previous one. This captures broader local context.
+
+        Args:
+            attn: Attention weights [seq_len, seq_len].
+
+        Returns:
+            Local window score between 0 and 1.
+        """
+        seq_len = attn.shape[0]
+        if seq_len < 4:
+            return 0.0
+
+        window_size = min(5, seq_len - 1)  # Look at last 5 tokens or fewer
+        local_scores = []
+
+        for i in range(window_size, seq_len):
+            # Sum attention to the local window (excluding immediate previous, which is separate)
+            window_start = max(0, i - window_size)
+            window_end = i - 1  # Exclude immediate previous token
+            if window_end > window_start:
+                local_attn = np.sum(attn[i, window_start:window_end])
+                local_scores.append(local_attn)
+
+        if not local_scores:
+            return 0.0
+
+        return float(np.mean(local_scores))
+
+    def _compute_distributed_score(self, attn: np.ndarray) -> float:
+        """
+        Compute distributed attention score based on entropy.
+
+        Distributed heads spread attention across many tokens rather than
+        focusing on specific positions. High entropy indicates distributed attention.
+
+        Args:
+            attn: Attention weights [seq_len, seq_len].
+
+        Returns:
+            Distributed score between 0 and 1 (higher = more distributed).
+        """
+        seq_len = attn.shape[0]
+        if seq_len < 2:
+            return 0.0
+
+        # Compute normalized entropy for each query position
+        eps = 1e-10
+        max_entropy = np.log(seq_len)  # Maximum possible entropy (uniform distribution)
+
+        if max_entropy < eps:
+            return 0.0
+
+        entropy_scores = []
+        for i in range(1, seq_len):  # Skip first position (only attends to itself)
+            # Get attention distribution for this query
+            attn_dist = attn[i, :i+1]  # Only consider causal positions
+            attn_dist = attn_dist / (np.sum(attn_dist) + eps)  # Renormalize
+
+            # Compute entropy
+            entropy = -np.sum(attn_dist * np.log(attn_dist + eps))
+            local_max_entropy = np.log(i + 1)  # Max entropy for this position
+
+            if local_max_entropy > eps:
+                normalized_entropy = entropy / local_max_entropy
+                entropy_scores.append(normalized_entropy)
+
+        if not entropy_scores:
+            return 0.0
+
+        return float(np.mean(entropy_scores))
+
     def _generate_pattern_summary(
         self,
         attn: np.ndarray,
@@ -399,6 +585,14 @@ class HeadClassifier:
             return f"Positional pattern (score={scores['positional']:.2f}): Fixed offset attention pattern"
         elif head_type == HeadType.COPYING:
             return f"Copying pattern (score={scores['copying']:.2f}): Attends to identical tokens"
+        elif head_type == HeadType.BOS_ATTENTION:
+            return f"BOS attention pattern (score={scores['bos_attention']:.2f}): Attends to first token"
+        elif head_type == HeadType.DELIMITER:
+            return f"Delimiter pattern (score={scores['delimiter']:.2f}): Attends to punctuation/structural tokens"
+        elif head_type == HeadType.LOCAL_WINDOW:
+            return f"Local window pattern (score={scores['local_window']:.2f}): Attends to nearby context"
+        elif head_type == HeadType.DISTRIBUTED:
+            return f"Distributed pattern (score={scores['distributed']:.2f}): Spreads attention broadly"
         elif head_type == HeadType.MIXED:
             top_types = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:2]
             return f"Mixed pattern: {top_types[0][0]}={top_types[0][1]:.2f}, {top_types[1][0]}={top_types[1][1]:.2f}"
