@@ -260,7 +260,12 @@ export default function AnalysisPage({
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => setMode(id as AnalysisMode)}
+              onClick={() => {
+                setMode(id as AnalysisMode)
+                if (id !== 'compare') {
+                  setSelectedActivation2('')
+                }
+              }}
               className={`mode-tab ${mode === id ? 'active' : ''}`}
             >
               <Icon size={16} />
@@ -348,13 +353,28 @@ export default function AnalysisPage({
                       <button
                         key={activation.id}
                         onClick={() => {
-                          if (mode === 'compare' && selectedActivation1 && selectedActivation1 !== activation.id) {
-                            setSelectedActivation2(activation.id)
+                          if (mode === 'compare') {
+                            // In compare mode: allow deselecting or selecting prompts
+                            if (selectedActivation1 === activation.id) {
+                              // Clicking first selected - deselect it, move second to first
+                              setSelectedActivation1(selectedActivation2)
+                              setSelectedActivation2('')
+                            } else if (selectedActivation2 === activation.id) {
+                              // Clicking second selected - deselect it
+                              setSelectedActivation2('')
+                            } else if (!selectedActivation1) {
+                              // No first selected - set as first
+                              setSelectedActivation1(activation.id)
+                            } else if (!selectedActivation2) {
+                              // First selected but not second - set as second
+                              setSelectedActivation2(activation.id)
+                            } else {
+                              // Both selected - replace second
+                              setSelectedActivation2(activation.id)
+                            }
                           } else {
                             setSelectedActivation1(activation.id)
-                            if (mode !== 'compare') {
-                              setSelectedActivation2('')
-                            }
+                            setSelectedActivation2('')
                           }
                         }}
                         className={`activation-item ${
@@ -377,12 +397,6 @@ export default function AnalysisPage({
                 </div>
               )}
 
-              {mode === 'compare' && (
-                <div className="selection-legend">
-                  <span className="legend-primary">●</span> First prompt &nbsp;
-                  <span className="legend-secondary">●</span> Second prompt
-                </div>
-              )}
 
               <div className="storage-warning">
                 <AlertCircle size={12} />
@@ -879,8 +893,8 @@ export default function AnalysisPage({
         }
 
         .activation-item.selected-secondary {
-          background: rgba(168, 85, 247, 0.15);
-          border-color: rgba(168, 85, 247, 0.5);
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.5);
         }
 
         .activation-prompt {
@@ -895,20 +909,6 @@ export default function AnalysisPage({
           font-size: 0.7rem;
           color: rgba(255, 255, 255, 0.4);
           margin-top: 0.25rem;
-        }
-
-        .selection-legend {
-          margin-top: 0.75rem;
-          font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.4);
-        }
-
-        .legend-primary {
-          color: rgba(255, 255, 255, 0.9);
-        }
-
-        .legend-secondary {
-          color: rgba(168, 85, 247, 0.9);
         }
 
         .storage-warning {
