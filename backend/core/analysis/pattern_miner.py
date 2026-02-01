@@ -45,6 +45,8 @@ class AttentionComparison:
     head_differences: list[dict]  # Most different heads
     common_patterns: list[str]  # Patterns found in both
     divergent_patterns: list[str]  # Patterns that differ
+    length_warning: Optional[str] = None  # Warning if sequence lengths differ significantly
+    comparison_method: str = "direct"  # "direct" or "statistical" based on length match
 
 
 @dataclass
@@ -404,6 +406,34 @@ class PatternMiner:
         Returns:
             AttentionComparison with similarity and difference analysis.
         """
+        len1 = len(tokens1)
+        len2 = len(tokens2)
+        min_len = min(len1, len2)
+        max_len = max(len1, len2)
+
+        # Check for significant length mismatch
+        length_warning = None
+        comparison_method = "direct"
+        length_ratio = min_len / max_len if max_len > 0 else 1.0
+
+        # Determine if we need statistical comparison
+        if min_len <= 2:
+            # Extremely short sequence - attention is trivial
+            length_warning = (
+                f"Very short sequence detected: {len1} vs {len2} tokens. "
+                f"Sequences with 1-2 tokens have trivial attention patterns (only self/BOS attention). "
+                f"Similarity scores are heavily penalized and may not be meaningful. "
+                f"For better comparison, use longer prompts (4+ tokens)."
+            )
+            comparison_method = "statistical"
+        elif length_ratio < 0.5 or min_len < 4:
+            length_warning = (
+                f"Significant sequence length mismatch: {len1} vs {len2} tokens. "
+                f"Using statistical comparison instead of direct matrix comparison. "
+                f"Results may be less reliable for mismatched lengths."
+            )
+            comparison_method = "statistical"
+
         layer_similarities = []
         head_differences = []
 
@@ -427,21 +457,30 @@ class PatternMiner:
             if len(attn2.shape) == 4:
                 attn2 = attn2[0]
 
-            # Compare each head
             num_heads = min(attn1.shape[0], attn2.shape[0])
-            seq_len = min(attn1.shape[1], attn2.shape[1], attn1.shape[2], attn2.shape[2])
-
             layer_head_sims = []
-            for head_idx in range(num_heads):
-                h1 = attn1[head_idx, :seq_len, :seq_len]
-                h2 = attn2[head_idx, :seq_len, :seq_len]
 
-                # Compute cosine similarity of flattened patterns
-                h1_flat = h1.flatten()
-                h2_flat = h2.flatten()
-                similarity = float(np.dot(h1_flat, h2_flat) / (
-                    np.linalg.norm(h1_flat) * np.linalg.norm(h2_flat) + 1e-10
-                ))
+            for head_idx in range(num_heads):
+                h1_full = attn1[head_idx]
+                h2_full = attn2[head_idx]
+
+                if comparison_method == "statistical":
+                    # Use statistical comparison for mismatched lengths
+                    similarity = self._compute_statistical_similarity(h1_full, h2_full)
+                else:
+                    # Direct comparison for similar-length sequences
+                    seq_len = min(h1_full.shape[0], h1_full.shape[1],
+                                  h2_full.shape[0], h2_full.shape[1])
+                    h1 = h1_full[:seq_len, :seq_len]
+                    h2 = h2_full[:seq_len, :seq_len]
+
+                    # Compute cosine similarity of flattened patterns
+                    h1_flat = h1.flatten()
+                    h2_flat = h2.flatten()
+                    similarity = float(np.dot(h1_flat, h2_flat) / (
+                        np.linalg.norm(h1_flat) * np.linalg.norm(h2_flat) + 1e-10
+                    ))
+
                 layer_head_sims.append(similarity)
 
                 # Track significant differences
@@ -491,4 +530,138 @@ class PatternMiner:
             head_differences=head_differences,
             common_patterns=common_patterns,
             divergent_patterns=divergent_patterns,
+            length_warning=length_warning,
+            comparison_method=comparison_method,
         )
+
+    def _compute_statistical_similarity(
+        self,
+        attn1: np.ndarray,
+        attn2: np.ndarray,
+    ) -> float:
+        """
+        Compute similarity between attention matrices using statistical features.
+
+        This method is used when sequences have significantly different lengths,
+        making direct matrix comparison unreliable. Instead, we compare:
+        - Entropy of attention distributions
+        - BOS attention strength
+        - Local vs global attention ratios
+        - Attention concentration metrics
+
+        Args:
+            attn1: Attention matrix for first prompt [seq_len1, seq_len1].
+            attn2: Attention matrix for second prompt [seq_len2, seq_len2].
+
+        Returns:
+            Similarity score between 0 and 1.
+        """
+        eps = 1e-10
+        len1, len2 = attn1.shape[0], attn2.shape[0]
+        min_len = min(len1, len2)
+        max_len = max(len1, len2)
+
+        # For extremely short sequences (1-2 tokens), attention is trivial
+        # and cannot be meaningfully compared - apply a length penalty
+        if min_len <= 2:
+            # Base penalty: very short sequences have degenerate attention patterns
+            # The shorter the sequence, the less meaningful the comparison
+            length_penalty = min_len / max(max_len, 3)  # Ranges from ~0.33 to 0.67
+
+            # If both are very short, they're trivially similar but uninformative
+            if max_len <= 2:
+                return 0.5  # Neutral - can't determine meaningful similarity
+
+            # One is short, one is long - likely very different in practice
+            # Return a low similarity reflecting the fundamental incomparability
+            return length_penalty * 0.5  # Will be 0.17 - 0.33 range
+
+        def extract_features(attn: np.ndarray) -> tuple[np.ndarray, int]:
+            """Extract statistical features from an attention matrix."""
+            seq_len = attn.shape[0]
+            features = []
+
+            # Feature 1: Mean entropy (normalized)
+            entropies = []
+            for i in range(1, seq_len):
+                row = attn[i, :i+1]
+                row = row / (np.sum(row) + eps)
+                entropy = -np.sum(row * np.log(row + eps))
+                entropies.append(entropy / (np.log(i + 1) + eps))
+            mean_entropy = np.mean(entropies) if entropies else 0.0
+            features.append(mean_entropy)
+
+            # Feature 2: BOS attention strength (attention to first token)
+            if seq_len > 1:
+                bos_attn = np.mean(attn[1:, 0])
+            else:
+                bos_attn = 0.0
+            features.append(bos_attn)
+
+            # Feature 3: Self-attention strength (diagonal)
+            diag = np.diag(attn)
+            self_attn = np.mean(diag)
+            features.append(self_attn)
+
+            # Feature 4: Previous token attention (sub-diagonal)
+            if seq_len > 1:
+                prev_attn = np.mean([attn[i, i-1] for i in range(1, seq_len)])
+            else:
+                prev_attn = 0.0
+            features.append(prev_attn)
+
+            # Feature 5: Local window attention (within 3 tokens)
+            local_scores = []
+            for i in range(seq_len):
+                local_start = max(0, i - 3)
+                local_end = min(seq_len, i + 1)
+                local_attn = np.sum(attn[i, local_start:local_end])
+                local_scores.append(local_attn)
+            features.append(np.mean(local_scores))
+
+            # Feature 6: Max attention (concentration)
+            max_attns = []
+            for i in range(seq_len):
+                max_attns.append(np.max(attn[i, :i+1]) if i > 0 else attn[i, 0])
+            features.append(np.mean(max_attns))
+
+            # Feature 7: Attention variance
+            variances = []
+            for i in range(1, seq_len):
+                variances.append(np.var(attn[i, :i+1]))
+            features.append(np.mean(variances) if variances else 0.0)
+
+            # Feature 8: Far attention (attention to positions > 5 tokens away)
+            far_scores = []
+            for i in range(6, seq_len):
+                far_attn = np.sum(attn[i, :i-5])
+                far_scores.append(far_attn)
+            features.append(np.mean(far_scores) if far_scores else 0.0)
+
+            return np.array(features)
+
+        # Extract features from both matrices
+        f1 = extract_features(attn1)
+        f2 = extract_features(attn2)
+
+        # Use Euclidean distance-based similarity instead of cosine
+        # This better captures magnitude differences between feature vectors
+        diff = f1 - f2
+        euclidean_dist = np.sqrt(np.sum(diff ** 2))
+
+        # Normalize: max possible distance is sqrt(8) ≈ 2.83 (8 features, each ranging 0-1)
+        max_dist = np.sqrt(len(f1))
+        normalized_dist = euclidean_dist / max_dist
+
+        # Convert distance to similarity (0 = very different, 1 = identical)
+        base_similarity = 1.0 - normalized_dist
+
+        # Apply length ratio penalty for significant length mismatches
+        length_ratio = min_len / max_len
+        if length_ratio < 0.3:
+            # Very different lengths - apply stronger penalty
+            length_penalty = 0.5 + (length_ratio / 0.3) * 0.5  # 0.5 to 1.0
+            base_similarity *= length_penalty
+
+        # Clamp to [0, 1]
+        return max(0.0, min(1.0, base_similarity))

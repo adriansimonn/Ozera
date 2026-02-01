@@ -80,6 +80,8 @@ export interface CompareAttentionResponse {
   head_differences: HeadDifference[]
   common_patterns: string[]
   divergent_patterns: string[]
+  length_warning?: string  // Warning if sequence lengths differ significantly
+  comparison_method: 'direct' | 'statistical'  // Method used based on length match
 }
 
 /**

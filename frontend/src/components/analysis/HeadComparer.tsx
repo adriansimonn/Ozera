@@ -17,6 +17,8 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
     head_differences,
     common_patterns,
     divergent_patterns,
+    length_warning,
+    comparison_method,
   } = comparison
 
   // Calculate overall similarity
@@ -26,6 +28,29 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
 
   return (
     <div className="space-y-6">
+      {/* Length Mismatch Warning */}
+      {length_warning && (
+        <div className="bg-amber-950/50 border border-amber-500/50 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-amber-400 text-lg">!</span>
+            <div>
+              <div className="text-sm font-semibold text-amber-400 mb-1">
+                Sequence Length Mismatch
+              </div>
+              <div className="text-sm text-amber-200/80">
+                {length_warning}
+              </div>
+              <div className="text-xs text-amber-200/60 mt-2">
+                Comparison method: <span className="font-mono">{comparison_method}</span>
+                {comparison_method === 'statistical' && (
+                  <span> (compares attention statistics instead of raw matrices)</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Prompts being compared */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-4">
@@ -41,7 +66,12 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
       {/* Overall Similarity Score */}
       <div className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-300">Overall Similarity</h3>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-300">Overall Similarity</h3>
+            {comparison_method === 'statistical' && (
+              <div className="text-xs text-slate-500">(statistical comparison)</div>
+            )}
+          </div>
           <span
             className={`text-2xl font-bold ${
               overallSimilarity > 0.7 ? 'text-green-400' :
