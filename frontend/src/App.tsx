@@ -5,6 +5,7 @@ import UnifiedPage from './pages/UnifiedPage'
 import TrainingPage from './pages/TrainingPage'
 import PatchingPlayground from './pages/PatchingPlayground'
 import AnalysisPage from './pages/AnalysisPage'
+import SAEPage from './pages/SAEPage'
 import { AnimatedBackground } from './components/common/AnimatedBackground'
 import { LoginModal } from './components/auth/LoginModal'
 import { SignupModal } from './components/auth/SignupModal'
@@ -80,6 +81,16 @@ function App() {
                 path="/analysis"
                 element={
                   <AnalysisPage
+                    onShowLogin={() => setShowLogin(true)}
+                    onShowSignup={() => setShowSignup(true)}
+                    onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                  />
+                }
+              />
+              <Route
+                path="/sae"
+                element={
+                  <SAEPage
                     onShowLogin={() => setShowLogin(true)}
                     onShowSignup={() => setShowSignup(true)}
                     onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
