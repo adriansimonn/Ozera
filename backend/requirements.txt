@@ -47,11 +47,11 @@ psycopg2-binary>=2.9.9  # PostgreSQL adapter
 # celery>=5.3.0
 
 # File formats
-# h5py>=3.9.0
+h5py>=3.9.0  # HDF5 for large activation storage (SAE training)
 safetensors>=0.4.0
 
-# # Data sources
-# datasets>=2.14.0  # HuggingFace datasets
+# Data sources
+datasets>=2.14.0  # HuggingFace datasets (for The Pile)
 
 # # Logging
 # structlog>=23.2.0

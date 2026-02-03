@@ -155,8 +155,8 @@ class SAEConfig:
 
 # Predefined configurations for common use cases
 OZERA_NANO_SAE_CONFIG = SAEConfig(
-    d_input=256,  # Ozera-Nano d_model
-    expansion_factor=8,  # 2048 hidden features
+    d_input=192,  # Ozera-Nano d_model (6 layers, 6 heads)
+    expansion_factor=8,  # 1536 hidden features
     sparsity_coefficient=0.01,
     batch_size=4096,
     num_steps=50000,

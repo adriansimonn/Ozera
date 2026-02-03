@@ -368,10 +368,16 @@ class DiskActivationBuffer:
 
         # Sample random indices
         indices = np.random.choice(num_samples, size=batch_size, replace=True)
-        indices = np.sort(indices)  # Sort for more efficient disk access
 
-        # Load samples
-        samples = self.dataset[indices]
+        # HDF5 fancy indexing requires unique sorted indices
+        # Get unique sorted indices, load them, then expand back to requested batch
+        unique_indices, inverse = np.unique(indices, return_inverse=True)
+
+        # Load unique samples from disk
+        unique_samples = self.dataset[unique_indices]
+
+        # Expand back to full batch using inverse mapping
+        samples = unique_samples[inverse]
         return torch.from_numpy(samples)
 
     def __len__(self) -> int:

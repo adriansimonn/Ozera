@@ -319,6 +319,10 @@ class SAETrainer:
 
         try:
             for step in range(self.config.num_steps):
+                # Skip if resuming and already past this step
+                if self.step >= self.config.num_steps:
+                    break
+
                 # Sample batch
                 activations = buffer.sample(self.config.batch_size)
 
