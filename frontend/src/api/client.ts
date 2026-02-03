@@ -42,6 +42,7 @@ import type {
 } from '../types/export'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const SAE_API_URL = import.meta.env.VITE_SAE_API_URL || 'https://adrianmcli--ozera-sae-inference.modal.run'
 
 /**
  * Get auth token from localStorage (used by Zustand persist).
@@ -1527,6 +1528,216 @@ class OzeraAPIClient {
     return response.blob()
   }
 }
+
+// ============= SAE API Types =============
+
+export interface SAEListResponse {
+  models: {
+    [modelName: string]: {
+      num_layers: number
+      d_model: number
+      sae_d_hidden: number
+      saes: Array<{
+        layer: number
+        activation_type: 'residual' | 'mlp_output'
+        path: string
+        d_input?: number
+        d_hidden?: number
+        activation?: string
+        created_at?: string
+        num_parameters?: number
+        training?: {
+          final_loss?: number
+          final_l0?: number
+          dead_features?: number
+        }
+      }>
+    }
+  }
+  total_saes: number
+}
+
+export interface SAEAnalyzeRequest {
+  model: 'nano' | 'mini'
+  layer: number
+  activation_type: 'residual' | 'mlp_output'
+  text: string
+  top_k?: number
+}
+
+export interface SAEAnalyzeResponse {
+  tokens: string[]
+  token_ids: number[]
+  num_tokens: number
+  model: string
+  layer: number
+  activation_type: string
+  features: {
+    shape: [number, number]
+    sparse_activations: Array<Record<string, number>>
+    l0_per_token: number[]
+  }
+  top_features: Array<{
+    token_idx: number
+    token: string
+    feature_id: number
+    activation: number
+  }>
+  metrics: {
+    avg_l0: number
+    max_activation: number
+    num_active_features: number
+    total_features: number
+  }
+  error?: string
+}
+
+export interface SAEFeatureInfoResponse {
+  feature_id: number
+  model: string
+  layer: number
+  activation_type: string
+  d_input: number
+  d_hidden: number
+  decoder_direction: number[]
+  decoder_norm: number
+  encoder_weights: number[]
+  encoder_bias: number | null
+  error?: string
+}
+
+export interface SAEAnalyzeBatchRequest {
+  model: 'nano' | 'mini'
+  layer: number
+  activation_type: 'residual' | 'mlp_output'
+  texts: string[]
+  top_k_per_text?: number
+}
+
+export interface SAEAnalyzeBatchResponse {
+  model: string
+  layer: number
+  activation_type: string
+  num_texts: number
+  results: Array<{
+    text: string
+    tokens: string[]
+    num_tokens: number
+    top_features: Array<{
+      token_idx: number
+      token: string
+      feature_id: number
+      activation: number
+    }>
+    metrics: {
+      avg_l0: number
+      num_active_features: number
+    }
+  }>
+  error?: string
+}
+
+// ============= SAE API Client =============
+
+class SAEAPIClient {
+  private baseUrl: string
+
+  constructor(baseUrl: string = SAE_API_URL) {
+    this.baseUrl = baseUrl
+  }
+
+  /**
+   * List all available SAEs with metadata.
+   */
+  async listSAEs(): Promise<SAEListResponse> {
+    const response = await fetch(`${this.baseUrl}/list_saes`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to list SAEs: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Analyze text through transformer + SAE.
+   */
+  async analyzeText(request: SAEAnalyzeRequest): Promise<SAEAnalyzeResponse> {
+    const response = await fetch(`${this.baseUrl}/analyze_text`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to analyze text: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get information about a specific SAE feature.
+   */
+  async getFeatureInfo(
+    model: 'nano' | 'mini',
+    layer: number,
+    activationType: 'residual' | 'mlp_output',
+    featureId: number
+  ): Promise<SAEFeatureInfoResponse> {
+    const params = new URLSearchParams({
+      model,
+      layer: layer.toString(),
+      activation_type: activationType,
+      feature_id: featureId.toString(),
+    })
+
+    const response = await fetch(`${this.baseUrl}/get_feature_info?${params}`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get feature info: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Analyze multiple texts through transformer + SAE in batch.
+   */
+  async analyzeBatch(request: SAEAnalyzeBatchRequest): Promise<SAEAnalyzeBatchResponse> {
+    const response = await fetch(`${this.baseUrl}/analyze_batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to analyze batch: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Health check endpoint.
+   */
+  async health(): Promise<{ status: string; cuda_available: boolean; cuda_device: string | null }> {
+    const response = await fetch(`${this.baseUrl}/health`)
+
+    if (!response.ok) {
+      throw new Error(`Health check failed: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+}
+
+// Export SAE client singleton
+export const saeClient = new SAEAPIClient()
 
 // Export singleton instance
 export const apiClient = new OzeraAPIClient()
