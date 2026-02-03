@@ -42,6 +42,7 @@ sae_inference_image = (
         "tiktoken>=0.5.0",
         "safetensors>=0.4.0",
         "pydantic>=2.0.0",
+        "fastapi",  # Required for web endpoints
     )
     .add_local_dir(os.path.join(BACKEND_DIR, "core"), remote_path="/app/backend/core")
     .add_local_dir(os.path.join(BACKEND_DIR, "inference"), remote_path="/app/backend/inference")
@@ -173,9 +174,9 @@ def get_service() -> SAEInferenceService:
     gpu="L4",
     timeout=300,
     memory=16384,
-    allow_concurrent_inputs=10,
 )
-@modal.web_endpoint(method="GET", docs=True)
+@modal.concurrent(max_inputs=10)
+@modal.fastapi_endpoint(method="GET", docs=True)
 def list_saes() -> dict:
     """
     List all available SAEs with metadata.
@@ -279,9 +280,9 @@ def list_saes() -> dict:
     gpu="L4",
     timeout=60,
     memory=16384,
-    allow_concurrent_inputs=10,
 )
-@modal.web_endpoint(method="POST", docs=True)
+@modal.concurrent(max_inputs=10)
+@modal.fastapi_endpoint(method="POST", docs=True)
 def analyze_text(request: dict) -> dict:
     """
     Analyze text through transformer + SAE.
@@ -447,9 +448,9 @@ def analyze_text(request: dict) -> dict:
     gpu="L4",
     timeout=60,
     memory=16384,
-    allow_concurrent_inputs=10,
 )
-@modal.web_endpoint(method="GET", docs=True)
+@modal.concurrent(max_inputs=10)
+@modal.fastapi_endpoint(method="GET", docs=True)
 def get_feature_info(
     model: str = "nano",
     layer: int = 0,
@@ -535,9 +536,9 @@ def get_feature_info(
     gpu="L4",
     timeout=120,
     memory=16384,
-    allow_concurrent_inputs=10,
 )
-@modal.web_endpoint(method="POST", docs=True)
+@modal.concurrent(max_inputs=10)
+@modal.fastapi_endpoint(method="POST", docs=True)
 def analyze_batch(request: dict) -> dict:
     """
     Analyze multiple texts through transformer + SAE in a single request.
@@ -679,7 +680,7 @@ def analyze_batch(request: dict) -> dict:
     timeout=60,
     memory=8192,
 )
-@modal.web_endpoint(method="GET", docs=True)
+@modal.fastapi_endpoint(method="GET", docs=True)
 def health() -> dict:
     """Health check endpoint."""
     import torch
