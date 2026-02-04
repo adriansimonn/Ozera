@@ -42,7 +42,7 @@ import type {
 } from '../types/export'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-const SAE_API_URL = import.meta.env.VITE_SAE_API_URL || 'https://adrianmcli--ozera-sae-inference.modal.run'
+const SAE_API_URL = import.meta.env.VITE_SAE_API_URL || 'https://adriansimon477--ozera-sae-inference-serve.modal.run'
 
 /**
  * Get auth token from localStorage (used by Zustand persist).
@@ -1727,7 +1727,7 @@ class SAEAPIClient {
    * List all available SAEs with metadata.
    */
   async listSAEs(): Promise<SAEListResponse> {
-    const response = await fetch(`${this.baseUrl}/list_saes`)
+    const response = await fetch(`${this.baseUrl}/sae/list`)
 
     if (!response.ok) {
       throw new Error(`Failed to list SAEs: ${response.statusText}`)
@@ -1740,7 +1740,7 @@ class SAEAPIClient {
    * Analyze text through transformer + SAE.
    */
   async analyzeText(request: SAEAnalyzeRequest): Promise<SAEAnalyzeResponse> {
-    const response = await fetch(`${this.baseUrl}/analyze_text`, {
+    const response = await fetch(`${this.baseUrl}/sae/analyze`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1771,7 +1771,7 @@ class SAEAPIClient {
       feature_id: featureId.toString(),
     })
 
-    const response = await fetch(`${this.baseUrl}/get_feature_info?${params}`)
+    const response = await fetch(`${this.baseUrl}/sae/feature?${params}`)
 
     if (!response.ok) {
       throw new Error(`Failed to get feature info: ${response.statusText}`)
@@ -1784,7 +1784,7 @@ class SAEAPIClient {
    * Analyze multiple texts through transformer + SAE in batch.
    */
   async analyzeBatch(request: SAEAnalyzeBatchRequest): Promise<SAEAnalyzeBatchResponse> {
-    const response = await fetch(`${this.baseUrl}/analyze_batch`, {
+    const response = await fetch(`${this.baseUrl}/sae/analyze-batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1803,7 +1803,7 @@ class SAEAPIClient {
    * Compare features between two SAEs.
    */
   async compareSAEs(request: SAECompareRequest): Promise<SAECompareResponse> {
-    const response = await fetch(`${this.baseUrl}/compare_saes_endpoint`, {
+    const response = await fetch(`${this.baseUrl}/sae/compare`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1822,7 +1822,7 @@ class SAEAPIClient {
    * Compute layer-by-layer CKA similarity matrix.
    */
   async compareLayers(request: SAECompareLayersRequest): Promise<SAECompareLayersResponse> {
-    const response = await fetch(`${this.baseUrl}/compare_layers`, {
+    const response = await fetch(`${this.baseUrl}/sae/compare-layers`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1856,7 +1856,7 @@ class SAEAPIClient {
    * Load an external SAE from HuggingFace or Gemma Scope.
    */
   async loadExternalSAE(request: ExternalSAELoadRequest): Promise<ExternalSAELoadResponse> {
-    const response = await fetch(`${this.baseUrl}/load_external_sae`, {
+    const response = await fetch(`${this.baseUrl}/sae/external/load`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1875,7 +1875,7 @@ class SAEAPIClient {
    * List available hookpoints in an external SAE repository.
    */
   async listExternalSAESources(repoId: string): Promise<ExternalSAESourcesResponse> {
-    const response = await fetch(`${this.baseUrl}/list_external_sae_sources`, {
+    const response = await fetch(`${this.baseUrl}/sae/external/list-sources`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1894,7 +1894,7 @@ class SAEAPIClient {
    * List all loaded external SAEs.
    */
   async listLoadedExternalSAEs(): Promise<{ external_saes: ExternalSAEInfo[]; count: number }> {
-    const response = await fetch(`${this.baseUrl}/list_loaded_external_saes`)
+    const response = await fetch(`${this.baseUrl}/sae/external/list-loaded`)
 
     if (!response.ok) {
       throw new Error(`Failed to list loaded external SAEs: ${response.statusText}`)
@@ -1908,7 +1908,7 @@ class SAEAPIClient {
    */
   async deleteExternalSAE(saeId: string): Promise<{ status?: string; error?: string }> {
     const params = new URLSearchParams({ sae_id: saeId })
-    const response = await fetch(`${this.baseUrl}/delete_external_sae?${params}`, {
+    const response = await fetch(`${this.baseUrl}/sae/external/delete?${params}`, {
       method: 'DELETE',
     })
 
@@ -1931,7 +1931,7 @@ class SAEAPIClient {
       feature_id: featureId.toString(),
     })
 
-    const response = await fetch(`${this.baseUrl}/get_external_feature_info?${params}`)
+    const response = await fetch(`${this.baseUrl}/sae/external/feature?${params}`)
 
     if (!response.ok) {
       throw new Error(`Failed to get external feature info: ${response.statusText}`)
@@ -1944,7 +1944,7 @@ class SAEAPIClient {
    * Upload a user SAE (base64-encoded safetensors).
    */
   async uploadSAE(request: ExternalSAEUploadRequest): Promise<ExternalSAELoadResponse> {
-    const response = await fetch(`${this.baseUrl}/upload_sae`, {
+    const response = await fetch(`${this.baseUrl}/sae/upload`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

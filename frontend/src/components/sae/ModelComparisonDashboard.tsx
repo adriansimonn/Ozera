@@ -51,7 +51,7 @@ export function ModelComparisonDashboard({
   // Selections
   const [selectionA, setSelectionA] = useState<SAECompareSelection | null>(null)
   const [selectionB, setSelectionB] = useState<SAECompareSelection | null>(null)
-  const [compareText, setCompareText] = useState('The quick brown fox jumps over the lazy dog.')
+  const [compareText, setCompareText] = useState('')
   const [compareMode, setCompareMode] = useState<CompareMode>('features')
 
   // Results

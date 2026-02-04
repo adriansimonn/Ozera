@@ -414,11 +414,16 @@ export default function SAEPage({
           saeSelection.activationType,
           selectedFeature
         )
-        if (!info.error) {
-          setFeatureInfo(transformFeatureInfo(info, analyzeResponse))
+        if (info.error) {
+          console.error('Feature info error:', info.error)
+          setFeatureInfo(null)
+        } else {
+          const transformed = transformFeatureInfo(info, analyzeResponse)
+          setFeatureInfo(transformed)
         }
-      } catch {
-        // Silently fail - feature info is supplementary
+      } catch (err) {
+        console.error('Failed to load feature info:', err)
+        setFeatureInfo(null)
       } finally {
         setLoadingFeature(false)
       }
@@ -429,11 +434,11 @@ export default function SAEPage({
 
   const handleFeatureSelect = useCallback((featureIdx: number) => {
     setSelectedFeature(featureIdx)
-    setSelectedFeatures(prev =>
-      prev.includes(featureIdx)
-        ? prev.filter(f => f !== featureIdx)
-        : [...prev, featureIdx].slice(-5)
-    )
+    // Keep track of recently selected features for highlighting (last 5)
+    setSelectedFeatures(prev => {
+      const filtered = prev.filter(f => f !== featureIdx)
+      return [featureIdx, ...filtered].slice(0, 5)
+    })
   }, [])
 
   const handleComparisonFeatureSelect = useCallback((_saeId: string, featureIdx: number) => {

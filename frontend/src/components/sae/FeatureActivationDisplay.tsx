@@ -3,7 +3,7 @@
  * Shows which features activate for a given input with strength heatmap.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import * as d3 from 'd3'
 
 interface FeatureActivation {
@@ -40,6 +40,11 @@ interface FeatureActivationDisplayProps {
   className?: string
 }
 
+interface SelectedCell {
+  featureIdx: number
+  position: number
+}
+
 interface HoveredCell {
   position: number
   featureIdx: number
@@ -59,12 +64,15 @@ export function FeatureActivationDisplay({
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [hoveredCell, setHoveredCell] = useState<HoveredCell | null>(null)
+  const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 400 })
 
-  // Get features to display (selected or top-k most active)
-  const featuresToShow = selectedFeatures?.length
-    ? selectedFeatures
-    : activations.most_active_features.slice(0, showTopK)
+  // Always show top-k most active features (selectedFeatures is only used for highlighting)
+  // Memoize to prevent creating new array on every render
+  const featuresToShow = useMemo(
+    () => activations.most_active_features.slice(0, showTopK),
+    [activations.most_active_features, showTopK]
+  )
 
   // Update dimensions based on container size
   useEffect(() => {
@@ -141,14 +149,15 @@ export function FeatureActivationDisplay({
       const featIdx = featuresToShow[featDisplayIdx]
 
       featureRow.forEach((value, posIdx) => {
-        g.append('rect')
+        const isSelected = selectedCell?.featureIdx === featIdx && selectedCell?.position === posIdx
+        const rect = g.append('rect')
           .attr('x', xScale(String(posIdx)) || 0)
           .attr('y', yScale(String(featDisplayIdx)) || 0)
           .attr('width', xScale.bandwidth())
           .attr('height', yScale.bandwidth())
           .attr('fill', value > 0 ? colorScale(value) : '#1a1a2e')
-          .attr('stroke', selectedFeatures?.includes(featIdx) ? '#a855f7' : '#1f2937')
-          .attr('stroke-width', selectedFeatures?.includes(featIdx) ? 1.5 : 0.5)
+          .attr('stroke', isSelected ? '#a855f7' : '#1f2937')
+          .attr('stroke-width', isSelected ? 2 : 0.5)
           .style('cursor', 'pointer')
           .on('mouseenter', function(event) {
             d3.select(this)
@@ -178,14 +187,20 @@ export function FeatureActivationDisplay({
             }
           })
           .on('mouseleave', function() {
+            const isSelected = selectedCell?.featureIdx === featIdx && selectedCell?.position === posIdx
             d3.select(this)
-              .attr('stroke', selectedFeatures?.includes(featIdx) ? '#a855f7' : '#1f2937')
-              .attr('stroke-width', selectedFeatures?.includes(featIdx) ? 1.5 : 0.5)
+              .attr('stroke', isSelected ? '#a855f7' : '#1f2937')
+              .attr('stroke-width', isSelected ? 2 : 0.5)
             setHoveredCell(null)
           })
-          .on('click', function() {
-            onFeatureSelect?.(featIdx)
-          })
+
+        // Attach click handler
+        rect.on('click', function(event) {
+          setSelectedCell({ featureIdx: featIdx, position: posIdx })
+          if (onFeatureSelect) {
+            onFeatureSelect(featIdx)
+          }
+        })
       })
     })
 
@@ -274,7 +289,7 @@ export function FeatureActivationDisplay({
       .selectAll('text')
       .attr('fill', '#9ca3af')
 
-  }, [activations, featuresToShow, selectedFeatures, dimensions, onFeatureSelect])
+  }, [activations, featuresToShow, selectedCell, dimensions])
 
   // Tooltip positioning
   const getTooltipStyle = () => {

@@ -19,9 +19,24 @@ import json
 from pathlib import Path
 from typing import Optional
 import modal
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 # Modal app definition
 app = modal.App("ozera-sae-inference")
+
+# FastAPI app for HTTP endpoints
+web_app = FastAPI(title="Ozera SAE Inference API", docs_url="/docs")
+
+# Add CORS middleware to allow frontend requests
+web_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (use specific origins in production)
+    allow_credentials=False,  # Cannot use credentials with wildcard origins
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+)
 
 # Volume references
 MODELS_VOLUME_NAME = "ozera-models"
@@ -44,6 +59,7 @@ sae_inference_image = (
         "pydantic>=2.0.0",
         "fastapi",  # Required for web endpoints
         "huggingface-hub>=0.20.0",  # For external SAE loading
+        "h5py>=3.0.0",  # Required for activation buffer
     )
     .add_local_dir(os.path.join(BACKEND_DIR, "core"), remote_path="/app/backend/core")
     .add_local_dir(os.path.join(BACKEND_DIR, "inference"), remote_path="/app/backend/inference")
@@ -169,18 +185,7 @@ def get_service() -> SAEInferenceService:
     return _service
 
 
-@app.function(
-    image=sae_inference_image,
-    volumes={
-        "/models": models_volume,
-        "/saes": saes_volume,
-    },
-    gpu="L4",
-    timeout=300,
-    memory=16384,
-)
-@modal.concurrent(max_inputs=10)
-@modal.fastapi_endpoint(method="GET", docs=True)
+@web_app.get("/sae/list")
 def list_saes() -> dict:
     """
     List all available SAEs with metadata.
@@ -326,19 +331,16 @@ def list_saes() -> dict:
     return result
 
 
-@app.function(
-    image=sae_inference_image,
-    volumes={
-        "/models": models_volume,
-        "/saes": saes_volume,
-    },
-    gpu="L4",
-    timeout=60,
-    memory=16384,
-)
-@modal.concurrent(max_inputs=10)
-@modal.fastapi_endpoint(method="POST", docs=True)
-def analyze_text(request: dict) -> dict:
+class AnalyzeTextRequest(BaseModel):
+    model: str = "nano"
+    layer: int = 0
+    activation_type: str = "residual"
+    text: str = ""
+    top_k: int = 20
+
+
+@web_app.post("/sae/analyze")
+def analyze_text(request: AnalyzeTextRequest) -> dict:
     """
     Analyze text through transformer + SAE.
 
@@ -382,11 +384,11 @@ def analyze_text(request: dict) -> dict:
     sys.path.insert(0, "/app/backend")
 
     # Validate request
-    model_name = request.get("model", "nano")
-    layer = request.get("layer", 0)
-    activation_type = request.get("activation_type", "residual")
-    text = request.get("text", "")
-    top_k = request.get("top_k", 20)
+    model_name = request.model
+    layer = request.layer
+    activation_type = request.activation_type
+    text = request.text
+    top_k = request.top_k
 
     if model_name not in MODEL_CONFIGS:
         return {"error": f"Unknown model: {model_name}. Use 'nano' or 'mini'."}
@@ -494,23 +496,12 @@ def analyze_text(request: dict) -> dict:
     }
 
 
-@app.function(
-    image=sae_inference_image,
-    volumes={
-        "/models": models_volume,
-        "/saes": saes_volume,
-    },
-    gpu="L4",
-    timeout=60,
-    memory=16384,
-)
-@modal.concurrent(max_inputs=10)
-@modal.fastapi_endpoint(method="GET", docs=True)
+@web_app.get("/sae/feature")
 def get_feature_info(
-    model: str = "nano",
-    layer: int = 0,
-    activation_type: str = "residual",
-    feature_id: int = 0,
+    model: str = Query("nano"),
+    layer: int = Query(0),
+    activation_type: str = Query("residual"),
+    feature_id: int = Query(0),
 ) -> dict:
     """
     Get information about a specific SAE feature.
@@ -557,11 +548,11 @@ def get_feature_info(
     sae_model, sae_config, sae_metadata = service.load_sae(model, layer, activation_type, device)
 
     # Get decoder direction (what this feature represents in activation space)
-    decoder_direction = sae_model.W_dec[feature_id].cpu().numpy().tolist()
+    decoder_direction = sae_model.W_dec[feature_id].detach().cpu().numpy().tolist()
     decoder_norm = float(sae_model.W_dec[feature_id].norm().item())
 
     # Get encoder weights (what activations excite this feature)
-    encoder_weights = sae_model.W_enc[:, feature_id].cpu().numpy().tolist()
+    encoder_weights = sae_model.W_enc[:, feature_id].detach().cpu().numpy().tolist()
 
     # Get encoder bias if present
     encoder_bias = None
@@ -582,19 +573,16 @@ def get_feature_info(
     }
 
 
-@app.function(
-    image=sae_inference_image,
-    volumes={
-        "/models": models_volume,
-        "/saes": saes_volume,
-    },
-    gpu="L4",
-    timeout=120,
-    memory=16384,
-)
-@modal.concurrent(max_inputs=10)
-@modal.fastapi_endpoint(method="POST", docs=True)
-def analyze_batch(request: dict) -> dict:
+class AnalyzeBatchRequest(BaseModel):
+    model: str = "nano"
+    layer: int = 0
+    activation_type: str = "residual"
+    texts: list[str] = []
+    top_k_per_text: int = 10
+
+
+@web_app.post("/sae/analyze-batch")
+def analyze_batch(request: AnalyzeBatchRequest) -> dict:
     """
     Analyze multiple texts through transformer + SAE in a single request.
 
@@ -627,11 +615,11 @@ def analyze_batch(request: dict) -> dict:
     sys.path.insert(0, "/app/backend")
 
     # Validate request
-    model_name = request.get("model", "nano")
-    layer = request.get("layer", 0)
-    activation_type = request.get("activation_type", "residual")
-    texts = request.get("texts", [])
-    top_k_per_text = request.get("top_k_per_text", 10)
+    model_name = request.model
+    layer = request.layer
+    activation_type = request.activation_type
+    texts = request.texts
+    top_k_per_text = request.top_k_per_text
 
     if model_name not in MODEL_CONFIGS:
         return {"error": f"Unknown model: {model_name}. Use 'nano' or 'mini'."}
@@ -726,16 +714,7 @@ def analyze_batch(request: dict) -> dict:
     }
 
 
-@app.function(
-    image=sae_inference_image,
-    volumes={
-        "/models": models_volume,
-        "/saes": saes_volume,
-    },
-    timeout=60,
-    memory=8192,
-)
-@modal.fastapi_endpoint(method="GET", docs=True)
+@web_app.get("/health")
 def health() -> dict:
     """Health check endpoint."""
     import torch
@@ -747,19 +726,19 @@ def health() -> dict:
     }
 
 
-@app.function(
-    image=sae_inference_image,
-    volumes={
-        "/models": models_volume,
-        "/saes": saes_volume,
-    },
-    gpu="L4",
-    timeout=300,
-    memory=16384,
-)
-@modal.concurrent(max_inputs=5)
-@modal.fastapi_endpoint(method="POST", docs=True)
-def compare_saes_endpoint(request: dict) -> dict:
+class CompareSAEsRequest(BaseModel):
+    model_a: str = "nano"
+    layer_a: int = 0
+    activation_type_a: str = "residual"
+    model_b: str = "nano"
+    layer_b: int = 0
+    activation_type_b: str = "residual"
+    text: str = ""
+    top_k: int = 100
+
+
+@web_app.post("/sae/compare")
+def compare_saes_endpoint(request: CompareSAEsRequest) -> dict:
     """
     Compare features between two SAEs.
 
@@ -789,14 +768,14 @@ def compare_saes_endpoint(request: dict) -> dict:
     from core.sae.comparison import compare_saes as run_comparison
 
     # Parse request
-    model_a = request.get("model_a", "nano")
-    layer_a = request.get("layer_a", 0)
-    act_type_a = request.get("activation_type_a", "residual")
-    model_b = request.get("model_b", "nano")
-    layer_b = request.get("layer_b", 0)
-    act_type_b = request.get("activation_type_b", "residual")
-    text = request.get("text", "")
-    top_k = request.get("top_k", 100)
+    model_a = request.model_a
+    layer_a = request.layer_a
+    act_type_a = request.activation_type_a
+    model_b = request.model_b
+    layer_b = request.layer_b
+    act_type_b = request.activation_type_b
+    text = request.text
+    top_k = request.top_k
 
     # Validate
     for model_name in [model_a, model_b]:
@@ -887,19 +866,16 @@ def compare_saes_endpoint(request: dict) -> dict:
     return response
 
 
-@app.function(
-    image=sae_inference_image,
-    volumes={
-        "/models": models_volume,
-        "/saes": saes_volume,
-    },
-    gpu="L4",
-    timeout=600,
-    memory=16384,
-)
-@modal.concurrent(max_inputs=3)
-@modal.fastapi_endpoint(method="POST", docs=True)
-def compare_layers(request: dict) -> dict:
+class CompareLayersRequest(BaseModel):
+    model_a: str = "nano"
+    activation_type_a: str = "residual"
+    model_b: str | None = None
+    activation_type_b: str | None = None
+    text: str = ""
+
+
+@web_app.post("/sae/compare-layers")
+def compare_layers(request: CompareLayersRequest) -> dict:
     """
     Compute layer-by-layer CKA similarity matrix.
 
@@ -925,11 +901,11 @@ def compare_layers(request: dict) -> dict:
 
     from core.sae.similarity_metrics import compute_layer_similarity_matrix
 
-    model_a = request.get("model_a", "nano")
-    act_type_a = request.get("activation_type_a", "residual")
-    model_b = request.get("model_b", model_a)
-    act_type_b = request.get("activation_type_b", act_type_a)
-    text = request.get("text", "")
+    model_a = request.model_a
+    act_type_a = request.activation_type_a
+    model_b = request.model_b if request.model_b else model_a
+    act_type_b = request.activation_type_b if request.activation_type_b else act_type_a
+    text = request.text
 
     for model_name in [model_a, model_b]:
         if model_name not in MODEL_CONFIGS:
@@ -1018,18 +994,15 @@ def compare_layers(request: dict) -> dict:
     }
 
 
-@app.function(
-    image=sae_inference_image,
-    volumes={
-        "/models": models_volume,
-        "/saes": saes_volume,
-    },
-    gpu="L4",
-    timeout=600,
-    memory=16384,
-)
-@modal.fastapi_endpoint(method="POST", docs=True)
-def load_external_sae(request: dict) -> dict:
+class LoadExternalSAERequest(BaseModel):
+    source: str = "huggingface"
+    repo_id: str = ""
+    hookpoint: str | None = None
+    name: str | None = None
+
+
+@web_app.post("/sae/external/load")
+def load_external_sae(request: LoadExternalSAERequest) -> dict:
     """
     Load an external SAE from HuggingFace or Gemma Scope.
 
@@ -1052,9 +1025,9 @@ def load_external_sae(request: dict) -> dict:
 
     from core.sae.loaders import load_external_sae as do_load, save_loaded_sae
 
-    repo_id = request.get("repo_id", "")
-    hookpoint = request.get("hookpoint")
-    custom_name = request.get("name")
+    repo_id = request.repo_id
+    hookpoint = request.hookpoint
+    custom_name = request.name
 
     if not repo_id:
         return {"error": "No repo_id provided."}
@@ -1102,16 +1075,12 @@ def load_external_sae(request: dict) -> dict:
         return {"error": f"Failed to load SAE: {str(e)}"}
 
 
-@app.function(
-    image=sae_inference_image,
-    volumes={
-        "/saes": saes_volume,
-    },
-    timeout=60,
-    memory=8192,
-)
-@modal.fastapi_endpoint(method="POST", docs=True)
-def list_external_sae_sources(request: dict) -> dict:
+class ListExternalSAESourcesRequest(BaseModel):
+    repo_id: str = ""
+
+
+@web_app.post("/sae/external/list-sources")
+def list_external_sae_sources(request: ListExternalSAESourcesRequest) -> dict:
     """
     List available SAEs/hookpoints in a HuggingFace or Gemma Scope repository.
 
@@ -1130,7 +1099,7 @@ def list_external_sae_sources(request: dict) -> dict:
 
     from core.sae.loaders import list_external_saes
 
-    repo_id = request.get("repo_id", "")
+    repo_id = request.repo_id
     if not repo_id:
         return {"error": "No repo_id provided."}
 
@@ -1145,15 +1114,7 @@ def list_external_sae_sources(request: dict) -> dict:
         return {"error": f"Failed to list SAEs: {str(e)}"}
 
 
-@app.function(
-    image=sae_inference_image,
-    volumes={
-        "/saes": saes_volume,
-    },
-    timeout=60,
-    memory=8192,
-)
-@modal.fastapi_endpoint(method="GET", docs=True)
+@web_app.get("/sae/external/list-loaded")
 def list_loaded_external_saes() -> dict:
     """
     List all external SAEs that have been loaded onto the Modal volume.
@@ -1217,16 +1178,8 @@ def list_loaded_external_saes() -> dict:
     }
 
 
-@app.function(
-    image=sae_inference_image,
-    volumes={
-        "/saes": saes_volume,
-    },
-    timeout=60,
-    memory=8192,
-)
-@modal.fastapi_endpoint(method="DELETE", docs=True)
-def delete_external_sae(sae_id: str = "") -> dict:
+@web_app.delete("/sae/external/delete")
+def delete_external_sae(sae_id: str = Query("")) -> dict:
     """
     Delete a loaded external SAE from the Modal volume.
 
@@ -1253,20 +1206,10 @@ def delete_external_sae(sae_id: str = "") -> dict:
         return {"error": f"Failed to delete: {str(e)}"}
 
 
-@app.function(
-    image=sae_inference_image,
-    volumes={
-        "/saes": saes_volume,
-    },
-    gpu="L4",
-    timeout=60,
-    memory=16384,
-)
-@modal.concurrent(max_inputs=10)
-@modal.fastapi_endpoint(method="GET", docs=True)
+@web_app.get("/sae/external/feature")
 def get_external_feature_info(
-    sae_id: str = "",
-    feature_id: int = 0,
+    sae_id: str = Query(""),
+    feature_id: int = Query(0),
 ) -> dict:
     """
     Get information about a feature in an external SAE.
@@ -1301,9 +1244,9 @@ def get_external_feature_info(
     if feature_id < 0 or feature_id >= sae_config.d_hidden:
         return {"error": f"Feature {feature_id} out of range (0-{sae_config.d_hidden - 1})."}
 
-    decoder_direction = sae_model.W_dec[feature_id].cpu().numpy().tolist()
+    decoder_direction = sae_model.W_dec[feature_id].detach().cpu().numpy().tolist()
     decoder_norm = float(sae_model.W_dec[feature_id].norm().item())
-    encoder_weights = sae_model.W_enc[:, feature_id].cpu().numpy().tolist()
+    encoder_weights = sae_model.W_enc[:, feature_id].detach().cpu().numpy().tolist()
 
     encoder_bias = None
     if sae_model.b_enc is not None:
@@ -1323,17 +1266,14 @@ def get_external_feature_info(
     }
 
 
-@app.function(
-    image=sae_inference_image,
-    volumes={
-        "/saes": saes_volume,
-    },
-    gpu="L4",
-    timeout=120,
-    memory=16384,
-)
-@modal.fastapi_endpoint(method="POST", docs=True)
-def upload_sae(request: dict) -> dict:
+class UploadSAERequest(BaseModel):
+    name: str = ""
+    weights_base64: str = ""
+    config: dict | None = None
+
+
+@web_app.post("/sae/upload")
+def upload_sae(request: UploadSAERequest) -> dict:
     """
     Register a user-uploaded SAE (safetensors data encoded as base64).
 
@@ -1361,9 +1301,9 @@ def upload_sae(request: dict) -> dict:
     from core.sae.loaders.upload import UploadLoader
     from core.sae.loaders import save_loaded_sae
 
-    name = request.get("name", "")
-    weights_b64 = request.get("weights_base64", "")
-    config_data = request.get("config")
+    name = request.name
+    weights_b64 = request.weights_base64
+    config_data = request.config
 
     if not name:
         return {"error": "No name provided."}
@@ -1415,50 +1355,43 @@ def upload_sae(request: dict) -> dict:
         return {"error": f"Failed to process upload: {str(e)}"}
 
 
+# Single web endpoint serving the entire FastAPI app
+@app.function(
+    image=sae_inference_image,
+    volumes={
+        "/models": models_volume,
+        "/saes": saes_volume,
+    },
+    gpu="L4",
+    timeout=600,
+    memory=16384,
+)
+@modal.asgi_app()
+def serve():
+    """Serve the FastAPI app as a single Modal web endpoint."""
+    return web_app
+
+
 @app.local_entrypoint()
 def main():
     """Local entrypoint for testing."""
-    print("Testing SAE Inference Service...")
+    print("SAE Inference Service ready!")
+    print("Deploy with: modal deploy backend/services/modal_sae_inference.py")
+    print("All endpoints are now served through a single FastAPI app.")
     print()
-
-    # Test list_saes
-    print("1. Testing list_saes endpoint:")
-    result = list_saes.remote()
-    print(f"   Total SAEs: {result.get('total_saes', 0)}")
-    for model_name, model_info in result.get("models", {}).items():
-        print(f"   {model_name}: {len(model_info.get('saes', []))} SAEs")
+    print("Available endpoints:")
+    print("  GET  /sae/list")
+    print("  POST /sae/analyze")
+    print("  GET  /sae/feature")
+    print("  POST /sae/analyze-batch")
+    print("  GET  /health")
+    print("  POST /sae/compare")
+    print("  POST /sae/compare-layers")
+    print("  POST /sae/external/load")
+    print("  POST /sae/external/list-sources")
+    print("  GET  /sae/external/list-loaded")
+    print("  DELETE /sae/external/delete")
+    print("  GET  /sae/external/feature")
+    print("  POST /sae/upload")
     print()
-
-    # Test analyze_text
-    print("2. Testing analyze_text endpoint:")
-    result = analyze_text.remote({
-        "model": "nano",
-        "layer": 3,
-        "activation_type": "residual",
-        "text": "The quick brown fox jumps over the lazy dog.",
-        "top_k": 10,
-    })
-    if "error" in result:
-        print(f"   Error: {result['error']}")
-    else:
-        print(f"   Tokens: {result.get('num_tokens', 0)}")
-        print(f"   Avg L0: {result.get('metrics', {}).get('avg_l0', 0):.2f}")
-        print(f"   Top feature: {result.get('top_features', [{}])[0] if result.get('top_features') else 'None'}")
-    print()
-
-    # Test get_feature_info
-    print("3. Testing get_feature_info endpoint:")
-    result = get_feature_info.remote(
-        model="nano",
-        layer=3,
-        activation_type="residual",
-        feature_id=42,
-    )
-    if "error" in result:
-        print(f"   Error: {result['error']}")
-    else:
-        print(f"   Feature ID: {result.get('feature_id')}")
-        print(f"   Decoder norm: {result.get('decoder_norm', 0):.4f}")
-    print()
-
-    print("All tests completed!")
+    print("Interactive API docs available at: /docs")
