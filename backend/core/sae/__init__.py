@@ -45,6 +45,19 @@ from .interpretability import (
     cluster_features_by_tokens,
 )
 
+# Phase 3.5: External SAE loading
+from .loaders import (
+    load_external_sae,
+    list_external_saes,
+    save_loaded_sae,
+    ExternalSAESource,
+    ExternalSAEMetadata,
+    LoadedSAE,
+    HuggingFaceLoader,
+    GemmaScopeLoader,
+    UploadLoader,
+)
+
 __all__ = [
     # Config
     "SAEConfig",
@@ -90,4 +103,14 @@ __all__ = [
     "FeatureInterpreter",
     "find_semantically_similar_features",
     "cluster_features_by_tokens",
+    # External SAE Loading (Phase 3.5)
+    "load_external_sae",
+    "list_external_saes",
+    "save_loaded_sae",
+    "ExternalSAESource",
+    "ExternalSAEMetadata",
+    "LoadedSAE",
+    "HuggingFaceLoader",
+    "GemmaScopeLoader",
+    "UploadLoader",
 ]

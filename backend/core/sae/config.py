@@ -81,9 +81,14 @@ class SAEConfig:
     # Device (set at runtime)
     device: str = "cuda"
 
+    # Override for external SAEs where d_hidden may not be d_input * expansion_factor
+    _d_hidden_override: int = 0
+
     @property
     def d_hidden(self) -> int:
         """Hidden dimension of SAE."""
+        if self._d_hidden_override > 0:
+            return self._d_hidden_override
         return self.d_input * self.expansion_factor
 
     def validate(self) -> List[str]:
@@ -112,7 +117,7 @@ class SAEConfig:
 
     def to_dict(self) -> dict:
         """Convert config to dictionary for serialization."""
-        return {
+        result = {
             "d_input": self.d_input,
             "expansion_factor": self.expansion_factor,
             "d_hidden": self.d_hidden,
@@ -137,6 +142,9 @@ class SAEConfig:
             "dead_feature_resample": self.dead_feature_resample,
             "device": self.device,
         }
+        if self._d_hidden_override > 0:
+            result["_d_hidden_override"] = self._d_hidden_override
+        return result
 
     @classmethod
     def from_dict(cls, d: dict) -> "SAEConfig":

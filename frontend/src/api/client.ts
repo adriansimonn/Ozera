@@ -1531,6 +1531,22 @@ class OzeraAPIClient {
 
 // ============= SAE API Types =============
 
+export interface ExternalSAEInfo {
+  id: string
+  path: string
+  source?: string
+  source_id?: string
+  display_name?: string
+  base_model?: string
+  hookpoint?: string
+  activation_type?: string
+  d_input?: number
+  d_hidden?: number
+  created_at?: string
+  num_parameters?: number
+  extra?: Record<string, any>
+}
+
 export interface SAEListResponse {
   models: {
     [modelName: string]: {
@@ -1554,7 +1570,68 @@ export interface SAEListResponse {
       }>
     }
   }
+  external_saes?: ExternalSAEInfo[]
   total_saes: number
+}
+
+export interface ExternalSAELoadRequest {
+  repo_id: string
+  hookpoint?: string
+  name?: string
+}
+
+export interface ExternalSAELoadResponse {
+  status?: string
+  sae_id?: string
+  display_name?: string
+  source?: string
+  source_id?: string
+  base_model?: string
+  hookpoint?: string
+  d_input?: number
+  d_hidden?: number
+  activation_type?: string
+  extra?: Record<string, any>
+  error?: string
+}
+
+export interface ExternalSAESourcesResponse {
+  repo_id: string
+  available: Array<{
+    hookpoint: string
+    repo_id: string
+    d_in?: number
+    num_latents?: number
+    k?: number
+    layer?: number
+    width?: number
+    l0?: number
+    site?: string
+    error?: string
+    [key: string]: any
+  }>
+  count: number
+  error?: string
+}
+
+export interface ExternalSAEFeatureInfoResponse {
+  sae_id: string
+  feature_id: number
+  d_input: number
+  d_hidden: number
+  decoder_direction: number[]
+  decoder_norm: number
+  encoder_weights: number[]
+  encoder_bias: number | null
+  display_name: string
+  activation_type: string
+  error?: string
+}
+
+export interface ExternalSAEUploadRequest {
+  name: string
+  weights_base64: string
+  config?: Record<string, any>
 }
 
 export interface SAEAnalyzeRequest {
@@ -1768,6 +1845,115 @@ class SAEAPIClient {
 
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  // ============= External SAE Methods =============
+
+  /**
+   * Load an external SAE from HuggingFace or Gemma Scope.
+   */
+  async loadExternalSAE(request: ExternalSAELoadRequest): Promise<ExternalSAELoadResponse> {
+    const response = await fetch(`${this.baseUrl}/load_external_sae`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to load external SAE: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * List available hookpoints in an external SAE repository.
+   */
+  async listExternalSAESources(repoId: string): Promise<ExternalSAESourcesResponse> {
+    const response = await fetch(`${this.baseUrl}/list_external_sae_sources`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ repo_id: repoId }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to list external SAE sources: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * List all loaded external SAEs.
+   */
+  async listLoadedExternalSAEs(): Promise<{ external_saes: ExternalSAEInfo[]; count: number }> {
+    const response = await fetch(`${this.baseUrl}/list_loaded_external_saes`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to list loaded external SAEs: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Delete a loaded external SAE.
+   */
+  async deleteExternalSAE(saeId: string): Promise<{ status?: string; error?: string }> {
+    const params = new URLSearchParams({ sae_id: saeId })
+    const response = await fetch(`${this.baseUrl}/delete_external_sae?${params}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete external SAE: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get feature info for an external SAE.
+   */
+  async getExternalFeatureInfo(
+    saeId: string,
+    featureId: number
+  ): Promise<ExternalSAEFeatureInfoResponse> {
+    const params = new URLSearchParams({
+      sae_id: saeId,
+      feature_id: featureId.toString(),
+    })
+
+    const response = await fetch(`${this.baseUrl}/get_external_feature_info?${params}`)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get external feature info: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Upload a user SAE (base64-encoded safetensors).
+   */
+  async uploadSAE(request: ExternalSAEUploadRequest): Promise<ExternalSAELoadResponse> {
+    const response = await fetch(`${this.baseUrl}/upload_sae`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to upload SAE: ${response.statusText}`)
     }
 
     return response.json()

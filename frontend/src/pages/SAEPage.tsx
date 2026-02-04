@@ -13,6 +13,7 @@ import {
   FeatureTopTokens,
   SparsityDashboard,
   ModelComparisonDashboard,
+  ExternalSAELoader,
   type SAESelection,
 } from '../components/sae'
 import {
@@ -23,8 +24,9 @@ import {
   Play,
   Loader2,
   AlertCircle,
+  Download,
 } from 'lucide-react'
-import { saeClient, type SAEAnalyzeResponse, type SAEFeatureInfoResponse } from '../api/client'
+import { saeClient, type SAEAnalyzeResponse, type SAEFeatureInfoResponse, type ExternalSAEInfo } from '../api/client'
 import type {
   SequenceFeatureActivations,
   FeatureStats,
@@ -40,7 +42,7 @@ interface SAEPageProps {
   onShowPurchaseCredits?: () => void
 }
 
-type SAEMode = 'browse' | 'analyze' | 'dashboard' | 'compare'
+type SAEMode = 'browse' | 'analyze' | 'dashboard' | 'compare' | 'load'
 
 // Transform API response to SequenceFeatureActivations format
 function transformAnalyzeResponse(response: SAEAnalyzeResponse): SequenceFeatureActivations {
@@ -321,7 +323,7 @@ export default function SAEPage({
 }: SAEPageProps) {
   const [mode, setMode] = useState<SAEMode>('analyze')
   const [saeSelection, setSaeSelection] = useState<SAESelection | null>(null)
-  const [inputText, setInputText] = useState('The quick brown fox jumps over the lazy dog.')
+  const [inputText, setInputText] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -336,6 +338,31 @@ export default function SAEPage({
   const [selectedFeatures, setSelectedFeatures] = useState<number[]>([])
   const [featureInfo, setFeatureInfo] = useState<FeatureInterpretation | null>(null)
   const [loadingFeature, setLoadingFeature] = useState(false)
+
+  // External SAEs state
+  const [externalSAEs, setExternalSAEs] = useState<ExternalSAEInfo[]>([])
+
+  // Fetch external SAEs on mount
+  useEffect(() => {
+    const fetchExternalSAEs = async () => {
+      try {
+        const result = await saeClient.listLoadedExternalSAEs()
+        setExternalSAEs(result.external_saes)
+      } catch {
+        // External SAEs are optional
+      }
+    }
+    fetchExternalSAEs()
+  }, [])
+
+  const refreshExternalSAEs = useCallback(async () => {
+    try {
+      const result = await saeClient.listLoadedExternalSAEs()
+      setExternalSAEs(result.external_saes)
+    } catch {
+      // Silently handle
+    }
+  }, [])
 
   // Run analysis when selection changes or text is submitted
   const runAnalysis = useCallback(async () => {
@@ -490,6 +517,7 @@ export default function SAEPage({
             { id: 'browse', label: 'Browse Features', icon: Layers },
             { id: 'dashboard', label: 'Quality Dashboard', icon: BarChart3 },
             { id: 'compare', label: 'Compare SAEs', icon: GitCompare },
+            { id: 'load', label: 'Load External', icon: Download },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -505,7 +533,7 @@ export default function SAEPage({
         {/* Content */}
         <div className="sae-main">
           {/* No data state */}
-          {!analyzeResponse && !analyzing && (
+          {!analyzeResponse && !analyzing && mode !== 'load' && mode !== 'compare' && (
             <div className="empty-state">
               <Search className="empty-icon" />
               <h3>Enter Text to Analyze</h3>
@@ -601,6 +629,17 @@ export default function SAEPage({
             <div className="compare-layout">
               <ModelComparisonDashboard
                 onFeatureSelect={handleComparisonFeatureSelect}
+              />
+            </div>
+          )}
+
+          {/* Load External SAEs Mode */}
+          {mode === 'load' && (
+            <div className="load-layout">
+              <ExternalSAELoader
+                loadedSAEs={externalSAEs}
+                onSAELoaded={refreshExternalSAEs}
+                onSAEDeleted={refreshExternalSAEs}
               />
             </div>
           )}
@@ -772,6 +811,14 @@ export default function SAEPage({
 
         .comparison-detail {
           max-width: 600px;
+        }
+
+        /* Load Layout */
+        .load-layout {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+          max-width: 900px;
         }
 
         /* Loading/Empty Detail */

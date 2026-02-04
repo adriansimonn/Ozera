@@ -43,10 +43,14 @@ sae_inference_image = (
         "safetensors>=0.4.0",
         "pydantic>=2.0.0",
         "fastapi",  # Required for web endpoints
+        "huggingface-hub>=0.20.0",  # For external SAE loading
     )
     .add_local_dir(os.path.join(BACKEND_DIR, "core"), remote_path="/app/backend/core")
     .add_local_dir(os.path.join(BACKEND_DIR, "inference"), remote_path="/app/backend/inference")
 )
+
+# External SAEs storage path within the volume
+EXTERNAL_SAES_ROOT = "/saes/external"
 
 # Model configurations for reference
 MODEL_CONFIGS = {
@@ -267,6 +271,57 @@ def list_saes() -> dict:
 
         if model_info["saes"]:
             result["models"][model_name] = model_info
+
+    # Include external SAEs
+    external_root = Path(EXTERNAL_SAES_ROOT)
+    if external_root.exists():
+        external_saes = []
+        for sae_dir in sorted(external_root.iterdir()):
+            if not sae_dir.is_dir():
+                continue
+
+            metadata_path = sae_dir / "metadata.json"
+            config_path = sae_dir / "config.json"
+            weights_path = sae_dir / "model.safetensors"
+
+            if not weights_path.exists():
+                continue
+
+            ext_info = {
+                "id": sae_dir.name,
+                "path": str(sae_dir),
+            }
+
+            if config_path.exists():
+                try:
+                    with open(config_path) as f:
+                        config = json.load(f)
+                    ext_info["d_input"] = config.get("d_input")
+                    ext_info["d_hidden"] = config.get("d_hidden")
+                    ext_info["activation"] = config.get("activation", "relu")
+                except Exception:
+                    pass
+
+            if metadata_path.exists():
+                try:
+                    with open(metadata_path) as f:
+                        metadata = json.load(f)
+                    ext_info["source"] = metadata.get("source")
+                    ext_info["source_id"] = metadata.get("source_id")
+                    ext_info["display_name"] = metadata.get("display_name")
+                    ext_info["base_model"] = metadata.get("base_model")
+                    ext_info["hookpoint"] = metadata.get("hookpoint")
+                    ext_info["activation_type"] = metadata.get("activation_type")
+                    ext_info["created_at"] = metadata.get("created_at")
+                    ext_info["num_parameters"] = metadata.get("num_parameters")
+                    ext_info["extra"] = metadata.get("extra", {})
+                except Exception:
+                    pass
+
+            external_saes.append(ext_info)
+
+        result["external_saes"] = external_saes
+        result["total_saes"] += len(external_saes)
 
     return result
 
@@ -961,6 +1016,403 @@ def compare_layers(request: dict) -> dict:
         "cka_matrix": cka_matrix.tolist(),
         "num_tokens": len(token_ids),
     }
+
+
+@app.function(
+    image=sae_inference_image,
+    volumes={
+        "/models": models_volume,
+        "/saes": saes_volume,
+    },
+    gpu="L4",
+    timeout=600,
+    memory=16384,
+)
+@modal.fastapi_endpoint(method="POST", docs=True)
+def load_external_sae(request: dict) -> dict:
+    """
+    Load an external SAE from HuggingFace or Gemma Scope.
+
+    Downloads the SAE, converts it to Ozera format, and saves it
+    to the Modal volume for future use.
+
+    Request body:
+        {
+            "source": "huggingface" or "gemma_scope",
+            "repo_id": "EleutherAI/sae-SmolLM2-135M-64x",
+            "hookpoint": "layers.0.mlp" (optional),
+            "name": "custom display name" (optional)
+        }
+
+    Returns:
+        Metadata about the loaded SAE including its assigned ID.
+    """
+    import sys
+    sys.path.insert(0, "/app/backend")
+
+    from core.sae.loaders import load_external_sae as do_load, save_loaded_sae
+
+    repo_id = request.get("repo_id", "")
+    hookpoint = request.get("hookpoint")
+    custom_name = request.get("name")
+
+    if not repo_id:
+        return {"error": "No repo_id provided."}
+
+    try:
+        # Load the external SAE
+        loaded = do_load(
+            identifier=repo_id,
+            hookpoint=hookpoint,
+            device="cpu",
+            cache_dir=Path("/tmp/hf_cache"),
+        )
+
+        # Override display name if provided
+        if custom_name:
+            loaded.metadata.display_name = custom_name
+
+        # Generate a unique ID for storage
+        safe_repo = repo_id.replace("/", "--")
+        safe_hookpoint = (hookpoint or "default").replace("/", "-").replace(".", "_")
+        sae_id = f"{safe_repo}__{safe_hookpoint}"
+
+        # Save to external SAEs directory
+        save_dir = Path(EXTERNAL_SAES_ROOT) / sae_id
+        save_loaded_sae(loaded, save_dir)
+
+        # Commit volume changes
+        saes_volume.commit()
+
+        return {
+            "status": "loaded",
+            "sae_id": sae_id,
+            "display_name": loaded.metadata.display_name,
+            "source": loaded.metadata.source.value,
+            "source_id": loaded.metadata.source_id,
+            "base_model": loaded.metadata.base_model,
+            "hookpoint": loaded.metadata.hookpoint,
+            "d_input": loaded.metadata.d_input,
+            "d_hidden": loaded.metadata.d_hidden,
+            "activation_type": loaded.metadata.activation_type,
+            "extra": loaded.metadata.extra,
+        }
+
+    except Exception as e:
+        return {"error": f"Failed to load SAE: {str(e)}"}
+
+
+@app.function(
+    image=sae_inference_image,
+    volumes={
+        "/saes": saes_volume,
+    },
+    timeout=60,
+    memory=8192,
+)
+@modal.fastapi_endpoint(method="POST", docs=True)
+def list_external_sae_sources(request: dict) -> dict:
+    """
+    List available SAEs/hookpoints in a HuggingFace or Gemma Scope repository.
+
+    Use this to discover what hookpoints are available before loading.
+
+    Request body:
+        {
+            "repo_id": "EleutherAI/sae-SmolLM2-135M-64x"
+        }
+
+    Returns:
+        List of available hookpoints with their configs.
+    """
+    import sys
+    sys.path.insert(0, "/app/backend")
+
+    from core.sae.loaders import list_external_saes
+
+    repo_id = request.get("repo_id", "")
+    if not repo_id:
+        return {"error": "No repo_id provided."}
+
+    try:
+        available = list_external_saes(repo_id)
+        return {
+            "repo_id": repo_id,
+            "available": available,
+            "count": len(available),
+        }
+    except Exception as e:
+        return {"error": f"Failed to list SAEs: {str(e)}"}
+
+
+@app.function(
+    image=sae_inference_image,
+    volumes={
+        "/saes": saes_volume,
+    },
+    timeout=60,
+    memory=8192,
+)
+@modal.fastapi_endpoint(method="GET", docs=True)
+def list_loaded_external_saes() -> dict:
+    """
+    List all external SAEs that have been loaded onto the Modal volume.
+
+    Returns:
+        List of loaded external SAEs with metadata.
+    """
+    external_root = Path(EXTERNAL_SAES_ROOT)
+    loaded = []
+
+    if external_root.exists():
+        for sae_dir in sorted(external_root.iterdir()):
+            if not sae_dir.is_dir():
+                continue
+
+            metadata_path = sae_dir / "metadata.json"
+            config_path = sae_dir / "config.json"
+            weights_path = sae_dir / "model.safetensors"
+
+            if not weights_path.exists():
+                continue
+
+            info = {"id": sae_dir.name}
+
+            if metadata_path.exists():
+                try:
+                    with open(metadata_path) as f:
+                        metadata = json.load(f)
+                    info.update({
+                        "source": metadata.get("source"),
+                        "source_id": metadata.get("source_id"),
+                        "display_name": metadata.get("display_name"),
+                        "base_model": metadata.get("base_model"),
+                        "hookpoint": metadata.get("hookpoint"),
+                        "activation_type": metadata.get("activation_type"),
+                        "d_input": metadata.get("d_input"),
+                        "d_hidden": metadata.get("d_hidden"),
+                        "created_at": metadata.get("created_at"),
+                        "num_parameters": metadata.get("num_parameters"),
+                        "extra": metadata.get("extra", {}),
+                    })
+                except Exception:
+                    pass
+
+            if config_path.exists():
+                try:
+                    with open(config_path) as f:
+                        config = json.load(f)
+                    if "d_input" not in info:
+                        info["d_input"] = config.get("d_input")
+                    if "d_hidden" not in info:
+                        info["d_hidden"] = config.get("d_hidden")
+                except Exception:
+                    pass
+
+            loaded.append(info)
+
+    return {
+        "external_saes": loaded,
+        "count": len(loaded),
+    }
+
+
+@app.function(
+    image=sae_inference_image,
+    volumes={
+        "/saes": saes_volume,
+    },
+    timeout=60,
+    memory=8192,
+)
+@modal.fastapi_endpoint(method="DELETE", docs=True)
+def delete_external_sae(sae_id: str = "") -> dict:
+    """
+    Delete a loaded external SAE from the Modal volume.
+
+    Query parameters:
+        sae_id: The ID of the external SAE to delete.
+
+    Returns:
+        Deletion status.
+    """
+    import shutil
+
+    if not sae_id:
+        return {"error": "No sae_id provided."}
+
+    sae_dir = Path(EXTERNAL_SAES_ROOT) / sae_id
+    if not sae_dir.exists():
+        return {"error": f"External SAE '{sae_id}' not found."}
+
+    try:
+        shutil.rmtree(sae_dir)
+        saes_volume.commit()
+        return {"status": "deleted", "sae_id": sae_id}
+    except Exception as e:
+        return {"error": f"Failed to delete: {str(e)}"}
+
+
+@app.function(
+    image=sae_inference_image,
+    volumes={
+        "/saes": saes_volume,
+    },
+    gpu="L4",
+    timeout=60,
+    memory=16384,
+)
+@modal.concurrent(max_inputs=10)
+@modal.fastapi_endpoint(method="GET", docs=True)
+def get_external_feature_info(
+    sae_id: str = "",
+    feature_id: int = 0,
+) -> dict:
+    """
+    Get information about a feature in an external SAE.
+
+    Query parameters:
+        sae_id: External SAE ID
+        feature_id: Feature index
+
+    Returns:
+        Feature decoder direction, norm, encoder weights.
+    """
+    import torch
+    import sys
+    sys.path.insert(0, "/app/backend")
+
+    from core.sae.checkpoints import load_sae_checkpoint
+
+    if not sae_id:
+        return {"error": "No sae_id provided."}
+
+    sae_dir = Path(EXTERNAL_SAES_ROOT) / sae_id
+    if not sae_dir.exists():
+        return {"error": f"External SAE '{sae_id}' not found."}
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    try:
+        sae_model, sae_config, metadata = load_sae_checkpoint(sae_dir, device=device)
+    except Exception as e:
+        return {"error": f"Failed to load SAE: {str(e)}"}
+
+    if feature_id < 0 or feature_id >= sae_config.d_hidden:
+        return {"error": f"Feature {feature_id} out of range (0-{sae_config.d_hidden - 1})."}
+
+    decoder_direction = sae_model.W_dec[feature_id].cpu().numpy().tolist()
+    decoder_norm = float(sae_model.W_dec[feature_id].norm().item())
+    encoder_weights = sae_model.W_enc[:, feature_id].cpu().numpy().tolist()
+
+    encoder_bias = None
+    if sae_model.b_enc is not None:
+        encoder_bias = float(sae_model.b_enc[feature_id].item())
+
+    return {
+        "sae_id": sae_id,
+        "feature_id": feature_id,
+        "d_input": sae_config.d_input,
+        "d_hidden": sae_config.d_hidden,
+        "decoder_direction": decoder_direction,
+        "decoder_norm": decoder_norm,
+        "encoder_weights": encoder_weights,
+        "encoder_bias": encoder_bias,
+        "display_name": metadata.get("display_name", sae_id),
+        "activation_type": metadata.get("activation_type", sae_config.activation.value),
+    }
+
+
+@app.function(
+    image=sae_inference_image,
+    volumes={
+        "/saes": saes_volume,
+    },
+    gpu="L4",
+    timeout=120,
+    memory=16384,
+)
+@modal.fastapi_endpoint(method="POST", docs=True)
+def upload_sae(request: dict) -> dict:
+    """
+    Register a user-uploaded SAE (safetensors data encoded as base64).
+
+    For large SAE files, prefer using load_external_sae with a HuggingFace
+    repo ID. This endpoint is for smaller custom SAEs.
+
+    Request body:
+        {
+            "name": "my-custom-sae",
+            "weights_base64": "<base64-encoded safetensors>",
+            "config": {  // optional
+                "model": "some-model",
+                "hookpoint": "layer_3",
+                "k": 32
+            }
+        }
+
+    Returns:
+        Metadata about the uploaded SAE.
+    """
+    import base64
+    import sys
+    sys.path.insert(0, "/app/backend")
+
+    from core.sae.loaders.upload import UploadLoader
+    from core.sae.loaders import save_loaded_sae
+
+    name = request.get("name", "")
+    weights_b64 = request.get("weights_base64", "")
+    config_data = request.get("config")
+
+    if not name:
+        return {"error": "No name provided."}
+    if not weights_b64:
+        return {"error": "No weights_base64 provided."}
+
+    try:
+        weights_bytes = base64.b64decode(weights_b64)
+    except Exception:
+        return {"error": "Invalid base64 encoding for weights_base64."}
+
+    # Size limit: 500MB
+    if len(weights_bytes) > 500 * 1024 * 1024:
+        return {"error": "File too large. Maximum 500MB."}
+
+    try:
+        loader = UploadLoader()
+        loaded = loader.load_from_bytes(
+            data=weights_bytes,
+            filename=f"{name}.safetensors",
+            config_data=config_data,
+            device="cpu",
+        )
+
+        # Use the provided name
+        loaded.metadata.display_name = name
+
+        # Generate ID
+        import re
+        safe_name = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
+        sae_id = f"upload__{safe_name}"
+
+        # Save to volume
+        save_dir = Path(EXTERNAL_SAES_ROOT) / sae_id
+        save_loaded_sae(loaded, save_dir)
+        saes_volume.commit()
+
+        return {
+            "status": "uploaded",
+            "sae_id": sae_id,
+            "display_name": name,
+            "d_input": loaded.metadata.d_input,
+            "d_hidden": loaded.metadata.d_hidden,
+            "activation_type": loaded.metadata.activation_type,
+            "extra": loaded.metadata.extra,
+        }
+
+    except Exception as e:
+        return {"error": f"Failed to process upload: {str(e)}"}
 
 
 @app.local_entrypoint()

@@ -4,13 +4,15 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronDown, Loader2, AlertCircle, RefreshCw, Database } from 'lucide-react'
+import { ChevronDown, Loader2, AlertCircle, RefreshCw, Database, ExternalLink } from 'lucide-react'
 import { saeClient, type SAEListResponse } from '../../api/client'
 
 export interface SAESelection {
   model: 'nano' | 'mini'
   layer: number
   activationType: 'residual' | 'mlp_output'
+  // For external SAEs
+  externalId?: string
 }
 
 interface SAESelectorProps {
@@ -298,6 +300,41 @@ export function SAESelector({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* External SAEs */}
+      {saeList.external_saes && saeList.external_saes.length > 0 && (
+        <div className="border-t border-gray-800">
+          <div className="p-3 flex items-center gap-2">
+            <ExternalLink className="w-3 h-3 text-blue-400" />
+            <span className="text-xs text-gray-500 uppercase tracking-wide">
+              External SAEs ({saeList.external_saes.length})
+            </span>
+          </div>
+          <div className="px-3 pb-3 flex flex-wrap gap-2">
+            {saeList.external_saes.map(ext => (
+              <div
+                key={ext.id}
+                className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-500/10 border border-blue-500/20 text-xs"
+                title={`${ext.source_id || ext.id} - ${ext.base_model || 'unknown model'}`}
+              >
+                <span className="text-blue-300">
+                  {ext.display_name || ext.id}
+                </span>
+                {ext.d_hidden && (
+                  <span className="text-gray-500">
+                    {ext.d_hidden.toLocaleString()} features
+                  </span>
+                )}
+                {ext.activation_type && (
+                  <span className="text-gray-500">
+                    {ext.activation_type}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

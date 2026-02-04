@@ -34,6 +34,8 @@ def linear_cka(
     Reference: Kornblith et al., "Similarity of Neural Network Representations
     Revisited" (ICML 2019)
 
+    Huge thanks to Google Brain yet again: https://arxiv.org/pdf/1905.00414
+
     Args:
         X: First representation matrix (n_samples, d_x)
         Y: Second representation matrix (n_samples, d_y)
