@@ -1,7 +1,8 @@
 /**
  * SAE (Sparse Autoencoder) visualization components.
  *
- * Phase 3.2: Analysis tools for SAE feature visualization and interpretability.
+ * Phase 3: Analysis tools for SAE feature visualization, interpretability,
+ * and model comparison.
  */
 
 export { SAESelector, type SAESelection } from './SAESelector'
@@ -10,3 +11,5 @@ export { FeatureBrowser } from './FeatureBrowser'
 export { FeatureTopTokens } from './FeatureTopTokens'
 export { SparsityDashboard } from './SparsityDashboard'
 export { FeatureComparison } from './FeatureComparison'
+export { SimilarityMatrix } from './SimilarityMatrix'
+export { ModelComparisonDashboard } from './ModelComparisonDashboard'

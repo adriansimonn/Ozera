@@ -692,6 +692,277 @@ def health() -> dict:
     }
 
 
+@app.function(
+    image=sae_inference_image,
+    volumes={
+        "/models": models_volume,
+        "/saes": saes_volume,
+    },
+    gpu="L4",
+    timeout=300,
+    memory=16384,
+)
+@modal.concurrent(max_inputs=5)
+@modal.fastapi_endpoint(method="POST", docs=True)
+def compare_saes_endpoint(request: dict) -> dict:
+    """
+    Compare features between two SAEs.
+
+    Runs shared text through both SAEs and computes feature alignment,
+    CKA similarity, and matched/divergent features.
+
+    Request body:
+        {
+            "model_a": "nano" or "mini",
+            "layer_a": int,
+            "activation_type_a": "residual" or "mlp_output",
+            "model_b": "nano" or "mini",
+            "layer_b": int,
+            "activation_type_b": "residual" or "mlp_output",
+            "text": "Shared input text for comparison",
+            "top_k": int (optional, default 100)
+        }
+
+    Returns:
+        Comparison metrics including matched features, CKA score,
+        similarity matrix, and divergent features.
+    """
+    import torch
+    import sys
+    sys.path.insert(0, "/app/backend")
+
+    from core.sae.comparison import compare_saes as run_comparison
+
+    # Parse request
+    model_a = request.get("model_a", "nano")
+    layer_a = request.get("layer_a", 0)
+    act_type_a = request.get("activation_type_a", "residual")
+    model_b = request.get("model_b", "nano")
+    layer_b = request.get("layer_b", 0)
+    act_type_b = request.get("activation_type_b", "residual")
+    text = request.get("text", "")
+    top_k = request.get("top_k", 100)
+
+    # Validate
+    for model_name in [model_a, model_b]:
+        if model_name not in MODEL_CONFIGS:
+            return {"error": f"Unknown model: {model_name}. Use 'nano' or 'mini'."}
+
+    for act_type in [act_type_a, act_type_b]:
+        if act_type not in ["residual", "mlp_output"]:
+            return {"error": f"Unknown activation_type: {act_type}"}
+
+    config_a = MODEL_CONFIGS[model_a]
+    config_b = MODEL_CONFIGS[model_b]
+    if layer_a < 0 or layer_a >= config_a["num_layers"]:
+        return {"error": f"Layer {layer_a} out of range for {model_a}"}
+    if layer_b < 0 or layer_b >= config_b["num_layers"]:
+        return {"error": f"Layer {layer_b} out of range for {model_b}"}
+
+    if not text:
+        return {"error": "No text provided."}
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    service = get_service()
+
+    # Tokenize
+    token_ids = service.tokenizer.encode(text)
+    tokens = [service.tokenizer.decode([tid]) for tid in token_ids]
+    max_seq_len = 256
+    if len(token_ids) > max_seq_len:
+        token_ids = token_ids[:max_seq_len]
+        tokens = tokens[:max_seq_len]
+
+    input_tensor = torch.tensor([token_ids], dtype=torch.long, device=device)
+
+    # Get activations from model A
+    transformer_a, cfg_a = service.load_transformer(model_a, device)
+    acts_a = service.get_activations(transformer_a, cfg_a, input_tensor, layer_a, act_type_a)
+    flat_acts_a = acts_a.view(-1, acts_a.shape[-1])
+
+    sae_a, sae_cfg_a, _ = service.load_sae(model_a, layer_a, act_type_a, device)
+    sae_a.eval()
+    with torch.no_grad():
+        hidden_a = sae_a.encode(flat_acts_a)
+
+    # Get activations from model B
+    if model_b == model_a:
+        transformer_b, cfg_b = transformer_a, cfg_a
+    else:
+        transformer_b, cfg_b = service.load_transformer(model_b, device)
+
+    acts_b = service.get_activations(transformer_b, cfg_b, input_tensor, layer_b, act_type_b)
+    flat_acts_b = acts_b.view(-1, acts_b.shape[-1])
+
+    sae_b, sae_cfg_b, _ = service.load_sae(model_b, layer_b, act_type_b, device)
+    sae_b.eval()
+    with torch.no_grad():
+        hidden_b = sae_b.encode(flat_acts_b)
+
+    # Get decoder weights for same-space comparison
+    decoder_a = sae_a.W_dec.detach()
+    decoder_b = sae_b.W_dec.detach()
+
+    # Run comparison
+    result = run_comparison(
+        hidden_a=hidden_a,
+        hidden_b=hidden_b,
+        tokens=tokens,
+        decoder_a=decoder_a,
+        decoder_b=decoder_b,
+        top_k=top_k,
+    )
+
+    response = result.to_dict()
+    response["sae_a"] = {
+        "model": model_a,
+        "layer": layer_a,
+        "activation_type": act_type_a,
+        "d_hidden": sae_cfg_a.d_hidden,
+    }
+    response["sae_b"] = {
+        "model": model_b,
+        "layer": layer_b,
+        "activation_type": act_type_b,
+        "d_hidden": sae_cfg_b.d_hidden,
+    }
+    response["tokens"] = tokens
+    response["num_tokens"] = len(tokens)
+
+    return response
+
+
+@app.function(
+    image=sae_inference_image,
+    volumes={
+        "/models": models_volume,
+        "/saes": saes_volume,
+    },
+    gpu="L4",
+    timeout=600,
+    memory=16384,
+)
+@modal.concurrent(max_inputs=3)
+@modal.fastapi_endpoint(method="POST", docs=True)
+def compare_layers(request: dict) -> dict:
+    """
+    Compute layer-by-layer CKA similarity matrix.
+
+    Runs shared text through all layers of one or two models and computes
+    CKA between all SAE hidden representations.
+
+    Request body:
+        {
+            "model_a": "nano" or "mini",
+            "activation_type_a": "residual" or "mlp_output",
+            "model_b": "nano" or "mini" (optional, defaults to model_a),
+            "activation_type_b": "residual" or "mlp_output" (optional),
+            "text": "Shared input text"
+        }
+
+    Returns:
+        CKA similarity matrix across all layer pairs.
+    """
+    import torch
+    import numpy as np
+    import sys
+    sys.path.insert(0, "/app/backend")
+
+    from core.sae.similarity_metrics import compute_layer_similarity_matrix
+
+    model_a = request.get("model_a", "nano")
+    act_type_a = request.get("activation_type_a", "residual")
+    model_b = request.get("model_b", model_a)
+    act_type_b = request.get("activation_type_b", act_type_a)
+    text = request.get("text", "")
+
+    for model_name in [model_a, model_b]:
+        if model_name not in MODEL_CONFIGS:
+            return {"error": f"Unknown model: {model_name}"}
+
+    if not text:
+        return {"error": "No text provided."}
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    service = get_service()
+
+    # Tokenize
+    token_ids = service.tokenizer.encode(text)
+    max_seq_len = 256
+    if len(token_ids) > max_seq_len:
+        token_ids = token_ids[:max_seq_len]
+
+    input_tensor = torch.tensor([token_ids], dtype=torch.long, device=device)
+
+    config_a = MODEL_CONFIGS[model_a]
+    config_b = MODEL_CONFIGS[model_b]
+
+    # Collect hidden activations for all layers of model A
+    transformer_a, cfg_a = service.load_transformer(model_a, device)
+    layer_hiddens_a = []
+    for layer_idx in range(config_a["num_layers"]):
+        try:
+            acts = service.get_activations(transformer_a, cfg_a, input_tensor, layer_idx, act_type_a)
+            flat_acts = acts.view(-1, acts.shape[-1])
+            sae, _, _ = service.load_sae(model_a, layer_idx, act_type_a, device)
+            sae.eval()
+            with torch.no_grad():
+                hidden = sae.encode(flat_acts)
+            layer_hiddens_a.append(hidden.cpu().numpy())
+        except Exception:
+            layer_hiddens_a.append(None)
+
+    # Collect hidden activations for all layers of model B
+    if model_b == model_a and act_type_b == act_type_a:
+        layer_hiddens_b = layer_hiddens_a
+    else:
+        if model_b == model_a:
+            transformer_b, cfg_b = transformer_a, cfg_a
+        else:
+            transformer_b, cfg_b = service.load_transformer(model_b, device)
+
+        layer_hiddens_b = []
+        for layer_idx in range(config_b["num_layers"]):
+            try:
+                acts = service.get_activations(transformer_b, cfg_b, input_tensor, layer_idx, act_type_b)
+                flat_acts = acts.view(-1, acts.shape[-1])
+                sae, _, _ = service.load_sae(model_b, layer_idx, act_type_b, device)
+                sae.eval()
+                with torch.no_grad():
+                    hidden = sae.encode(flat_acts)
+                layer_hiddens_b.append(hidden.cpu().numpy())
+            except Exception:
+                layer_hiddens_b.append(None)
+
+    # Filter out None entries and track valid layer indices
+    valid_a = [(i, h) for i, h in enumerate(layer_hiddens_a) if h is not None]
+    valid_b = [(i, h) for i, h in enumerate(layer_hiddens_b) if h is not None]
+
+    if not valid_a or not valid_b:
+        return {"error": "No valid layer activations could be computed."}
+
+    valid_layers_a = [i for i, _ in valid_a]
+    valid_layers_b = [i for i, _ in valid_b]
+    hiddens_a = [h for _, h in valid_a]
+    hiddens_b = [h for _, h in valid_b]
+
+    # Compute CKA matrix
+    cka_matrix = compute_layer_similarity_matrix(hiddens_a, hiddens_b)
+
+    return {
+        "model_a": model_a,
+        "activation_type_a": act_type_a,
+        "layers_a": valid_layers_a,
+        "num_layers_a": config_a["num_layers"],
+        "model_b": model_b,
+        "activation_type_b": act_type_b,
+        "layers_b": valid_layers_b,
+        "num_layers_b": config_b["num_layers"],
+        "cka_matrix": cka_matrix.tolist(),
+        "num_tokens": len(token_ids),
+    }
+
+
 @app.local_entrypoint()
 def main():
     """Local entrypoint for testing."""

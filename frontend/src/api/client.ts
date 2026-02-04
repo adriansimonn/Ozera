@@ -1723,6 +1723,44 @@ class SAEAPIClient {
   }
 
   /**
+   * Compare features between two SAEs.
+   */
+  async compareSAEs(request: SAECompareRequest): Promise<SAECompareResponse> {
+    const response = await fetch(`${this.baseUrl}/compare_saes_endpoint`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to compare SAEs: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Compute layer-by-layer CKA similarity matrix.
+   */
+  async compareLayers(request: SAECompareLayersRequest): Promise<SAECompareLayersResponse> {
+    const response = await fetch(`${this.baseUrl}/compare_layers`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to compare layers: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
    * Health check endpoint.
    */
   async health(): Promise<{ status: string; cuda_available: boolean; cuda_device: string | null }> {
@@ -1734,6 +1772,77 @@ class SAEAPIClient {
 
     return response.json()
   }
+}
+
+// ============= SAE Comparison API Types =============
+
+export interface SAECompareRequest {
+  model_a: 'nano' | 'mini'
+  layer_a: number
+  activation_type_a: 'residual' | 'mlp_output'
+  model_b: 'nano' | 'mini'
+  layer_b: number
+  activation_type_b: 'residual' | 'mlp_output'
+  text: string
+  top_k?: number
+}
+
+export interface SAECompareResponse {
+  overall_similarity: number
+  cka_score: number
+  matched_features: number
+  unmatched_a: number
+  unmatched_b: number
+  top_matches: Array<{
+    feature_a: number
+    feature_b: number
+    similarity: number
+    shared_tokens: string[]
+    label_a: string
+    label_b: string
+  }>
+  divergent_features_a: number[]
+  divergent_features_b: number[]
+  similarity_matrix_sample: number[][] | null
+  feature_indices_a: number[] | null
+  feature_indices_b: number[] | null
+  sae_a: {
+    model: string
+    layer: number
+    activation_type: string
+    d_hidden: number
+  }
+  sae_b: {
+    model: string
+    layer: number
+    activation_type: string
+    d_hidden: number
+  }
+  tokens: string[]
+  num_tokens: number
+  error?: string
+}
+
+export interface SAECompareLayersRequest {
+  model_a: 'nano' | 'mini'
+  activation_type_a: 'residual' | 'mlp_output'
+  model_b?: 'nano' | 'mini'
+  activation_type_b?: 'residual' | 'mlp_output'
+  text: string
+}
+
+export interface SAECompareLayersResponse {
+  model_a: string
+  activation_type_a: string
+  layers_a: number[]
+  num_layers_a: number
+  model_b: string
+  activation_type_b: string
+  layers_b: number[]
+  num_layers_b: number
+  cka_matrix: number[][]
+  num_tokens: number
+  error?: string
 }
 
 // Export SAE client singleton

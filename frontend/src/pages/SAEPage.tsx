@@ -12,7 +12,7 @@ import {
   FeatureBrowser,
   FeatureTopTokens,
   SparsityDashboard,
-  FeatureComparison,
+  ModelComparisonDashboard,
   type SAESelection,
 } from '../components/sae'
 import {
@@ -32,7 +32,6 @@ import type {
   FeatureCatalog,
   SAEQualityMetrics,
   SAETrainingProgress,
-  SAEComparisonMetrics,
 } from '../types/model'
 
 interface SAEPageProps {
@@ -314,40 +313,6 @@ function generateQualityMetrics(
       relative_reconstruction_error: 0.05,
     },
   }
-}
-
-// Mock comparison data (comparison requires running two analyses)
-const mockSaeA = {
-  id: 'sae-1',
-  name: 'Ozera-Mini L4',
-  num_features: 1024,
-  layer: 4,
-  model: 'Ozera-Mini',
-}
-
-const mockSaeB = {
-  id: 'sae-2',
-  name: 'Ozera-Mini L6',
-  num_features: 1024,
-  layer: 6,
-  model: 'Ozera-Mini',
-}
-
-const mockComparisonMetrics: SAEComparisonMetrics = {
-  overall_similarity: 0.67,
-  matched_features: 456,
-  unmatched_a: 284,
-  unmatched_b: 284,
-  top_matches: Array.from({ length: 20 }, (_, i) => ({
-    feature_a: i * 5,
-    feature_b: i * 5 + Math.floor(Math.random() * 10),
-    similarity: 0.95 - i * 0.02,
-    shared_tokens: ['the', 'a', 'an', 'of', 'in'].slice(0, Math.floor(Math.random() * 5) + 1),
-    label_a: `Feature ${i * 5} pattern`,
-    label_b: `Feature ${i * 5 + Math.floor(Math.random() * 10)} pattern`,
-  })),
-  divergent_features_a: [100, 200, 300, 400, 500],
-  divergent_features_b: [150, 250, 350, 450, 550],
 }
 
 export default function SAEPage({
@@ -632,28 +597,11 @@ export default function SAEPage({
           )}
 
           {/* Compare SAEs Mode */}
-          {!analyzing && mode === 'compare' && (
+          {mode === 'compare' && (
             <div className="compare-layout">
-              <div className="compare-info-banner">
-                <AlertCircle className="w-4 h-4" />
-                <span>
-                  SAE comparison requires analyzing text with multiple SAEs. This feature is under development.
-                </span>
-              </div>
-              <FeatureComparison
-                saeA={mockSaeA}
-                saeB={mockSaeB}
-                comparison={mockComparisonMetrics}
+              <ModelComparisonDashboard
                 onFeatureSelect={handleComparisonFeatureSelect}
               />
-              {selectedFeature !== null && featureInfo && (
-                <div className="comparison-detail">
-                  <FeatureTopTokens
-                    interpretation={featureInfo}
-                    maxExamples={8}
-                  />
-                </div>
-              )}
             </div>
           )}
         </div>
