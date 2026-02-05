@@ -54,28 +54,40 @@ class ComparisonResult:
 
     def to_dict(self) -> Dict:
         """Serialize for API response."""
+        # Helper to convert numpy types to Python native types
+        def convert_to_native(obj):
+            if isinstance(obj, (np.integer, np.int64, np.int32)):
+                return int(obj)
+            elif isinstance(obj, (np.floating, np.float64, np.float32)):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, list):
+                return [convert_to_native(item) for item in obj]
+            return obj
+
         return {
-            "overall_similarity": self.overall_similarity,
-            "cka_score": self.cka_score,
-            "matched_features": self.matched_features,
-            "unmatched_a": self.unmatched_a,
-            "unmatched_b": self.unmatched_b,
+            "overall_similarity": float(self.overall_similarity),
+            "cka_score": float(self.cka_score),
+            "matched_features": int(self.matched_features),
+            "unmatched_a": int(self.unmatched_a),
+            "unmatched_b": int(self.unmatched_b),
             "top_matches": [
                 {
-                    "feature_a": m.feature_a,
-                    "feature_b": m.feature_b,
-                    "similarity": m.similarity,
+                    "feature_a": int(m.feature_a),
+                    "feature_b": int(m.feature_b),
+                    "similarity": float(m.similarity),
                     "shared_tokens": m.shared_tokens,
                     "label_a": m.label_a,
                     "label_b": m.label_b,
                 }
                 for m in self.top_matches
             ],
-            "divergent_features_a": self.divergent_features_a,
-            "divergent_features_b": self.divergent_features_b,
-            "similarity_matrix_sample": self.similarity_matrix_sample,
-            "feature_indices_a": self.feature_indices_a,
-            "feature_indices_b": self.feature_indices_b,
+            "divergent_features_a": convert_to_native(self.divergent_features_a),
+            "divergent_features_b": convert_to_native(self.divergent_features_b),
+            "similarity_matrix_sample": convert_to_native(self.similarity_matrix_sample) if self.similarity_matrix_sample else None,
+            "feature_indices_a": convert_to_native(self.feature_indices_a) if self.feature_indices_a else None,
+            "feature_indices_b": convert_to_native(self.feature_indices_b) if self.feature_indices_b else None,
         }
 
 
@@ -332,12 +344,16 @@ def compare_saes(
     overall_similarity = float(min(max(overall_similarity, 0.0), 1.0))
 
     # Divergent features: active in one but not matched
-    divergent_a = sorted(active_a - matched_a)[:20]
-    divergent_b = sorted(active_b - matched_b)[:20]
+    divergent_a = [int(x) for x in sorted(active_a - matched_a)[:20]]
+    divergent_b = [int(x) for x in sorted(active_b - matched_b)[:20]]
 
     # Sample of similarity matrix for visualization (top 30x30)
     sample_size = min(30, sim_matrix.shape[0], sim_matrix.shape[1])
     sim_sample = sim_matrix[:sample_size, :sample_size].tolist()
+
+    # Convert indices to Python native types
+    indices_a_native = [int(x) for x in indices_a[:sample_size]]
+    indices_b_native = [int(x) for x in indices_b[:sample_size]]
 
     # Sort matches by similarity
     matches.sort(key=lambda m: m.similarity, reverse=True)
@@ -352,6 +368,6 @@ def compare_saes(
         divergent_features_a=divergent_a,
         divergent_features_b=divergent_b,
         similarity_matrix_sample=sim_sample,
-        feature_indices_a=indices_a[:sample_size],
-        feature_indices_b=indices_b[:sample_size],
+        feature_indices_a=indices_a_native,
+        feature_indices_b=indices_b_native,
     )
