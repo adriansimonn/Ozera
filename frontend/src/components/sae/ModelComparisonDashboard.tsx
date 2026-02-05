@@ -235,7 +235,7 @@ export function ModelComparisonDashboard({
   if (loadingList) {
     return (
       <div className={`flex items-center justify-center p-8 ${className}`}>
-        <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
         <span className="ml-3 text-gray-400">Loading SAEs...</span>
       </div>
     )
@@ -246,10 +246,10 @@ export function ModelComparisonDashboard({
       {/* Dual SAE Selector */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* SAE A */}
-        <div className="bg-black/40 border border-purple-800/40">
+        <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}>
           <div className="p-3 border-b border-gray-800 flex items-center gap-2">
-            <Database className="w-4 h-4 text-purple-400" />
-            <span className="text-sm font-semibold text-purple-400 uppercase tracking-wide">
+            <Database className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
+            <span className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.7)' }}>
               SAE A
             </span>
           </div>
@@ -264,7 +264,10 @@ export function ModelComparisonDashboard({
                   onChange={(e) =>
                     handleSelectionChange('a', 'model', e.target.value)
                   }
-                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm focus:outline-none focus:border-purple-500 cursor-pointer"
+                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
+                  style={{ outline: 'none' }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
                 >
                   {saeList &&
                     Object.keys(saeList.models).map((model) => (
@@ -286,7 +289,10 @@ export function ModelComparisonDashboard({
                   onChange={(e) =>
                     handleSelectionChange('a', 'layer', parseInt(e.target.value))
                   }
-                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm focus:outline-none focus:border-purple-500 cursor-pointer"
+                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
+                  style={{ outline: 'none' }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
                 >
                   {selectionA &&
                     getAvailableLayers(selectionA.model).map((layer) => (
@@ -308,7 +314,10 @@ export function ModelComparisonDashboard({
                   onChange={(e) =>
                     handleSelectionChange('a', 'activationType', e.target.value)
                   }
-                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm focus:outline-none focus:border-purple-500 cursor-pointer"
+                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
+                  style={{ outline: 'none' }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
                 >
                   {selectionA &&
                     getAvailableTypes(selectionA.model, selectionA.layer).map(
@@ -326,10 +335,10 @@ export function ModelComparisonDashboard({
         </div>
 
         {/* SAE B */}
-        <div className="bg-black/40 border border-cyan-800/40">
+        <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}>
           <div className="p-3 border-b border-gray-800 flex items-center gap-2">
-            <Database className="w-4 h-4 text-cyan-400" />
-            <span className="text-sm font-semibold text-cyan-400 uppercase tracking-wide">
+            <Database className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
+            <span className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.7)' }}>
               SAE B
             </span>
           </div>
@@ -344,7 +353,10 @@ export function ModelComparisonDashboard({
                   onChange={(e) =>
                     handleSelectionChange('b', 'model', e.target.value)
                   }
-                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm focus:outline-none focus:border-cyan-500 cursor-pointer"
+                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
+                  style={{ outline: 'none' }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
                 >
                   {saeList &&
                     Object.keys(saeList.models).map((model) => (
@@ -366,7 +378,10 @@ export function ModelComparisonDashboard({
                   onChange={(e) =>
                     handleSelectionChange('b', 'layer', parseInt(e.target.value))
                   }
-                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm focus:outline-none focus:border-cyan-500 cursor-pointer"
+                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
+                  style={{ outline: 'none' }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
                 >
                   {selectionB &&
                     getAvailableLayers(selectionB.model).map((layer) => (
@@ -388,7 +403,10 @@ export function ModelComparisonDashboard({
                   onChange={(e) =>
                     handleSelectionChange('b', 'activationType', e.target.value)
                   }
-                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm focus:outline-none focus:border-cyan-500 cursor-pointer"
+                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
+                  style={{ outline: 'none' }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
                 >
                   {selectionB &&
                     getAvailableTypes(selectionB.model, selectionB.layer).map(
@@ -412,22 +430,44 @@ export function ModelComparisonDashboard({
         <div className="flex items-center gap-3 mb-3">
           <button
             onClick={() => setCompareMode('features')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm border transition-colors ${
-              compareMode === 'features'
-                ? 'bg-purple-600/20 border-purple-500/50 text-purple-300'
-                : 'bg-black/30 border-gray-700 text-gray-400 hover:border-gray-600'
-            }`}
+            style={{
+              background: compareMode === 'features' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.3)',
+              border: `1px solid ${compareMode === 'features' ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)'}`,
+              color: compareMode === 'features' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)',
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors"
+            onMouseEnter={(e) => {
+              if (compareMode !== 'features') {
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (compareMode !== 'features') {
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+              }
+            }}
           >
             <Zap className="w-3.5 h-3.5" />
             Feature Alignment
           </button>
           <button
             onClick={() => setCompareMode('layers')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm border transition-colors ${
-              compareMode === 'layers'
-                ? 'bg-purple-600/20 border-purple-500/50 text-purple-300'
-                : 'bg-black/30 border-gray-700 text-gray-400 hover:border-gray-600'
-            }`}
+            style={{
+              background: compareMode === 'layers' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.3)',
+              border: `1px solid ${compareMode === 'layers' ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)'}`,
+              color: compareMode === 'layers' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)',
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors"
+            onMouseEnter={(e) => {
+              if (compareMode !== 'layers') {
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (compareMode !== 'layers') {
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+              }
+            }}
           >
             <Grid3x3 className="w-3.5 h-3.5" />
             Layer Similarity
@@ -448,7 +488,10 @@ export function ModelComparisonDashboard({
               onChange={(e) => setCompareText(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Enter shared text for comparison..."
-              className="w-full bg-black/50 border border-gray-700 text-white px-3 py-2 text-sm focus:outline-none focus:border-purple-500 resize-none"
+              className="w-full bg-black/50 border border-gray-700 text-white px-3 py-2 text-sm resize-none"
+              style={{ outline: 'none' }}
+              onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+              onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
               rows={2}
               disabled={comparing}
             />
@@ -456,7 +499,25 @@ export function ModelComparisonDashboard({
           <button
             onClick={runComparison}
             disabled={comparing || !selectionA || !selectionB || !compareText.trim()}
-            className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium text-sm transition-colors flex items-center gap-2 self-start"
+            style={{
+              background: (comparing || !selectionA || !selectionB || !compareText.trim()) ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.1)',
+              border: `1px solid ${(comparing || !selectionA || !selectionB || !compareText.trim()) ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.25)'}`,
+              color: (comparing || !selectionA || !selectionB || !compareText.trim()) ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.95)',
+              cursor: (comparing || !selectionA || !selectionB || !compareText.trim()) ? 'not-allowed' : 'pointer',
+            }}
+            className="px-5 py-2 font-medium text-sm transition-colors flex items-center gap-2 self-start"
+            onMouseEnter={(e) => {
+              if (!comparing && selectionA && selectionB && compareText.trim()) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!comparing && selectionA && selectionB && compareText.trim()) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'
+              }
+            }}
           >
             {comparing ? (
               <>
@@ -484,7 +545,7 @@ export function ModelComparisonDashboard({
       {/* Loading state */}
       {comparing && (
         <div className="flex flex-col items-center justify-center p-12 bg-black/20 border border-dashed border-gray-800">
-          <Loader2 className="w-8 h-8 animate-spin text-purple-400" />
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
           <p className="mt-4 text-gray-400">
             {compareMode === 'features'
               ? 'Running SAE comparison on GPU...'
@@ -503,7 +564,7 @@ export function ModelComparisonDashboard({
                 <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                   CKA Score
                 </div>
-                <div className="text-2xl font-mono text-purple-400">
+                <div className="text-2xl font-mono" style={{ color: 'rgba(255,255,255,0.95)' }}>
                   {featureResult.cka_score.toFixed(3)}
                 </div>
               </div>
@@ -527,7 +588,7 @@ export function ModelComparisonDashboard({
                 <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                   Unique to A
                 </div>
-                <div className="text-2xl font-mono text-purple-400">
+                <div className="text-2xl font-mono" style={{ color: 'rgba(255,255,255,0.7)' }}>
                   {featureResult.unmatched_a}
                 </div>
               </div>
@@ -535,7 +596,7 @@ export function ModelComparisonDashboard({
                 <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                   Unique to B
                 </div>
-                <div className="text-2xl font-mono text-cyan-400">
+                <div className="text-2xl font-mono" style={{ color: 'rgba(255,255,255,0.7)' }}>
                   {featureResult.unmatched_b}
                 </div>
               </div>
@@ -577,7 +638,7 @@ export function ModelComparisonDashboard({
               <div className="bg-black/40 border border-gray-800">
                 <div className="p-4 border-b border-gray-800">
                   <div className="flex items-center gap-2">
-                    <Grid3x3 className="w-4 h-4 text-purple-400" />
+                    <Grid3x3 className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
                     <h3 className="text-sm font-semibold text-gray-200">
                       Feature Similarity Matrix (Top Features)
                     </h3>
@@ -657,7 +718,7 @@ export function ModelComparisonDashboard({
                 <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                   {layerResult.model_a} Layers
                 </div>
-                <div className="text-xl font-mono text-purple-400">
+                <div className="text-xl font-mono" style={{ color: 'rgba(255,255,255,0.7)' }}>
                   {layerResult.layers_a.length}
                 </div>
               </div>
@@ -665,7 +726,7 @@ export function ModelComparisonDashboard({
                 <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                   {layerResult.model_b} Layers
                 </div>
-                <div className="text-xl font-mono text-cyan-400">
+                <div className="text-xl font-mono" style={{ color: 'rgba(255,255,255,0.7)' }}>
                   {layerResult.layers_b.length}
                 </div>
               </div>
@@ -741,11 +802,11 @@ export function ModelComparisonDashboard({
                   return (
                     <p>
                       Strongest cross-layer similarity:{' '}
-                      <span className="text-purple-300">
+                      <span style={{ color: 'rgba(255,255,255,0.8)' }}>
                         L{layerResult.layers_a[maxI]}
                       </span>{' '}
                       and{' '}
-                      <span className="text-cyan-300">
+                      <span style={{ color: 'rgba(255,255,255,0.8)' }}>
                         L{layerResult.layers_b[maxJ]}
                       </span>{' '}
                       (CKA = {maxOffDiag.toFixed(3)}), suggesting these layers

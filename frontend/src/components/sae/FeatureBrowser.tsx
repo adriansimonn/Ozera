@@ -107,21 +107,21 @@ export function FeatureBrowser({
   }
 
   const getFrequencyColor = (freq: number) => {
-    if (freq === 0) return 'text-gray-600'
-    if (freq < 0.01) return 'text-gray-500'
-    if (freq < 0.1) return 'text-purple-400'
-    if (freq < 0.5) return 'text-purple-300'
-    return 'text-purple-200'
+    if (freq === 0) return 'rgba(255,255,255,0.2)'
+    if (freq < 0.01) return 'rgba(255,255,255,0.35)'
+    if (freq < 0.1) return 'rgba(255,255,255,0.6)'
+    if (freq < 0.5) return 'rgba(255,255,255,0.7)'
+    return 'rgba(255,255,255,0.85)'
   }
 
   const getPolysemanticity = (score: number) => {
-    if (score < 0.3) return { label: 'Mono', color: 'text-green-400' }
-    if (score < 0.7) return { label: 'Mixed', color: 'text-yellow-400' }
-    return { label: 'Poly', color: 'text-red-400' }
+    if (score < 0.3) return { label: 'Mono', color: 'rgba(34,197,94,0.9)' }
+    if (score < 0.7) return { label: 'Mixed', color: 'rgba(234,179,8,0.9)' }
+    return { label: 'Poly', color: 'rgba(239,68,68,0.9)' }
   }
 
   return (
-    <div className={`bg-black/40 border border-gray-800 ${className}`}>
+    <div className={`feature-browser ${className}`} style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }}>
       {/* Header */}
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center justify-between mb-4">
@@ -276,6 +276,49 @@ export function FeatureBrowser({
           Scroll to see more features
         </div>
       )}
+
+      <style>{`
+        .feature-browser .p-4 { padding: 1rem; }
+        .feature-browser .p-3 { padding: 0.75rem; }
+        .feature-browser .p-8 { padding: 2rem; }
+        .feature-browser .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+        .feature-browser .px-4 { padding-left: 1rem; padding-right: 1rem; }
+        .feature-browser .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+        .feature-browser .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        .feature-browser .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+        .feature-browser .border-b { border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .feature-browser .border-t { border-top: 1px solid rgba(255,255,255,0.1); }
+        .feature-browser .bg-black\\/40 { background: rgba(0,0,0,0.2); }
+        .feature-browser .bg-black\\/50 { background: rgba(255,255,255,0.03); }
+        .feature-browser .bg-black\\/60 { background: rgba(0,0,0,0.3); }
+        .feature-browser .bg-gray-800 { background: rgba(255,255,255,0.1); }
+        .feature-browser .bg-gray-800\\/50 { background: rgba(255,255,255,0.03); }
+        .feature-browser .bg-purple-500\\/10 { background: rgba(255,255,255,0.08); }
+        .feature-browser .bg-purple-500\\/20 { background: rgba(255,255,255,0.12); }
+        .feature-browser .border-gray-700 { border-color: rgba(255,255,255,0.1); }
+        .feature-browser .border-gray-800 { border-color: rgba(255,255,255,0.1); }
+        .feature-browser .border-gray-800\\/50 { border-color: rgba(255,255,255,0.05); }
+        .feature-browser .border-purple-500 { border-color: rgba(255,255,255,0.4); }
+        .feature-browser .border-l-purple-500 { border-left-color: rgba(255,255,255,0.4); }
+        .feature-browser .text-white { color: #fff; }
+        .feature-browser .text-gray-200 { color: rgba(255,255,255,0.95); }
+        .feature-browser .text-gray-300 { color: rgba(255,255,255,0.7); }
+        .feature-browser .text-gray-400 { color: rgba(255,255,255,0.4); }
+        .feature-browser .text-gray-500 { color: rgba(255,255,255,0.5); }
+        .feature-browser .text-gray-600 { color: rgba(255,255,255,0.2); }
+        .feature-browser .text-purple-300 { color: rgba(255,255,255,0.7); }
+        .feature-browser .text-purple-400 { color: rgba(255,255,255,0.6); }
+        .feature-browser .text-red-400 { color: rgba(239,68,68,0.9); }
+        .feature-browser .text-red-500 { color: rgba(239,68,68,0.9); }
+        .feature-browser .text-green-400 { color: rgba(34,197,94,0.9); }
+        .feature-browser .text-yellow-400 { color: rgba(234,179,8,0.9); }
+        .feature-browser .text-yellow-500 { color: rgba(234,179,8,0.9); }
+        .feature-browser input:focus { border-color: rgba(255,255,255,0.25); }
+        .feature-browser button:hover .text-gray-300 { color: rgba(255,255,255,0.7); }
+        .feature-browser button:hover.border-gray-700 { border-color: rgba(255,255,255,0.2); }
+        .feature-browser button:hover.border-gray-600 { border-color: rgba(255,255,255,0.2); }
+        .feature-browser button:hover.border-purple-500 { border-color: rgba(255,255,255,0.5); }
+      `}</style>
     </div>
   )
 }

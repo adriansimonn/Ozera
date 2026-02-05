@@ -55,11 +55,11 @@ export function SimilarityMatrix({
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`)
 
-    // Color scale: dark to purple
+    // Color scale: dark to gray
     const colorScale = d3
       .scaleSequential()
       .domain([0, 1])
-      .interpolator(d3.interpolatePurples)
+      .interpolator(d3.interpolateGreys)
 
     // Draw cells
     for (let i = 0; i < nRows; i++) {
@@ -76,7 +76,7 @@ export function SimilarityMatrix({
           .attr('stroke-width', 0.5)
           .style('cursor', 'pointer')
           .on('mouseenter', function () {
-            d3.select(this).attr('stroke', '#a855f7').attr('stroke-width', 2)
+            d3.select(this).attr('stroke', 'rgba(255,255,255,0.7)').attr('stroke-width', 2)
             setHoveredCell({ layerA: layersA[i], layerB: layersB[j], value })
           })
           .on('mouseleave', function () {
@@ -134,7 +134,7 @@ export function SimilarityMatrix({
       .attr('y', margin.top + (nRows * cellSize) / 2)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
-      .attr('fill', '#a855f7')
+      .attr('fill', 'rgba(255,255,255,0.7)')
       .attr('font-size', '11px')
       .attr('font-weight', 'bold')
       .attr('transform', `rotate(-90, 14, ${margin.top + (nRows * cellSize) / 2})`)
@@ -146,7 +146,7 @@ export function SimilarityMatrix({
       .attr('x', margin.left + (nCols * cellSize) / 2)
       .attr('y', 16)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#22d3ee')
+      .attr('fill', 'rgba(255,255,255,0.7)')
       .attr('font-size', '11px')
       .attr('font-weight', 'bold')
       .text(`${modelB} (${activationTypeB})`)
@@ -214,7 +214,7 @@ export function SimilarityMatrix({
       {/* Header */}
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-1">
-          <Grid3x3 className="w-5 h-5 text-purple-400" />
+          <Grid3x3 className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.6)' }} />
           <h3 className="text-lg font-semibold text-gray-200 tracking-tight">
             Layer Similarity Matrix
           </h3>
@@ -236,9 +236,9 @@ export function SimilarityMatrix({
         <div className="px-4 pb-3 flex items-center gap-2 text-sm">
           <Info className="w-3.5 h-3.5 text-gray-500" />
           <span className="text-gray-400">
-            <span className="text-purple-400">{modelA} L{hoveredCell.layerA}</span>
+            <span style={{ color: 'rgba(255,255,255,0.8)' }}>{modelA} L{hoveredCell.layerA}</span>
             {' vs '}
-            <span className="text-cyan-400">{modelB} L{hoveredCell.layerB}</span>
+            <span style={{ color: 'rgba(255,255,255,0.8)' }}>{modelB} L{hoveredCell.layerB}</span>
             {': '}
             <span className="text-white font-mono">{hoveredCell.value.toFixed(4)}</span>
           </span>

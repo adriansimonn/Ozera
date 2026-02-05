@@ -484,7 +484,7 @@ export default function SAEPage({
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Enter text to analyze..."
-                className="w-full bg-black/50 border border-gray-700 text-white px-4 py-3 text-sm focus:outline-none focus:border-purple-500 resize-none"
+                className="sae-input"
                 rows={2}
                 disabled={analyzing}
               />
@@ -492,7 +492,7 @@ export default function SAEPage({
             <button
               onClick={runAnalysis}
               disabled={analyzing || !saeSelection || !inputText.trim()}
-              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center gap-2"
+              className="analyze-button"
             >
               {analyzing ? (
                 <>
@@ -549,7 +549,7 @@ export default function SAEPage({
           {/* Loading state */}
           {analyzing && (
             <div className="loading-state">
-              <Loader2 className="w-8 h-8 animate-spin text-purple-400" />
+              <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
               <p className="mt-4 text-gray-400">Running SAE analysis on GPU...</p>
             </div>
           )}
@@ -573,7 +573,7 @@ export default function SAEPage({
                   />
                 ) : loadingFeature ? (
                   <div className="loading-detail">
-                    <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+                    <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
                     <p className="mt-2 text-gray-500 text-sm">Loading feature info...</p>
                   </div>
                 ) : (
@@ -605,7 +605,7 @@ export default function SAEPage({
                   />
                 ) : loadingFeature ? (
                   <div className="loading-detail">
-                    <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+                    <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
                     <p className="mt-2 text-gray-500 text-sm">Loading feature info...</p>
                   </div>
                 ) : (
@@ -681,8 +681,64 @@ export default function SAEPage({
           color: rgba(255, 255, 255, 0.5);
         }
 
-        .input-section textarea {
+        /* Input Section */
+        .input-section {
+          margin-bottom: 1rem;
+        }
+
+        .sae-input {
+          width: 100%;
+          background: rgba(255, 255, 255, 0.03);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: #fff;
+          padding: 0.75rem 1rem;
+          font-size: 0.875rem;
           font-family: inherit;
+          resize: none;
+          transition: border-color 0.2s;
+        }
+
+        .sae-input:focus {
+          outline: none;
+          border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .sae-input:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .sae-input::placeholder {
+          color: rgba(255, 255, 255, 0.35);
+        }
+
+        .analyze-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          padding: 0 1.5rem;
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.25);
+          color: rgba(255, 255, 255, 0.95);
+          font-weight: 500;
+          font-size: 0.875rem;
+          cursor: pointer;
+          transition: all 0.2s;
+          align-self: stretch;
+        }
+
+        .analyze-button:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.15);
+          border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .analyze-button:disabled {
+          background: rgba(255, 255, 255, 0.03);
+          border-color: rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.4);
+          cursor: not-allowed;
         }
 
         .mode-tabs {
@@ -711,8 +767,8 @@ export default function SAEPage({
         }
 
         .mode-tab.active {
-          background: rgba(168, 85, 247, 0.15);
-          border-color: rgba(168, 85, 247, 0.5);
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.4);
           color: rgba(255, 255, 255, 0.95);
         }
 
@@ -740,7 +796,8 @@ export default function SAEPage({
           align-items: center;
           justify-content: center;
           padding: 4rem 2rem;
-          background: rgba(0, 0, 0, 0.2);
+          background: rgba(255, 255, 255, 0.03);
+          backdrop-filter: blur(20px);
           border: 1px dashed rgba(255, 255, 255, 0.1);
           text-align: center;
           min-height: 400px;
@@ -834,7 +891,8 @@ export default function SAEPage({
           align-items: center;
           justify-content: center;
           padding: 3rem 2rem;
-          background: rgba(0, 0, 0, 0.2);
+          background: rgba(255, 255, 255, 0.03);
+          backdrop-filter: blur(20px);
           border: 1px dashed rgba(255, 255, 255, 0.1);
           text-align: center;
           min-height: 300px;

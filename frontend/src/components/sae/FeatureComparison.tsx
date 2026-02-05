@@ -95,14 +95,14 @@ export function FeatureComparison({
     // Color scale for similarity
     const colorScale = d3.scaleSequential()
       .domain([0, 1])
-      .interpolator(d3.interpolatePurples)
+      .interpolator(d3.interpolateGreys)
 
     // Draw SAE A labels on left
     svg.append('text')
       .attr('x', margin.left - 10)
       .attr('y', margin.top - 15)
       .attr('text-anchor', 'end')
-      .attr('fill', '#a855f7')
+      .attr('fill', 'rgba(255,255,255,0.7)')
       .attr('font-size', '12px')
       .text(saeA.name)
 
@@ -111,7 +111,7 @@ export function FeatureComparison({
       .attr('x', width - margin.right + 10)
       .attr('y', margin.top - 15)
       .attr('text-anchor', 'start')
-      .attr('fill', '#22d3ee')
+      .attr('fill', 'rgba(255,255,255,0.7)')
       .attr('font-size', '12px')
       .text(saeB.name)
 
@@ -144,7 +144,7 @@ export function FeatureComparison({
         .attr('cx', 0)
         .attr('cy', y1)
         .attr('r', 6)
-        .attr('fill', '#a855f7')
+        .attr('fill', 'rgba(255,255,255,0.7)')
         .attr('stroke', isSelected ? '#fff' : 'none')
         .attr('stroke-width', 2)
         .style('cursor', 'pointer')
@@ -155,7 +155,7 @@ export function FeatureComparison({
         .attr('cx', innerWidth)
         .attr('cy', y2)
         .attr('r', 6)
-        .attr('fill', '#22d3ee')
+        .attr('fill', 'rgba(255,255,255,0.7)')
         .attr('stroke', isSelected ? '#fff' : 'none')
         .attr('stroke-width', 2)
         .style('cursor', 'pointer')
@@ -247,15 +247,15 @@ export function FeatureComparison({
       {/* Header */}
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-2">
-          <GitCompare className="w-5 h-5 text-purple-400" />
+          <GitCompare className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.6)' }} />
           <h3 className="text-lg font-semibold text-gray-200 tracking-tight">
             Feature Comparison
           </h3>
         </div>
         <div className="flex items-center gap-3 text-sm text-gray-400">
-          <span className="text-purple-400">{saeA.name}</span>
+          <span style={{ color: 'rgba(255,255,255,0.7)' }}>{saeA.name}</span>
           <ArrowRight className="w-4 h-4" />
-          <span className="text-cyan-400">{saeB.name}</span>
+          <span style={{ color: 'rgba(255,255,255,0.7)' }}>{saeB.name}</span>
         </div>
       </div>
 
@@ -277,7 +277,7 @@ export function FeatureComparison({
           <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
             Unique to {saeA.name}
           </div>
-          <div className="text-2xl font-mono text-purple-400">
+          <div className="text-2xl font-mono" style={{ color: 'rgba(255,255,255,0.7)' }}>
             {comparison.unmatched_a}
           </div>
         </div>
@@ -285,7 +285,7 @@ export function FeatureComparison({
           <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
             Unique to {saeB.name}
           </div>
-          <div className="text-2xl font-mono text-cyan-400">
+          <div className="text-2xl font-mono" style={{ color: 'rgba(255,255,255,0.7)' }}>
             {comparison.unmatched_b}
           </div>
         </div>
@@ -298,9 +298,9 @@ export function FeatureComparison({
 
       {/* Selected match details */}
       {selectedMatch && (
-        <div className="p-4 border-t border-gray-800 bg-purple-500/5">
+        <div className="p-4 border-t border-gray-800" style={{ background: 'rgba(255,255,255,0.03)' }}>
           <div className="flex items-center gap-2 mb-3">
-            <Zap className="w-4 h-4 text-purple-400" />
+            <Zap className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
             <span className="text-sm text-gray-300 font-semibold">Match Details</span>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -308,7 +308,7 @@ export function FeatureComparison({
               <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                 {saeA.name} - Feature {selectedMatch.feature_a}
               </div>
-              <div className="text-sm text-purple-300">
+              <div className="text-sm" style={{ color: 'rgba(255,255,255,0.8)' }}>
                 {selectedMatch.label_a || 'No label'}
               </div>
             </div>
@@ -316,7 +316,7 @@ export function FeatureComparison({
               <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                 {saeB.name} - Feature {selectedMatch.feature_b}
               </div>
-              <div className="text-sm text-cyan-300">
+              <div className="text-sm" style={{ color: 'rgba(255,255,255,0.8)' }}>
                 {selectedMatch.label_b || 'No label'}
               </div>
             </div>
@@ -346,13 +346,19 @@ export function FeatureComparison({
           <div className="mt-3 flex items-center gap-4">
             <button
               onClick={() => onFeatureSelect?.(saeA.id, selectedMatch.feature_a)}
-              className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+              style={{ color: 'rgba(255,255,255,0.6)' }}
+              className="text-xs transition-colors"
+              onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.9)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
             >
               View in {saeA.name}
             </button>
             <button
               onClick={() => onFeatureSelect?.(saeB.id, selectedMatch.feature_b)}
-              className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+              style={{ color: 'rgba(255,255,255,0.6)' }}
+              className="text-xs transition-colors"
+              onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.9)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
             >
               View in {saeB.name}
             </button>
@@ -364,7 +370,7 @@ export function FeatureComparison({
       <div className="grid grid-cols-2 gap-px bg-gray-800 border-t border-gray-800">
         <div className="bg-black/40 p-3">
           <div className="flex items-center gap-2 mb-2">
-            <Layers className="w-4 h-4 text-purple-400" />
+            <Layers className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
             <span className="text-xs text-gray-500 uppercase tracking-wide">{saeA.name}</span>
           </div>
           <div className="space-y-1 text-xs text-gray-400">
@@ -375,7 +381,7 @@ export function FeatureComparison({
         </div>
         <div className="bg-black/40 p-3">
           <div className="flex items-center gap-2 mb-2">
-            <Layers className="w-4 h-4 text-cyan-400" />
+            <Layers className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
             <span className="text-xs text-gray-500 uppercase tracking-wide">{saeB.name}</span>
           </div>
           <div className="space-y-1 text-xs text-gray-400">

@@ -145,8 +145,8 @@ export function SAESelector({
 
   if (loading) {
     return (
-      <div className={`bg-black/40 border border-gray-800 p-4 ${className}`}>
-        <div className="flex items-center gap-3 text-gray-400">
+      <div style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)', padding: '1rem' }} className={className}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
           <Loader2 className="w-5 h-5 animate-spin" />
           <span>Loading available SAEs...</span>
         </div>
@@ -156,15 +156,17 @@ export function SAESelector({
 
   if (error) {
     return (
-      <div className={`bg-black/40 border border-red-800/50 p-4 ${className}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 text-red-400">
+      <div style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(239,68,68,0.3)', padding: '1rem' }} className={className}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'rgba(239,68,68,0.9)' }}>
             <AlertCircle className="w-5 h-5" />
             <span>{error}</span>
           </div>
           <button
             onClick={fetchSAEs}
-            className="px-3 py-1 text-sm border border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300 transition-colors"
+            style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'all 0.2s' }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -175,8 +177,8 @@ export function SAESelector({
 
   if (!saeList || saeList.total_saes === 0) {
     return (
-      <div className={`bg-black/40 border border-gray-800 p-4 ${className}`}>
-        <div className="flex items-center gap-3 text-gray-500">
+      <div style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)', padding: '1rem' }} className={className}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'rgba(255,255,255,0.35)' }}>
           <Database className="w-5 h-5" />
           <span>No SAEs available. Deploy SAEs to Modal first.</span>
         </div>
@@ -185,34 +187,36 @@ export function SAESelector({
   }
 
   return (
-    <div className={`bg-black/40 border border-gray-800 ${className}`}>
+    <div style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }} className={className}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-800">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Database className="w-4 h-4 text-purple-400" />
-            <h3 className="text-sm font-semibold text-gray-200 uppercase tracking-wide">
+      <div style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Database className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
+            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'rgba(255,255,255,0.95)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
               SAE Selection
             </h3>
           </div>
-          <div className="text-xs text-gray-500">
+          <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>
             {saeList.total_saes} SAEs available
           </div>
         </div>
       </div>
 
       {/* Selectors */}
-      <div className="grid grid-cols-3 gap-px bg-gray-800">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)' }}>
         {/* Model Selector */}
-        <div className="bg-black/40 p-4">
-          <label className="block text-xs text-gray-500 uppercase tracking-wide mb-2">
+        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+          <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
             Model
           </label>
-          <div className="relative">
+          <div style={{ position: 'relative' }}>
             <select
               value={selection?.model || ''}
               onChange={(e) => handleModelChange(e.target.value as 'nano' | 'mini')}
-              className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-3 py-2 pr-8 text-sm focus:outline-none focus:border-purple-500 cursor-pointer"
+              style={{ width: '100%', appearance: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
+              onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+              onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
             >
               {Object.keys(saeList.models).map(model => (
                 <option key={model} value={model}>
@@ -220,20 +224,22 @@ export function SAESelector({
                 </option>
               ))}
             </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+            <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.35)' }} className="w-4 h-4" />
           </div>
         </div>
 
         {/* Layer Selector */}
-        <div className="bg-black/40 p-4">
-          <label className="block text-xs text-gray-500 uppercase tracking-wide mb-2">
+        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+          <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
             Layer
           </label>
-          <div className="relative">
+          <div style={{ position: 'relative' }}>
             <select
               value={selection?.layer ?? ''}
               onChange={(e) => handleLayerChange(parseInt(e.target.value))}
-              className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-3 py-2 pr-8 text-sm focus:outline-none focus:border-purple-500 cursor-pointer"
+              style={{ width: '100%', appearance: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
+              onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+              onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
             >
               {availableLayers.map(layer => (
                 <option key={layer} value={layer}>
@@ -241,20 +247,22 @@ export function SAESelector({
                 </option>
               ))}
             </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+            <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.35)' }} className="w-4 h-4" />
           </div>
         </div>
 
         {/* Activation Type Selector */}
-        <div className="bg-black/40 p-4">
-          <label className="block text-xs text-gray-500 uppercase tracking-wide mb-2">
+        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+          <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
             Activation Type
           </label>
-          <div className="relative">
+          <div style={{ position: 'relative' }}>
             <select
               value={selection?.activationType || ''}
               onChange={(e) => handleActivationTypeChange(e.target.value as 'residual' | 'mlp_output')}
-              className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-3 py-2 pr-8 text-sm focus:outline-none focus:border-purple-500 cursor-pointer"
+              style={{ width: '100%', appearance: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
+              onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+              onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
             >
               {availableTypes.map(type => (
                 <option key={type} value={type}>
@@ -262,38 +270,38 @@ export function SAESelector({
                 </option>
               ))}
             </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+            <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.35)' }} className="w-4 h-4" />
           </div>
         </div>
       </div>
 
       {/* SAE Info */}
       {currentSaeInfo && (
-        <div className="grid grid-cols-4 gap-px bg-gray-800 border-t border-gray-800">
-          <div className="bg-black/40 p-3 text-center">
-            <div className="text-xs text-gray-500 uppercase tracking-wide">d_input</div>
-            <div className="text-sm font-mono text-white">{currentSaeInfo.d_input || '-'}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
+            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{currentSaeInfo.d_input || '-'}</div>
           </div>
-          <div className="bg-black/40 p-3 text-center">
-            <div className="text-xs text-gray-500 uppercase tracking-wide">d_hidden</div>
-            <div className="text-sm font-mono text-purple-300">{currentSaeInfo.d_hidden || '-'}</div>
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
+            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{currentSaeInfo.d_hidden || '-'}</div>
           </div>
-          <div className="bg-black/40 p-3 text-center">
-            <div className="text-xs text-gray-500 uppercase tracking-wide">Activation</div>
-            <div className="text-sm font-mono text-white">{currentSaeInfo.activation || 'relu'}</div>
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
+            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{currentSaeInfo.activation || 'relu'}</div>
           </div>
           {currentSaeInfo.training && (
-            <div className="bg-black/40 p-3 text-center">
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Final L0</div>
-              <div className="text-sm font-mono text-green-400">
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Final L0</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'rgba(34,197,94,0.9)' }}>
                 {currentSaeInfo.training.final_l0?.toFixed(1) || '-'}
               </div>
             </div>
           )}
           {!currentSaeInfo.training && (
-            <div className="bg-black/40 p-3 text-center">
-              <div className="text-xs text-gray-500 uppercase tracking-wide">Params</div>
-              <div className="text-sm font-mono text-white">
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Params</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>
                 {currentSaeInfo.num_parameters
                   ? `${(currentSaeInfo.num_parameters / 1e6).toFixed(1)}M`
                   : '-'}
@@ -305,30 +313,30 @@ export function SAESelector({
 
       {/* External SAEs */}
       {saeList.external_saes && saeList.external_saes.length > 0 && (
-        <div className="border-t border-gray-800">
-          <div className="p-3 flex items-center gap-2">
-            <ExternalLink className="w-3 h-3 text-blue-400" />
-            <span className="text-xs text-gray-500 uppercase tracking-wide">
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <div style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <ExternalLink className="w-3 h-3" style={{ color: 'rgba(59,130,246,0.9)' }} />
+            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               External SAEs ({saeList.external_saes.length})
             </span>
           </div>
-          <div className="px-3 pb-3 flex flex-wrap gap-2">
+          <div style={{ padding: '0 0.75rem 0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             {saeList.external_saes.map(ext => (
               <div
                 key={ext.id}
-                className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-500/10 border border-blue-500/20 text-xs"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', padding: '0.25rem 0.5rem', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', fontSize: '0.75rem' }}
                 title={`${ext.source_id || ext.id} - ${ext.base_model || 'unknown model'}`}
               >
-                <span className="text-blue-300">
+                <span style={{ color: 'rgba(59,130,246,0.9)' }}>
                   {ext.display_name || ext.id}
                 </span>
                 {ext.d_hidden && (
-                  <span className="text-gray-500">
+                  <span style={{ color: 'rgba(255,255,255,0.35)' }}>
                     {ext.d_hidden.toLocaleString()} features
                   </span>
                 )}
                 {ext.activation_type && (
-                  <span className="text-gray-500">
+                  <span style={{ color: 'rgba(255,255,255,0.35)' }}>
                     {ext.activation_type}
                   </span>
                 )}

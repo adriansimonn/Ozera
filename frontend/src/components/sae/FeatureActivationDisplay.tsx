@@ -313,7 +313,7 @@ export function FeatureActivationDisplay({
   }
 
   return (
-    <div className={`relative ${className}`} ref={containerRef}>
+    <div className={`feature-activation-display relative ${className}`} ref={containerRef}>
       {/* Summary stats */}
       <div className="flex gap-4 mb-4 text-sm">
         <div className="bg-black/30 border border-gray-800 px-3 py-2">
@@ -364,6 +364,22 @@ export function FeatureActivationDisplay({
           </div>
         </div>
       )}
+
+      <style>{`
+        .feature-activation-display .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+        .feature-activation-display .px-4 { padding-left: 1rem; padding-right: 1rem; }
+        .feature-activation-display .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        .feature-activation-display .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+        .feature-activation-display .bg-black\\/30 { background: rgba(255,255,255,0.03); }
+        .feature-activation-display .bg-black\\/40 { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); }
+        .feature-activation-display .bg-black\\/90 { background: rgba(0,0,0,0.9); }
+        .feature-activation-display .border-gray-700 { border-color: rgba(255,255,255,0.1); }
+        .feature-activation-display .border-gray-800 { border-color: rgba(255,255,255,0.1); }
+        .feature-activation-display .text-white { color: #fff; }
+        .feature-activation-display .text-gray-400 { color: rgba(255,255,255,0.4); }
+        .feature-activation-display .text-gray-500 { color: rgba(255,255,255,0.5); }
+        .feature-activation-display .text-purple-300 { color: rgba(168,85,247,0.9); }
+      `}</style>
     </div>
   )
 }

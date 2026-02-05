@@ -86,7 +86,7 @@ export function FeatureTopTokens({
       .attr('y', ([t]) => yScale(t) || 0)
       .attr('width', ([, f]) => xScale(f))
       .attr('height', yScale.bandwidth())
-      .attr('fill', '#a855f7')
+      .attr('fill', '#e5e7eb')
       .attr('opacity', 0.7)
 
     // Token labels
@@ -122,7 +122,7 @@ export function FeatureTopTokens({
   const { activation_statistics: stats } = interpretation
 
   return (
-    <div className={`bg-black/40 border border-gray-800 ${className}`}>
+    <div className={`feature-top-tokens ${className}`} style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }}>
       {/* Header */}
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-2">
@@ -244,6 +244,35 @@ export function FeatureTopTokens({
           <span>Polysemantic</span>
         </div>
       </div>
+
+      <style>{`
+        .feature-top-tokens .p-2 { padding: 0.5rem; }
+        .feature-top-tokens .p-3 { padding: 0.75rem; }
+        .feature-top-tokens .p-4 { padding: 1rem; }
+        .feature-top-tokens .border-b { border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .feature-top-tokens .border-t { border-top: 1px solid rgba(255,255,255,0.1); }
+        .feature-top-tokens .border-gray-800 { border-color: rgba(255,255,255,0.1); }
+        .feature-top-tokens .border-gray-700 { border-color: rgba(255,255,255,0.1); }
+        .feature-top-tokens .border-purple-500 { border-color: rgba(255,255,255,0.4); }
+        .feature-top-tokens .bg-black\\/40 { background: rgba(0,0,0,0.2); }
+        .feature-top-tokens .bg-gray-800 { background: rgba(255,255,255,0.1); }
+        .feature-top-tokens .bg-purple-500\\/10 { background: rgba(255,255,255,0.08); }
+        .feature-top-tokens .bg-green-500 { background: rgba(34,197,94,0.9); }
+        .feature-top-tokens .bg-yellow-500 { background: rgba(234,179,8,0.9); }
+        .feature-top-tokens .bg-red-500 { background: rgba(239,68,68,0.9); }
+        .feature-top-tokens .text-white { color: #fff; }
+        .feature-top-tokens .text-gray-200 { color: rgba(255,255,255,0.95); }
+        .feature-top-tokens .text-gray-400 { color: rgba(255,255,255,0.4); }
+        .feature-top-tokens .text-gray-500 { color: rgba(255,255,255,0.5); }
+        .feature-top-tokens .text-gray-600 { color: rgba(255,255,255,0.2); }
+        .feature-top-tokens .text-purple-200 { color: rgba(255,255,255,0.7); }
+        .feature-top-tokens .text-purple-300 { color: rgba(255,255,255,0.8); }
+        .feature-top-tokens .text-purple-400 { color: rgba(255,255,255,0.6); }
+        .feature-top-tokens .text-green-400 { color: rgba(34,197,94,0.9); }
+        .feature-top-tokens .text-yellow-400 { color: rgba(234,179,8,0.9); }
+        .feature-top-tokens .text-red-400 { color: rgba(239,68,68,0.9); }
+        .feature-top-tokens button:hover .border-gray-700 { border-color: rgba(255,255,255,0.2); }
+      `}</style>
     </div>
   )
 }

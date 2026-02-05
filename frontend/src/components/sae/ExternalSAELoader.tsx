@@ -267,13 +267,34 @@ export function ExternalSAELoader({
                 onChange={(e) => setRepoId(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="org/repo-name (e.g. EleutherAI/sae-SmolLM2-135M-64x)"
-                className="flex-1 bg-black/50 border border-gray-700 text-white px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                className="flex-1 bg-black/50 border border-gray-700 text-white px-3 py-2 text-sm"
+                style={{ outline: 'none' }}
+                onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+                onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
                 disabled={browsing || loading}
               />
               <button
                 onClick={handleBrowseRepo}
                 disabled={browsing || loading || !repoId.trim()}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center gap-2"
+                style={{
+                  background: (browsing || loading || !repoId.trim()) ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.1)',
+                  border: `1px solid ${(browsing || loading || !repoId.trim()) ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.25)'}`,
+                  color: (browsing || loading || !repoId.trim()) ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.95)',
+                  cursor: (browsing || loading || !repoId.trim()) ? 'not-allowed' : 'pointer',
+                }}
+                className="px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2"
+                onMouseEnter={(e) => {
+                  if (!browsing && !loading && repoId.trim()) {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!browsing && !loading && repoId.trim()) {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'
+                  }
+                }}
               >
                 {browsing ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -375,7 +396,10 @@ export function ExternalSAELoader({
                 value={uploadName}
                 onChange={(e) => setUploadName(e.target.value)}
                 placeholder="my-custom-sae"
-                className="w-full bg-black/50 border border-gray-700 text-white px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                className="w-full bg-black/50 border border-gray-700 text-white px-3 py-2 text-sm"
+                style={{ outline: 'none' }}
+                onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+                onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
                 disabled={uploading}
               />
             </div>
@@ -408,7 +432,25 @@ export function ExternalSAELoader({
             <button
               onClick={handleUpload}
               disabled={uploading || !uploadFile || !uploadName.trim()}
-              className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              style={{
+                background: (uploading || !uploadFile || !uploadName.trim()) ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.1)',
+                border: `1px solid ${(uploading || !uploadFile || !uploadName.trim()) ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.25)'}`,
+                color: (uploading || !uploadFile || !uploadName.trim()) ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.95)',
+                cursor: (uploading || !uploadFile || !uploadName.trim()) ? 'not-allowed' : 'pointer',
+              }}
+              className="w-full px-4 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              onMouseEnter={(e) => {
+                if (!uploading && uploadFile && uploadName.trim()) {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!uploading && uploadFile && uploadName.trim()) {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'
+                }
+              }}
             >
               {uploading ? (
                 <>
@@ -515,8 +557,8 @@ export function ExternalSAELoader({
 
         .loader-tab.active {
           color: rgba(255, 255, 255, 0.9);
-          background: rgba(168, 85, 247, 0.1);
-          border-bottom: 2px solid rgb(168, 85, 247);
+          background: rgba(255, 255, 255, 0.1);
+          border-bottom: 2px solid rgba(255, 255, 255, 0.4);
         }
 
         .tab-content {
@@ -536,8 +578,8 @@ export function ExternalSAELoader({
         }
 
         .suggested-repo-btn:hover {
-          border-color: rgba(168, 85, 247, 0.4);
-          background: rgba(168, 85, 247, 0.08);
+          border-color: rgba(255, 255, 255, 0.25);
+          background: rgba(255, 255, 255, 0.08);
         }
 
         .hookpoint-list {
@@ -578,16 +620,17 @@ export function ExternalSAELoader({
           align-items: center;
           gap: 0.375rem;
           padding: 0.375rem 0.75rem;
-          background: rgba(168, 85, 247, 0.2);
-          border: 1px solid rgba(168, 85, 247, 0.3);
-          color: rgb(168, 85, 247);
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          color: rgba(255, 255, 255, 0.95);
           font-size: 0.75rem;
           cursor: pointer;
           transition: all 0.2s;
         }
 
         .load-btn:hover:not(:disabled) {
-          background: rgba(168, 85, 247, 0.3);
+          background: rgba(255, 255, 255, 0.12);
+          border-color: rgba(255, 255, 255, 0.3);
         }
 
         .load-btn:disabled {
@@ -606,8 +649,8 @@ export function ExternalSAELoader({
         }
 
         .upload-zone:hover {
-          border-color: rgba(168, 85, 247, 0.4);
-          background: rgba(168, 85, 247, 0.05);
+          border-color: rgba(255, 255, 255, 0.25);
+          background: rgba(255, 255, 255, 0.05);
         }
 
         .loaded-sae-list {
