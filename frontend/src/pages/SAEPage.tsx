@@ -39,7 +39,7 @@ import type {
 interface SAEPageProps {
   onShowLogin: () => void
   onShowSignup: () => void
-  onShowPurchaseCredits?: () => void
+  onShowPurchaseCredits: () => void
 }
 
 type SAEMode = 'browse' | 'analyze' | 'dashboard' | 'compare' | 'load'
@@ -320,6 +320,7 @@ function generateQualityMetrics(
 export default function SAEPage({
   onShowLogin,
   onShowSignup,
+  onShowPurchaseCredits,
 }: SAEPageProps) {
   const [mode, setMode] = useState<SAEMode>('analyze')
   const [saeSelection, setSaeSelection] = useState<SAESelection | null>(null)
@@ -392,11 +393,17 @@ export default function SAEPage({
       setSelectedFeatures([])
       setFeatureInfo(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analysis failed')
+      if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') {
+        setError('INSUFFICIENT_CREDITS')
+        // Optionally show purchase credits modal automatically
+        onShowPurchaseCredits()
+      } else {
+        setError(err instanceof Error ? err.message : 'Analysis failed')
+      }
     } finally {
       setAnalyzing(false)
     }
-  }, [saeSelection, inputText])
+  }, [saeSelection, inputText, onShowPurchaseCredits])
 
   // Load feature info when feature is selected
   useEffect(() => {
@@ -508,9 +515,26 @@ export default function SAEPage({
             </button>
           </div>
           {error && (
-            <div className="mt-2 flex items-center gap-2 text-red-400 text-sm">
-              <AlertCircle className="w-4 h-4" />
-              {error}
+            <div className="mt-2">
+              {error === 'INSUFFICIENT_CREDITS' ? (
+                <div className="flex items-center justify-between p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400 text-sm">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>Insufficient credits. Please add credits to continue using SAE analysis.</span>
+                  </div>
+                  <button
+                    onClick={onShowPurchaseCredits}
+                    className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-black font-medium rounded transition-colors"
+                  >
+                    Add Credits
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-red-400 text-sm">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
+              )}
             </div>
           )}
         </div>

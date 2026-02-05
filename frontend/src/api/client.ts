@@ -1719,12 +1719,14 @@ export interface SAEAnalyzeBatchResponse {
 class SAEAPIClient {
   private baseUrl: string
 
-  constructor(baseUrl: string = SAE_API_URL) {
+  constructor(baseUrl: string = API_BASE_URL) {
+    // Use backend API instead of direct Modal access
     this.baseUrl = baseUrl
   }
 
   /**
    * List all available SAEs with metadata.
+   * Public endpoint (no auth required).
    */
   async listSAEs(): Promise<SAEListResponse> {
     const response = await fetch(`${this.baseUrl}/sae/list`)
@@ -1738,18 +1740,25 @@ class SAEAPIClient {
 
   /**
    * Analyze text through transformer + SAE.
+   * Requires authentication and charges credits.
    */
   async analyzeText(request: SAEAnalyzeRequest): Promise<SAEAnalyzeResponse> {
     const response = await fetch(`${this.baseUrl}/sae/analyze`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to analyze text: ${response.statusText}`)
+      // Check for insufficient credits (402 Payment Required)
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `Failed to analyze text: ${response.statusText}`)
     }
 
     return response.json()
@@ -1757,6 +1766,7 @@ class SAEAPIClient {
 
   /**
    * Get information about a specific SAE feature.
+   * Requires authentication and charges a small fee.
    */
   async getFeatureInfo(
     model: 'nano' | 'mini',
@@ -1771,10 +1781,18 @@ class SAEAPIClient {
       feature_id: featureId.toString(),
     })
 
-    const response = await fetch(`${this.baseUrl}/sae/feature?${params}`)
+    const response = await fetch(`${this.baseUrl}/sae/feature?${params}`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
 
     if (!response.ok) {
-      throw new Error(`Failed to get feature info: ${response.statusText}`)
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `Failed to get feature info: ${response.statusText}`)
     }
 
     return response.json()
@@ -1782,18 +1800,24 @@ class SAEAPIClient {
 
   /**
    * Analyze multiple texts through transformer + SAE in batch.
+   * Requires authentication and charges credits.
    */
   async analyzeBatch(request: SAEAnalyzeBatchRequest): Promise<SAEAnalyzeBatchResponse> {
     const response = await fetch(`${this.baseUrl}/sae/analyze-batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to analyze batch: ${response.statusText}`)
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `Failed to analyze batch: ${response.statusText}`)
     }
 
     return response.json()
@@ -1801,18 +1825,24 @@ class SAEAPIClient {
 
   /**
    * Compare features between two SAEs.
+   * Requires authentication and charges credits.
    */
   async compareSAEs(request: SAECompareRequest): Promise<SAECompareResponse> {
     const response = await fetch(`${this.baseUrl}/sae/compare`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to compare SAEs: ${response.statusText}`)
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `Failed to compare SAEs: ${response.statusText}`)
     }
 
     return response.json()
@@ -1820,18 +1850,24 @@ class SAEAPIClient {
 
   /**
    * Compute layer-by-layer CKA similarity matrix.
+   * Requires authentication and charges credits.
    */
   async compareLayers(request: SAECompareLayersRequest): Promise<SAECompareLayersResponse> {
     const response = await fetch(`${this.baseUrl}/sae/compare-layers`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to compare layers: ${response.statusText}`)
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `Failed to compare layers: ${response.statusText}`)
     }
 
     return response.json()
@@ -1841,7 +1877,7 @@ class SAEAPIClient {
    * Health check endpoint.
    */
   async health(): Promise<{ status: string; cuda_available: boolean; cuda_device: string | null }> {
-    const response = await fetch(`${this.baseUrl}/health`)
+    const response = await fetch(`${this.baseUrl}/sae/health`)
 
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.statusText}`)
@@ -1854,18 +1890,21 @@ class SAEAPIClient {
 
   /**
    * Load an external SAE from HuggingFace or Gemma Scope.
+   * Requires authentication.
    */
   async loadExternalSAE(request: ExternalSAELoadRequest): Promise<ExternalSAELoadResponse> {
     const response = await fetch(`${this.baseUrl}/sae/external/load`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to load external SAE: ${response.statusText}`)
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `Failed to load external SAE: ${response.statusText}`)
     }
 
     return response.json()
@@ -1905,15 +1944,20 @@ class SAEAPIClient {
 
   /**
    * Delete a loaded external SAE.
+   * Requires authentication.
    */
   async deleteExternalSAE(saeId: string): Promise<{ status?: string; error?: string }> {
     const params = new URLSearchParams({ sae_id: saeId })
     const response = await fetch(`${this.baseUrl}/sae/external/delete?${params}`, {
       method: 'DELETE',
+      headers: {
+        ...getAuthHeaders(),
+      },
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to delete external SAE: ${response.statusText}`)
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `Failed to delete external SAE: ${response.statusText}`)
     }
 
     return response.json()
@@ -1921,6 +1965,7 @@ class SAEAPIClient {
 
   /**
    * Get feature info for an external SAE.
+   * Requires authentication and charges a small fee.
    */
   async getExternalFeatureInfo(
     saeId: string,
@@ -1931,10 +1976,18 @@ class SAEAPIClient {
       feature_id: featureId.toString(),
     })
 
-    const response = await fetch(`${this.baseUrl}/sae/external/feature?${params}`)
+    const response = await fetch(`${this.baseUrl}/sae/external/feature?${params}`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
 
     if (!response.ok) {
-      throw new Error(`Failed to get external feature info: ${response.statusText}`)
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `Failed to get external feature info: ${response.statusText}`)
     }
 
     return response.json()
@@ -1942,18 +1995,21 @@ class SAEAPIClient {
 
   /**
    * Upload a user SAE (base64-encoded safetensors).
+   * Requires authentication.
    */
   async uploadSAE(request: ExternalSAEUploadRequest): Promise<ExternalSAELoadResponse> {
     const response = await fetch(`${this.baseUrl}/sae/upload`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to upload SAE: ${response.statusText}`)
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `Failed to upload SAE: ${response.statusText}`)
     }
 
     return response.json()

@@ -93,6 +93,7 @@ class TransactionType(PyEnum):
     INFERENCE_CHARGE = "inference_charge"
     PATCHING_CHARGE = "patching_charge"
     ANALYSIS_CHARGE = "analysis_charge"
+    SAE_CHARGE = "sae_charge"
 
 
 class Transaction(Base):

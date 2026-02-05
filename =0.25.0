@@ -1,0 +1,12 @@
+Collecting httpx
+  Using cached httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+Requirement already satisfied: anyio in ./venv/lib/python3.13/site-packages (from httpx) (4.12.1)
+Requirement already satisfied: certifi in ./venv/lib/python3.13/site-packages (from httpx) (2026.1.4)
+Collecting httpcore==1.* (from httpx)
+  Using cached httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+Requirement already satisfied: idna in ./venv/lib/python3.13/site-packages (from httpx) (3.11)
+Requirement already satisfied: h11>=0.16 in ./venv/lib/python3.13/site-packages (from httpcore==1.*->httpx) (0.16.0)
+Using cached httpx-0.28.1-py3-none-any.whl (73 kB)
+Using cached httpcore-1.0.9-py3-none-any.whl (78 kB)
+Installing collected packages: httpcore, httpx
+Successfully installed httpcore-1.0.9 httpx-0.28.1

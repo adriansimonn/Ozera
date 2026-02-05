@@ -650,3 +650,134 @@ def charge_patching(
     db.refresh(transaction)
 
     return transaction
+
+
+# SAE (Sparse Autoencoder) Analysis pricing
+# SAE analysis processes text through transformer + SAE on GPU
+# Pricing is based on tokens processed and model complexity
+# Increased to match actual Modal GPU costs (previously undercharging by ~4x)
+BASE_SAE_PRICING = {
+    "per_token": 0.15,  # $0.15 per 1000 tokens ($150 per 1M tokens)
+}
+
+# Model multipliers for SAE (Ozera models are small and run on T4/L4 GPUs)
+SAE_MODEL_MULTIPLIERS = {
+    "nano": 1.0,   # 1M param model, baseline
+    "mini": 1.5,   # 10M param model, 1.5x compute
+}
+
+# Minimum charge per SAE operation (covers GPU overhead and cold start)
+MIN_SAE_CHARGE = 0.04  # $0.04 minimum (matches typical Modal costs)
+
+
+def calculate_sae_cost(
+    num_tokens: int,
+    model_id: str = "nano",
+    operation_type: str = "analyze",
+) -> float:
+    """
+    Calculate the cost for an SAE operation.
+
+    Args:
+        num_tokens: Number of tokens processed
+        model_id: Model identifier ("nano" or "mini")
+        operation_type: Type of operation ("analyze", "compare", "compare_layers")
+
+    Returns:
+        Cost in USD (minimum $0.04 per operation)
+    """
+    # Get model multiplier
+    model_multiplier = SAE_MODEL_MULTIPLIERS.get(model_id, 1.0)
+
+    # Base cost per token
+    token_cost = (num_tokens / 1000) * BASE_SAE_PRICING["per_token"] * model_multiplier
+
+    # Operation type multipliers
+    operation_multipliers = {
+        "analyze": 1.0,           # Single SAE analysis
+        "feature_info": 0.1,      # Just loading feature weights (very cheap)
+        "compare": 2.0,           # Comparing two SAEs (2x work)
+        "compare_layers": 3.0,    # Layer-by-layer comparison (most intensive)
+    }
+
+    operation_multiplier = operation_multipliers.get(operation_type, 1.0)
+    total_cost = token_cost * operation_multiplier
+
+    return max(total_cost, MIN_SAE_CHARGE)
+
+
+def charge_sae(
+    db: Session,
+    user_id: int,
+    num_tokens: int,
+    model_name: str,
+    operation_type: str = "analyze",
+    description: Optional[str] = None,
+) -> Transaction:
+    """
+    Charge credits for an SAE operation.
+
+    Args:
+        db: Database session
+        user_id: User ID
+        num_tokens: Number of tokens processed
+        model_name: Name of the model used
+        operation_type: Type of operation ("analyze", "compare", "compare_layers")
+        description: Optional description
+
+    Returns:
+        Created transaction record
+    """
+    cost = calculate_sae_cost(
+        num_tokens=num_tokens,
+        model_id=model_name,
+        operation_type=operation_type,
+    )
+
+    credit_balance = get_credit_balance(db, user_id)
+    if not credit_balance:
+        credit_balance = CreditBalance(user_id=user_id, balance_usd=0.0, reserved_usd=0.0)
+        db.add(credit_balance)
+
+    # Deduct cost from balance
+    credit_balance.balance_usd -= cost
+    credit_balance.updated_at = datetime.utcnow()
+
+    # Create transaction record
+    transaction = Transaction(
+        user_id=user_id,
+        amount_usd=-cost,  # Negative for deduction
+        transaction_type=TransactionType.SAE_CHARGE,
+        description=description or f"SAE {operation_type} ({model_name}): {num_tokens} tokens",
+    )
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+
+    return transaction
+
+
+def estimate_sae_cost(
+    text_length: int,
+    model_id: str = "nano",
+    operation_type: str = "analyze",
+) -> float:
+    """
+    Estimate the cost for an SAE operation before running.
+
+    Args:
+        text_length: Character length of input text
+        model_id: Model identifier
+        operation_type: Type of operation
+
+    Returns:
+        Estimated cost in USD
+    """
+    # Rough estimate: 4 characters per token on average
+    estimated_tokens = max(text_length // 4, 1)
+
+    return calculate_sae_cost(
+        num_tokens=estimated_tokens,
+        model_id=model_id,
+        operation_type=operation_type,
+    )
