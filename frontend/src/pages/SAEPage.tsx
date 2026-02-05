@@ -688,6 +688,7 @@ export default function SAEPage({
 
         .sae-input {
           width: 100%;
+          height: 100%;
           background: rgba(255, 255, 255, 0.03);
           backdrop-filter: blur(20px);
           border: 1px solid rgba(255, 255, 255, 0.1);
