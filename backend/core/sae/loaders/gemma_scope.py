@@ -54,24 +54,52 @@ class GemmaScopeLoader(SAELoader):
         Load a Gemma Scope SAE.
 
         Args:
-            identifier: Gemma Scope repo ID (e.g. "google/gemma-scope-2b-pt-res")
+            identifier: Gemma Scope repo ID (e.g. "google/gemma-scope-2b-pt")
             hookpoint: Path within repo (e.g. "layer_20/width_16k/average_l0_71")
             device: Target device
             cache_dir: Cache directory
         """
-        is_v2 = self._is_gemma_scope_2(identifier)
+        from huggingface_hub import hf_hub_download
 
-        if is_v2:
+        # If no hookpoint specified, get the first available one
+        if not hookpoint:
+            available = self.list_available(identifier)
+            if not available:
+                raise ValueError(f"No SAEs found in {identifier}")
+            if "error" in available[0]:
+                raise ValueError(available[0]["error"])
+            hookpoint = available[0]["hookpoint"]
+
+        # Auto-detect format by trying to download the file
+        # Try v2 format (safetensors) first, then fall back to v1 (npz)
+        try:
+            # Try v2 format
+            weights_path = hf_hub_download(
+                repo_id=identifier,
+                filename=f"{hookpoint}/params.safetensors",
+                cache_dir=cache_dir,
+            )
             return self._load_v2(identifier, hookpoint, device, cache_dir)
-        else:
-            return self._load_v1(identifier, hookpoint, device, cache_dir)
+        except Exception:
+            # Fall back to v1 format
+            try:
+                npz_path = hf_hub_download(
+                    repo_id=identifier,
+                    filename=f"{hookpoint}/params.npz",
+                    cache_dir=cache_dir,
+                )
+                return self._load_v1(identifier, hookpoint, device, cache_dir)
+            except Exception as e:
+                raise ValueError(
+                    f"Could not load SAE from {identifier}/{hookpoint}. "
+                    f"Expected params.safetensors or params.npz. Error: {str(e)}"
+                )
 
     def list_available(self, identifier: str) -> list[Dict[str, Any]]:
         """List available SAEs in a Gemma Scope repository."""
         from huggingface_hub import list_repo_tree
 
         available = []
-        is_v2 = self._is_gemma_scope_2(identifier)
 
         try:
             tree = list(list_repo_tree(identifier))
@@ -80,8 +108,12 @@ class GemmaScopeLoader(SAELoader):
                 for item in tree
             ]
 
-            if is_v2:
-                # Look for params.safetensors
+            # Auto-detect format by looking for both safetensors and npz files
+            has_safetensors = any(f.endswith("params.safetensors") for f in filenames)
+            has_npz = any(f.endswith("params.npz") for f in filenames)
+
+            if has_safetensors:
+                # v2 format: Look for params.safetensors
                 for f in filenames:
                     if f.endswith("params.safetensors"):
                         hookpoint = f.rsplit("/", 1)[0]
@@ -89,8 +121,8 @@ class GemmaScopeLoader(SAELoader):
                         info["repo_id"] = identifier
                         info["hookpoint"] = hookpoint
                         available.append(info)
-            else:
-                # Look for params.npz
+            elif has_npz:
+                # v1 format: Look for params.npz
                 for f in filenames:
                     if f.endswith("params.npz"):
                         hookpoint = f.rsplit("/", 1)[0]
@@ -99,7 +131,17 @@ class GemmaScopeLoader(SAELoader):
                         info["hookpoint"] = hookpoint
                         available.append(info)
 
+            # If no SAE files found, provide a helpful error
+            if not available:
+                if not has_safetensors and not has_npz:
+                    raise ValueError(
+                        f"No Gemma Scope SAE files found in {identifier}. "
+                        f"Expected params.safetensors or params.npz files. "
+                        f"Please check the repository name is correct."
+                    )
+
         except Exception as e:
+            # Return error in a way that the frontend can display it
             available.append({
                 "hookpoint": "",
                 "repo_id": identifier,
@@ -109,8 +151,19 @@ class GemmaScopeLoader(SAELoader):
         return available
 
     def _is_gemma_scope_2(self, identifier: str) -> bool:
-        """Check if this is a Gemma Scope 2 repository."""
-        return "gemma-scope-2-" in identifier
+        """
+        Check if this is a Gemma Scope 2 repository.
+
+        Gemma Scope 2 uses safetensors format, Gemma Scope 1 uses npz.
+        v2 repos have pattern: google/gemma-scope-2-{size}-{pt|it}
+        v1 repos have pattern: google/gemma-scope-{size}-{pt|it}(-{res|mlp|att})?
+
+        But for newer releases, all repos use safetensors (v2 format) even without the -2-
+        """
+        # Explicitly check for v2 naming pattern
+        if "gemma-scope-2-" in identifier:
+            return True
+        # For other Gemma Scope repos, we'll detect dynamically by checking file types
 
     def _parse_v1_path(self, path: str) -> Dict[str, Any]:
         """Parse Gemma Scope 1 path: layer_N/width_W/average_l0_L."""

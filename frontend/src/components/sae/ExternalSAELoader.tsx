@@ -38,15 +38,9 @@ const SUGGESTED_REPOS = [
     activation: 'TopK',
   },
   {
-    repo_id: 'google/gemma-scope-2b-pt-res',
-    label: 'Gemma Scope 2B Residual',
-    description: 'JumpReLU SAEs for Gemma-2 2B residual stream',
-    activation: 'JumpReLU',
-  },
-  {
-    repo_id: 'google/gemma-scope-2b-pt-mlp',
-    label: 'Gemma Scope 2B MLP',
-    description: 'JumpReLU SAEs for Gemma-2 2B MLP output',
+    repo_id: 'google/gemma-scope-2b-pt',
+    label: 'Gemma Scope 2B',
+    description: 'JumpReLU SAEs for Gemma-2 2B (all hookpoints)',
     activation: 'JumpReLU',
   },
 ]
@@ -317,40 +311,54 @@ export function ExternalSAELoader({
           {/* Browse Results */}
           {browseResult && browseResult.available.length > 0 && (
             <div className="browse-results mt-3">
-              <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
-                Available SAEs ({browseResult.count})
-              </div>
-              <div className="hookpoint-list">
-                {browseResult.available.map((item, idx) => (
-                  <div key={idx} className="hookpoint-item">
-                    <div className="hookpoint-info">
-                      <span className="text-white text-sm font-mono">
-                        {item.hookpoint || 'root'}
-                      </span>
-                      <div className="hookpoint-meta text-gray-500 text-xs">
-                        {item.d_in && <span>d_in: {item.d_in}</span>}
-                        {item.num_latents && <span>features: {item.num_latents.toLocaleString()}</span>}
-                        {item.k && <span>k: {item.k}</span>}
-                        {item.layer !== undefined && <span>layer: {item.layer}</span>}
-                        {item.width && <span>width: {item.width.toLocaleString()}</span>}
-                        {item.l0 && <span>L0: {item.l0}</span>}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleLoadHookpoint(item.hookpoint)}
-                      disabled={loading}
-                      className="load-btn"
-                    >
-                      {loading && loadingHookpoint === item.hookpoint ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <ChevronRight className="w-3 h-3" />
-                      )}
-                      Load
-                    </button>
+              {/* Check if first item has an error */}
+              {browseResult.available[0].error ? (
+                <div className="mt-2 flex items-start gap-2 text-red-400 text-sm bg-red-400/10 border border-red-400/20 px-3 py-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-medium mb-1">Failed to browse repository:</div>
+                    <div className="text-xs">{browseResult.available[0].error}</div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
+                    Available SAEs ({browseResult.count})
+                  </div>
+                  <div className="hookpoint-list">
+                    {browseResult.available.map((item, idx) => (
+                      <div key={idx} className="hookpoint-item">
+                        <div className="hookpoint-info">
+                          <span className="text-white text-sm font-mono">
+                            {item.hookpoint || 'root'}
+                          </span>
+                          <div className="hookpoint-meta text-gray-500 text-xs">
+                            {item.d_in && <span>d_in: {item.d_in}</span>}
+                            {item.num_latents && <span>features: {item.num_latents.toLocaleString()}</span>}
+                            {item.k && <span>k: {item.k}</span>}
+                            {item.layer !== undefined && <span>layer: {item.layer}</span>}
+                            {item.width && <span>width: {item.width.toLocaleString()}</span>}
+                            {item.l0 && <span>L0: {item.l0}</span>}
+                            {item.site && <span>{item.site}</span>}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleLoadHookpoint(item.hookpoint)}
+                          disabled={loading}
+                          className="load-btn"
+                        >
+                          {loading && loadingHookpoint === item.hookpoint ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <ChevronRight className="w-3 h-3" />
+                          )}
+                          Load
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 

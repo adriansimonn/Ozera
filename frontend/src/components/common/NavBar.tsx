@@ -115,7 +115,7 @@ export function NavBar({
                 title="Train a custom model"
               >
                 <GraduationCap className="mode-icon" />
-                Training
+                Train
               </button>
               <button
                 onClick={() => onCustomModelsModeChange('upload')}

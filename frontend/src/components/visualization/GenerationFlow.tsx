@@ -144,15 +144,29 @@ export function GenerationFlow({
     const tokenLogits = logitValues[0][tokenIdx]
 
     // Apply softmax to get probabilities
-    const maxLogit = Math.max(...tokenLogits)
+    // Use loop-based max to avoid stack overflow on large vocabularies (256K+ elements)
+    let maxLogit = tokenLogits[0]
+    for (let i = 1; i < tokenLogits.length; i++) {
+      if (tokenLogits[i] > maxLogit) maxLogit = tokenLogits[i]
+    }
     const expValues = tokenLogits.map(v => Math.exp(v - maxLogit))
     const sumExp = expValues.reduce((a, b) => a + b, 0)
     const probabilities = expValues.map(v => v / sumExp)
 
-    // Get top K tokens
-    const tokenProbPairs = probabilities.map((prob, idx) => ({ tokenId: idx, probability: prob }))
-    tokenProbPairs.sort((a, b) => b.probability - a.probability)
-    const topTokens = tokenProbPairs.slice(0, topKCount)
+    // Get top K tokens using partial selection instead of full sort
+    const topTokens: Array<{ tokenId: number, probability: number }> = []
+    for (let i = 0; i < probabilities.length; i++) {
+      const prob = probabilities[i]
+      if (topTokens.length < topKCount) {
+        topTokens.push({ tokenId: i, probability: prob })
+        if (topTokens.length === topKCount) {
+          topTokens.sort((a, b) => b.probability - a.probability)
+        }
+      } else if (prob > topTokens[topKCount - 1].probability) {
+        topTokens[topKCount - 1] = { tokenId: i, probability: prob }
+        topTokens.sort((a, b) => b.probability - a.probability)
+      }
+    }
 
     // Determine which token was actually selected
     const selectedTokenId = tokenIdx + 1 < activationData.tokens.length ? activationData.tokens[tokenIdx + 1] : -1
@@ -182,10 +196,20 @@ export function GenerationFlow({
           for (let tokenIdx = 0; tokenIdx < logitValues[0].length; tokenIdx++) {
             const tokenLogits = logitValues[0][tokenIdx]
 
-            // Get top K token IDs for this position
-            const tokenProbPairs = tokenLogits.map((_, idx) => ({ tokenId: idx, logit: tokenLogits[idx] }))
-            tokenProbPairs.sort((a, b) => b.logit - a.logit)
-            const topTokens = tokenProbPairs.slice(0, topK)
+            // Get top K token IDs using partial selection instead of full sort
+            const topTokens: Array<{ tokenId: number, logit: number }> = []
+            for (let i = 0; i < tokenLogits.length; i++) {
+              const logit = tokenLogits[i]
+              if (topTokens.length < topK) {
+                topTokens.push({ tokenId: i, logit })
+                if (topTokens.length === topK) {
+                  topTokens.sort((a, b) => b.logit - a.logit)
+                }
+              } else if (logit > topTokens[topK - 1].logit) {
+                topTokens[topK - 1] = { tokenId: i, logit }
+                topTokens.sort((a, b) => b.logit - a.logit)
+              }
+            }
 
             topTokens.forEach(t => allTokenIds.add(t.tokenId))
           }
