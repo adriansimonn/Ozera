@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from inference import ModelLoader
 from inference.activation_store import get_activation_store
 from services.inference_router import get_inference_router
+from core.open_source import OPEN_SOURCE_MODELS
 from services.credit_service import (
     calculate_inference_cost,
     charge_inference,
@@ -435,6 +436,7 @@ async def generate_with_activations(
                     'total_tokens': result['total_tokens'],
                     'generated_text': result['text'],
                     'decoded_tokens': result.get('decoded_tokens', []),
+                    'model_family': OPEN_SOURCE_MODELS[request.model].family.value if request.model in OPEN_SOURCE_MODELS else 'ozera',
                 }
             )
             result['activation_id'] = activation_id

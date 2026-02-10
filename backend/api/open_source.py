@@ -588,10 +588,7 @@ async def decode_tokens(request: DecodeTokensRequest):
         if request.model not in OPEN_SOURCE_MODELS:
             raise HTTPException(status_code=400, detail=f"Unknown model: {request.model}")
 
-        config = OPEN_SOURCE_MODELS[request.model]
-        gpu_tier = "a10g" if config.parameters > 500_000_000 else "t4"
-
-        worker = get_worker(gpu_tier)
+        worker = _get_inference_worker(request.model)
         decoded = worker().decode_tokens.remote(request.model, request.token_ids)
 
         return {"decoded_tokens": decoded}

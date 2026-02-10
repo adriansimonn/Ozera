@@ -41,6 +41,9 @@ export function GenerationFlow({
   const decodedTokens = activationData.metadata.decoded_tokens || []
   const topK = activationData.metadata.top_k || 10
 
+  // Track activation ID to detect changes and avoid stale cache
+  const lastActivationIdRef = useRef<string>('')
+
   // Helper to get decoded token text - checks metadata first, then cache
   const getDecodedToken = (idx: number): string => {
     // First try metadata decoded_tokens
@@ -56,12 +59,13 @@ export function GenerationFlow({
     return `[${tokenId}]`
   }
 
-  // Decode token IDs to text via API
-  const decodeTokenIds = async (tokenIds: number[]): Promise<Map<number, string>> => {
-    const newCache = new Map(tokenDecodeCache)
-    const toFetch = tokenIds.filter(id => !newCache.has(id))
+  // Decode token IDs to text via API.
+  // If forceClean is true, starts with an empty cache (used on activation change).
+  const decodeTokenIds = async (tokenIds: number[], forceClean: boolean = false): Promise<Map<number, string>> => {
+    const baseCache = forceClean ? new Map<number, string>() : new Map(tokenDecodeCache)
+    const toFetch = tokenIds.filter(id => !baseCache.has(id))
 
-    if (toFetch.length === 0) return newCache
+    if (toFetch.length === 0) return baseCache
 
     try {
       // Use the open-source endpoint for non-Ozera models (they have different tokenizers)
@@ -83,15 +87,15 @@ export function GenerationFlow({
       if (response.ok) {
         const data = await response.json()
         toFetch.forEach((id, idx) => {
-          newCache.set(id, data.decoded_tokens[idx])
+          baseCache.set(id, data.decoded_tokens[idx])
         })
-        setTokenDecodeCache(newCache)
+        setTokenDecodeCache(baseCache)
       }
     } catch (error) {
       console.error('Error decoding tokens:', error)
     }
 
-    return newCache
+    return baseCache
   }
 
   // Extract actual activation magnitudes for node visualization
@@ -171,16 +175,37 @@ export function GenerationFlow({
     // Determine which token was actually selected
     const selectedTokenId = tokenIdx + 1 < activationData.tokens.length ? activationData.tokens[tokenIdx + 1] : -1
 
-    return topTokens.map(t => ({
-      token: tokenDecodeCache.get(t.tokenId) || `[${t.tokenId}]`,
-      tokenId: t.tokenId,
-      probability: t.probability,
-      isSelected: t.tokenId === selectedTokenId
-    }))
+    return topTokens.map(t => {
+      const decoded = tokenDecodeCache.get(t.tokenId)
+      // Handle empty/whitespace-only decoded tokens with visible representations
+      let displayToken: string
+      if (decoded === undefined) {
+        displayToken = `[${t.tokenId}]`
+      } else if (decoded === '') {
+        displayToken = '\u2205' // empty set symbol for empty tokens
+      } else if (decoded.trim() === '') {
+        displayToken = JSON.stringify(decoded) // show "\n", " ", etc.
+      } else {
+        displayToken = decoded
+      }
+      return {
+        token: displayToken,
+        tokenId: t.tokenId,
+        probability: t.probability,
+        isSelected: t.tokenId === selectedTokenId
+      }
+    })
   }
 
   // Pre-fetch all token IDs (sequence tokens + top-K from logits) when activation data loads
   useEffect(() => {
+    // Detect if this is a new activation (different model/run = different tokenizer)
+    const isNewActivation = lastActivationIdRef.current !== activationData.id
+    if (isNewActivation) {
+      lastActivationIdRef.current = activationData.id
+      setTopTokenChoices([])
+    }
+
     const prefetchAllTokens = async () => {
       // Collect all unique token IDs to fetch
       const allTokenIds = new Set<number>()
@@ -216,9 +241,9 @@ export function GenerationFlow({
         }
       }
 
-      // Fetch all at once
+      // Fetch all at once - use forceClean on new activations to avoid stale cache
       if (allTokenIds.size > 0) {
-        await decodeTokenIds(Array.from(allTokenIds))
+        await decodeTokenIds(Array.from(allTokenIds), isNewActivation)
       }
     }
 
@@ -558,30 +583,22 @@ export function GenerationFlow({
         const layerProgress = stepProgress * layers.length
         const currentLayerIdx = Math.floor(layerProgress)
 
-        // Update top token choices based on current progress
-        if (stepProgress > 0.95 || currentLayerIdx >= layers.length - 1) {
-          // Show top choices for current token when processing is complete
-          if (flowingTokenIdx >= promptTokens && flowingTokenIdx < totalTokens - 1) {
-            const topChoices = getTopTokenProbabilities(flowingTokenIdx, topK)
-            if (topChoices.length > 0 && JSON.stringify(topChoices) !== JSON.stringify(topTokenChoices)) {
-              setTopTokenChoices(topChoices)
-            }
+        // Update top token choices for the current token immediately.
+        // logits[0][i] predicts tokens[i+1], so to show predictions for the
+        // token at position X, we read logits at position X-1.
+        if (flowingTokenIdx >= promptTokens && flowingTokenIdx < totalTokens) {
+          const topChoices = getTopTokenProbabilities(flowingTokenIdx - 1, topK)
+          if (topChoices.length > 0 && JSON.stringify(topChoices) !== JSON.stringify(topTokenChoices)) {
+            setTopTokenChoices(topChoices)
           }
+        }
 
+        if (stepProgress > 0.95 || currentLayerIdx >= layers.length - 1) {
           // Update state for animation purposes
           const tokenText = getDecodedToken(flowingTokenIdx)
           const tokenToDisplay = { text: tokenText, index: flowingTokenIdx }
           if (!lastGeneratedToken || lastGeneratedToken.index !== flowingTokenIdx) {
             setLastGeneratedToken(tokenToDisplay)
-          }
-        } else if (flowingTokenIdx > 0 && stepProgress > 0) {
-          // When stepping backward or in mid-animation, show the previous completed token choices
-          const prevTokenIdx = flowingTokenIdx - 1
-          if (prevTokenIdx >= promptTokens && prevTokenIdx < totalTokens - 1) {
-            const topChoices = getTopTokenProbabilities(prevTokenIdx, topK)
-            if (topChoices.length > 0 && JSON.stringify(topChoices) !== JSON.stringify(topTokenChoices)) {
-              setTopTokenChoices(topChoices)
-            }
           }
         }
 
@@ -663,6 +680,7 @@ export function GenerationFlow({
   const handleReset = () => {
     progressRef.current = 0
     setLastGeneratedToken(null)
+    setTopTokenChoices([])
   }
 
   const handlePrevious = () => {

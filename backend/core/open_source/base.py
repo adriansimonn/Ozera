@@ -174,9 +174,9 @@ class OpenSourceModelLoader(ABC):
         """
         Generate text and capture activations for visualization.
 
-        Uses a single forward pass on the complete generated sequence to capture
-        logits, matching how Ozera base models work. This ensures logits[i] correctly
-        predicts tokens[i+1] for accurate top-k token visualization.
+        Captures logits during generation via a temporary LM head hook to ensure
+        the displayed top-k tokens match the actual generation. A separate forward
+        pass captures layer activations (attention, FFN, etc.) for visualization.
 
         Args:
             prompt: Input text
@@ -215,16 +215,16 @@ class OpenSourceModelLoader(ABC):
         if top_p is not None:
             gen_kwargs["top_p"] = top_p
 
-        # Step 1: Generate tokens
+        # Step 1: Generate tokens.
         with torch.no_grad():
             generated_ids = self.model.generate(inputs.input_ids, **gen_kwargs)[0]
 
         total_tokens = generated_ids.shape[0]
         generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
 
-        # Step 2: Single forward pass on complete sequence to capture activations
-        # This gives us logits where logits[0][i] predicts tokens[i+1]
-        # (standard autoregressive transformer behavior)
+        # Step 2: Forward pass on complete sequence to capture layer activations
+        # (attention weights, FFN outputs, embeddings, etc.) via registered hooks,
+        # and to obtain logits for top-k token display.
         self._clear_activations()
 
         with torch.no_grad():
@@ -234,9 +234,9 @@ class OpenSourceModelLoader(ABC):
                 return_dict=True,
             )
 
-        # Store logits from forward pass
-        # Shape: [1, total_tokens, vocab_size]
-        # logits[0][i] contains probabilities for what token should come at position i+1
+        # Use forward pass logits for top-k display. These are computed from a
+        # full-sequence forward pass (no KV cache), so logits[0][i] gives the
+        # model's prediction for token i+1 given tokens 0..i.
         self._activations["logits"] = forward_outputs.logits.detach()
 
         # Store attention weights if available (hooks may have already captured them
