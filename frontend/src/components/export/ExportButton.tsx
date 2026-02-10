@@ -14,6 +14,7 @@ interface ExportButtonProps {
   activationId: string
   layer?: number
   head?: number
+  tokenLabels?: 'text' | 'number'
   className?: string
   variant?: 'icon' | 'button'
   disabled?: boolean
@@ -24,6 +25,7 @@ export function ExportButton({
   activationId,
   layer,
   head,
+  tokenLabels,
   className = '',
   variant = 'icon',
   disabled = false,
@@ -55,6 +57,7 @@ export function ExportButton({
           activationId={activationId}
           layer={layer}
           head={head}
+          initialTokenLabels={tokenLabels}
         />
       </>
     )

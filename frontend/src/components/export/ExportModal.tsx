@@ -25,6 +25,7 @@ interface ExportModalProps {
   activationId: string
   layer?: number
   head?: number
+  initialTokenLabels?: 'text' | 'number'
 }
 
 export function ExportModal({
@@ -34,6 +35,7 @@ export function ExportModal({
   activationId,
   layer = 0,
   head = 0,
+  initialTokenLabels,
 }: ExportModalProps) {
   // Common config state
   const [format, setFormat] = useState<ExportFormat>('png')
@@ -47,6 +49,7 @@ export function ExportModal({
   // Attention heatmap specific
   const [colormap, setColormap] = useState('inferno')
   const [showColorbar, setShowColorbar] = useState(true)
+  const [tokenLabels, setTokenLabels] = useState<'text' | 'number'>('text')
   const [customTitle, setCustomTitle] = useState('')
 
   // Histogram specific
@@ -65,8 +68,11 @@ export function ExportModal({
   useEffect(() => {
     if (isOpen) {
       setError(null)
+      if (initialTokenLabels) {
+        setTokenLabels(initialTokenLabels)
+      }
     }
-  }, [isOpen])
+  }, [isOpen, initialTokenLabels])
 
   if (!isOpen) return null
 
@@ -102,6 +108,7 @@ export function ExportModal({
           config,
           colormap,
           show_colorbar: showColorbar,
+          token_labels: tokenLabels,
         }
         if (customTitle) request.title = customTitle
 
@@ -243,15 +250,30 @@ export function ExportModal({
 
               {/* Heatmap options */}
               {exportType === 'attention-heatmap' && (
-                <label className="flex items-center gap-3 text-sm text-gray-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showColorbar}
-                    onChange={(e) => setShowColorbar(e.target.checked)}
-                    className="w-4 h-4 border border-gray-600 bg-black/40 text-white focus:ring-0 focus:ring-offset-0"
-                  />
-                  Show colorbar
-                </label>
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
+                      Labels
+                    </label>
+                    <select
+                      value={tokenLabels}
+                      onChange={(e) => setTokenLabels(e.target.value as 'text' | 'number')}
+                      className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-gray-200 focus:border-gray-500 focus:outline-none transition-colors"
+                    >
+                      <option value="text">Token Text</option>
+                      <option value="number">Token Number</option>
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-3 text-sm text-gray-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showColorbar}
+                      onChange={(e) => setShowColorbar(e.target.checked)}
+                      className="w-4 h-4 border border-gray-600 bg-black/40 text-white focus:ring-0 focus:ring-offset-0"
+                    />
+                    Show colorbar
+                  </label>
+                </>
               )}
 
               {/* Multi-head columns */}

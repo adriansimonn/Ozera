@@ -58,6 +58,7 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
   const [selectedLayer, setSelectedLayer] = useState(0)
   const [selectedHead, setSelectedHead] = useState(0)
   const [selectedTokenIndex, setSelectedTokenIndex] = useState(0)
+  const [showTextLabels, setShowTextLabels] = useState(false)
 
   useEffect(() => {
     if (urlActivationId) {
@@ -196,6 +197,8 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
             attentionWeights={activationData.activations.layers[selectedLayer].attn_weights!}
             layerIndex={selectedLayer}
             headIndex={selectedHead}
+            tokens={activationData.metadata.decoded_tokens}
+            showTextLabels={showTextLabels}
             activationId={currentActivationId ?? undefined}
           />
         )}
@@ -361,12 +364,45 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
                 </select>
               </div>
 
+              {selectedVisualization === 'attention' && activationData && (
+                <div className="labels-dropdown">
+                  <label htmlFor="labels-select">Labels:</label>
+                  <select
+                    id="labels-select"
+                    value={showTextLabels ? 'text' : 'number'}
+                    onChange={(e) => setShowTextLabels(e.target.value === 'text')}
+                    className="labels-select"
+                  >
+                    <option value="number">Token Number</option>
+                    <option value="text">Token Text</option>
+                  </select>
+                </div>
+              )}
+
               {renderVisualizationControls()}
             </div>
 
             <div className="visualization-content">
               {renderVisualization()}
             </div>
+
+            {selectedVisualization === 'attention' && activationData?.metadata.decoded_tokens && (
+              <div className="token-reference-box">
+                <div className="token-reference-header">Token Reference</div>
+                <div className="token-reference-list">
+                  {activationData.metadata.decoded_tokens.map((token, idx) => (
+                    <span
+                      key={idx}
+                      className="token-chip"
+                      title={`Token ${idx}: "${token}"`}
+                    >
+                      <span className="token-idx">{idx}</span>
+                      <span className="token-text">{token.replace(/ /g, '·') || '▯'}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {activationData && (
               <div className="visualization-metadata">
@@ -595,6 +631,89 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
           font-size: 0.8rem;
           min-width: 40px;
           text-align: center;
+        }
+
+        .labels-dropdown {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .labels-dropdown label {
+          font-weight: 600;
+          font-size: 0.8rem;
+          color: rgba(255, 255, 255, 0.7);
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .labels-select {
+          padding: 0.625rem 0.75rem;
+          background: rgba(0, 0, 0, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 0.875rem;
+          min-width: 150px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .labels-select:hover {
+          border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .labels-select:focus {
+          outline: none;
+          border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .token-reference-box {
+          padding: 1rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .token-reference-header {
+          font-size: 0.7rem;
+          color: rgba(255, 255, 255, 0.5);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          font-weight: 600;
+          margin-bottom: 0.75rem;
+        }
+
+        .token-reference-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+
+        .token-chip {
+          display: inline-flex;
+          align-items: baseline;
+          gap: 3px;
+          padding: 2px 6px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          cursor: default;
+          transition: background 0.15s;
+        }
+
+        .token-chip:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        .token-idx {
+          font-size: 10px;
+          color: rgba(255, 255, 255, 0.4);
+          font-family: monospace;
+        }
+
+        .token-text {
+          font-size: 12px;
+          color: rgba(255, 255, 255, 0.75);
+          font-family: monospace;
         }
 
         .visualization-content {

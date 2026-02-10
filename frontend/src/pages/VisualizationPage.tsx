@@ -26,6 +26,7 @@ export function VisualizationPage() {
   const [selectedHead, setSelectedHead] = useState(0)
   const [selectedTokenIndex, setSelectedTokenIndex] = useState(0)
   const [view, setView] = useState<'attention' | 'activations' | 'journey' | 'flow' | 'network'>('attention')
+  const [showTextLabels, setShowTextLabels] = useState(false)
 
   useEffect(() => {
     if (!activationId) {
@@ -185,6 +186,20 @@ export function VisualizationPage() {
 
           {view === 'attention' && (
             <div className="flex items-center gap-2">
+              <span className="text-xs text-white/60 font-semibold uppercase tracking-wide">Labels:</span>
+              <select
+                value={showTextLabels ? 'text' : 'number'}
+                onChange={(e) => setShowTextLabels(e.target.value === 'text')}
+                className="px-3 py-[0.625rem] min-w-[150px] bg-black/40 border border-white/[0.15] text-white/90 text-sm cursor-pointer hover:border-white/[0.25] focus:outline-none focus:border-white/[0.4] transition-all"
+              >
+                <option value="number">Token Number</option>
+                <option value="text">Token Text</option>
+              </select>
+            </div>
+          )}
+
+          {view === 'attention' && (
+            <div className="flex items-center gap-2">
               <span className="text-sm text-white/60">Head:</span>
               <button
                 onClick={() => setSelectedHead(Math.max(0, selectedHead - 1))}
@@ -238,8 +253,28 @@ export function VisualizationPage() {
               attentionWeights={activationData.activations.layers[selectedLayer].attn_weights!}
               layerIndex={selectedLayer}
               headIndex={selectedHead}
+              tokens={activationData.metadata.decoded_tokens}
+              showTextLabels={showTextLabels}
               activationId={activationId ?? undefined}
             />
+          </div>
+        )}
+
+        {view === 'attention' && activationData.metadata.decoded_tokens && (
+          <div className="mt-4 p-4 glass border border-white/[0.08]">
+            <div className="text-xs text-white/50 mb-3 uppercase tracking-wider font-semibold">Token Reference</div>
+            <div className="flex flex-wrap gap-1">
+              {activationData.metadata.decoded_tokens.map((token, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-baseline gap-0.5 px-1.5 py-0.5 bg-white/[0.05] border border-white/[0.08] hover:bg-white/[0.1] transition-colors cursor-default"
+                  title={`Token ${idx}: "${token}"`}
+                >
+                  <span className="text-[10px] text-white/40 font-mono">{idx}</span>
+                  <span className="text-xs text-white/75 font-mono">{token.replace(/ /g, '·') || '▯'}</span>
+                </span>
+              ))}
+            </div>
           </div>
         )}
 

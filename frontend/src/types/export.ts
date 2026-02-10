@@ -48,6 +48,7 @@ export interface AttentionHeatmapExportRequest {
   colormap?: string
   title?: string
   show_colorbar?: boolean
+  token_labels?: 'text' | 'number'
 }
 
 /**

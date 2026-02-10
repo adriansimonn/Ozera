@@ -50,6 +50,7 @@ class AttentionHeatmapRequest(BaseModel):
     title: Optional[str] = Field(default=None, description="Custom title")
     show_colorbar: bool = Field(default=True, description="Show colorbar")
     show_values: bool = Field(default=False, description="Show values in cells")
+    token_labels: Literal["text", "number"] = Field(default="text", description="Label axes with token text or position numbers")
 
 
 class MultiHeadHeatmapRequest(BaseModel):
@@ -335,9 +336,12 @@ async def export_attention_heatmap(request: AttentionHeatmapRequest) -> Response
         dpi=request.config.dpi,
     )
 
+    # Use token text or numeric indices based on token_labels setting
+    display_tokens = tokens if request.token_labels == "text" else None
+
     fig = exporter.create_figure(
         attention_matrix=attn_matrix,
-        tokens=tokens,
+        tokens=display_tokens,
         layer=request.layer,
         head=request.head,
         title=request.title,

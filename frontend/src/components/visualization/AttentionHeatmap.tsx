@@ -13,6 +13,7 @@ interface AttentionHeatmapProps {
   layerIndex: number
   headIndex: number
   tokens?: string[]
+  showTextLabels?: boolean
   className?: string
   activationId?: string
 }
@@ -30,6 +31,7 @@ export function AttentionHeatmap({
   layerIndex,
   headIndex,
   tokens,
+  showTextLabels = false,
   className = '',
   activationId,
 }: AttentionHeatmapProps) {
@@ -160,14 +162,14 @@ export function AttentionHeatmap({
 
     // Add axes
     const xAxis = d3.axisBottom(xScale).tickFormat(i => {
-      if (tokens && tokens[parseInt(i)]) {
+      if (showTextLabels && tokens && tokens[parseInt(i)]) {
         return tokens[parseInt(i)].substring(0, 8)
       }
       return i
     })
 
     const yAxis = d3.axisLeft(yScale).tickFormat(i => {
-      if (tokens && tokens[parseInt(i)]) {
+      if (showTextLabels && tokens && tokens[parseInt(i)]) {
         return tokens[parseInt(i)].substring(0, 8)
       }
       return i
@@ -249,7 +251,7 @@ export function AttentionHeatmap({
       .selectAll('text')
       .attr('fill', '#9ca3af')
 
-  }, [attentionWeights, layerIndex, headIndex, tokens, dimensions])
+  }, [attentionWeights, layerIndex, headIndex, tokens, showTextLabels, dimensions])
 
   // Calculate tooltip position with boundary checks
   const getTooltipStyle = () => {
@@ -286,6 +288,7 @@ export function AttentionHeatmap({
             activationId={activationId}
             layer={layerIndex}
             head={headIndex}
+            tokenLabels={showTextLabels ? 'text' : 'number'}
           />
         </div>
       )}
@@ -302,13 +305,14 @@ export function AttentionHeatmap({
         >
           <div className="text-white font-semibold mb-1 text-xs uppercase tracking-wide">Attention Weight</div>
           <div className="text-gray-400 text-xs">
-            From token {hoveredCell.from} → To token {hoveredCell.to}
+            From token {hoveredCell.from}{tokens?.[hoveredCell.from] ? ` ("${tokens[hoveredCell.from]}")` : ''} → To token {hoveredCell.to}{tokens?.[hoveredCell.to] ? ` ("${tokens[hoveredCell.to]}")` : ''}
           </div>
           <div className="text-gray-300 mt-1">
             Weight: <span className="text-white font-mono">{hoveredCell.value.toFixed(4)}</span>
           </div>
         </div>
       )}
+
     </div>
   )
 }
