@@ -153,23 +153,23 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
       )
     }
 
-    if (!activationData) {
-      return (
-        <div className="visualization-placeholder">
-          <div className="placeholder-content">
-            <Network className="placeholder-icon" />
-            <p className="placeholder-text">Generate text with visualizations to see activations here</p>
-          </div>
-        </div>
-      )
-    }
-
     if (loading) {
       return (
         <div className="visualization-placeholder">
           <div className="placeholder-content">
             <div className="spinner" />
             <p className="placeholder-text">Loading activations...</p>
+          </div>
+        </div>
+      )
+    }
+
+    if (!activationData) {
+      return (
+        <div className="visualization-placeholder">
+          <div className="placeholder-content">
+            <Network className="placeholder-icon" />
+            <p className="placeholder-text">Generate text with visualizations to see activations here</p>
           </div>
         </div>
       )
