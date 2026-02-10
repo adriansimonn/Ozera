@@ -2,6 +2,8 @@
  * API client for Ozera inference server.
  */
 
+import { useAuthStore } from '../stores/authStore'
+
 import type {
   ActivationData,
   ActivationSummary,
@@ -69,6 +71,14 @@ function getAuthHeaders(): Record<string, string> {
     return { Authorization: `Bearer ${token}` }
   }
   return {}
+}
+
+/**
+ * Refresh the user's credit balance in the auth store (fire-and-forget).
+ * Called after credit-consuming API operations so the navbar updates immediately.
+ */
+function notifyCreditsChanged() {
+  useAuthStore.getState().refreshUser().catch(() => {})
 }
 
 // Dataset types
@@ -444,6 +454,7 @@ class OzeraAPIClient {
       }
     } finally {
       reader.releaseLock()
+      notifyCreditsChanged()
     }
   }
 
@@ -469,6 +480,7 @@ class OzeraAPIClient {
       throw new Error(error.detail || `Generation with activations failed: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1034,6 +1046,7 @@ class OzeraAPIClient {
       throw new Error(error.detail || `Generation failed: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1122,6 +1135,7 @@ class OzeraAPIClient {
       }
     } finally {
       reader.releaseLock()
+      notifyCreditsChanged()
     }
   }
 
@@ -1146,6 +1160,7 @@ class OzeraAPIClient {
       throw new Error(error.detail || `Generation with activations failed: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1248,6 +1263,7 @@ class OzeraAPIClient {
       throw new Error(error.detail || `Failed to run patching experiment: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1272,6 +1288,7 @@ class OzeraAPIClient {
       throw new Error(error.detail || `Failed to run patching with captured: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1330,6 +1347,7 @@ class OzeraAPIClient {
       throw new Error(error.detail || `Failed to classify heads: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1355,6 +1373,7 @@ class OzeraAPIClient {
       throw new Error(error.detail || `Failed to compare attention: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1380,6 +1399,7 @@ class OzeraAPIClient {
       throw new Error(error.detail || `Failed to mine patterns: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1405,6 +1425,7 @@ class OzeraAPIClient {
       throw new Error(error.detail || `Failed to get head importance: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1761,6 +1782,7 @@ class SAEAPIClient {
       throw new Error(error.detail || `Failed to analyze text: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1795,6 +1817,7 @@ class SAEAPIClient {
       throw new Error(error.detail || `Failed to get feature info: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1820,6 +1843,7 @@ class SAEAPIClient {
       throw new Error(error.detail || `Failed to analyze batch: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1845,6 +1869,7 @@ class SAEAPIClient {
       throw new Error(error.detail || `Failed to compare SAEs: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1870,6 +1895,7 @@ class SAEAPIClient {
       throw new Error(error.detail || `Failed to compare layers: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 

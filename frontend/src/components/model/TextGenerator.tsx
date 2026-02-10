@@ -43,7 +43,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
     setInternalModel(newModel)
     onModelChange?.(newModel)
   }
-  const [maxTokens, setMaxTokens] = useState(200)
+  const [maxTokens, setMaxTokens] = useState(100)
   const [temperature, setTemperature] = useState(0.7)
   const [topK, setTopK] = useState(40)
   const [capturingActivations, setCapturingActivations] = useState(false)
@@ -238,12 +238,12 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         </div>
 
         <div className="control-group">
-          <label htmlFor="max-tokens">Max Tokens: {maxTokens}</label>
+          <label htmlFor="max-tokens">Tokens: {maxTokens}</label>
           <input
             id="max-tokens"
             type="range"
             min="1"
-            max="500"
+            max="300"
             step="1"
             value={maxTokens}
             onChange={(e) => setMaxTokens(parseInt(e.target.value))}
