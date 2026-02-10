@@ -58,6 +58,7 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
   const [selectedLayer, setSelectedLayer] = useState(0)
   const [selectedHead, setSelectedHead] = useState(0)
   const [selectedTokenIndex, setSelectedTokenIndex] = useState(0)
+  const [tokenInputValue, setTokenInputValue] = useState('0')
   const [showTextLabels, setShowTextLabels] = useState(false)
 
   useEffect(() => {
@@ -280,15 +281,50 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
           <div className="control-item">
             <span className="control-label">Token:</span>
             <button
-              onClick={() => setSelectedTokenIndex(Math.max(0, selectedTokenIndex - 1))}
+              onClick={() => {
+                const newVal = Math.max(0, selectedTokenIndex - 1);
+                setSelectedTokenIndex(newVal);
+                setTokenInputValue(String(newVal));
+              }}
               disabled={selectedTokenIndex === 0}
               className="control-btn"
             >
               <ChevronLeft className="btn-icon" />
             </button>
-            <span className="control-value">{selectedTokenIndex}</span>
+            <input
+              type="text"
+              className="control-value control-input"
+              value={tokenInputValue}
+              onChange={(e) => {
+                const val = e.target.value;
+                setTokenInputValue(val);
+                if (val === '') return;
+                const num = parseInt(val, 10);
+                if (!isNaN(num) && num >= 0 && num <= activationData.tokens.length - 1) {
+                  setSelectedTokenIndex(num);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  const newVal = Math.min(activationData.tokens.length - 1, selectedTokenIndex + 1);
+                  setSelectedTokenIndex(newVal);
+                  setTokenInputValue(String(newVal));
+                } else if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  const newVal = Math.max(0, selectedTokenIndex - 1);
+                  setSelectedTokenIndex(newVal);
+                  setTokenInputValue(String(newVal));
+                }
+              }}
+              style={{ width: `${Math.max(8, tokenInputValue.length + 2)}ch`, textAlign: 'center' }}
+            />
             <button
-              onClick={() => setSelectedTokenIndex(Math.min(activationData.tokens.length - 1, selectedTokenIndex + 1))}
+              onClick={() => {
+                const newVal = Math.min(activationData.tokens.length - 1, selectedTokenIndex + 1);
+                setSelectedTokenIndex(newVal);
+                setTokenInputValue(String(newVal));
+              }}
               disabled={selectedTokenIndex === activationData.tokens.length - 1}
               className="control-btn"
             >
@@ -631,6 +667,17 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
           font-size: 0.8rem;
           min-width: 40px;
           text-align: center;
+        }
+
+        .control-input {
+          outline: none;
+          cursor: text;
+          border-radius: 4px;
+        }
+
+        .control-input:focus {
+          border-color: rgba(255, 255, 255, 0.3);
+          background: rgba(0, 0, 0, 0.5);
         }
 
         .labels-dropdown {
