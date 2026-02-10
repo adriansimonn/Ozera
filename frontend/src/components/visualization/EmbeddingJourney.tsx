@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { ActivationData } from '../../types/model'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 interface EmbeddingJourneyProps {
   activationData: ActivationData
@@ -115,15 +115,32 @@ export function EmbeddingJourney({
     })
   }
 
+  const allExpanded = journey.length > 0 && expandedLayers.size === journey.length
+  const toggleAll = () => {
+    if (allExpanded) {
+      setExpandedLayers(new Set())
+    } else {
+      setExpandedLayers(new Set(journey.map((_, i) => i)))
+    }
+  }
+
   return (
     <div className={`embedding-journey ${className}`}>
       <div className="journey-header">
-        <h3 className="text-xl font-semibold text-slate-200">
-          Embedding Journey - Token {selectedTokenIndex}
-        </h3>
-        <p className="text-sm text-slate-400 mt-1">
-          Watch how the token's vector representation transforms through each layer
-        </p>
+        <div className="journey-header-top">
+          <div>
+            <h3 className="journey-title">
+              Embedding Journey - Token {selectedTokenIndex}
+            </h3>
+            <p className="journey-subtitle">
+              Watch how the token's vector representation transforms through each layer
+            </p>
+          </div>
+          <button className="expand-collapse-btn" onClick={toggleAll}>
+            <ChevronsUpDown className="expand-collapse-icon" />
+            {allExpanded ? 'Collapse All' : 'Expand All'}
+          </button>
+        </div>
       </div>
 
       <div className="journey-flow">
@@ -173,16 +190,59 @@ export function EmbeddingJourney({
 
       <style>{`
         .embedding-journey {
-          background: linear-gradient(to bottom, rgba(15, 23, 42, 0.6), rgba(30, 41, 59, 0.4));
-          border: 1px solid rgba(100, 116, 139, 0.3);
-          border-radius: 12px;
-          padding: 2rem;
+          padding: 1.5rem;
         }
 
         .journey-header {
-          margin-bottom: 2rem;
+          margin-bottom: 1.5rem;
           padding-bottom: 1rem;
-          border-bottom: 1px solid rgba(100, 116, 139, 0.3);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .journey-header-top {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 1rem;
+        }
+
+        .journey-title {
+          font-size: 1rem;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.9);
+          margin: 0;
+        }
+
+        .journey-subtitle {
+          font-size: 0.8rem;
+          color: rgba(255, 255, 255, 0.4);
+          margin: 0.375rem 0 0 0;
+        }
+
+        .expand-collapse-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          padding: 0.5rem 0.75rem;
+          background: rgba(0, 0, 0, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.6);
+          font-size: 0.75rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+
+        .expand-collapse-btn:hover {
+          background: rgba(255, 255, 255, 0.05);
+          border-color: rgba(255, 255, 255, 0.2);
+          color: rgba(255, 255, 255, 0.8);
+        }
+
+        .expand-collapse-icon {
+          width: 14px;
+          height: 14px;
         }
 
         .journey-flow {
@@ -199,18 +259,16 @@ export function EmbeddingJourney({
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 1rem 1.25rem;
-          background: rgba(30, 41, 59, 0.6);
-          border: 1px solid rgba(100, 116, 139, 0.3);
-          border-radius: 8px;
+          padding: 0.875rem 1rem;
+          background: rgba(0, 0, 0, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.08);
           cursor: pointer;
           transition: all 0.2s;
         }
 
         .stage-header:hover {
-          background: rgba(30, 41, 59, 0.8);
-          border-color: rgba(34, 211, 238, 0.4);
-          box-shadow: 0 0 20px rgba(34, 211, 238, 0.1);
+          background: rgba(255, 255, 255, 0.05);
+          border-color: rgba(255, 255, 255, 0.2);
         }
 
         .stage-info {
@@ -219,9 +277,9 @@ export function EmbeddingJourney({
 
         .stage-title {
           font-weight: 600;
-          color: #22d3ee;
-          font-size: 0.95rem;
-          margin-bottom: 0.5rem;
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 0.875rem;
+          margin-bottom: 0.375rem;
         }
 
         .stage-stats {
@@ -231,19 +289,19 @@ export function EmbeddingJourney({
 
         .stat {
           font-size: 0.75rem;
-          color: #94a3b8;
+          color: rgba(255, 255, 255, 0.4);
         }
 
         .stat-value {
-          font-family: 'Monaco', 'Courier New', monospace;
-          color: #e2e8f0;
+          font-family: monospace;
+          color: rgba(255, 255, 255, 0.8);
           font-weight: 600;
         }
 
         .expand-icon {
-          width: 20px;
-          height: 20px;
-          color: #64748b;
+          width: 18px;
+          height: 18px;
+          color: rgba(255, 255, 255, 0.3);
           transition: transform 0.2s;
         }
 
@@ -254,9 +312,8 @@ export function EmbeddingJourney({
         .stage-visualization {
           margin-top: 0.5rem;
           padding: 1rem;
-          background: rgba(15, 23, 42, 0.8);
-          border: 1px solid rgba(100, 116, 139, 0.2);
-          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.06);
           animation: slideDown 0.2s ease-out;
         }
 
@@ -275,20 +332,19 @@ export function EmbeddingJourney({
           display: flex;
           flex-direction: column;
           align-items: center;
-          padding: 0.5rem 0;
+          padding: 0.375rem 0;
         }
 
         .arrow-line {
-          width: 2px;
-          height: 20px;
-          background: linear-gradient(to bottom, rgba(34, 211, 238, 0.5), rgba(34, 211, 238, 0.2));
+          width: 1px;
+          height: 16px;
+          background: rgba(255, 255, 255, 0.15);
         }
 
         .arrow-head {
-          color: rgba(34, 211, 238, 0.6);
-          font-size: 1rem;
+          color: rgba(255, 255, 255, 0.25);
+          font-size: 0.75rem;
           line-height: 1;
-          text-shadow: 0 0 10px rgba(34, 211, 238, 0.4);
         }
       `}</style>
     </div>
@@ -375,7 +431,7 @@ function EmbeddingVectorDisplay({ values, stage }: EmbeddingVectorDisplayProps) 
       .attr('x2', innerWidth)
       .attr('y1', yScale(0))
       .attr('y2', yScale(0))
-      .attr('stroke', '#475569')
+      .attr('stroke', 'rgba(255, 255, 255, 0.15)')
       .attr('stroke-width', 1)
       .attr('stroke-dasharray', '2,2')
 
@@ -385,7 +441,7 @@ function EmbeddingVectorDisplay({ values, stage }: EmbeddingVectorDisplayProps) 
       .attr('y', height - 5)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-xs')
-      .attr('fill', '#94a3b8')
+      .attr('fill', 'rgba(255, 255, 255, 0.4)')
       .text(`Showing ${displayValues.length} / ${values.length} dimensions`)
 
   }, [values, stage, dimensions])
@@ -396,7 +452,7 @@ function EmbeddingVectorDisplay({ values, stage }: EmbeddingVectorDisplayProps) 
         ref={svgRef}
         width="100%"
         height={100}
-        className="bg-slate-900/30 rounded"
+        style={{ background: 'rgba(0, 0, 0, 0.3)' }}
       />
       <style>{`
         .vector-display {

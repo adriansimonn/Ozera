@@ -22,14 +22,27 @@ export function TransformationFlow({
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 1000, height: 600 })
 
-  // Update canvas dimensions based on container size
+  // Compute required height based on number of stages
+  const computeRequiredHeight = () => {
+    const layerSpacing = 80
+    let stageCount = 0
+    if (activationData.activations.token_embeddings) stageCount++
+    if (activationData.activations.combined_embeddings) stageCount++
+    activationData.activations.layers?.forEach((layer) => {
+      if (layer.post_attn) stageCount++
+      if (layer.post_ff) stageCount++
+    })
+    // Last stage y = 50 + layerSpacing * (stageCount - 1), plus padding for bottom
+    return 50 + layerSpacing * Math.max(0, stageCount - 1) + 50
+  }
+
+  // Update canvas dimensions based on container size and content
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
         const containerWidth = containerRef.current.clientWidth
-        const aspectRatio = 600 / 1000
-        const newHeight = Math.max(600, containerWidth * aspectRatio)
-        setCanvasDimensions({ width: containerWidth, height: newHeight })
+        const requiredHeight = computeRequiredHeight()
+        setCanvasDimensions({ width: containerWidth, height: Math.max(400, requiredHeight) })
       }
     }
 
@@ -43,7 +56,7 @@ export function TransformationFlow({
     return () => {
       resizeObserver.disconnect()
     }
-  }, [])
+  }, [activationData, selectedTokenIndex])
 
   useEffect(() => {
     if (!canvasRef.current) return
@@ -59,7 +72,7 @@ export function TransformationFlow({
     canvas.height = height
 
     // Clear canvas
-    ctx.fillStyle = '#0f172a'
+    ctx.fillStyle = '#0a0a0a'
     ctx.fillRect(0, 0, width, height)
 
     // Extract embeddings at each stage
@@ -70,6 +83,7 @@ export function TransformationFlow({
     }> = []
 
     const layerSpacing = 80
+    let stageIdx = 0
 
     // Token embedding
     if (activationData.activations.token_embeddings) {
@@ -77,8 +91,9 @@ export function TransformationFlow({
       stages.push({
         name: 'Token Emb',
         embedding: tokenEmb[0][selectedTokenIndex],
-        y: 50
+        y: 50 + layerSpacing * stageIdx
       })
+      stageIdx++
     }
 
     // Combined embedding
@@ -87,8 +102,9 @@ export function TransformationFlow({
       stages.push({
         name: 'Combined',
         embedding: combinedEmb[0][selectedTokenIndex],
-        y: 50 + layerSpacing
+        y: 50 + layerSpacing * stageIdx
       })
+      stageIdx++
     }
 
     // Layer transformations
@@ -98,8 +114,9 @@ export function TransformationFlow({
         stages.push({
           name: `L${idx} Attn`,
           embedding: postAttn[0][selectedTokenIndex],
-          y: 50 + layerSpacing * (idx * 2 + 2)
+          y: 50 + layerSpacing * stageIdx
         })
+        stageIdx++
       }
 
       if (layer.post_ff) {
@@ -107,13 +124,14 @@ export function TransformationFlow({
         stages.push({
           name: `L${idx} FF`,
           embedding: postFF[0][selectedTokenIndex],
-          y: 50 + layerSpacing * (idx * 2 + 3)
+          y: 50 + layerSpacing * stageIdx
         })
+        stageIdx++
       }
     })
 
     // Draw connections
-    ctx.strokeStyle = 'rgba(34, 211, 238, 0.3)'
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'
     ctx.lineWidth = 2
     for (let i = 0; i < stages.length - 1; i++) {
       ctx.beginPath()
@@ -128,7 +146,7 @@ export function TransformationFlow({
       ctx.lineTo(width / 2 - 5, arrowY - 8)
       ctx.lineTo(width / 2 + 5, arrowY - 8)
       ctx.closePath()
-      ctx.fillStyle = 'rgba(34, 211, 238, 0.6)'
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
       ctx.fill()
     }
 
@@ -156,12 +174,12 @@ export function TransformationFlow({
       })
 
       // Draw border
-      ctx.strokeStyle = 'rgba(100, 116, 139, 0.5)'
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'
       ctx.lineWidth = 1
       ctx.strokeRect(embX, y - embHeight / 2, embWidth, embHeight)
 
       // Draw label
-      ctx.fillStyle = '#e2e8f0'
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
       ctx.font = 'bold 14px Monaco, monospace'
       ctx.textAlign = 'left'
       ctx.fillText(stage.name, embX - 100, y + 5)
@@ -170,7 +188,7 @@ export function TransformationFlow({
       const norm = Math.sqrt(stage.embedding.reduce((sum, v) => sum + v * v, 0))
       const mean = stage.embedding.reduce((sum, v) => sum + v, 0) / stage.embedding.length
 
-      ctx.fillStyle = '#94a3b8'
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'
       ctx.font = '11px Monaco, monospace'
       ctx.textAlign = 'right'
       ctx.fillText(`norm: ${norm.toFixed(2)}`, embX + embWidth + 80, y - 5)
@@ -178,8 +196,8 @@ export function TransformationFlow({
     })
 
     // Draw title
-    ctx.fillStyle = '#22d3ee'
-    ctx.font = 'bold 18px sans-serif'
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+    ctx.font = 'bold 16px sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText(`Token ${selectedTokenIndex} Transformation Flow`, width / 2, 25)
 
@@ -199,15 +217,12 @@ export function TransformationFlow({
 
       <style>{`
         .transformation-flow {
-          background: rgba(15, 23, 42, 0.6);
-          border: 1px solid rgba(100, 116, 139, 0.3);
-          border-radius: 12px;
           padding: 1.5rem;
         }
 
         .canvas-container {
-          border-radius: 8px;
-          background: #0f172a;
+          background: rgba(0, 0, 0, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.06);
           width: 100%;
         }
 
@@ -234,13 +249,12 @@ export function TransformationFlow({
         .legend-color {
           width: 100px;
           height: 12px;
-          border-radius: 4px;
-          border: 1px solid rgba(100, 116, 139, 0.5);
+          border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .legend-label {
           font-size: 0.75rem;
-          color: #94a3b8;
+          color: rgba(255, 255, 255, 0.4);
         }
       `}</style>
     </div>
