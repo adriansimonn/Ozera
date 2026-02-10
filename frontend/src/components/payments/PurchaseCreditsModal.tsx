@@ -47,7 +47,7 @@ function AmountInput({
           min={minAmount}
           max={maxAmount}
           step="0.01"
-          className="w-full pl-10 pr-4 py-4 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-xl font-medium focus:outline-none focus:border-blue-500 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          className="w-full pl-10 pr-4 py-4 bg-black border border-white/10 text-white text-xl font-medium focus:outline-none focus:border-white/40 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
       </div>
 
@@ -63,7 +63,7 @@ function AmountInput({
       )}
 
       {amount && isValid && (
-        <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+        <div className="p-3 bg-green-500/10 border border-green-500/30">
           <p className="text-green-400 text-sm">
             You'll receive <span className="font-bold">${numericAmount.toFixed(2)}</span> in credits
           </p>
@@ -76,10 +76,10 @@ function AmountInput({
           <button
             key={quickAmount}
             onClick={() => onChange(quickAmount.toString())}
-            className={`px-4 py-2 rounded-lg border transition-all ${
+            className={`px-4 py-2 border transition-all ${
               parseFloat(amount) === quickAmount
                 ? 'border-blue-500 bg-blue-500/10 text-blue-400'
-                : 'border-gray-700 hover:border-gray-600 bg-[#1a1a1a] text-gray-300'
+                : 'border-white/10 hover:border-white/20 bg-black text-gray-300'
             }`}
           >
             ${quickAmount}
@@ -165,7 +165,7 @@ function CheckoutForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="bg-[#1a1a1a] border border-gray-700 rounded-lg p-4 mb-4">
+      <div className="bg-black border border-white/10 p-4 mb-4">
         <div className="flex justify-between items-center">
           <span className="text-gray-300">Payment Amount</span>
           <span className="text-xl font-bold text-white">${amount.toFixed(2)}</span>
@@ -183,7 +183,7 @@ function CheckoutForm({
       />
 
       {error && (
-        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
           <AlertCircle size={16} />
           {error}
         </div>
@@ -194,14 +194,14 @@ function CheckoutForm({
           type="button"
           onClick={onCancel}
           disabled={processing}
-          className="flex-1 px-4 py-3 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-lg transition-colors disabled:opacity-50"
+          className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white transition-colors disabled:opacity-50"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={!stripe || processing}
-          className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {processing ? (
             <>
@@ -281,11 +281,11 @@ export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalPr
   if (!isAuthenticated) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-        <div className="bg-[#0a0a0a] border border-gray-800 rounded-xl p-6 w-full max-w-md">
+        <div className="bg-black border border-white/10 p-6 w-full max-w-md">
           <p className="text-center text-gray-300">Please log in to purchase credits.</p>
           <button
             onClick={onClose}
-            className="w-full mt-4 px-4 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-lg"
+            className="w-full mt-4 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors"
           >
             Close
           </button>
@@ -297,7 +297,7 @@ export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalPr
   if (!isConfigured) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-        <div className="bg-[#0a0a0a] border border-gray-800 rounded-xl p-6 w-full max-w-md">
+        <div className="bg-black border border-white/10 p-6 w-full max-w-md">
           <div className="flex items-center gap-2 text-yellow-400 mb-4">
             <AlertCircle size={20} />
             <span className="font-medium">Payment Not Available</span>
@@ -307,7 +307,7 @@ export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalPr
           </p>
           <button
             onClick={onClose}
-            className="w-full mt-4 px-4 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-lg"
+            className="w-full mt-4 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors"
           >
             Close
           </button>
@@ -318,15 +318,15 @@ export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-[#0a0a0a] border border-gray-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className="bg-black border border-white/10 w-full max-w-md max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-800">
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
           <h2 className="text-lg font-semibold text-white">
             {step === 'select' ? 'Add Credits' : 'Checkout'}
           </h2>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-[#2a2a2a] rounded-lg transition-colors"
+            className="p-1 hover:bg-white/5 transition-colors"
           >
             <X size={20} className="text-gray-400" />
           </button>
@@ -354,7 +354,7 @@ export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalPr
                   />
 
                   {paymentError && (
-                    <div className="mt-4 flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                    <div className="mt-4 flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
                       <AlertCircle size={16} />
                       {paymentError}
                     </div>
@@ -363,7 +363,7 @@ export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalPr
                   <button
                     onClick={handleProceedToCheckout}
                     disabled={!isValidAmount || paymentLoading}
-                    className="w-full mt-4 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                    className="w-full mt-4 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2"
                   >
                     {paymentLoading ? (
                       <>
@@ -395,11 +395,11 @@ export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalPr
                       theme: 'night',
                       variables: {
                         colorPrimary: '#3b82f6',
-                        colorBackground: '#1a1a1a',
+                        colorBackground: '#000000',
                         colorText: '#ffffff',
                         colorDanger: '#ef4444',
                         fontFamily: 'system-ui, sans-serif',
-                        borderRadius: '8px',
+                        borderRadius: '0px',
                       },
                     },
                   }}

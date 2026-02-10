@@ -711,6 +711,9 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         .warmup-spinner {
           width: 16px;
           height: 16px;
+          min-width: 16px;
+          min-height: 16px;
+          flex-shrink: 0;
           border: 2px solid rgba(255, 255, 255, 0.2);
           border-top-color: rgba(255, 255, 255, 0.8);
           border-radius: 50%;
