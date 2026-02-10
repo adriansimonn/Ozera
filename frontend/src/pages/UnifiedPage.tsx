@@ -422,7 +422,7 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
               {renderVisualization()}
             </div>
 
-            {selectedVisualization === 'attention' && activationData?.metadata.decoded_tokens && (
+            {(selectedVisualization === 'attention' || selectedVisualization === 'journey' || selectedVisualization === 'flow') && activationData?.metadata.decoded_tokens && (
               <div className="token-reference-box">
                 <div className="token-reference-header">Token Reference</div>
                 <div className="token-reference-list">
