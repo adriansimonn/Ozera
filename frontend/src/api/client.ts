@@ -1663,6 +1663,12 @@ export interface SAEAnalyzeRequest {
   top_k?: number
 }
 
+export interface ExternalSAEAnalyzeRequest {
+  sae_id: string
+  text: string
+  top_k?: number
+}
+
 export interface SAEAnalyzeResponse {
   tokens: string[]
   token_ids: number[]
@@ -1780,6 +1786,33 @@ class SAEAPIClient {
       }
       const error = await response.json().catch(() => ({}))
       throw new Error(error.detail || `Failed to analyze text: ${response.statusText}`)
+    }
+
+    notifyCreditsChanged()
+    return response.json()
+  }
+
+  /**
+   * Analyze text using an external SAE.
+   * Loads the base model from HuggingFace and runs the full pipeline.
+   * Requires authentication and charges credits.
+   */
+  async analyzeExternalSAE(request: ExternalSAEAnalyzeRequest): Promise<SAEAnalyzeResponse> {
+    const response = await fetch(`${this.baseUrl}/sae/external/analyze`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.detail || `Failed to analyze with external SAE: ${response.statusText}`)
     }
 
     notifyCreditsChanged()

@@ -390,6 +390,70 @@ async def health():
             )
 
 
+class ExternalSAEAnalyzeRequest(BaseModel):
+    sae_id: str = Field(..., description="External SAE ID")
+    text: str = Field(..., description="Text to analyze")
+    top_k: int = Field(default=20, ge=1, le=100, description="Top K features to return")
+
+
+@router.post("/external/analyze")
+async def analyze_external_sae(
+    request: ExternalSAEAnalyzeRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Analyze text using an external SAE.
+
+    Loads the base model from HuggingFace, captures activations,
+    and runs through the external SAE.
+    Requires authentication. Charges credits based on token count.
+    """
+    estimated_cost = estimate_sae_cost(
+        text_length=len(request.text),
+        model_id="external",
+        operation_type="analyze",
+    )
+
+    if not check_sufficient_balance(db, user.id, estimated_cost * 1.5):
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="INSUFFICIENT_CREDITS",
+        )
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        try:
+            response = await client.post(
+                f"{SAE_API_URL}/sae/external/analyze",
+                json=request.model_dump(),
+            )
+            response.raise_for_status()
+            result = response.json()
+        except httpx.HTTPError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"SAE service error: {str(e)}",
+            )
+
+    if "error" in result:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result["error"],
+        )
+
+    num_tokens = result.get("num_tokens", 1)
+    charge_sae(
+        db=db,
+        user_id=user.id,
+        num_tokens=num_tokens,
+        model_name="external",
+        operation_type="analyze",
+        description=f"External SAE analysis: {request.sae_id}",
+    )
+
+    return result
+
+
 # External SAE endpoints (proxy to Modal service)
 @router.post("/external/load")
 async def load_external_sae(

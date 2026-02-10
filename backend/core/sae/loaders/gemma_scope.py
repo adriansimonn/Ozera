@@ -102,7 +102,7 @@ class GemmaScopeLoader(SAELoader):
         available = []
 
         try:
-            tree = list(list_repo_tree(identifier))
+            tree = list(list_repo_tree(identifier, recursive=True))
             filenames = [
                 item.rfilename if hasattr(item, 'rfilename') else str(item)
                 for item in tree

@@ -6,6 +6,7 @@
  * - View layer-by-layer CKA similarity matrices
  * - Identify shared vs unique features between models
  * - Analyze how representations emerge across layers
+ * - Select external SAEs for comparison (up to 2)
  */
 
 import { useState, useCallback, useEffect } from 'react'
@@ -18,12 +19,15 @@ import {
   Database,
   Grid3x3,
   Zap,
+  ExternalLink,
+  X,
 } from 'lucide-react'
 import {
   saeClient,
   type SAEListResponse,
   type SAECompareResponse,
   type SAECompareLayersResponse,
+  type ExternalSAEInfo,
 } from '../../api/client'
 import { FeatureComparison } from './FeatureComparison'
 import { SimilarityMatrix } from './SimilarityMatrix'
@@ -32,6 +36,7 @@ interface SAECompareSelection {
   model: 'nano' | 'mini'
   layer: number
   activationType: 'residual' | 'mlp_output'
+  externalId?: string
 }
 
 interface ModelComparisonDashboardProps {
@@ -112,6 +117,12 @@ export function ModelComparisonDashboard({
   const runComparison = useCallback(async () => {
     if (!selectionA || !selectionB || !compareText.trim()) return
 
+    // Check if either selection uses an external SAE
+    if (selectionA.externalId || selectionB.externalId) {
+      setError('External SAE comparison is not yet supported by the backend. Please select Ozera SAEs for both A and B.')
+      return
+    }
+
     setComparing(true)
     setError(null)
 
@@ -188,6 +199,22 @@ export function ModelComparisonDashboard({
     return Array.from(types)
   }
 
+  // Get SAE info for built-in SAE
+  const getSaeInfo = (selection: SAECompareSelection | null) => {
+    if (!selection || !saeList || selection.externalId) return null
+    const modelInfo = saeList.models[selection.model]
+    if (!modelInfo) return null
+    return modelInfo.saes.find(
+      sae => sae.layer === selection.layer && sae.activation_type === selection.activationType
+    )
+  }
+
+  // Get external SAE info
+  const getExternalSaeInfo = (selection: SAECompareSelection | null): ExternalSAEInfo | null => {
+    if (!selection?.externalId || !saeList?.external_saes) return null
+    return saeList.external_saes.find(e => e.id === selection.externalId) || null
+  }
+
   const handleSelectionChange = (
     which: 'a' | 'b',
     field: 'model' | 'layer' | 'activationType',
@@ -216,21 +243,60 @@ export function ModelComparisonDashboard({
         activationType: types.includes(current.activationType)
           ? current.activationType
           : types[0],
+        externalId: undefined,
       })
     } else {
       setter({
         ...current,
         activationType: value as 'residual' | 'mlp_output',
+        externalId: undefined,
       })
     }
   }
 
+  const handleExternalSelect = (which: 'a' | 'b', ext: ExternalSAEInfo) => {
+    const setter = which === 'a' ? setSelectionA : setSelectionB
+    setter({
+      model: 'nano',
+      layer: 0,
+      activationType: 'residual',
+      externalId: ext.id,
+    })
+  }
+
+  const handleClearExternal = (which: 'a' | 'b') => {
+    const setter = which === 'a' ? setSelectionA : setSelectionB
+    if (!saeList) return
+    const models = Object.keys(saeList.models) as ('nano' | 'mini')[]
+    if (models.length > 0) {
+      const model = models[0]
+      const saes = saeList.models[model]?.saes || []
+      if (saes.length > 0) {
+        setter({
+          model,
+          layer: saes[0].layer,
+          activationType: saes[0].activation_type,
+        })
+      }
+    }
+  }
+
   const saeAName = selectionA
-    ? `${selectionA.model}-L${selectionA.layer}-${selectionA.activationType}`
+    ? selectionA.externalId
+      ? getExternalSaeInfo(selectionA)?.display_name || selectionA.externalId
+      : `${selectionA.model}-L${selectionA.layer}-${selectionA.activationType}`
     : ''
   const saeBName = selectionB
-    ? `${selectionB.model}-L${selectionB.layer}-${selectionB.activationType}`
+    ? selectionB.externalId
+      ? getExternalSaeInfo(selectionB)?.display_name || selectionB.externalId
+      : `${selectionB.model}-L${selectionB.layer}-${selectionB.activationType}`
     : ''
+
+  const externalSAEs = saeList?.external_saes || []
+  const saeInfoA = getSaeInfo(selectionA)
+  const saeInfoB = getSaeInfo(selectionB)
+  const extInfoA = getExternalSaeInfo(selectionA)
+  const extInfoB = getExternalSaeInfo(selectionB)
 
   if (loadingList) {
     return (
@@ -241,187 +307,248 @@ export function ModelComparisonDashboard({
     )
   }
 
-  return (
-    <div className={`space-y-4 ${className}`}>
-      {/* Dual SAE Selector */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* SAE A */}
-        <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}>
-          <div className="p-3 border-b border-gray-800 flex items-center gap-2">
-            <Database className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
-            <span className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.7)' }}>
-              SAE A
+  const renderSaePanel = (
+    which: 'a' | 'b',
+    selection: SAECompareSelection | null,
+    saeInfo: typeof saeInfoA,
+    extInfo: ExternalSAEInfo | null
+  ) => {
+    const isExternal = !!selection?.externalId
+    const label = which === 'a' ? 'SAE A' : 'SAE B'
+
+    return (
+      <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}>
+        {/* Header */}
+        <div className="p-3 border-b border-gray-800 flex items-center gap-2">
+          <Database className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
+          <span className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.7)' }}>
+            {label}
+          </span>
+          {isExternal && (
+            <span style={{ fontSize: '0.65rem', padding: '0.125rem 0.375rem', background: 'rgba(139,92,246,0.2)', border: '1px solid rgba(139,92,246,0.3)', color: 'rgba(139,92,246,0.9)' }}>
+              EXTERNAL
             </span>
+          )}
+        </div>
+
+        {/* Ozera SAE Dropdowns */}
+        <div className="grid grid-cols-3 gap-px bg-gray-800" style={{ opacity: isExternal ? 0.35 : 1, pointerEvents: isExternal ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
+          <div className="bg-black/40 p-3">
+            <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
+              Model
+            </label>
+            <div className="relative">
+              <select
+                value={selection?.model || ''}
+                onChange={(e) =>
+                  handleSelectionChange(which, 'model', e.target.value)
+                }
+                disabled={isExternal}
+                className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
+                style={{ outline: 'none' }}
+                onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+                onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+              >
+                {saeList &&
+                  Object.keys(saeList.models).map((model) => (
+                    <option key={model} value={model}>
+                      ozera-{model}
+                    </option>
+                  ))}
+              </select>
+              <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+            </div>
           </div>
-          <div className="grid grid-cols-3 gap-px bg-gray-800">
-            <div className="bg-black/40 p-3">
-              <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-                Model
-              </label>
-              <div className="relative">
-                <select
-                  value={selectionA?.model || ''}
-                  onChange={(e) =>
-                    handleSelectionChange('a', 'model', e.target.value)
-                  }
-                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
-                  style={{ outline: 'none' }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
-                >
-                  {saeList &&
-                    Object.keys(saeList.models).map((model) => (
-                      <option key={model} value={model}>
-                        {model}
-                      </option>
-                    ))}
-                </select>
-                <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
-              </div>
+          <div className="bg-black/40 p-3">
+            <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
+              Layer
+            </label>
+            <div className="relative">
+              <select
+                value={selection?.layer ?? ''}
+                onChange={(e) =>
+                  handleSelectionChange(which, 'layer', parseInt(e.target.value))
+                }
+                disabled={isExternal}
+                className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
+                style={{ outline: 'none' }}
+                onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+                onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+              >
+                {selection && !isExternal &&
+                  getAvailableLayers(selection.model).map((layer) => (
+                    <option key={layer} value={layer}>
+                      Layer {layer}
+                    </option>
+                  ))}
+              </select>
+              <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
             </div>
-            <div className="bg-black/40 p-3">
-              <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-                Layer
-              </label>
-              <div className="relative">
-                <select
-                  value={selectionA?.layer ?? ''}
-                  onChange={(e) =>
-                    handleSelectionChange('a', 'layer', parseInt(e.target.value))
-                  }
-                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
-                  style={{ outline: 'none' }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
-                >
-                  {selectionA &&
-                    getAvailableLayers(selectionA.model).map((layer) => (
-                      <option key={layer} value={layer}>
-                        Layer {layer}
+          </div>
+          <div className="bg-black/40 p-3">
+            <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
+              Type
+            </label>
+            <div className="relative">
+              <select
+                value={selection?.activationType || ''}
+                onChange={(e) =>
+                  handleSelectionChange(which, 'activationType', e.target.value)
+                }
+                disabled={isExternal}
+                className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
+                style={{ outline: 'none' }}
+                onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
+                onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+              >
+                {selection && !isExternal &&
+                  getAvailableTypes(selection.model, selection.layer).map(
+                    (type) => (
+                      <option key={type} value={type}>
+                        {type === 'residual' ? 'Residual' : 'MLP'}
                       </option>
-                    ))}
-                </select>
-                <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
-              </div>
-            </div>
-            <div className="bg-black/40 p-3">
-              <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-                Type
-              </label>
-              <div className="relative">
-                <select
-                  value={selectionA?.activationType || ''}
-                  onChange={(e) =>
-                    handleSelectionChange('a', 'activationType', e.target.value)
-                  }
-                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
-                  style={{ outline: 'none' }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
-                >
-                  {selectionA &&
-                    getAvailableTypes(selectionA.model, selectionA.layer).map(
-                      (type) => (
-                        <option key={type} value={type}>
-                          {type === 'residual' ? 'Residual' : 'MLP'}
-                        </option>
-                      )
-                    )}
-                </select>
-                <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
-              </div>
+                    )
+                  )}
+              </select>
+              <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
             </div>
           </div>
         </div>
 
-        {/* SAE B */}
-        <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}>
-          <div className="p-3 border-b border-gray-800 flex items-center gap-2">
-            <Database className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
-            <span className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.7)' }}>
-              SAE B
-            </span>
+        {/* SAE Info - Built-in */}
+        {saeInfo && !isExternal && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
+              <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#fff' }}>{saeInfo.d_input || '-'}</div>
+            </div>
+            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
+              <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#fff' }}>{saeInfo.d_hidden || '-'}</div>
+            </div>
+            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
+              <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#fff' }}>{saeInfo.activation || 'relu'}</div>
+            </div>
+            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
+              <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'rgba(255,255,255,0.8)' }}>ozera-{selection?.model}</div>
+            </div>
           </div>
-          <div className="grid grid-cols-3 gap-px bg-gray-800">
-            <div className="bg-black/40 p-3">
-              <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-                Model
-              </label>
-              <div className="relative">
-                <select
-                  value={selectionB?.model || ''}
-                  onChange={(e) =>
-                    handleSelectionChange('b', 'model', e.target.value)
-                  }
-                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
-                  style={{ outline: 'none' }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
-                >
-                  {saeList &&
-                    Object.keys(saeList.models).map((model) => (
-                      <option key={model} value={model}>
-                        {model}
-                      </option>
-                    ))}
-                </select>
-                <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+        )}
+
+        {/* SAE Info - External */}
+        {extInfo && isExternal && (
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)' }}>
+              <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
+                <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#fff' }}>{extInfo.d_input || '-'}</div>
               </div>
-            </div>
-            <div className="bg-black/40 p-3">
-              <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-                Layer
-              </label>
-              <div className="relative">
-                <select
-                  value={selectionB?.layer ?? ''}
-                  onChange={(e) =>
-                    handleSelectionChange('b', 'layer', parseInt(e.target.value))
-                  }
-                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
-                  style={{ outline: 'none' }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
-                >
-                  {selectionB &&
-                    getAvailableLayers(selectionB.model).map((layer) => (
-                      <option key={layer} value={layer}>
-                        Layer {layer}
-                      </option>
-                    ))}
-                </select>
-                <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+              <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
+                <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#fff' }}>{extInfo.d_hidden?.toLocaleString() || '-'}</div>
               </div>
-            </div>
-            <div className="bg-black/40 p-3">
-              <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-                Type
-              </label>
-              <div className="relative">
-                <select
-                  value={selectionB?.activationType || ''}
-                  onChange={(e) =>
-                    handleSelectionChange('b', 'activationType', e.target.value)
-                  }
-                  className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
-                  style={{ outline: 'none' }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
-                >
-                  {selectionB &&
-                    getAvailableTypes(selectionB.model, selectionB.layer).map(
-                      (type) => (
-                        <option key={type} value={type}>
-                          {type === 'residual' ? 'Residual' : 'MLP'}
-                        </option>
-                      )
-                    )}
-                </select>
-                <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+              <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
+                <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#fff' }}>{extInfo.activation_type || '-'}</div>
+              </div>
+              <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
+                <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'rgba(255,255,255,0.8)' }}>{extInfo.base_model || '-'}</div>
               </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* External SAEs list */}
+        {externalSAEs.length > 0 && (
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                <ExternalLink className="w-3 h-3" style={{ color: 'rgba(255,255,255,0.5)' }} />
+                <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  External SAEs ({externalSAEs.length})
+                </span>
+              </div>
+              {isExternal && (
+                <button
+                  onClick={() => handleClearExternal(which)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.25rem',
+                    padding: '0.125rem 0.5rem', fontSize: '0.65rem',
+                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)',
+                    color: 'rgba(255,255,255,0.5)', cursor: 'pointer', transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'
+                    e.currentTarget.style.color = 'rgba(255,255,255,0.8)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'
+                    e.currentTarget.style.color = 'rgba(255,255,255,0.5)'
+                  }}
+                >
+                  <X className="w-2.5 h-2.5" />
+                  Clear
+                </button>
+              )}
+            </div>
+            <div style={{ padding: '0 0.5rem 0.5rem', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              {externalSAEs.map(ext => {
+                const isSelected = selection?.externalId === ext.id
+                return (
+                  <button
+                    key={ext.id}
+                    onClick={() => handleExternalSelect(which, ext)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      gap: '0.5rem', padding: '0.375rem 0.625rem', width: '100%', textAlign: 'left',
+                      background: isSelected ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${isSelected ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                      cursor: 'pointer', transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'
+                      }
+                    }}
+                    title={`${ext.source_id || ext.id} - ${ext.base_model || 'unknown model'}`}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem', minWidth: 0, flex: 1 }}>
+                      <span style={{ color: isSelected ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.7)', fontSize: '0.75rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {ext.display_name || ext.id}
+                      </span>
+                      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.65rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {ext.base_model || 'unknown model'} {ext.hookpoint ? `· ${ext.hookpoint}` : ''}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
+                      {ext.d_hidden && <span>{ext.d_hidden.toLocaleString()}f</span>}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className={`space-y-4 ${className}`}>
+      {/* Dual SAE Selector */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {renderSaePanel('a', selectionA, saeInfoA, extInfoA)}
+        {renderSaePanel('b', selectionB, saeInfoB, extInfoB)}
       </div>
 
       {/* Compare mode toggle + text input + run button */}

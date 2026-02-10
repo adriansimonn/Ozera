@@ -187,7 +187,9 @@ function generateFeatureCatalog(
   }
 
   const numFeatures = analyzeResponse.metrics.total_features
-  const saeId = `${saeSelection.model}-L${saeSelection.layer}-${saeSelection.activationType}`
+  const saeId = saeSelection.externalId
+    ? saeSelection.externalId
+    : `${saeSelection.model}-L${saeSelection.layer}-${saeSelection.activationType}`
 
   // Count feature activations
   const featureActivations = new Map<number, { count: number; total: number; max: number }>()
@@ -342,6 +344,7 @@ export default function SAEPage({
 
   // External SAEs state
   const [externalSAEs, setExternalSAEs] = useState<ExternalSAEInfo[]>([])
+  const [saeRefreshKey, setSaeRefreshKey] = useState(0)
 
   // Fetch external SAEs on mount
   useEffect(() => {
@@ -360,6 +363,7 @@ export default function SAEPage({
     try {
       const result = await saeClient.listLoadedExternalSAEs()
       setExternalSAEs(result.external_saes)
+      setSaeRefreshKey(k => k + 1)
     } catch {
       // Silently handle
     }
@@ -373,13 +377,24 @@ export default function SAEPage({
     setError(null)
 
     try {
-      const response = await saeClient.analyzeText({
-        model: saeSelection.model,
-        layer: saeSelection.layer,
-        activation_type: saeSelection.activationType,
-        text: inputText,
-        top_k: 50,
-      })
+      let response: SAEAnalyzeResponse
+
+      if (saeSelection.externalId) {
+        // Use external SAE analysis endpoint
+        response = await saeClient.analyzeExternalSAE({
+          sae_id: saeSelection.externalId,
+          text: inputText,
+          top_k: 50,
+        })
+      } else {
+        response = await saeClient.analyzeText({
+          model: saeSelection.model,
+          layer: saeSelection.layer,
+          activation_type: saeSelection.activationType,
+          text: inputText,
+          top_k: 50,
+        })
+      }
 
       if (response.error) {
         throw new Error(response.error)
@@ -395,7 +410,6 @@ export default function SAEPage({
     } catch (err) {
       if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') {
         setError('INSUFFICIENT_CREDITS')
-        // Optionally show purchase credits modal automatically
         onShowPurchaseCredits()
       } else {
         setError(err instanceof Error ? err.message : 'Analysis failed')
@@ -415,12 +429,41 @@ export default function SAEPage({
     const loadFeatureInfo = async () => {
       setLoadingFeature(true)
       try {
-        const info = await saeClient.getFeatureInfo(
-          saeSelection.model,
-          saeSelection.layer,
-          saeSelection.activationType,
-          selectedFeature
-        )
+        let info: SAEFeatureInfoResponse
+
+        if (saeSelection.externalId) {
+          // Use external feature info endpoint
+          const extInfo = await saeClient.getExternalFeatureInfo(
+            saeSelection.externalId,
+            selectedFeature
+          )
+          if (extInfo.error) {
+            console.error('External feature info error:', extInfo.error)
+            setFeatureInfo(null)
+            return
+          }
+          // Adapt external response to match built-in format
+          info = {
+            feature_id: extInfo.feature_id,
+            model: extInfo.display_name || saeSelection.externalId,
+            layer: 0,
+            activation_type: extInfo.activation_type,
+            d_input: extInfo.d_input,
+            d_hidden: extInfo.d_hidden,
+            decoder_direction: extInfo.decoder_direction,
+            decoder_norm: extInfo.decoder_norm,
+            encoder_weights: extInfo.encoder_weights,
+            encoder_bias: extInfo.encoder_bias,
+          }
+        } else {
+          info = await saeClient.getFeatureInfo(
+            saeSelection.model,
+            saeSelection.layer,
+            saeSelection.activationType,
+            selectedFeature
+          )
+        }
+
         if (info.error) {
           console.error('Feature info error:', info.error)
           setFeatureInfo(null)
@@ -475,69 +518,74 @@ export default function SAEPage({
           </p>
         </div>
 
-        {/* SAE Selector */}
-        <SAESelector
-          selection={saeSelection}
-          onSelectionChange={setSaeSelection}
-          className="mb-4"
-        />
+        {/* SAE Selector - Hidden in Compare mode (has its own dual selector) */}
+        {mode !== 'compare' && (
+          <SAESelector
+            selection={saeSelection}
+            onSelectionChange={setSaeSelection}
+            refreshKey={saeRefreshKey}
+            className="mb-4"
+          />
+        )}
 
-        {/* Text Input */}
-        <div className="input-section mb-4">
-          <div className="flex gap-3">
-            <div className="flex-1 relative">
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Enter text to analyze..."
-                className="sae-input"
-                rows={2}
-                disabled={analyzing}
-              />
+        {/* Text Input - Hidden in Compare mode (has its own text input) */}
+        {mode !== 'compare' && (
+          <div className="input-section mb-4">
+            <div className="flex gap-3">
+              <div className="flex-1 relative">
+                <textarea
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Enter text to analyze..."
+                  className="sae-input"
+                  rows={2}
+                  disabled={analyzing}
+                />
+              </div>
+              <button
+                onClick={runAnalysis}
+                disabled={analyzing || !saeSelection || !inputText.trim()}
+                className="analyze-button"
+              >
+                {analyzing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    Analyze
+                  </>
+                )}
+              </button>
             </div>
-            <button
-              onClick={runAnalysis}
-              disabled={analyzing || !saeSelection || !inputText.trim()}
-              className="analyze-button"
-            >
-              {analyzing ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4" />
-                  Analyze
-                </>
-              )}
-            </button>
-          </div>
-          {error && (
-            <div className="mt-2">
-              {error === 'INSUFFICIENT_CREDITS' ? (
-                <div className="flex items-center justify-between p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400 text-sm">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
-                    <span>Insufficient credits. Please add credits to continue using SAE analysis.</span>
+            {error && (
+              <div className="mt-2">
+                {error === 'INSUFFICIENT_CREDITS' ? (
+                  <div className="flex items-center justify-between p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400 text-sm">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>Insufficient credits. Please add credits to continue using SAE analysis.</span>
+                    </div>
+                    <button
+                      onClick={onShowPurchaseCredits}
+                      className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-black font-medium rounded transition-colors"
+                    >
+                      Add Credits
+                    </button>
                   </div>
-                  <button
-                    onClick={onShowPurchaseCredits}
-                    className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-black font-medium rounded transition-colors"
-                  >
-                    Add Credits
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-red-400 text-sm">
-                  <AlertCircle className="w-4 h-4" />
-                  {error}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-red-400 text-sm">
+                    <AlertCircle className="w-4 h-4" />
+                    {error}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Mode Selection */}
         <div className="mode-tabs">

@@ -19,12 +19,14 @@ interface SAESelectorProps {
   selection: SAESelection | null
   onSelectionChange: (selection: SAESelection) => void
   className?: string
+  refreshKey?: number
 }
 
 export function SAESelector({
   selection,
   onSelectionChange,
   className = '',
+  refreshKey = 0,
 }: SAESelectorProps) {
   const [saeList, setSaeList] = useState<SAEListResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -59,7 +61,7 @@ export function SAESelector({
 
   useEffect(() => {
     fetchSAEs()
-  }, []) // Only fetch on mount
+  }, [refreshKey]) // Fetch on mount and when refreshKey changes
 
   // Get available layers for selected model
   const getAvailableLayers = (): number[] => {
@@ -100,7 +102,7 @@ export function SAESelector({
     const modelInfo = saeList?.models[model]
     if (!modelInfo || modelInfo.saes.length === 0) return
 
-    // Reset to first available layer and type for new model
+    // Reset to first available layer and type for new model, clear external selection
     const firstSae = modelInfo.saes[0]
     onSelectionChange({
       model,
@@ -112,7 +114,7 @@ export function SAESelector({
   const handleLayerChange = (layer: number) => {
     if (!selection || !saeList) return
 
-    const modelInfo = saeList.models[selection.model]
+    const modelInfo = saeList.models[selection.externalId ? 'nano' : selection.model]
     if (!modelInfo) return
 
     // Check if current activation type is available for new layer
@@ -125,7 +127,7 @@ export function SAESelector({
       : availableTypes[0]
 
     onSelectionChange({
-      ...selection,
+      model: selection.externalId ? 'nano' : selection.model,
       layer,
       activationType: newType,
     })
@@ -134,7 +136,8 @@ export function SAESelector({
   const handleActivationTypeChange = (activationType: 'residual' | 'mlp_output') => {
     if (!selection) return
     onSelectionChange({
-      ...selection,
+      model: selection.model,
+      layer: selection.layer,
       activationType,
     })
   }
@@ -142,6 +145,10 @@ export function SAESelector({
   const currentSaeInfo = getCurrentSAEInfo()
   const availableLayers = getAvailableLayers()
   const availableTypes = getAvailableActivationTypes()
+  const isExternalSelected = !!selection?.externalId
+  const selectedExternalSae = isExternalSelected
+    ? saeList?.external_saes?.find(e => e.id === selection.externalId)
+    : null
 
   if (loading) {
     return (
@@ -175,7 +182,8 @@ export function SAESelector({
     )
   }
 
-  if (!saeList || saeList.total_saes === 0) {
+  const hasExternalSAEs = saeList?.external_saes && saeList.external_saes.length > 0
+  if (!saeList || (saeList.total_saes === 0 && !hasExternalSAEs)) {
     return (
       <div style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)', padding: '1rem' }} className={className}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'rgba(255,255,255,0.35)' }}>
@@ -204,7 +212,7 @@ export function SAESelector({
       </div>
 
       {/* Selectors */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', opacity: isExternalSelected ? 0.4 : 1, transition: 'opacity 0.2s' }}>
         {/* Model Selector */}
         <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
           <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
@@ -275,8 +283,8 @@ export function SAESelector({
         </div>
       </div>
 
-      {/* SAE Info */}
-      {currentSaeInfo && (
+      {/* SAE Info - Built-in */}
+      {currentSaeInfo && !isExternalSelected && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
           <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
             <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
@@ -311,37 +319,85 @@ export function SAESelector({
         </div>
       )}
 
+      {/* SAE Info - External */}
+      {selectedExternalSae && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
+            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{selectedExternalSae.d_input || '-'}</div>
+          </div>
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
+            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{selectedExternalSae.d_hidden?.toLocaleString() || '-'}</div>
+          </div>
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
+            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{selectedExternalSae.activation_type || '-'}</div>
+          </div>
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
+            <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'rgba(255,255,255,0.8)' }}>{selectedExternalSae.base_model || '-'}</div>
+          </div>
+        </div>
+      )}
+
       {/* External SAEs */}
       {saeList.external_saes && saeList.external_saes.length > 0 && (
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
           <div style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ExternalLink className="w-3 h-3" style={{ color: 'rgba(59,130,246,0.9)' }} />
+            <ExternalLink className="w-3 h-3" style={{ color: 'rgba(255,255,255,0.5)' }} />
             <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               External SAEs ({saeList.external_saes.length})
             </span>
           </div>
-          <div style={{ padding: '0 0.75rem 0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-            {saeList.external_saes.map(ext => (
-              <div
-                key={ext.id}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', padding: '0.25rem 0.5rem', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', fontSize: '0.75rem' }}
-                title={`${ext.source_id || ext.id} - ${ext.base_model || 'unknown model'}`}
-              >
-                <span style={{ color: 'rgba(59,130,246,0.9)' }}>
-                  {ext.display_name || ext.id}
-                </span>
-                {ext.d_hidden && (
-                  <span style={{ color: 'rgba(255,255,255,0.35)' }}>
-                    {ext.d_hidden.toLocaleString()} features
-                  </span>
-                )}
-                {ext.activation_type && (
-                  <span style={{ color: 'rgba(255,255,255,0.35)' }}>
-                    {ext.activation_type}
-                  </span>
-                )}
-              </div>
-            ))}
+          <div style={{ padding: '0 0.75rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {saeList.external_saes.map(ext => {
+              const isSelected = selection?.externalId === ext.id
+              return (
+                <button
+                  key={ext.id}
+                  onClick={() => onSelectionChange({
+                    model: 'nano',
+                    layer: 0,
+                    activationType: 'residual',
+                    externalId: ext.id,
+                  })}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    gap: '0.75rem', padding: '0.5rem 0.75rem', width: '100%', textAlign: 'left',
+                    background: isSelected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${isSelected ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                    cursor: 'pointer', transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+                    }
+                  }}
+                  title={`${ext.source_id || ext.id} - ${ext.base_model || 'unknown model'}`}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
+                    <span style={{ color: isSelected ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.8)', fontSize: '0.8rem', fontWeight: 500 }}>
+                      {ext.display_name || ext.id}
+                    </span>
+                    <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.7rem' }}>
+                      {ext.base_model || 'unknown model'} {ext.hookpoint ? `· ${ext.hookpoint}` : ''}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.7rem', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>
+                    {ext.d_hidden && <span>{ext.d_hidden.toLocaleString()} features</span>}
+                    {ext.activation_type && <span>{ext.activation_type}</span>}
+                  </div>
+                </button>
+              )
+            })}
           </div>
         </div>
       )}

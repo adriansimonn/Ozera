@@ -71,7 +71,7 @@ class HuggingFaceLoader(SAELoader):
 
         available = []
         try:
-            tree = list(list_repo_tree(identifier))
+            tree = list(list_repo_tree(identifier, recursive=True))
             dirs = set()
 
             for item in tree:
@@ -126,7 +126,7 @@ class HuggingFaceLoader(SAELoader):
         from huggingface_hub import list_repo_tree
 
         try:
-            tree = list(list_repo_tree(identifier))
+            tree = list(list_repo_tree(identifier, recursive=True))
             filenames = [
                 item.rfilename if hasattr(item, 'rfilename') else str(item)
                 for item in tree

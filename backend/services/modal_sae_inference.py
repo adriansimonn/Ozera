@@ -59,6 +59,10 @@ sae_inference_image = (
         "pydantic>=2.0.0",
         "fastapi",  # Required for web endpoints
         "huggingface-hub>=0.20.0",  # For external SAE loading
+        "transformers>=4.40.0",  # For loading HF base models (external SAE analysis)
+        "accelerate>=0.25.0",  # For efficient model loading
+        "sentencepiece>=0.1.99",  # For tokenizers (Gemma, etc.)
+        "protobuf>=3.20.0",  # For tokenizers
         "h5py>=3.0.0",  # Required for activation buffer
     )
     .add_local_dir(os.path.join(BACKEND_DIR, "core"), remote_path="/app/backend/core")
@@ -171,6 +175,119 @@ class SAEInferenceService:
 
         layer_activations = activations["layers"][layer]
         return layer_activations[key_map[activation_type]]
+
+    def load_external_sae_model(self, sae_id: str, device: str = "cuda"):
+        """Load an external SAE from the volume with caching."""
+        cache_key = f"external_{sae_id}_{device}"
+
+        if cache_key not in self._sae_cache:
+            import sys
+            sys.path.insert(0, "/app/backend")
+
+            from core.sae.checkpoints import load_sae_checkpoint
+
+            sae_path = f"{EXTERNAL_SAES_ROOT}/{sae_id}"
+            sae_model, sae_config, metadata = load_sae_checkpoint(sae_path, device=device)
+            self._sae_cache[cache_key] = (sae_model, sae_config, metadata)
+
+        return self._sae_cache[cache_key]
+
+    def load_hf_model(self, model_name: str, device: str = "cuda"):
+        """Load a HuggingFace base model and tokenizer with caching."""
+        cache_key = f"hf_{model_name}_{device}"
+
+        if cache_key not in self._transformer_cache:
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            import torch
+
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.float16,
+                device_map=device,
+            )
+            model.eval()
+            self._transformer_cache[cache_key] = (model, tokenizer)
+
+        return self._transformer_cache[cache_key]
+
+    def get_hf_activations(self, model, input_ids, hookpoint: str, metadata: dict):
+        """
+        Capture activations from a HuggingFace model at the specified hookpoint.
+
+        Supports EleutherAI sparsify hookpoints (e.g. 'layers.0.mlp') and
+        Gemma Scope hookpoints (using metadata for site/layer info).
+        """
+        import torch
+
+        # Resolve the module path for the forward hook
+        module_path = self._resolve_hookpoint(model, hookpoint, metadata)
+        target_module = model
+        for attr in module_path.split("."):
+            target_module = getattr(target_module, attr)
+
+        captured = {}
+
+        def hook_fn(module, input, output):
+            # Handle tuple outputs (some modules return tuple)
+            if isinstance(output, tuple):
+                captured["activations"] = output[0].detach()
+            else:
+                captured["activations"] = output.detach()
+
+        handle = target_module.register_forward_hook(hook_fn)
+        try:
+            with torch.no_grad():
+                model(input_ids)
+        finally:
+            handle.remove()
+
+        if "activations" not in captured:
+            raise RuntimeError(f"Failed to capture activations at {module_path}")
+
+        return captured["activations"]
+
+    @staticmethod
+    def _resolve_hookpoint(model, hookpoint: str, metadata: dict) -> str:
+        """
+        Resolve a hookpoint string to a module path in a HuggingFace model.
+
+        Handles:
+          - EleutherAI sparsify format: 'layers.N.mlp' -> 'model.layers.N.mlp'
+          - Gemma Scope format: uses metadata site/layer to build path
+        """
+        source = metadata.get("source", "")
+        extra = metadata.get("extra", {})
+
+        if source == "gemma_scope":
+            # Gemma Scope: parse layer from metadata, site determines module
+            layer = extra.get("layer")
+            site = extra.get("site", "res")
+            if layer is None:
+                # Try parsing from hookpoint path
+                import re
+                m = re.search(r"layer_(\d+)", hookpoint)
+                if m:
+                    layer = int(m.group(1))
+                else:
+                    layer = 0
+
+            # Map site to module path
+            site_map = {
+                "res": f"model.layers.{layer}",
+                "mlp": f"model.layers.{layer}.mlp",
+                "att": f"model.layers.{layer}.self_attn",
+                "attn": f"model.layers.{layer}.self_attn",
+                "resid_post": f"model.layers.{layer}",
+                "mlp_out": f"model.layers.{layer}.mlp",
+                "attn_out": f"model.layers.{layer}.self_attn",
+            }
+            return site_map.get(site, f"model.layers.{layer}")
+
+        # EleutherAI / generic HuggingFace format: 'layers.N.mlp' -> 'model.layers.N.mlp'
+        if hookpoint.startswith("model."):
+            return hookpoint
+        return f"model.{hookpoint}"
 
 
 # Global service instance (shared across requests in same container)
@@ -992,6 +1109,152 @@ def compare_layers(request: CompareLayersRequest) -> dict:
         "cka_matrix": cka_matrix.tolist(),
         "num_tokens": len(token_ids),
     }
+
+
+class ExternalAnalyzeRequest(BaseModel):
+    sae_id: str = ""
+    text: str = ""
+    top_k: int = 20
+
+
+@web_app.post("/sae/external/analyze")
+def analyze_external_sae(request: ExternalAnalyzeRequest) -> dict:
+    """
+    Analyze text using an external SAE loaded from HuggingFace or Gemma Scope.
+
+    Loads the base model (e.g. SmolLM2, Gemma) from HuggingFace,
+    captures activations at the SAE's hookpoint, and runs through the SAE.
+
+    Returns the same format as /sae/analyze for frontend compatibility.
+    """
+    import torch
+    import numpy as np
+    import sys
+    sys.path.insert(0, "/app/backend")
+
+    sae_id = request.sae_id
+    text = request.text
+    top_k = request.top_k
+
+    if not sae_id:
+        return {"error": "No sae_id provided."}
+    if not text:
+        return {"error": "No text provided."}
+
+    sae_dir = Path(EXTERNAL_SAES_ROOT) / sae_id
+    if not sae_dir.exists():
+        return {"error": f"External SAE '{sae_id}' not found."}
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    service = get_service()
+
+    try:
+        # Load external SAE
+        sae_model, sae_config, metadata = service.load_external_sae_model(sae_id, device)
+
+        # Determine base model from metadata
+        base_model = metadata.get("base_model", "")
+        hookpoint = metadata.get("hookpoint", "")
+
+        if not base_model or base_model == sae_id:
+            return {"error": f"Cannot determine base model for SAE '{sae_id}'. Metadata: base_model={base_model}"}
+
+        # Load HuggingFace base model and tokenizer
+        hf_model, hf_tokenizer = service.load_hf_model(base_model, device)
+
+        # Tokenize text
+        encoding = hf_tokenizer(text, return_tensors="pt")
+        input_ids = encoding["input_ids"].to(device)
+
+        # Limit sequence length
+        max_seq_len = 256
+        if input_ids.shape[1] > max_seq_len:
+            input_ids = input_ids[:, :max_seq_len]
+
+        token_ids = input_ids[0].cpu().tolist()
+        tokens = [hf_tokenizer.decode([tid]) for tid in token_ids]
+        seq_len = len(tokens)
+
+        # Capture activations at the hookpoint
+        activations = service.get_hf_activations(hf_model, input_ids, hookpoint, metadata)
+
+        # activations shape: (1, seq_len, d_model) or (seq_len, d_model)
+        if activations.dim() == 3:
+            flat_activations = activations[0]  # (seq_len, d_model)
+        else:
+            flat_activations = activations
+
+        # Cast to match SAE dtype if needed
+        flat_activations = flat_activations.float()
+
+        # Run through SAE
+        sae_model.eval()
+        with torch.no_grad():
+            hidden = sae_model.encode(flat_activations)  # (seq_len, d_hidden)
+
+        # Compute metrics
+        active_mask = hidden > 0
+        l0_per_token = active_mask.sum(dim=1).float().cpu().tolist()
+        avg_l0 = sum(l0_per_token) / len(l0_per_token) if l0_per_token else 0
+        max_activation = hidden.max().item()
+        num_active_features = int(active_mask.any(dim=0).sum().item())
+
+        # Get top features across all tokens
+        top_features = []
+        hidden_np = hidden.cpu().numpy()
+
+        for token_idx in range(seq_len):
+            token_activations = hidden_np[token_idx]
+            top_indices = token_activations.argsort()[-5:][::-1]
+
+            for feature_id in top_indices:
+                activation_value = float(token_activations[feature_id])
+                if activation_value > 0:
+                    top_features.append({
+                        "token_idx": token_idx,
+                        "token": tokens[token_idx],
+                        "feature_id": int(feature_id),
+                        "activation": activation_value,
+                    })
+
+        top_features.sort(key=lambda x: x["activation"], reverse=True)
+        top_features = top_features[:top_k]
+
+        # Prepare sparse activations
+        sparse_activations = []
+        for token_idx in range(seq_len):
+            token_acts = hidden_np[token_idx]
+            nonzero_indices = (token_acts > 0).nonzero()[0]
+            sparse_token = {
+                int(idx): float(token_acts[idx])
+                for idx in nonzero_indices
+            }
+            sparse_activations.append(sparse_token)
+
+        return {
+            "tokens": tokens,
+            "token_ids": token_ids,
+            "num_tokens": len(tokens),
+            "model": base_model,
+            "layer": metadata.get("extra", {}).get("layer", 0),
+            "activation_type": metadata.get("activation_type", "unknown"),
+            "sae_id": sae_id,
+            "features": {
+                "shape": [seq_len, sae_config.d_hidden],
+                "sparse_activations": sparse_activations,
+                "l0_per_token": l0_per_token,
+            },
+            "top_features": top_features,
+            "metrics": {
+                "avg_l0": avg_l0,
+                "max_activation": max_activation,
+                "num_active_features": num_active_features,
+                "total_features": sae_config.d_hidden,
+            },
+        }
+
+    except Exception as e:
+        return {"error": f"External SAE analysis failed: {str(e)}"}
 
 
 class LoadExternalSAERequest(BaseModel):

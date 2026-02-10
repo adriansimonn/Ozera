@@ -38,9 +38,9 @@ const SUGGESTED_REPOS = [
     activation: 'TopK',
   },
   {
-    repo_id: 'google/gemma-scope-2b-pt',
-    label: 'Gemma Scope 2B',
-    description: 'JumpReLU SAEs for Gemma-2 2B (all hookpoints)',
+    repo_id: 'google/gemma-scope-2b-pt-res',
+    label: 'Gemma Scope 2B (Res)',
+    description: 'JumpReLU SAEs for Gemma-2 2B residual stream',
     activation: 'JumpReLU',
   },
 ]
