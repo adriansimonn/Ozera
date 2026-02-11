@@ -316,10 +316,13 @@ def compare_saes(
                 tokens[p] for p in sorted(shared_positions) if p < len(tokens)
             ][:20]
     else:
+        # Cross-space comparisons naturally have lower correlations,
+        # so use a lower threshold to surface meaningful matches
+        cross_space_threshold = min(match_threshold, 0.1)
         matches, sim_matrix, indices_a, indices_b = compare_by_activation_overlap(
             hidden_a_np, hidden_b_np, tokens,
             top_k=top_k,
-            match_threshold=match_threshold,
+            match_threshold=cross_space_threshold,
         )
 
     # Compute statistics

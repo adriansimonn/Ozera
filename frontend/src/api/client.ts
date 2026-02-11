@@ -2084,6 +2084,8 @@ export interface SAECompareRequest {
   model_b: 'nano' | 'mini'
   layer_b: number
   activation_type_b: 'residual' | 'mlp_output'
+  external_id_a?: string
+  external_id_b?: string
   text: string
   top_k?: number
 }

@@ -65,8 +65,16 @@ export function FeatureComparison({
     const innerWidth = width - margin.left - margin.right
     const innerHeight = height - margin.top - margin.bottom
 
+    svg.attr('viewBox', `0 0 ${width} ${height}`)
+
     const g = svg.append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`)
+
+    // Truncate long SAE names to fit within margins
+    const truncate = (s: string, max: number) =>
+      s.length > max ? s.slice(0, max - 1) + '…' : s
+    const nameA = truncate(saeA.name, 25)
+    const nameB = truncate(saeB.name, 25)
 
     // Title
     svg.append('text')
@@ -92,10 +100,10 @@ export function FeatureComparison({
       .range([0, innerHeight])
       .padding(0.5)
 
-    // Color scale for similarity
+    // Color scale for similarity: dark gray (low) → white (high)
     const colorScale = d3.scaleSequential()
       .domain([0, 1])
-      .interpolator(d3.interpolateGreys)
+      .interpolator(d3.interpolateRgb('#333', '#fff'))
 
     // Draw SAE A labels on left
     svg.append('text')
@@ -104,7 +112,7 @@ export function FeatureComparison({
       .attr('text-anchor', 'end')
       .attr('fill', 'rgba(255,255,255,0.7)')
       .attr('font-size', '12px')
-      .text(saeA.name)
+      .text(nameA)
 
     // Draw SAE B labels on right
     svg.append('text')
@@ -113,7 +121,7 @@ export function FeatureComparison({
       .attr('text-anchor', 'start')
       .attr('fill', 'rgba(255,255,255,0.7)')
       .attr('font-size', '12px')
-      .text(saeB.name)
+      .text(nameB)
 
     // Draw connection lines
     topMatches.forEach((match) => {
@@ -292,9 +300,21 @@ export function FeatureComparison({
       </div>
 
       {/* Matching visualization */}
-      <div className="p-4 border-t border-gray-800">
-        <svg ref={matchChartRef} width="100%" height={300} />
-      </div>
+      {comparison.top_matches.length > 0 ? (
+        <div className="p-4 border-t border-gray-800">
+          <svg ref={matchChartRef} width="100%" height={300} />
+        </div>
+      ) : (
+        <div className="p-4 border-t border-gray-800 flex flex-col items-center justify-center" style={{ minHeight: 120 }}>
+          <GitCompare className="w-8 h-8 text-gray-700 mb-2" />
+          <p className="text-gray-500 text-sm">
+            No feature matches found above the similarity threshold.
+          </p>
+          <p className="text-gray-600 text-xs mt-1">
+            These SAEs may capture very different feature representations.
+          </p>
+        </div>
+      )}
 
       {/* Selected match details */}
       {selectedMatch && (

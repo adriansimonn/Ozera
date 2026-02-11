@@ -38,6 +38,9 @@ web_app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
+# HuggingFace token secret for gated models
+hf_secret = modal.Secret.from_name("huggingface-secret", required_keys=["HF_TOKEN"])
+
 # Volume references
 MODELS_VOLUME_NAME = "ozera-models"
 SAES_VOLUME_NAME = "ozera-saes"
@@ -200,11 +203,13 @@ class SAEInferenceService:
             from transformers import AutoModelForCausalLM, AutoTokenizer
             import torch
 
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            hf_token = os.environ.get("HF_TOKEN")
+            tokenizer = AutoTokenizer.from_pretrained(model_name, token=hf_token)
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
                 torch_dtype=torch.float16,
                 device_map=device,
+                token=hf_token,
             )
             model.eval()
             self._transformer_cache[cache_key] = (model, tokenizer)
@@ -850,6 +855,8 @@ class CompareSAEsRequest(BaseModel):
     model_b: str = "nano"
     layer_b: int = 0
     activation_type_b: str = "residual"
+    external_id_a: str | None = None
+    external_id_b: str | None = None
     text: str = ""
     top_k: int = 100
 
@@ -859,128 +866,166 @@ def compare_saes_endpoint(request: CompareSAEsRequest) -> dict:
     """
     Compare features between two SAEs.
 
-    Runs shared text through both SAEs and computes feature alignment,
-    CKA similarity, and matched/divergent features.
-
-    Request body:
-        {
-            "model_a": "nano" or "mini",
-            "layer_a": int,
-            "activation_type_a": "residual" or "mlp_output",
-            "model_b": "nano" or "mini",
-            "layer_b": int,
-            "activation_type_b": "residual" or "mlp_output",
-            "text": "Shared input text for comparison",
-            "top_k": int (optional, default 100)
-        }
+    Supports built-in Ozera SAEs and external SAEs (from HuggingFace/Gemma Scope).
+    When external_id_a or external_id_b is set, that side uses the external SAE
+    with its HuggingFace base model instead of an Ozera model.
 
     Returns:
         Comparison metrics including matched features, CKA score,
         similarity matrix, and divergent features.
     """
     import torch
+    import numpy as np
     import sys
     sys.path.insert(0, "/app/backend")
 
     from core.sae.comparison import compare_saes as run_comparison
 
-    # Parse request
-    model_a = request.model_a
-    layer_a = request.layer_a
-    act_type_a = request.activation_type_a
-    model_b = request.model_b
-    layer_b = request.layer_b
-    act_type_b = request.activation_type_b
     text = request.text
     top_k = request.top_k
-
-    # Validate
-    for model_name in [model_a, model_b]:
-        if model_name not in MODEL_CONFIGS:
-            return {"error": f"Unknown model: {model_name}. Use 'nano' or 'mini'."}
-
-    for act_type in [act_type_a, act_type_b]:
-        if act_type not in ["residual", "mlp_output"]:
-            return {"error": f"Unknown activation_type: {act_type}"}
-
-    config_a = MODEL_CONFIGS[model_a]
-    config_b = MODEL_CONFIGS[model_b]
-    if layer_a < 0 or layer_a >= config_a["num_layers"]:
-        return {"error": f"Layer {layer_a} out of range for {model_a}"}
-    if layer_b < 0 or layer_b >= config_b["num_layers"]:
-        return {"error": f"Layer {layer_b} out of range for {model_b}"}
+    ext_id_a = request.external_id_a
+    ext_id_b = request.external_id_b
 
     if not text:
         return {"error": "No text provided."}
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     service = get_service()
-
-    # Tokenize
-    token_ids = service.tokenizer.encode(text)
-    tokens = [service.tokenizer.decode([tid]) for tid in token_ids]
     max_seq_len = 256
-    if len(token_ids) > max_seq_len:
-        token_ids = token_ids[:max_seq_len]
-        tokens = tokens[:max_seq_len]
 
-    input_tensor = torch.tensor([token_ids], dtype=torch.long, device=device)
+    def _get_builtin_hiddens(model_name, layer, act_type, text_str):
+        """Get hidden activations from a built-in Ozera SAE."""
+        if model_name not in MODEL_CONFIGS:
+            raise ValueError(f"Unknown model: {model_name}. Use 'nano' or 'mini'.")
+        if act_type not in ["residual", "mlp_output"]:
+            raise ValueError(f"Unknown activation_type: {act_type}")
+        cfg = MODEL_CONFIGS[model_name]
+        if layer < 0 or layer >= cfg["num_layers"]:
+            raise ValueError(f"Layer {layer} out of range for {model_name}")
 
-    # Get activations from model A
-    transformer_a, cfg_a = service.load_transformer(model_a, device)
-    acts_a = service.get_activations(transformer_a, cfg_a, input_tensor, layer_a, act_type_a)
-    flat_acts_a = acts_a.view(-1, acts_a.shape[-1])
+        token_ids = service.tokenizer.encode(text_str)
+        tokens = [service.tokenizer.decode([tid]) for tid in token_ids]
+        if len(token_ids) > max_seq_len:
+            token_ids = token_ids[:max_seq_len]
+            tokens = tokens[:max_seq_len]
 
-    sae_a, sae_cfg_a, _ = service.load_sae(model_a, layer_a, act_type_a, device)
-    sae_a.eval()
-    with torch.no_grad():
-        hidden_a = sae_a.encode(flat_acts_a)
+        input_tensor = torch.tensor([token_ids], dtype=torch.long, device=device)
+        transformer, t_cfg = service.load_transformer(model_name, device)
+        acts = service.get_activations(transformer, t_cfg, input_tensor, layer, act_type)
+        flat_acts = acts.view(-1, acts.shape[-1])
 
-    # Get activations from model B
-    if model_b == model_a:
-        transformer_b, cfg_b = transformer_a, cfg_a
-    else:
-        transformer_b, cfg_b = service.load_transformer(model_b, device)
+        sae_model, sae_config, _ = service.load_sae(model_name, layer, act_type, device)
+        sae_model.eval()
+        with torch.no_grad():
+            hidden = sae_model.encode(flat_acts)
 
-    acts_b = service.get_activations(transformer_b, cfg_b, input_tensor, layer_b, act_type_b)
-    flat_acts_b = acts_b.view(-1, acts_b.shape[-1])
+        decoder = sae_model.W_dec.detach()
+        return hidden, decoder, sae_config, tokens, {
+            "model": model_name, "layer": layer,
+            "activation_type": act_type, "d_hidden": sae_config.d_hidden,
+        }
 
-    sae_b, sae_cfg_b, _ = service.load_sae(model_b, layer_b, act_type_b, device)
-    sae_b.eval()
-    with torch.no_grad():
-        hidden_b = sae_b.encode(flat_acts_b)
+    def _get_external_hiddens(sae_id, text_str):
+        """Get hidden activations from an external SAE."""
+        sae_dir = Path(EXTERNAL_SAES_ROOT) / sae_id
+        if not sae_dir.exists():
+            raise ValueError(f"External SAE '{sae_id}' not found.")
 
-    # Get decoder weights for same-space comparison
-    decoder_a = sae_a.W_dec.detach()
-    decoder_b = sae_b.W_dec.detach()
+        sae_model, sae_config, metadata = service.load_external_sae_model(sae_id, device)
+        base_model = metadata.get("base_model", "")
+        hookpoint = metadata.get("hookpoint", "")
 
-    # Run comparison
-    result = run_comparison(
-        hidden_a=hidden_a,
-        hidden_b=hidden_b,
-        tokens=tokens,
-        decoder_a=decoder_a,
-        decoder_b=decoder_b,
-        top_k=top_k,
-    )
+        if not base_model or base_model == sae_id:
+            raise ValueError(f"Cannot determine base model for SAE '{sae_id}'.")
 
-    response = result.to_dict()
-    response["sae_a"] = {
-        "model": model_a,
-        "layer": layer_a,
-        "activation_type": act_type_a,
-        "d_hidden": sae_cfg_a.d_hidden,
-    }
-    response["sae_b"] = {
-        "model": model_b,
-        "layer": layer_b,
-        "activation_type": act_type_b,
-        "d_hidden": sae_cfg_b.d_hidden,
-    }
-    response["tokens"] = tokens
-    response["num_tokens"] = len(tokens)
+        hf_model, hf_tokenizer = service.load_hf_model(base_model, device)
+        encoding = hf_tokenizer(text_str, return_tensors="pt")
+        input_ids = encoding["input_ids"].to(device)
+        if input_ids.shape[1] > max_seq_len:
+            input_ids = input_ids[:, :max_seq_len]
 
-    return response
+        token_ids = input_ids[0].cpu().tolist()
+        tokens = [hf_tokenizer.decode([tid]) for tid in token_ids]
+
+        activations = service.get_hf_activations(hf_model, input_ids, hookpoint, metadata)
+        if activations.dim() == 3:
+            flat_activations = activations[0]
+        else:
+            flat_activations = activations
+        flat_activations = flat_activations.float()
+
+        sae_model.eval()
+        with torch.no_grad():
+            hidden = sae_model.encode(flat_activations)
+
+        decoder = sae_model.W_dec.detach()
+        display_name = metadata.get("display_name", sae_id)
+        return hidden, decoder, sae_config, tokens, {
+            "model": display_name, "layer": metadata.get("extra", {}).get("layer", 0),
+            "activation_type": metadata.get("activation_type", "unknown"),
+            "d_hidden": sae_config.d_hidden, "external_id": sae_id,
+        }
+
+    try:
+        # Get hiddens for side A
+        if ext_id_a:
+            hidden_a, decoder_a, sae_cfg_a, tokens_a, info_a = _get_external_hiddens(ext_id_a, text)
+        else:
+            hidden_a, decoder_a, sae_cfg_a, tokens_a, info_a = _get_builtin_hiddens(
+                request.model_a, request.layer_a, request.activation_type_a, text
+            )
+
+        # Get hiddens for side B
+        if ext_id_b:
+            hidden_b, decoder_b, sae_cfg_b, tokens_b, info_b = _get_external_hiddens(ext_id_b, text)
+        else:
+            hidden_b, decoder_b, sae_cfg_b, tokens_b, info_b = _get_builtin_hiddens(
+                request.model_b, request.layer_b, request.activation_type_b, text
+            )
+
+        # Handle token count mismatch (different tokenizers)
+        n_a = hidden_a.shape[0]
+        n_b = hidden_b.shape[0]
+        if n_a != n_b:
+            # Interpolate shorter sequence to match the longer one
+            target_len = max(n_a, n_b)
+            if n_a < target_len:
+                hidden_a = torch.nn.functional.interpolate(
+                    hidden_a.unsqueeze(0).permute(0, 2, 1),
+                    size=target_len, mode='linear', align_corners=False,
+                ).permute(0, 2, 1).squeeze(0)
+            if n_b < target_len:
+                hidden_b = torch.nn.functional.interpolate(
+                    hidden_b.unsqueeze(0).permute(0, 2, 1),
+                    size=target_len, mode='linear', align_corners=False,
+                ).permute(0, 2, 1).squeeze(0)
+            # Use the longer token list for display
+            tokens = tokens_a if n_a >= n_b else tokens_b
+        else:
+            tokens = tokens_a
+
+        # Run comparison
+        result = run_comparison(
+            hidden_a=hidden_a,
+            hidden_b=hidden_b,
+            tokens=tokens,
+            decoder_a=decoder_a,
+            decoder_b=decoder_b,
+            top_k=top_k,
+        )
+
+        response = result.to_dict()
+        response["sae_a"] = info_a
+        response["sae_b"] = info_b
+        response["tokens"] = tokens
+        response["num_tokens"] = len(tokens)
+
+        return response
+
+    except ValueError as e:
+        return {"error": str(e)}
+    except Exception as e:
+        return {"error": f"Comparison failed: {str(e)}"}
 
 
 class CompareLayersRequest(BaseModel):
@@ -1625,6 +1670,7 @@ def upload_sae(request: UploadSAERequest) -> dict:
         "/models": models_volume,
         "/saes": saes_volume,
     },
+    secrets=[hf_secret],
     gpu="L4",
     timeout=600,
     memory=16384,

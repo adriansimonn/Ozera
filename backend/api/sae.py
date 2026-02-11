@@ -32,11 +32,13 @@ class SAEAnalyzeRequest(BaseModel):
 
 class SAECompareSAEsRequest(BaseModel):
     model_a: str = Field(default="nano")
-    layer_a: int = Field(..., ge=0)
-    activation_type_a: str = Field(...)
+    layer_a: int = Field(default=0, ge=0)
+    activation_type_a: str = Field(default="residual")
     model_b: str = Field(default="nano")
-    layer_b: int = Field(..., ge=0)
-    activation_type_b: str = Field(...)
+    layer_b: int = Field(default=0, ge=0)
+    activation_type_b: str = Field(default="residual")
+    external_id_a: Optional[str] = None
+    external_id_b: Optional[str] = None
     text: str = Field(...)
     top_k: int = Field(default=100, ge=1, le=200)
 
@@ -96,7 +98,7 @@ async def analyze_text(
         )
 
     # Forward request to Modal SAE service
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/analyze",
@@ -104,10 +106,20 @@ async def analyze_text(
             )
             response.raise_for_status()
             result = response.json()
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="SAE service timed out. The model may be loading for the first time — please try again.",
+            )
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=f"SAE service error: {e.response.text}",
+            )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service error: {str(e)}",
+                detail=f"SAE service connection error: {type(e).__name__}",
             )
 
     # Check if there was an error in the response
@@ -219,7 +231,7 @@ async def analyze_batch(
         )
 
     # Forward request
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/analyze-batch",
@@ -227,10 +239,20 @@ async def analyze_batch(
             )
             response.raise_for_status()
             result = response.json()
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="SAE service timed out. The model may be loading for the first time — please try again.",
+            )
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=f"SAE service error: {e.response.text}",
+            )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service error: {str(e)}",
+                detail=f"SAE service connection error: {type(e).__name__}",
             )
 
     if "error" in result:
@@ -260,14 +282,16 @@ async def compare_saes(
     user: User = Depends(get_current_user),
 ):
     """
-    Compare features between two SAEs.
+    Compare features between two SAEs (built-in or external).
 
     Requires authentication. Charges 2x cost (processing two SAEs).
+    Supports external SAEs via external_id_a/external_id_b fields.
     """
     # Estimate cost (2x for comparing two SAEs)
+    model_for_cost = "external" if (request.external_id_a or request.external_id_b) else request.model_a
     estimated_cost = estimate_sae_cost(
         text_length=len(request.text),
-        model_id=request.model_a,
+        model_id=model_for_cost,
         operation_type="compare",
     )
 
@@ -277,8 +301,9 @@ async def compare_saes(
             detail="INSUFFICIENT_CREDITS",
         )
 
-    # Forward request
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    # Forward request (longer timeout for external SAEs that need to load HF models)
+    # follow_redirects=True handles Modal's 303 redirect for long-running requests (>150s)
+    async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/compare",
@@ -286,10 +311,20 @@ async def compare_saes(
             )
             response.raise_for_status()
             result = response.json()
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="SAE service timed out. The model may be loading for the first time — please try again.",
+            )
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=f"SAE service error: {e.response.text}",
+            )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service error: {str(e)}",
+                detail=f"SAE service connection error: {type(e).__name__}",
             )
 
     if "error" in result:
@@ -300,13 +335,15 @@ async def compare_saes(
 
     # Charge credits
     num_tokens = result.get("num_tokens", 1)
+    name_a = request.external_id_a or request.model_a
+    name_b = request.external_id_b or request.model_b
     charge_sae(
         db=db,
         user_id=user.id,
         num_tokens=num_tokens,
-        model_name=request.model_a,
+        model_name=model_for_cost,
         operation_type="compare",
-        description=f"SAE comparison: {request.model_a} vs {request.model_b}",
+        description=f"SAE comparison: {name_a} vs {name_b}",
     )
 
     return result
@@ -337,7 +374,7 @@ async def compare_layers(
         )
 
     # Forward request
-    async with httpx.AsyncClient(timeout=180.0) as client:
+    async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/compare-layers",
@@ -345,10 +382,20 @@ async def compare_layers(
             )
             response.raise_for_status()
             result = response.json()
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="SAE service timed out. The model may be loading for the first time — please try again.",
+            )
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=f"SAE service error: {e.response.text}",
+            )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service error: {str(e)}",
+                detail=f"SAE service connection error: {type(e).__name__}",
             )
 
     if "error" in result:
@@ -421,7 +468,7 @@ async def analyze_external_sae(
             detail="INSUFFICIENT_CREDITS",
         )
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/external/analyze",
@@ -429,10 +476,20 @@ async def analyze_external_sae(
             )
             response.raise_for_status()
             result = response.json()
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="SAE service timed out. The model may be loading for the first time — please try again.",
+            )
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=f"SAE service error: {e.response.text}",
+            )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service error: {str(e)}",
+                detail=f"SAE service connection error: {type(e).__name__}",
             )
 
     if "error" in result:
@@ -462,7 +519,7 @@ async def load_external_sae(
     user: User = Depends(get_current_user),
 ):
     """Load an external SAE from HuggingFace or Gemma Scope."""
-    async with httpx.AsyncClient(timeout=300.0) as client:
+    async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/external/load",
@@ -470,10 +527,15 @@ async def load_external_sae(
             )
             response.raise_for_status()
             return response.json()
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="SAE loading timed out — the SAE may be large. Please try again.",
+            )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service error: {str(e)}",
+                detail=f"SAE service error: {type(e).__name__}",
             )
 
 

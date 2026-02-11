@@ -117,12 +117,6 @@ export function ModelComparisonDashboard({
   const runComparison = useCallback(async () => {
     if (!selectionA || !selectionB || !compareText.trim()) return
 
-    // Check if either selection uses an external SAE
-    if (selectionA.externalId || selectionB.externalId) {
-      setError('External SAE comparison is not yet supported by the backend. Please select Ozera SAEs for both A and B.')
-      return
-    }
-
     setComparing(true)
     setError(null)
 
@@ -135,6 +129,8 @@ export function ModelComparisonDashboard({
           model_b: selectionB.model,
           layer_b: selectionB.layer,
           activation_type_b: selectionB.activationType,
+          external_id_a: selectionA.externalId,
+          external_id_b: selectionB.externalId,
           text: compareText,
           top_k: 100,
         })
@@ -262,6 +258,10 @@ export function ModelComparisonDashboard({
       activationType: 'residual',
       externalId: ext.id,
     })
+    // Layer comparison doesn't support external SAEs, switch to features mode
+    if (compareMode === 'layers') {
+      setCompareMode('features')
+    }
   }
 
   const handleClearExternal = (which: 'a' | 'b') => {
@@ -297,6 +297,7 @@ export function ModelComparisonDashboard({
   const saeInfoB = getSaeInfo(selectionB)
   const extInfoA = getExternalSaeInfo(selectionA)
   const extInfoB = getExternalSaeInfo(selectionB)
+  const hasExternalSelection = !!(selectionA?.externalId || selectionB?.externalId)
 
   if (loadingList) {
     return (
@@ -325,7 +326,7 @@ export function ModelComparisonDashboard({
             {label}
           </span>
           {isExternal && (
-            <span style={{ fontSize: '0.65rem', padding: '0.125rem 0.375rem', background: 'rgba(139,92,246,0.2)', border: '1px solid rgba(139,92,246,0.3)', color: 'rgba(139,92,246,0.9)' }}>
+            <span style={{ fontSize: '0.65rem', padding: '0.125rem 0.375rem', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}>
               EXTERNAL
             </span>
           )}
@@ -504,8 +505,8 @@ export function ModelComparisonDashboard({
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       gap: '0.5rem', padding: '0.375rem 0.625rem', width: '100%', textAlign: 'left',
-                      background: isSelected ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${isSelected ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                      background: isSelected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${isSelected ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.08)'}`,
                       cursor: 'pointer', transition: 'all 0.2s',
                     }}
                     onMouseEnter={(e) => {
@@ -578,20 +579,23 @@ export function ModelComparisonDashboard({
             Feature Alignment
           </button>
           <button
-            onClick={() => setCompareMode('layers')}
+            onClick={() => !hasExternalSelection && setCompareMode('layers')}
+            disabled={hasExternalSelection}
+            title={hasExternalSelection ? 'Layer comparison requires built-in Ozera SAEs on both sides' : undefined}
             style={{
-              background: compareMode === 'layers' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.3)',
-              border: `1px solid ${compareMode === 'layers' ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)'}`,
-              color: compareMode === 'layers' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)',
+              background: compareMode === 'layers' && !hasExternalSelection ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.3)',
+              border: `1px solid ${compareMode === 'layers' && !hasExternalSelection ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)'}`,
+              color: hasExternalSelection ? 'rgba(255,255,255,0.2)' : compareMode === 'layers' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)',
+              cursor: hasExternalSelection ? 'not-allowed' : 'pointer',
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors"
             onMouseEnter={(e) => {
-              if (compareMode !== 'layers') {
+              if (compareMode !== 'layers' && !hasExternalSelection) {
                 e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
               }
             }}
             onMouseLeave={(e) => {
-              if (compareMode !== 'layers') {
+              if (compareMode !== 'layers' && !hasExternalSelection) {
                 e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
               }
             }}
@@ -615,7 +619,7 @@ export function ModelComparisonDashboard({
               onChange={(e) => setCompareText(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Enter shared text for comparison..."
-              className="w-full bg-black/50 border border-gray-700 text-white px-3 py-2 text-sm resize-none"
+              className="w-full h-full bg-black/50 border border-gray-700 text-white px-3 py-2 text-sm resize-none"
               style={{ outline: 'none' }}
               onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
               onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
@@ -632,7 +636,7 @@ export function ModelComparisonDashboard({
               color: (comparing || !selectionA || !selectionB || !compareText.trim()) ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.95)',
               cursor: (comparing || !selectionA || !selectionB || !compareText.trim()) ? 'not-allowed' : 'pointer',
             }}
-            className="px-5 py-2 font-medium text-sm transition-colors flex items-center gap-2 self-start"
+            className="px-5 py-2 font-medium text-sm transition-colors flex items-center gap-2 self-stretch"
             onMouseEnter={(e) => {
               if (!comparing && selectionA && selectionB && compareText.trim()) {
                 e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
@@ -736,15 +740,15 @@ export function ModelComparisonDashboard({
               id: saeAName,
               name: saeAName,
               num_features: featureResult.sae_a.d_hidden,
-              layer: selectionA!.layer,
-              model: selectionA!.model,
+              layer: featureResult.sae_a.layer,
+              model: featureResult.sae_a.model,
             }}
             saeB={{
               id: saeBName,
               name: saeBName,
               num_features: featureResult.sae_b.d_hidden,
-              layer: selectionB!.layer,
-              model: selectionB!.model,
+              layer: featureResult.sae_b.layer,
+              model: featureResult.sae_b.model,
             }}
             comparison={{
               overall_similarity: featureResult.overall_similarity,
@@ -762,31 +766,18 @@ export function ModelComparisonDashboard({
           {featureResult.similarity_matrix_sample &&
             featureResult.feature_indices_a &&
             featureResult.feature_indices_b && (
-              <div className="bg-black/40 border border-gray-800">
-                <div className="p-4 border-b border-gray-800">
-                  <div className="flex items-center gap-2">
-                    <Grid3x3 className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
-                    <h3 className="text-sm font-semibold text-gray-200">
-                      Feature Similarity Matrix (Top Features)
-                    </h3>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Pairwise similarity between top features of each SAE.
-                    Brighter = more similar.
-                  </p>
-                </div>
-                <div className="p-4">
-                  <SimilarityMatrix
-                    ckaMatrix={featureResult.similarity_matrix_sample}
-                    layersA={featureResult.feature_indices_a.slice(0, 30)}
-                    layersB={featureResult.feature_indices_b.slice(0, 30)}
-                    modelA={`${selectionA!.model} L${selectionA!.layer}`}
-                    modelB={`${selectionB!.model} L${selectionB!.layer}`}
-                    activationTypeA={selectionA!.activationType}
-                    activationTypeB={selectionB!.activationType}
-                  />
-                </div>
-              </div>
+              <SimilarityMatrix
+                ckaMatrix={featureResult.similarity_matrix_sample}
+                layersA={featureResult.feature_indices_a.slice(0, 30)}
+                layersB={featureResult.feature_indices_b.slice(0, 30)}
+                modelA={saeAName}
+                modelB={saeBName}
+                activationTypeA={featureResult.sae_a.activation_type}
+                activationTypeB={featureResult.sae_b.activation_type}
+                title="Feature Similarity Matrix"
+                subtitle="Pairwise similarity between top features of each SAE. Brighter = more similar."
+                labelPrefix="F"
+              />
             )}
 
           {/* Research insights */}
@@ -817,13 +808,19 @@ export function ModelComparisonDashboard({
                   similarity.
                 </p>
               )}
-              {selectionA?.model !== selectionB?.model && (
+              {hasExternalSelection && (
+                <p>
+                  Cross-architecture comparison uses activation-based correlation
+                  to align features across different model families and training procedures.
+                </p>
+              )}
+              {!hasExternalSelection && selectionA?.model !== selectionB?.model && (
                 <p>
                   Cross-model comparison uses activation-based correlation since
                   the models have different activation space dimensions.
                 </p>
               )}
-              {selectionA?.model === selectionB?.model &&
+              {!hasExternalSelection && selectionA?.model === selectionB?.model &&
                 selectionA?.layer !== selectionB?.layer && (
                   <p>
                     Same-model comparison across layers reveals how features

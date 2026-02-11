@@ -16,6 +16,9 @@ interface SimilarityMatrixProps {
   modelB: string
   activationTypeA: string
   activationTypeB: string
+  title?: string
+  subtitle?: string
+  labelPrefix?: string
   className?: string
 }
 
@@ -27,6 +30,9 @@ export function SimilarityMatrix({
   modelB,
   activationTypeA,
   activationTypeB,
+  title,
+  subtitle,
+  labelPrefix = 'L',
   className = '',
 }: SimilarityMatrixProps) {
   const svgRef = useRef<SVGSVGElement>(null)
@@ -47,7 +53,9 @@ export function SimilarityMatrix({
     if (nRows === 0 || nCols === 0) return
 
     const cellSize = Math.min(40, 500 / Math.max(nRows, nCols))
-    const margin = { top: 60, right: 30, bottom: 30, left: 70 }
+    const maxLabelLen = Math.max(...layersB.map(l => `${labelPrefix}${l}`.length))
+    const topMargin = Math.max(60, maxLabelLen * 7 + 30)
+    const margin = { top: topMargin, right: 30, bottom: 30, left: 70 }
     const width = margin.left + nCols * cellSize + margin.right
     const height = margin.top + nRows * cellSize + margin.bottom
 
@@ -55,11 +63,11 @@ export function SimilarityMatrix({
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`)
 
-    // Color scale: dark to gray
+    // Color scale: dark gray (low) → white (high)
     const colorScale = d3
       .scaleSequential()
       .domain([0, 1])
-      .interpolator(d3.interpolateGreys)
+      .interpolator(d3.interpolateRgb('#333', '#fff'))
 
     // Draw cells
     for (let i = 0; i < nRows; i++) {
@@ -93,7 +101,7 @@ export function SimilarityMatrix({
             .attr('y', i * cellSize + cellSize / 2)
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'middle')
-            .attr('fill', value > 0.5 ? '#fff' : '#9ca3af')
+            .attr('fill', value > 0.5 ? '#111' : '#9ca3af')
             .attr('font-size', '9px')
             .attr('font-family', 'monospace')
             .attr('pointer-events', 'none')
@@ -112,19 +120,21 @@ export function SimilarityMatrix({
         .attr('fill', '#9ca3af')
         .attr('font-size', '10px')
         .attr('font-family', 'monospace')
-        .text(`L${layer}`)
+        .text(`${labelPrefix}${layer}`)
     })
 
-    // X-axis labels (Model B layers)
+    // X-axis labels (Model B layers) - rotated vertical to avoid overlap
     layersB.forEach((layer, j) => {
       g.append('text')
         .attr('x', j * cellSize + cellSize / 2)
         .attr('y', -8)
-        .attr('text-anchor', 'middle')
+        .attr('text-anchor', 'start')
+        .attr('dominant-baseline', 'middle')
         .attr('fill', '#9ca3af')
         .attr('font-size', '10px')
         .attr('font-family', 'monospace')
-        .text(`L${layer}`)
+        .attr('transform', `rotate(-90, ${j * cellSize + cellSize / 2}, -8)`)
+        .text(`${labelPrefix}${layer}`)
     })
 
     // Y-axis title
@@ -205,7 +215,7 @@ export function SimilarityMatrix({
       .attr('fill', '#6b7280')
       .attr('font-size', '8px')
       .text('CKA Similarity')
-  }, [ckaMatrix, layersA, layersB, modelA, modelB, activationTypeA, activationTypeB])
+  }, [ckaMatrix, layersA, layersB, modelA, modelB, activationTypeA, activationTypeB, labelPrefix])
 
   const isSameModel = modelA === modelB && activationTypeA === activationTypeB
 
@@ -216,13 +226,13 @@ export function SimilarityMatrix({
         <div className="flex items-center gap-2 mb-1">
           <Grid3x3 className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.6)' }} />
           <h3 className="text-lg font-semibold text-gray-200 tracking-tight">
-            Layer Similarity Matrix
+            {title || 'Layer Similarity Matrix'}
           </h3>
         </div>
         <p className="text-xs text-gray-500">
-          {isSameModel
+          {subtitle || (isSameModel
             ? `CKA similarity across layers of ${modelA}`
-            : `CKA similarity: ${modelA} vs ${modelB}`}
+            : `CKA similarity: ${modelA} vs ${modelB}`)}
         </p>
       </div>
 
@@ -236,9 +246,9 @@ export function SimilarityMatrix({
         <div className="px-4 pb-3 flex items-center gap-2 text-sm">
           <Info className="w-3.5 h-3.5 text-gray-500" />
           <span className="text-gray-400">
-            <span style={{ color: 'rgba(255,255,255,0.8)' }}>{modelA} L{hoveredCell.layerA}</span>
+            <span style={{ color: 'rgba(255,255,255,0.8)' }}>{modelA} {labelPrefix}{hoveredCell.layerA}</span>
             {' vs '}
-            <span style={{ color: 'rgba(255,255,255,0.8)' }}>{modelB} L{hoveredCell.layerB}</span>
+            <span style={{ color: 'rgba(255,255,255,0.8)' }}>{modelB} {labelPrefix}{hoveredCell.layerB}</span>
             {': '}
             <span className="text-white font-mono">{hoveredCell.value.toFixed(4)}</span>
           </span>
