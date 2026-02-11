@@ -1033,6 +1033,8 @@ class CompareLayersRequest(BaseModel):
     activation_type_a: str = "residual"
     model_b: str | None = None
     activation_type_b: str | None = None
+    external_id_a: str | None = None
+    external_id_b: str | None = None
     text: str = ""
 
 
@@ -1042,118 +1044,260 @@ def compare_layers(request: CompareLayersRequest) -> dict:
     Compute layer-by-layer CKA similarity matrix.
 
     Runs shared text through all layers of one or two models and computes
-    CKA between all SAE hidden representations.
+    CKA between all SAE hidden representations (built-in) or raw transformer
+    activations (external SAEs).
 
-    Request body:
-        {
-            "model_a": "nano" or "mini",
-            "activation_type_a": "residual" or "mlp_output",
-            "model_b": "nano" or "mini" (optional, defaults to model_a),
-            "activation_type_b": "residual" or "mlp_output" (optional),
-            "text": "Shared input text"
-        }
+    Supports built-in Ozera SAEs and external SAEs. For external SAEs,
+    iterates through all layers of the HF base model using raw activations.
+    CKA handles different dimensionalities naturally.
 
     Returns:
         CKA similarity matrix across all layer pairs.
     """
     import torch
     import numpy as np
+    import re
     import sys
     sys.path.insert(0, "/app/backend")
 
     from core.sae.similarity_metrics import compute_layer_similarity_matrix
 
+    ext_id_a = request.external_id_a
+    ext_id_b = request.external_id_b
     model_a = request.model_a
     act_type_a = request.activation_type_a
     model_b = request.model_b if request.model_b else model_a
     act_type_b = request.activation_type_b if request.activation_type_b else act_type_a
     text = request.text
 
-    for model_name in [model_a, model_b]:
-        if model_name not in MODEL_CONFIGS:
-            return {"error": f"Unknown model: {model_name}"}
+    # Validate built-in models
+    if not ext_id_a and model_a not in MODEL_CONFIGS:
+        return {"error": f"Unknown model: {model_a}"}
+    if not ext_id_b and model_b not in MODEL_CONFIGS:
+        return {"error": f"Unknown model: {model_b}"}
 
     if not text:
         return {"error": "No text provided."}
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     service = get_service()
-
-    # Tokenize
-    token_ids = service.tokenizer.encode(text)
     max_seq_len = 256
-    if len(token_ids) > max_seq_len:
-        token_ids = token_ids[:max_seq_len]
 
-    input_tensor = torch.tensor([token_ids], dtype=torch.long, device=device)
+    def _get_builtin_layer_hiddens(model_name, act_type):
+        """Collect SAE-encoded hidden activations for all layers of a built-in model."""
+        token_ids = service.tokenizer.encode(text)
+        if len(token_ids) > max_seq_len:
+            token_ids = token_ids[:max_seq_len]
+        input_tensor = torch.tensor([token_ids], dtype=torch.long, device=device)
+        config = MODEL_CONFIGS[model_name]
 
-    config_a = MODEL_CONFIGS[model_a]
-    config_b = MODEL_CONFIGS[model_b]
-
-    # Collect hidden activations for all layers of model A
-    transformer_a, cfg_a = service.load_transformer(model_a, device)
-    layer_hiddens_a = []
-    for layer_idx in range(config_a["num_layers"]):
-        try:
-            acts = service.get_activations(transformer_a, cfg_a, input_tensor, layer_idx, act_type_a)
-            flat_acts = acts.view(-1, acts.shape[-1])
-            sae, _, _ = service.load_sae(model_a, layer_idx, act_type_a, device)
-            sae.eval()
-            with torch.no_grad():
-                hidden = sae.encode(flat_acts)
-            layer_hiddens_a.append(hidden.cpu().numpy())
-        except Exception:
-            layer_hiddens_a.append(None)
-
-    # Collect hidden activations for all layers of model B
-    if model_b == model_a and act_type_b == act_type_a:
-        layer_hiddens_b = layer_hiddens_a
-    else:
-        if model_b == model_a:
-            transformer_b, cfg_b = transformer_a, cfg_a
-        else:
-            transformer_b, cfg_b = service.load_transformer(model_b, device)
-
-        layer_hiddens_b = []
-        for layer_idx in range(config_b["num_layers"]):
+        transformer, cfg = service.load_transformer(model_name, device)
+        layer_hiddens = []
+        for layer_idx in range(config["num_layers"]):
             try:
-                acts = service.get_activations(transformer_b, cfg_b, input_tensor, layer_idx, act_type_b)
+                acts = service.get_activations(transformer, cfg, input_tensor, layer_idx, act_type)
                 flat_acts = acts.view(-1, acts.shape[-1])
-                sae, _, _ = service.load_sae(model_b, layer_idx, act_type_b, device)
+                sae, _, _ = service.load_sae(model_name, layer_idx, act_type, device)
                 sae.eval()
                 with torch.no_grad():
                     hidden = sae.encode(flat_acts)
-                layer_hiddens_b.append(hidden.cpu().numpy())
+                layer_hiddens.append(hidden.cpu().numpy())
             except Exception:
-                layer_hiddens_b.append(None)
+                layer_hiddens.append(None)
 
-    # Filter out None entries and track valid layer indices
-    valid_a = [(i, h) for i, h in enumerate(layer_hiddens_a) if h is not None]
-    valid_b = [(i, h) for i, h in enumerate(layer_hiddens_b) if h is not None]
+        return layer_hiddens, config["num_layers"], model_name, act_type, len(token_ids)
 
-    if not valid_a or not valid_b:
-        return {"error": "No valid layer activations could be computed."}
+    def _get_external_layer_hiddens(sae_id):
+        """
+        Collect raw transformer activations for all layers of an external SAE's base model.
 
-    valid_layers_a = [i for i, _ in valid_a]
-    valid_layers_b = [i for i, _ in valid_b]
-    hiddens_a = [h for _, h in valid_a]
-    hiddens_b = [h for _, h in valid_b]
+        Determines the hookpoint pattern from the SAE metadata and iterates
+        through all layers, capturing activations at each layer.
+        CKA handles the dimensionality difference between raw activations
+        and SAE-encoded representations naturally.
+        """
+        sae_dir = Path(EXTERNAL_SAES_ROOT) / sae_id
+        if not sae_dir.exists():
+            raise ValueError(f"External SAE '{sae_id}' not found.")
 
-    # Compute CKA matrix
-    cka_matrix = compute_layer_similarity_matrix(hiddens_a, hiddens_b)
+        _, _, metadata = service.load_external_sae_model(sae_id, device)
+        base_model = metadata.get("base_model", "")
+        hookpoint = metadata.get("hookpoint", "")
+        source = metadata.get("source", "")
+        extra = metadata.get("extra", {})
 
-    return {
-        "model_a": model_a,
-        "activation_type_a": act_type_a,
-        "layers_a": valid_layers_a,
-        "num_layers_a": config_a["num_layers"],
-        "model_b": model_b,
-        "activation_type_b": act_type_b,
-        "layers_b": valid_layers_b,
-        "num_layers_b": config_b["num_layers"],
-        "cka_matrix": cka_matrix.tolist(),
-        "num_tokens": len(token_ids),
-    }
+        if not base_model or base_model == sae_id:
+            raise ValueError(f"Cannot determine base model for SAE '{sae_id}'.")
+
+        hf_model, hf_tokenizer = service.load_hf_model(base_model, device)
+
+        # Determine number of layers from HF model config
+        hf_config = hf_model.config
+        num_layers = getattr(hf_config, 'num_hidden_layers', None)
+        if num_layers is None:
+            num_layers = getattr(hf_config, 'n_layer', None)
+        if num_layers is None:
+            raise ValueError(f"Cannot determine number of layers for {base_model}")
+
+        # Tokenize with the HF tokenizer
+        encoding = hf_tokenizer(text, return_tensors="pt")
+        input_ids = encoding["input_ids"].to(device)
+        if input_ids.shape[1] > max_seq_len:
+            input_ids = input_ids[:, :max_seq_len]
+        num_tokens = input_ids.shape[1]
+
+        # Determine hookpoint pattern for iterating layers
+        # For each layer, we capture activations at the equivalent hookpoint
+        def make_hookpoint_for_layer(layer_idx):
+            """Generate a hookpoint string for the given layer index."""
+            if source == "gemma_scope":
+                site = extra.get("site", "res")
+                site_map = {
+                    "res": f"model.layers.{layer_idx}",
+                    "resid_post": f"model.layers.{layer_idx}",
+                    "mlp": f"model.layers.{layer_idx}.mlp",
+                    "mlp_out": f"model.layers.{layer_idx}.mlp",
+                    "att": f"model.layers.{layer_idx}.self_attn",
+                    "attn": f"model.layers.{layer_idx}.self_attn",
+                    "attn_out": f"model.layers.{layer_idx}.self_attn",
+                }
+                return site_map.get(site, f"model.layers.{layer_idx}")
+            else:
+                # EleutherAI/generic HF: hookpoint like 'layers.0.mlp'
+                # Replace the layer number with the target layer index
+                resolved = hookpoint
+                if resolved.startswith("model."):
+                    resolved = resolved[len("model."):]
+
+                # Replace layer number pattern: layers.N -> layers.{layer_idx}
+                new_hookpoint = re.sub(r'(layers\.)(\d+)', f'\\g<1>{layer_idx}', resolved)
+                if not new_hookpoint.startswith("model."):
+                    new_hookpoint = f"model.{new_hookpoint}"
+                return new_hookpoint
+
+        # Collect activations for ALL layers in a single forward pass
+        # Register hooks for all layers, then run one forward pass
+        all_captured = {}
+        handles = []
+
+        for layer_idx in range(num_layers):
+            try:
+                module_path = make_hookpoint_for_layer(layer_idx)
+                target_module = hf_model
+                for attr in module_path.split("."):
+                    target_module = getattr(target_module, attr)
+
+                def make_hook(idx):
+                    def hook_fn(module, input, output):
+                        if isinstance(output, tuple):
+                            all_captured[idx] = output[0].detach()
+                        else:
+                            all_captured[idx] = output.detach()
+                    return hook_fn
+
+                handle = target_module.register_forward_hook(make_hook(layer_idx))
+                handles.append(handle)
+            except Exception:
+                pass
+
+        # Single forward pass captures all layers
+        try:
+            with torch.no_grad():
+                hf_model(input_ids)
+        finally:
+            for handle in handles:
+                handle.remove()
+
+        # Extract activations into ordered list
+        layer_hiddens = []
+        for layer_idx in range(num_layers):
+            acts = all_captured.get(layer_idx)
+            if acts is None:
+                layer_hiddens.append(None)
+                continue
+            if acts.dim() == 3:
+                flat_acts = acts[0]  # (seq_len, d_model)
+            else:
+                flat_acts = acts
+            layer_hiddens.append(flat_acts.float().cpu().numpy())
+
+        display_name = metadata.get("display_name", sae_id)
+        act_type = metadata.get("activation_type", "raw")
+        return layer_hiddens, num_layers, display_name, act_type, num_tokens
+
+    try:
+        # Get layer hiddens for side A
+        if ext_id_a:
+            layer_hiddens_a, num_layers_a, name_a, act_a, ntok_a = _get_external_layer_hiddens(ext_id_a)
+        else:
+            layer_hiddens_a, num_layers_a, name_a, act_a, ntok_a = _get_builtin_layer_hiddens(model_a, act_type_a)
+
+        # Get layer hiddens for side B
+        if ext_id_b:
+            layer_hiddens_b, num_layers_b, name_b, act_b, ntok_b = _get_external_layer_hiddens(ext_id_b)
+        elif not ext_id_a and model_b == model_a and act_type_b == act_type_a:
+            # Optimization: reuse side A for identical built-in configs
+            layer_hiddens_b = layer_hiddens_a
+            num_layers_b = num_layers_a
+            name_b = name_a
+            act_b = act_a
+            ntok_b = ntok_a
+        else:
+            layer_hiddens_b, num_layers_b, name_b, act_b, ntok_b = _get_builtin_layer_hiddens(model_b, act_type_b)
+
+        # Handle token count mismatch (different tokenizers between external and built-in)
+        # CKA requires the same number of samples (tokens) on both sides
+        if layer_hiddens_a and layer_hiddens_b:
+            # Find first non-None to check dimensions
+            sample_a = next((h for h in layer_hiddens_a if h is not None), None)
+            sample_b = next((h for h in layer_hiddens_b if h is not None), None)
+            if sample_a is not None and sample_b is not None:
+                n_a = sample_a.shape[0]
+                n_b = sample_b.shape[0]
+                if n_a != n_b:
+                    # Truncate to the shorter sequence for CKA compatibility
+                    target_len = min(n_a, n_b)
+                    layer_hiddens_a = [
+                        h[:target_len] if h is not None else None
+                        for h in layer_hiddens_a
+                    ]
+                    layer_hiddens_b = [
+                        h[:target_len] if h is not None else None
+                        for h in layer_hiddens_b
+                    ]
+
+        # Filter out None entries and track valid layer indices
+        valid_a = [(i, h) for i, h in enumerate(layer_hiddens_a) if h is not None]
+        valid_b = [(i, h) for i, h in enumerate(layer_hiddens_b) if h is not None]
+
+        if not valid_a or not valid_b:
+            return {"error": "No valid layer activations could be computed."}
+
+        valid_layers_a = [i for i, _ in valid_a]
+        valid_layers_b = [i for i, _ in valid_b]
+        hiddens_a = [h for _, h in valid_a]
+        hiddens_b = [h for _, h in valid_b]
+
+        # Compute CKA matrix
+        cka_matrix = compute_layer_similarity_matrix(hiddens_a, hiddens_b)
+
+        return {
+            "model_a": name_a,
+            "activation_type_a": act_a,
+            "layers_a": valid_layers_a,
+            "num_layers_a": num_layers_a,
+            "model_b": name_b,
+            "activation_type_b": act_b,
+            "layers_b": valid_layers_b,
+            "num_layers_b": num_layers_b,
+            "cka_matrix": cka_matrix.tolist(),
+            "num_tokens": max(ntok_a, ntok_b) if ext_id_a or ext_id_b else ntok_a,
+        }
+
+    except ValueError as e:
+        return {"error": str(e)}
+    except Exception as e:
+        return {"error": f"Layer comparison failed: {str(e)}"}
 
 
 class ExternalAnalyzeRequest(BaseModel):

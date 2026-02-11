@@ -48,6 +48,8 @@ class SAECompareLayersRequest(BaseModel):
     activation_type_a: str = Field(...)
     model_b: Optional[str] = None
     activation_type_b: Optional[str] = None
+    external_id_a: Optional[str] = None
+    external_id_b: Optional[str] = None
     text: str = Field(...)
 
 
@@ -361,9 +363,11 @@ async def compare_layers(
     Requires authentication. Charges 3x cost (most intensive operation).
     """
     # Estimate cost (3x for layer-by-layer comparison)
+    # Use "mini" as cost basis for external SAEs (conservative estimate)
+    cost_model = request.model_a if not request.external_id_a else "mini"
     estimated_cost = estimate_sae_cost(
         text_length=len(request.text),
-        model_id=request.model_a,
+        model_id=cost_model,
         operation_type="compare_layers",
     )
 
@@ -410,7 +414,7 @@ async def compare_layers(
         db=db,
         user_id=user.id,
         num_tokens=num_tokens,
-        model_name=request.model_a,
+        model_name=cost_model,
         operation_type="compare_layers",
         description="SAE layer-by-layer comparison",
     )

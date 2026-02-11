@@ -2131,6 +2131,8 @@ export interface SAECompareLayersRequest {
   activation_type_a: 'residual' | 'mlp_output'
   model_b?: 'nano' | 'mini'
   activation_type_b?: 'residual' | 'mlp_output'
+  external_id_a?: string
+  external_id_b?: string
   text: string
 }
 

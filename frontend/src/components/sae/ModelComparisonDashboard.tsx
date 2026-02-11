@@ -147,6 +147,8 @@ export function ModelComparisonDashboard({
           activation_type_a: selectionA.activationType,
           model_b: selectionB.model,
           activation_type_b: selectionB.activationType,
+          external_id_a: selectionA.externalId,
+          external_id_b: selectionB.externalId,
           text: compareText,
         })
 
@@ -258,10 +260,6 @@ export function ModelComparisonDashboard({
       activationType: 'residual',
       externalId: ext.id,
     })
-    // Layer comparison doesn't support external SAEs, switch to features mode
-    if (compareMode === 'layers') {
-      setCompareMode('features')
-    }
   }
 
   const handleClearExternal = (which: 'a' | 'b') => {
@@ -297,7 +295,7 @@ export function ModelComparisonDashboard({
   const saeInfoB = getSaeInfo(selectionB)
   const extInfoA = getExternalSaeInfo(selectionA)
   const extInfoB = getExternalSaeInfo(selectionB)
-  const hasExternalSelection = !!(selectionA?.externalId || selectionB?.externalId)
+  const hasExternalSelection = !!(selectionA?.externalId || selectionB?.externalId) // Used for display hints only
 
   if (loadingList) {
     return (
@@ -579,23 +577,21 @@ export function ModelComparisonDashboard({
             Feature Alignment
           </button>
           <button
-            onClick={() => !hasExternalSelection && setCompareMode('layers')}
-            disabled={hasExternalSelection}
-            title={hasExternalSelection ? 'Layer comparison requires built-in Ozera SAEs on both sides' : undefined}
+            onClick={() => setCompareMode('layers')}
             style={{
-              background: compareMode === 'layers' && !hasExternalSelection ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.3)',
-              border: `1px solid ${compareMode === 'layers' && !hasExternalSelection ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)'}`,
-              color: hasExternalSelection ? 'rgba(255,255,255,0.2)' : compareMode === 'layers' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)',
-              cursor: hasExternalSelection ? 'not-allowed' : 'pointer',
+              background: compareMode === 'layers' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.3)',
+              border: `1px solid ${compareMode === 'layers' ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)'}`,
+              color: compareMode === 'layers' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)',
+              cursor: 'pointer',
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors"
             onMouseEnter={(e) => {
-              if (compareMode !== 'layers' && !hasExternalSelection) {
+              if (compareMode !== 'layers') {
                 e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
               }
             }}
             onMouseLeave={(e) => {
-              if (compareMode !== 'layers' && !hasExternalSelection) {
+              if (compareMode !== 'layers') {
                 e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
               }
             }}
@@ -608,7 +604,9 @@ export function ModelComparisonDashboard({
         <p className="text-xs text-gray-500 mb-3">
           {compareMode === 'features'
             ? 'Run shared text through both SAEs and align features by activation overlap or decoder similarity.'
-            : 'Compute CKA similarity across all layers. Uses model/activation type from each SAE selection.'}
+            : hasExternalSelection
+              ? 'Compute CKA similarity across all layers. External SAEs use raw transformer activations at each layer of their base model.'
+              : 'Compute CKA similarity across all layers. Uses model/activation type from each SAE selection.'}
         </p>
 
         {/* Text input + run */}
