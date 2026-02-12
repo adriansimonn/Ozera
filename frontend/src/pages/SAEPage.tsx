@@ -518,8 +518,8 @@ export default function SAEPage({
           </p>
         </div>
 
-        {/* SAE Selector - Hidden in Compare mode (has its own dual selector) */}
-        {mode !== 'compare' && (
+        {/* SAE Selector - Hidden in Compare and Load modes */}
+        {mode !== 'compare' && mode !== 'load' && (
           <SAESelector
             selection={saeSelection}
             onSelectionChange={setSaeSelection}
@@ -528,8 +528,8 @@ export default function SAEPage({
           />
         )}
 
-        {/* Text Input - Hidden in Compare mode (has its own text input) */}
-        {mode !== 'compare' && (
+        {/* Text Input - Hidden in Compare and Load modes */}
+        {mode !== 'compare' && mode !== 'load' && (
           <div className="input-section mb-4">
             <div className="flex gap-3">
               <div className="flex-1 relative">

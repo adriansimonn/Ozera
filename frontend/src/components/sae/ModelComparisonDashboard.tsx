@@ -316,11 +316,11 @@ export function ModelComparisonDashboard({
     const label = which === 'a' ? 'SAE A' : 'SAE B'
 
     return (
-      <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}>
+      <div style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }}>
         {/* Header */}
-        <div className="p-3 border-b border-gray-800 flex items-center gap-2">
+        <div style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Database className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
-          <span className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.7)' }}>
+          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'rgba(255,255,255,0.95)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             {label}
           </span>
           {isExternal && (
@@ -331,20 +331,19 @@ export function ModelComparisonDashboard({
         </div>
 
         {/* Ozera SAE Dropdowns */}
-        <div className="grid grid-cols-3 gap-px bg-gray-800" style={{ opacity: isExternal ? 0.35 : 1, pointerEvents: isExternal ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
-          <div className="bg-black/40 p-3">
-            <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', opacity: isExternal ? 0.35 : 1, pointerEvents: isExternal ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
               Model
             </label>
-            <div className="relative">
+            <div style={{ position: 'relative' }}>
               <select
                 value={selection?.model || ''}
                 onChange={(e) =>
                   handleSelectionChange(which, 'model', e.target.value)
                 }
                 disabled={isExternal}
-                className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
-                style={{ outline: 'none' }}
+                style={{ width: '100%', appearance: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
                 onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
                 onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
               >
@@ -355,22 +354,21 @@ export function ModelComparisonDashboard({
                     </option>
                   ))}
               </select>
-              <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+              <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.35)' }} className="w-4 h-4" />
             </div>
           </div>
-          <div className="bg-black/40 p-3">
-            <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
               Layer
             </label>
-            <div className="relative">
+            <div style={{ position: 'relative' }}>
               <select
                 value={selection?.layer ?? ''}
                 onChange={(e) =>
                   handleSelectionChange(which, 'layer', parseInt(e.target.value))
                 }
                 disabled={isExternal}
-                className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
-                style={{ outline: 'none' }}
+                style={{ width: '100%', appearance: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
                 onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
                 onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
               >
@@ -381,22 +379,21 @@ export function ModelComparisonDashboard({
                     </option>
                   ))}
               </select>
-              <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+              <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.35)' }} className="w-4 h-4" />
             </div>
           </div>
-          <div className="bg-black/40 p-3">
-            <label className="block text-xs text-gray-500 uppercase tracking-wide mb-1">
-              Type
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+              Activation Type
             </label>
-            <div className="relative">
+            <div style={{ position: 'relative' }}>
               <select
                 value={selection?.activationType || ''}
                 onChange={(e) =>
                   handleSelectionChange(which, 'activationType', e.target.value)
                 }
                 disabled={isExternal}
-                className="w-full appearance-none bg-black/50 border border-gray-700 text-white px-2 py-1.5 pr-7 text-sm cursor-pointer"
-                style={{ outline: 'none' }}
+                style={{ width: '100%', appearance: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
                 onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
                 onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
               >
@@ -404,12 +401,12 @@ export function ModelComparisonDashboard({
                   getAvailableTypes(selection.model, selection.layer).map(
                     (type) => (
                       <option key={type} value={type}>
-                        {type === 'residual' ? 'Residual' : 'MLP'}
+                        {type === 'residual' ? 'Residual Stream' : 'MLP Output'}
                       </option>
                     )
                   )}
               </select>
-              <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+              <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.35)' }} className="w-4 h-4" />
             </div>
           </div>
         </div>
@@ -417,21 +414,21 @@ export function ModelComparisonDashboard({
         {/* SAE Info - Built-in */}
         {saeInfo && !isExternal && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
-              <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#fff' }}>{saeInfo.d_input || '-'}</div>
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{saeInfo.d_input || '-'}</div>
             </div>
-            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
-              <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#fff' }}>{saeInfo.d_hidden || '-'}</div>
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{saeInfo.d_hidden || '-'}</div>
             </div>
-            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
-              <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#fff' }}>{saeInfo.activation || 'relu'}</div>
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{saeInfo.activation || 'relu'}</div>
             </div>
-            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
-              <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'rgba(255,255,255,0.8)' }}>ozera-{selection?.model}</div>
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'rgba(255,255,255,0.8)' }}>ozera-{selection?.model}</div>
             </div>
           </div>
         )}
@@ -440,21 +437,21 @@ export function ModelComparisonDashboard({
         {extInfo && isExternal && (
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)' }}>
-              <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
-                <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#fff' }}>{extInfo.d_input || '-'}</div>
+              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
+                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{extInfo.d_input || '-'}</div>
               </div>
-              <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
-                <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#fff' }}>{extInfo.d_hidden?.toLocaleString() || '-'}</div>
+              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
+                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{extInfo.d_hidden?.toLocaleString() || '-'}</div>
               </div>
-              <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
-                <div style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: '#fff' }}>{extInfo.activation_type || '-'}</div>
+              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
+                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{extInfo.activation_type || '-'}</div>
               </div>
-              <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
-                <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'rgba(255,255,255,0.8)' }}>{extInfo.base_model || '-'}</div>
+              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
+                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'rgba(255,255,255,0.8)' }}>{extInfo.base_model || '-'}</div>
               </div>
             </div>
           </div>
