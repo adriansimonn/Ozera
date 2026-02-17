@@ -17,6 +17,7 @@
     "@react-three/fiber": "^8.15.0",
     "@stripe/react-stripe-js": "^2.9.0",
     "@stripe/stripe-js": "^2.4.0",
+    "@supabase/supabase-js": "^2.95.3",
     "@tanstack/react-query": "^5.12.0",
     "@visx/visx": "^3.7.0",
     "axios": "^1.6.0",
