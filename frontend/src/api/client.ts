@@ -2,6 +2,7 @@
  * API client for Ozera inference server.
  */
 
+import { getSupabaseToken } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 
 import type {
@@ -47,26 +48,10 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const SAE_API_URL = import.meta.env.VITE_SAE_API_URL || 'https://adriansimon477--ozera-sae-inference-serve.modal.run'
 
 /**
- * Get auth token from localStorage (used by Zustand persist).
- */
-function getAuthToken(): string | null {
-  const authStorage = localStorage.getItem('auth-storage')
-  if (authStorage) {
-    try {
-      const { state } = JSON.parse(authStorage)
-      return state?.token || null
-    } catch {
-      return null
-    }
-  }
-  return null
-}
-
-/**
  * Get auth headers if token is available.
  */
 function getAuthHeaders(): Record<string, string> {
-  const token = getAuthToken()
+  const token = getSupabaseToken()
   if (token) {
     return { Authorization: `Bearer ${token}` }
   }
