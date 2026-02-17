@@ -25,14 +25,12 @@ function App() {
   const [showLogin, setShowLogin] = useState(false)
   const [showSignup, setShowSignup] = useState(false)
   const [showPurchaseCredits, setShowPurchaseCredits] = useState(false)
-  const { token, refreshUser } = useAuthStore()
+  const { initialize } = useAuthStore()
 
-  // Refresh user data on mount if token exists
+  // Hydrate auth state from Supabase session on mount
   useEffect(() => {
-    if (token) {
-      refreshUser()
-    }
-  }, [token, refreshUser])
+    initialize()
+  }, [initialize])
 
   // Make modals available globally via window
   useEffect(() => {

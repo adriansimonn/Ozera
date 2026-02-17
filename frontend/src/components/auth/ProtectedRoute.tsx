@@ -11,9 +11,9 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, redirectTo = '/' }: ProtectedRouteProps) {
-  const { isAuthenticated, token } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
 
-  if (!isAuthenticated || !token) {
+  if (!isAuthenticated) {
     // Redirect to home page (or specified redirect)
     // User can login from there
     return <Navigate to={redirectTo} replace />;

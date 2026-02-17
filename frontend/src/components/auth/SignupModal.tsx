@@ -17,6 +17,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [checkEmail, setCheckEmail] = useState(false);
   const { signup, isLoading } = useAuthStore();
 
   if (!isOpen) return null;
@@ -46,7 +47,11 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
       setConfirmPassword('');
       setFullName('');
     } catch (err: any) {
-      setError(err.message);
+      if (err.message === 'CHECK_EMAIL') {
+        setCheckEmail(true);
+      } else {
+        setError(err.message);
+      }
     }
   };
 
@@ -56,6 +61,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
     setConfirmPassword('');
     setFullName('');
     setError(null);
+    setCheckEmail(false);
     onClose();
   };
 
@@ -78,6 +84,13 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
             {error}
+          </div>
+        )}
+
+        {/* Email confirmation message */}
+        {checkEmail && (
+          <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm">
+            Check your email for a confirmation link to complete signup.
           </div>
         )}
 
