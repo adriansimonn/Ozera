@@ -16,13 +16,23 @@ load_dotenv()
 # Get database URL from environment
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/ozera")
 
+# Detect Supabase (remote) vs local Postgres and adjust settings accordingly
+_is_remote = "supabase" in DATABASE_URL or DATABASE_URL.startswith("postgresql+psycopg2://") and "@db." in DATABASE_URL
+
+_connect_args: dict = {}
+if _is_remote:
+    import ssl
+    ssl_ctx = ssl.create_default_context()
+    _connect_args["ssl_context"] = ssl_ctx
+
 # Create engine
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,  # Verify connections before using
-    pool_size=10,  # Connection pool size
-    max_overflow=20,  # Max connections beyond pool_size
-    echo=False,  # Set to True for SQL logging during development
+    pool_pre_ping=True,
+    pool_size=5 if _is_remote else 10,
+    max_overflow=10 if _is_remote else 20,
+    echo=False,
+    connect_args=_connect_args,
 )
 
 # Create session factory
