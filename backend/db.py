@@ -90,6 +90,6 @@ if __name__ == "__main__":
     print(f"Testing database connection to: {DATABASE_URL}")
     try:
         with engine.connect() as conn:
-            print("✓ Database connection successful!")
+            print("Database connection successful!")
     except Exception as e:
-        print(f"✗ Database connection failed: {e}")
+        print(f"Database connection failed: {e}")

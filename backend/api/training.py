@@ -5,7 +5,6 @@ Supports multiple concurrent jobs per user with credit-based billing.
 """
 import json
 import asyncio
-import uuid
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -614,23 +613,11 @@ async def download_custom_model(
         zip_buffer = io.BytesIO()
         remote_dir = f"/{current_user.id}/{model_id}"
 
-        # Debug: list what's in the volume
-        print(f"[Download] Looking for model files in: {remote_dir}")
-
-        # First, list root to see volume structure
-        try:
-            print(f"[Download] Volume root contents:")
-            for root_entry in models_volume.listdir("/"):
-                print(f"[Download]   root: {root_entry.path}")
-        except Exception as e:
-            print(f"[Download] Error listing root: {e}")
-
         files_found = 0
 
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             # List and download all model files
             for entry in models_volume.listdir(remote_dir):
-                print(f"[Download] Found entry: {entry.path}, type: {getattr(entry, 'type', 'unknown')}")
                 # Download model.safetensors file (or .pt for backwards compatibility)
                 if str(entry.path).endswith('.safetensors') or str(entry.path).endswith('.pt'):
                     file_name = Path(entry.path).name
@@ -640,9 +627,6 @@ async def download_custom_model(
                         file_content += chunk
                     zip_file.writestr(file_name, file_content)
                     files_found += 1
-                    print(f"[Download] Added {file_name} ({len(file_content)} bytes)")
-
-        print(f"[Download] Total files found: {files_found}")
 
         zip_buffer.seek(0)
 

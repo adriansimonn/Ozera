@@ -63,7 +63,7 @@ def download_sample_data(output_path: str):
     import urllib.request
     url = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
     urllib.request.urlretrieve(url, output_path)
-    print(f"✓ Downloaded to {output_path}")
+    print(f"Downloaded to {output_path}")
 
 
 def train_epoch(model, train_loader, optimizer, device, scheduler=None):
@@ -135,7 +135,7 @@ def train(args):
 
     # Setup device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"\n🎮 Device: {device}")
+    print(f"\nDevice: {device}")
     if torch.cuda.is_available():
         print(f"   GPU: {torch.cuda.get_device_name(0)}")
         print(f"   Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
@@ -147,7 +147,7 @@ def train(args):
             download_sample_data(data_path)
         args.data = data_path
 
-    print(f"\n📚 Loading data from: {args.data}")
+    print(f"\nLoading data from: {args.data}")
     with open(args.data, 'r', encoding='utf-8') as f:
         text = f.read()
 
@@ -161,7 +161,7 @@ def train(args):
     train_dataset = TextDataset(train_text, seq_len=args.seq_len)
     val_dataset = TextDataset(val_text, seq_len=args.seq_len)
 
-    print(f"\n🔤 Vocabulary size: {train_dataset.vocab_size}")
+    print(f"\nVocabulary size: {train_dataset.vocab_size}")
 
     # Create dataloaders
     train_loader = DataLoader(
@@ -185,7 +185,7 @@ def train(args):
     config.vocab_size = train_dataset.vocab_size
     config.max_seq_len = args.seq_len
 
-    print(f"\n🏗️  Model: Ozera {args.config.upper()}")
+    print(f"\nModel: Ozera {args.config.upper()}")
     print(f"   Architecture: {config.num_layers}L x {config.num_heads}H x {config.d_model}D")
 
     model = TransformerLM(config).to(device)
@@ -214,7 +214,7 @@ def train(args):
         anneal_strategy='cos'
     )
 
-    print(f"\n🚀 Training Configuration:")
+    print(f"\nTraining Configuration:")
     print(f"   Epochs: {args.epochs}")
     print(f"   Batch size: {args.batch_size}")
     print(f"   Sequence length: {args.seq_len}")
@@ -265,7 +265,7 @@ def train(args):
                 'id_to_char': train_dataset.id_to_char,
             }
             torch.save(checkpoint, checkpoint_dir / 'best_model.pt')
-            print(f"  ✓ Saved best model (val_loss={val_loss:.4f})")
+            print(f"  Saved best model (val_loss={val_loss:.4f})")
 
         # Save periodic checkpoints
         if (epoch + 1) % args.save_every == 0:
@@ -280,7 +280,7 @@ def train(args):
                 'id_to_char': train_dataset.id_to_char,
             }
             torch.save(checkpoint, checkpoint_dir / f'checkpoint_epoch_{epoch+1}.pt')
-            print(f"  💾 Saved checkpoint at epoch {epoch+1}")
+            print(f"  Saved checkpoint at epoch {epoch+1}")
 
     print("\n" + "="*60)
     print("TRAINING COMPLETE!")

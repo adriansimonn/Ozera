@@ -67,7 +67,7 @@ def test_metrics():
     print(f"  max_activation: {sparsity.max_activation:.2f}")
 
     assert 25 < sparsity.avg_l0 < 55, f"L0 out of range: {sparsity.avg_l0}"
-    print("  ✓ L0 in expected range (25-55)")
+    print("  L0 in expected range (25-55)")
 
     # Test feature health metrics
     health = compute_feature_health_metrics(hidden)
@@ -88,7 +88,7 @@ def test_metrics():
     print(f"  cosine_similarity: {recon.cosine_similarity:.4f}")
 
     assert recon.explained_variance > 0.8, f"Low explained variance: {recon.explained_variance}"
-    print("  ✓ Explained variance > 0.8")
+    print("  Explained variance > 0.8")
 
     # Test combined metrics
     quality = compute_sae_quality_metrics(inputs, reconstructions, hidden)
@@ -96,9 +96,9 @@ def test_metrics():
     quality_dict = quality.to_dict()
     print(f"  sparsity.avg_l0: {quality_dict['sparsity']['avg_l0']:.1f}")
     print(f"  reconstruction.mse: {quality_dict['reconstruction']['mse']:.6f}")
-    print("  ✓ Combined metrics computed successfully")
+    print("  Combined metrics computed successfully")
 
-    print("\n✓ All metrics tests passed!")
+    print("\nAll metrics tests passed!")
 
 
 def test_feature_analyzer():
@@ -145,7 +145,7 @@ def test_feature_analyzer():
         print(f"    top feature: idx={top_feat.feature_idx}, val={top_feat.activation_value:.4f}")
 
     assert len(result.per_token_activations) == seq_len
-    print("  ✓ Per-token activations correct length")
+    print("  Per-token activations correct length")
 
     # Test find_top_features_for_input
     single_activation = torch.randn(config.d_input)
@@ -159,7 +159,7 @@ def test_feature_analyzer():
     heatmap = analyzer.compute_feature_activation_heatmap(activations, feature_indices=[0, 1, 2])
     print(f"\n  Feature heatmap shape: {heatmap.shape}")
     assert heatmap.shape == (seq_len, 3)
-    print("  ✓ Heatmap shape correct")
+    print("  Heatmap shape correct")
 
     # Test update_statistics
     batch_activations = torch.randn(32, config.d_input)
@@ -174,7 +174,7 @@ def test_feature_analyzer():
     print(f"    activation_frequency: {stats.activation_frequency:.4f}")
     print(f"    mean_activation: {stats.mean_activation:.4f}")
 
-    print("\n✓ All feature analyzer tests passed!")
+    print("\nAll feature analyzer tests passed!")
 
 
 def test_interpretability():
@@ -240,7 +240,7 @@ def test_interpretability():
     similar = find_semantically_similar_features(interpretations, 0, top_k=3)
     print(f"\nSimilar features to feature 0: {similar}")
 
-    print("\n✓ All interpretability tests passed!")
+    print("\nAll interpretability tests passed!")
 
 
 def test_sae_end_to_end():
@@ -273,7 +273,7 @@ def test_sae_end_to_end():
     assert metrics.sparsity.avg_l0 >= 0, "L0 should be non-negative"
     assert 0 <= metrics.reconstruction.explained_variance <= 1, "Explained variance should be in [0,1]"
 
-    print("\n✓ End-to-end test passed!")
+    print("\nEnd-to-end test passed!")
 
 
 def test_batch_analysis():
@@ -305,7 +305,7 @@ def test_batch_analysis():
 
     assert result["batch_size"] == batch_size
     assert result["seq_len"] == seq_len
-    print("\n✓ Batch analysis test passed!")
+    print("\nBatch analysis test passed!")
 
 
 def main():

@@ -30,7 +30,7 @@ def download_sample_data(output_path: str):
 
     url = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
     urllib.request.urlretrieve(url, output_path)
-    print(f"✓ Downloaded to {output_path}")
+    print(f"Downloaded to {output_path}")
 
 
 def train(args):
@@ -47,7 +47,7 @@ def train(args):
             download_sample_data(data_path)
         args.data = data_path
 
-    print(f"\n📚 Loading data from: {args.data}")
+    print(f"\nLoading data from: {args.data}")
     with open(args.data, 'r', encoding='utf-8') as f:
         text = f.read()
 
@@ -58,7 +58,7 @@ def train(args):
     print(f"   Train: {len(train_text):,} chars, Val: {len(val_text):,} chars")
 
     # Create tokenizer
-    print(f"\n🔤 Creating tokenizer...")
+    print(f"\nCreating tokenizer...")
     tokenizer = SimpleTokenizer(text)
     print(f"   Vocabulary size: {tokenizer.vocab_size}")
 
@@ -67,7 +67,7 @@ def train(args):
     config.vocab_size = tokenizer.vocab_size  # Adjust to actual vocab
     config.max_seq_len = args.seq_len
 
-    print(f"\n🏗️  Initializing model: Ozera {args.config.upper()}")
+    print(f"\nInitializing model: Ozera {args.config.upper()}")
     print(f"   Parameters: {config.count_parameters():,}")
     print(f"   Architecture: {config.num_layers}L x {config.num_heads}H x {config.d_model}D")
     print(f"   Sequence length: {config.max_seq_len}")
@@ -76,7 +76,7 @@ def train(args):
     model = TransformerLM(config)
 
     # Create datasets
-    print(f"\n📊 Creating datasets...")
+    print(f"\nCreating datasets...")
     train_dataset = TextDataset(train_text, tokenizer, seq_len=args.seq_len)
     val_dataset = TextDataset(val_text, tokenizer, seq_len=args.seq_len)
 
@@ -104,7 +104,7 @@ def train(args):
     # Create trainer
     trainer = Trainer(model, train_config, use_numerical_grads=False)
 
-    print(f"\n🚀 Starting training...")
+    print(f"\nStarting training...")
     print(f"   Total epochs: {args.epochs}")
     print(f"   Steps per epoch: {len(train_loader)}")
     print(f"   Total steps: {total_steps}")
@@ -146,7 +146,7 @@ def train(args):
 
                 avg_val_loss = np.mean(val_losses)
                 val_ppl = perplexity(avg_val_loss)
-                print(f"  📊 Val Loss: {avg_val_loss:.4f} | Val PPL: {val_ppl:.2f}")
+                print(f"  Val Loss: {avg_val_loss:.4f} | Val PPL: {val_ppl:.2f}")
 
                 # Save best model
                 if avg_val_loss < best_val_loss:
@@ -154,7 +154,7 @@ def train(args):
                     save_path = f"{args.checkpoint_dir}/best_model.npz"
                     os.makedirs(args.checkpoint_dir, exist_ok=True)
                     trainer.save_checkpoint(save_path)
-                    print(f"  ✓ Saved best model (val_loss={avg_val_loss:.4f})")
+                    print(f"  Saved best model (val_loss={avg_val_loss:.4f})")
                 print()
 
             # Save checkpoint
@@ -162,7 +162,7 @@ def train(args):
                 save_path = f"{args.checkpoint_dir}/checkpoint_step_{trainer.step}.npz"
                 os.makedirs(args.checkpoint_dir, exist_ok=True)
                 trainer.save_checkpoint(save_path)
-                print(f"  💾 Saved checkpoint at step {trainer.step}")
+                print(f"  Saved checkpoint at step {trainer.step}")
 
         # Epoch summary
         epoch_time = time.time() - epoch_start

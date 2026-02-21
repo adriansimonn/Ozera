@@ -45,7 +45,6 @@ import type {
 } from '../types/export'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-const SAE_API_URL = import.meta.env.VITE_SAE_API_URL || 'https://adriansimon477--ozera-sae-inference-serve.modal.run'
 
 /**
  * Get auth headers if token is available.

@@ -14,9 +14,9 @@ fi
 # Check if Modal is configured (for cloud training)
 echo "[0/3] Checking Modal configuration..."
 if command -v modal &> /dev/null; then
-    echo "✓ Modal CLI installed"
+    echo "Modal CLI installed"
 else
-    echo "⚠ Modal CLI not installed. Cloud training will not work."
+    echo "Warning: Modal CLI not installed. Cloud training will not work."
     echo "  Install with: pip install modal"
 fi
 
@@ -32,9 +32,9 @@ sleep 5
 
 # Check if backend is running
 if curl -s http://localhost:8000/health > /dev/null; then
-    echo "✓ Backend API is running on http://localhost:8000"
+    echo "Backend API is running on http://localhost:8000"
 else
-    echo "✗ Backend failed to start"
+    echo "Backend failed to start"
     kill $BACKEND_PID 2>/dev/null || true
     exit 1
 fi

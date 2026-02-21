@@ -58,7 +58,7 @@ def upload_model(model_name: str) -> bool:
 
     def show_progress():
         """Show upload progress spinner."""
-        spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        spinner = ["|", "/", "-", "\\"]
         idx = 0
         while not upload_complete.is_set():
             elapsed = time.time() - start_time
@@ -81,13 +81,13 @@ def upload_model(model_name: str) -> bool:
         elapsed = time.time() - start_time
         mins, secs = divmod(int(elapsed), 60)
 
-        print(f"\r✓ Upload complete! Total time: {mins:02d}:{secs:02d}         ")
+        print(f"\rUpload complete! Total time: {mins:02d}:{secs:02d}         ")
         print(f"\nVerify with: modal volume ls {MODELS_VOLUME_NAME} base/ozera-{model_name}/")
         return True
 
     except Exception as e:
         upload_complete.set()
-        print(f"\r✗ Upload failed: {e}                    ")
+        print(f"\rUpload failed: {e}                    ")
         return False
 
 

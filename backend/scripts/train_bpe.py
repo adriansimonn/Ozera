@@ -122,18 +122,18 @@ def train(args):
 
     # Setup device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"\n🎮 Device: {device}")
+    print(f"\nDevice: {device}")
     if torch.cuda.is_available():
         print(f"   GPU: {torch.cuda.get_device_name(0)}")
         print(f"   Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
 
     # Load tokenizer
-    print(f"\n🔤 Loading BPE tokenizer...")
+    print(f"\nLoading BPE tokenizer...")
     tokenizer = get_tokenizer()
     print(f"   Vocab size: {tokenizer.vocab_size}")
 
     # Load data
-    print(f"\n📚 Loading preprocessed data...")
+    print(f"\nLoading preprocessed data...")
     data_dir = Path(args.data_dir)
 
     train_tokens = np.load(data_dir / 'train.npy')
@@ -171,7 +171,7 @@ def train(args):
     config.vocab_size = tokenizer.vocab_size
     config.max_seq_len = args.seq_len
 
-    print(f"\n🏗️  Model: Ozera {args.config.upper()}")
+    print(f"\nModel: Ozera {args.config.upper()}")
     print(f"   Architecture: {config.num_layers}L x {config.num_heads}H x {config.d_model}D")
 
     model = TransformerLM(config).to(device)
@@ -199,7 +199,7 @@ def train(args):
         anneal_strategy='cos'
     )
 
-    print(f"\n🚀 Training Configuration:")
+    print(f"\nTraining Configuration:")
     print(f"   Epochs: {args.epochs}")
     print(f"   Batch size: {args.batch_size}")
     print(f"   Sequence length: {args.seq_len}")
@@ -251,7 +251,7 @@ def train(args):
                 'tokenizer': 'gpt2',
             }
             torch.save(checkpoint, checkpoint_dir / 'best_model.pt')
-            print(f"  ✓ Saved best model (val_loss={val_loss:.4f})")
+            print(f"  Saved best model (val_loss={val_loss:.4f})")
 
         # Save periodic checkpoints
         if (epoch + 1) % args.save_every == 0:
@@ -265,7 +265,7 @@ def train(args):
                 'tokenizer': 'gpt2',
             }
             torch.save(checkpoint, checkpoint_dir / f'checkpoint_epoch_{epoch+1}.pt')
-            print(f"  💾 Saved checkpoint at epoch {epoch+1}")
+            print(f"  Saved checkpoint at epoch {epoch+1}")
 
     print("\n" + "="*60)
     print("TRAINING COMPLETE!")

@@ -107,4 +107,4 @@ if __name__ == "__main__":
     print(f"Decoded text: {decoded}")
 
     assert decoded == test_text, "Encoding/decoding mismatch!"
-    print("\n✓ Tokenizer test passed!")
+    print("\nTokenizer test passed!")

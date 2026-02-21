@@ -27,7 +27,7 @@ export function GenerationFlow({
   const [hoveredToken, setHoveredToken] = useState<{idx: number, x: number, y: number} | null>(null)
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const [lastGeneratedToken, setLastGeneratedToken] = useState<{text: string, index: number} | null>(null)
-  const [hoveredTopToken, setHoveredTopToken] = useState<{token: string, probability: number} | null>(null)
+  const [, setHoveredTopToken] = useState<{token: string, probability: number} | null>(null)
   const [topTokenChoices, setTopTokenChoices] = useState<Array<{token: string, tokenId: number, probability: number, isSelected: boolean}>>([])
   const [tokenDecodeCache, setTokenDecodeCache] = useState<Map<number, string>>(new Map())
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 1400, height: 550 })
@@ -660,10 +660,6 @@ export function GenerationFlow({
       ctx.fillText(`${Math.floor(progress * 100)}%`, width / 2, barY + barHeight + 15)
     }
 
-    const easeInOutCubic = (t: number): number => {
-      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
-    }
-
     animate()
 
     return () => {
@@ -686,7 +682,6 @@ export function GenerationFlow({
   const handlePrevious = () => {
     // Move backward by one layer step
     const totalSteps = generatedTokens + 1
-    const currentStepFloat = progressRef.current * totalSteps
     const layerStep = 1 / (numLayers + 3) // +3 for input, embed, output layers
     const newProgress = Math.max(0, progressRef.current - layerStep / totalSteps)
     progressRef.current = newProgress

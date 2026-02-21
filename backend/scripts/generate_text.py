@@ -87,7 +87,7 @@ def load_model_parameters(model, checkpoint):
         if 'beta' in final_ln:
             model.final_ln_beta = final_ln['beta']
 
-    print("✓ Parameters loaded successfully")
+    print("Parameters loaded successfully")
 
 
 def create_tokenizer_from_vocab(vocab_size: int, sample_text: str = None):

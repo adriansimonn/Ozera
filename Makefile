@@ -28,7 +28,7 @@ install:
 	@echo "Installing dependencies..."
 	cd backend && . venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt -r requirements-dev.txt
 	@echo ""
-	@echo "✓ Installation complete!"
+	@echo " Installation complete!"
 	@echo ""
 	@echo "To activate the virtual environment:"
 	@echo "  cd backend && source venv/bin/activate"
@@ -45,27 +45,27 @@ test:
 format:
 	@echo "Formatting code..."
 	cd backend && . venv/bin/activate && black . && isort .
-	@echo "✓ Code formatted"
+	@echo " Code formatted"
 
 lint:
 	@echo "Linting code..."
 	cd backend && . venv/bin/activate && flake8 .
-	@echo "✓ Linting passed"
+	@echo " Linting passed"
 
 type-check:
 	@echo "Type checking..."
 	cd backend && . venv/bin/activate && mypy .
-	@echo "✓ Type checking passed"
+	@echo " Type checking passed"
 
 check: format lint type-check
-	@echo "✓ All checks passed"
+	@echo " All checks passed"
 
 # Development helpers
 verify:
 	@echo "Verifying model configurations..."
 	cd backend && . venv/bin/activate && python core/transformer/config.py
 	@echo ""
-	@echo "✓ Model configs verified"
+	@echo " Model configs verified"
 
 # Cleanup
 clean:
@@ -75,4 +75,4 @@ clean:
 	find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete
-	@echo "✓ Cleanup complete"
+	@echo " Cleanup complete"

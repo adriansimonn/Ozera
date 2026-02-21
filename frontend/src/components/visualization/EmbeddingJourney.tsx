@@ -19,7 +19,6 @@ export function EmbeddingJourney({
   selectedTokenIndex,
   className = ''
 }: EmbeddingJourneyProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
   const [expandedLayers, setExpandedLayers] = useState<Set<number>>(new Set([0]))
 
   // Extract embeddings at each stage for the selected token

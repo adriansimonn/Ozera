@@ -53,7 +53,7 @@ def main():
     print("="*60)
 
     # For now, just test that model loads
-    print("\n✓ Model loaded successfully!")
+    print("\nModel loaded successfully!")
     print("Note: Full inference will be available once parameter loading is implemented")
 
 

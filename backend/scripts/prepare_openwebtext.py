@@ -37,12 +37,12 @@ def prepare_dataset(
     print("="*60)
 
     # Load tokenizer
-    print("\n📝 Loading tokenizer...")
+    print("\nLoading tokenizer...")
     tokenizer = get_tokenizer()
     print(f"   Vocab size: {tokenizer.vocab_size}")
 
     # Load dataset
-    print("\n📚 Loading OpenWebText dataset...")
+    print("\nLoading OpenWebText dataset...")
     print("   This may take a few minutes on first run...")
 
     # Use openwebtext subset (10GB) instead of full dataset
@@ -55,7 +55,7 @@ def prepare_dataset(
         print(f"   Total examples: {len(dataset):,}")
 
     # Tokenize dataset
-    print("\n🔤 Tokenizing dataset...")
+    print("\nTokenizing dataset...")
 
     def tokenize_function(examples):
         """Tokenize batch of texts."""
@@ -78,7 +78,7 @@ def prepare_dataset(
     )
 
     # Concatenate all tokens
-    print("\n💾 Saving processed data...")
+    print("\nSaving processed data...")
     all_tokens = []
 
     for example in tokenized:
@@ -95,7 +95,7 @@ def prepare_dataset(
     np.save(output_dir / 'train.npy', train_tokens)
     np.save(output_dir / 'val.npy', val_tokens)
 
-    print(f"\n✓ Dataset prepared successfully!")
+    print(f"\nDataset prepared successfully!")
     print(f"   Train tokens: {len(train_tokens):,}")
     print(f"   Val tokens: {len(val_tokens):,}")
     print(f"   Total tokens: {len(tokens_array):,}")
