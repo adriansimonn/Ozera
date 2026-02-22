@@ -4,6 +4,7 @@ Dataset management API endpoints.
 
 import os
 import json
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -166,6 +167,10 @@ async def get_dataset(
 ):
     """Get dataset details including a preview of the content."""
     from services.modal_volumes import read_dataset_metadata_from_volume, read_dataset_from_volume
+
+    # Validate dataset_id to prevent path traversal
+    if not re.match(r'^[a-zA-Z0-9_-]+$', dataset_id):
+        raise HTTPException(status_code=400, detail="Invalid dataset ID")
 
     metadata = read_dataset_metadata_from_volume(current_user.id, dataset_id)
     if not metadata:

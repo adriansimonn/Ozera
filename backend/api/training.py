@@ -4,6 +4,7 @@ Training job API endpoints with Modal cloud GPU support.
 Supports multiple concurrent jobs per user with credit-based billing.
 """
 import json
+import re
 import asyncio
 import tempfile
 from datetime import datetime
@@ -642,14 +643,14 @@ async def download_custom_model(
             zip_buffer,
             media_type="application/zip",
             headers={
-                "Content-Disposition": f'attachment; filename="{model_id}.zip"'
+                "Content-Disposition": f'attachment; filename="{re.sub(r"[^a-zA-Z0-9_.-]", "_", model_id)}.zip"'
             }
         )
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to download model: {str(e)}"
+            detail="Failed to download model"
         )
 
 

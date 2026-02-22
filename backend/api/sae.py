@@ -116,12 +116,12 @@ async def analyze_text(
         except httpx.HTTPStatusError as e:
             raise HTTPException(
                 status_code=e.response.status_code,
-                detail=f"SAE service error: {e.response.text}",
+                detail="SAE service error",
             )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service connection error: {type(e).__name__}",
+                detail="SAE service connection error",
             )
 
     # Check if there was an error in the response
@@ -182,10 +182,10 @@ async def get_feature_info(
             )
             response.raise_for_status()
             result = response.json()
-        except httpx.HTTPError as e:
+        except httpx.HTTPError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service error: {str(e)}",
+                detail="SAE service error",
             )
 
     if "error" in result:
@@ -249,12 +249,12 @@ async def analyze_batch(
         except httpx.HTTPStatusError as e:
             raise HTTPException(
                 status_code=e.response.status_code,
-                detail=f"SAE service error: {e.response.text}",
+                detail="SAE service error",
             )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service connection error: {type(e).__name__}",
+                detail="SAE service connection error",
             )
 
     if "error" in result:
@@ -321,12 +321,12 @@ async def compare_saes(
         except httpx.HTTPStatusError as e:
             raise HTTPException(
                 status_code=e.response.status_code,
-                detail=f"SAE service error: {e.response.text}",
+                detail="SAE service error",
             )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service connection error: {type(e).__name__}",
+                detail="SAE service connection error",
             )
 
     if "error" in result:
@@ -394,12 +394,12 @@ async def compare_layers(
         except httpx.HTTPStatusError as e:
             raise HTTPException(
                 status_code=e.response.status_code,
-                detail=f"SAE service error: {e.response.text}",
+                detail="SAE service error",
             )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service connection error: {type(e).__name__}",
+                detail="SAE service connection error",
             )
 
     if "error" in result:
@@ -434,11 +434,31 @@ async def health():
             response = await client.get(f"{SAE_API_URL}/health")
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
+        except httpx.HTTPError:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"SAE service unhealthy: {str(e)}",
+                detail="SAE service unhealthy",
             )
+
+
+class ExternalSAELoadRequest(BaseModel):
+    source: str = Field(..., description="Source type: 'huggingface' or 'gemma_scope'")
+    repo_id: str = Field(..., min_length=1, max_length=200, description="HuggingFace repo ID or Gemma Scope ID")
+    hookpoint: Optional[str] = Field(None, max_length=200, description="Hookpoint name")
+    device: Optional[str] = Field(None, max_length=20, description="Device to load on")
+
+
+class ExternalSAEListSourcesRequest(BaseModel):
+    source: str = Field(..., description="Source type: 'huggingface' or 'gemma_scope'")
+    repo_id: str = Field(..., min_length=1, max_length=200, description="HuggingFace repo ID or Gemma Scope ID")
+
+
+class SAEUploadRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200, description="SAE name")
+    encoder_weights: List[List[float]] = Field(..., description="Encoder weight matrix")
+    decoder_weights: List[List[float]] = Field(..., description="Decoder weight matrix")
+    encoder_bias: Optional[List[float]] = Field(None, description="Encoder bias")
+    decoder_bias: Optional[List[float]] = Field(None, description="Decoder bias")
 
 
 class ExternalSAEAnalyzeRequest(BaseModel):
@@ -488,12 +508,12 @@ async def analyze_external_sae(
         except httpx.HTTPStatusError as e:
             raise HTTPException(
                 status_code=e.response.status_code,
-                detail=f"SAE service error: {e.response.text}",
+                detail="SAE service error",
             )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service connection error: {type(e).__name__}",
+                detail="SAE service connection error",
             )
 
     if "error" in result:
@@ -518,7 +538,7 @@ async def analyze_external_sae(
 # External SAE endpoints (proxy to Modal service)
 @router.post("/external/load")
 async def load_external_sae(
-    request: dict,
+    request: ExternalSAELoadRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -527,7 +547,7 @@ async def load_external_sae(
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/external/load",
-                json=request,
+                json=request.model_dump(exclude_none=True),
             )
             response.raise_for_status()
             return response.json()
@@ -539,25 +559,28 @@ async def load_external_sae(
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service error: {type(e).__name__}",
+                detail="SAE service error",
             )
 
 
 @router.post("/external/list-sources")
-async def list_external_sae_sources(request: dict):
+async def list_external_sae_sources(
+    request: ExternalSAEListSourcesRequest,
+    user: User = Depends(get_current_user),
+):
     """List available hookpoints in an external SAE repository."""
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/external/list-sources",
-                json=request,
+                json=request.model_dump(),
             )
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
+        except httpx.HTTPError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service error: {str(e)}",
+                detail="SAE service error",
             )
 
 
@@ -569,10 +592,10 @@ async def list_loaded_external_saes():
             response = await client.get(f"{SAE_API_URL}/sae/external/list-loaded")
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
+        except httpx.HTTPError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service error: {str(e)}",
+                detail="SAE service error",
             )
 
 
@@ -591,10 +614,10 @@ async def delete_external_sae(
             )
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
+        except httpx.HTTPError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service error: {str(e)}",
+                detail="SAE service error",
             )
 
 
@@ -622,10 +645,10 @@ async def get_external_feature_info(
             )
             response.raise_for_status()
             result = response.json()
-        except httpx.HTTPError as e:
+        except httpx.HTTPError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service error: {str(e)}",
+                detail="SAE service error",
             )
 
     if "error" in result:
@@ -649,7 +672,7 @@ async def get_external_feature_info(
 
 @router.post("/upload")
 async def upload_sae(
-    request: dict,
+    request: SAEUploadRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -658,12 +681,12 @@ async def upload_sae(
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/upload",
-                json=request,
+                json=request.model_dump(exclude_none=True),
             )
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
+        except httpx.HTTPError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SAE service error: {str(e)}",
+                detail="SAE service error",
             )

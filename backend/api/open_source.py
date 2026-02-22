@@ -203,24 +203,26 @@ async def list_families():
 # Cache Management Endpoints
 
 @router.get("/cache", response_model=list[dict])
-async def list_cached_models():
+async def list_cached_models(current_user: User = Depends(get_current_user)):
     """
     List all models cached in the HuggingFace volume.
 
     Returns list of cached models with their sizes.
+    Requires authentication.
     """
     try:
         _, _, list_cached_fn, _ = _get_download_functions()
         cached = list_cached_fn.remote()
         return cached
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list cached models: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to list cached models")
 
 
 @router.get("/cache/{model_id}/status", response_model=ModelCacheStatus)
-async def get_cache_status(model_id: str):
+async def get_cache_status(model_id: str, current_user: User = Depends(get_current_user)):
     """
     Check if a model is cached and ready for inference.
+    Requires authentication.
 
     Args:
         model_id: Internal model ID (e.g., "smollm-135m")
@@ -238,14 +240,15 @@ async def get_cache_status(model_id: str):
         return ModelCacheStatus(
             status="error",
             hf_id=cfg.hf_id,
-            error=str(e)
+            error="Failed to check cache status"
         )
 
 
 @router.post("/cache/{model_id}/download", response_model=DownloadResponse)
-async def trigger_download(model_id: str, force: bool = False):
+async def trigger_download(model_id: str, force: bool = False, current_user: User = Depends(get_current_user)):
     """
     Trigger download of a model to the Modal HuggingFace cache.
+    Requires authentication.
 
     Args:
         model_id: Internal model ID (e.g., "smollm-135m")
@@ -264,14 +267,15 @@ async def trigger_download(model_id: str, force: bool = False):
         return DownloadResponse(
             status="error",
             hf_id=cfg.hf_id,
-            error=str(e)
+            error="Failed to download model"
         )
 
 
 @router.delete("/cache/{model_id}")
-async def delete_cached_model(model_id: str):
+async def delete_cached_model(model_id: str, current_user: User = Depends(get_current_user)):
     """
     Delete a cached model from the HuggingFace volume.
+    Requires authentication.
 
     Args:
         model_id: Internal model ID (e.g., "smollm-135m")
@@ -291,16 +295,17 @@ async def delete_cached_model(model_id: str):
         return result
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete model: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to delete model")
 
 
 # Warmup Endpoint
 
 @router.post("/models/{model_id}/warmup")
-async def warmup_model(model_id: str):
+async def warmup_model(model_id: str, current_user: User = Depends(get_current_user)):
     """
     Pre-load a model into GPU memory for faster inference.
+    Requires authentication.
 
     This triggers the model to be loaded into the inference worker's cache.
     Subsequent generation requests will be faster.
@@ -332,8 +337,8 @@ async def warmup_model(model_id: str):
             )
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Warmup failed: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Warmup failed")
 
 
 # Generation Endpoints
@@ -393,8 +398,8 @@ async def generate(
         raise HTTPException(status_code=402, detail="Insufficient credits.")
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Generation failed")
 
 
 @router.post("/generate/stream")
@@ -568,8 +573,8 @@ async def generate_with_activations(
         raise HTTPException(status_code=402, detail="Insufficient credits.")
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Generation failed")
 
 
 class DecodeTokensRequest(BaseModel):
@@ -595,5 +600,5 @@ async def decode_tokens(request: DecodeTokensRequest):
 
         return {"decoded_tokens": decoded}
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Token decoding failed: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Token decoding failed")

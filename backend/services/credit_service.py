@@ -46,6 +46,16 @@ def get_credit_balance(db: Session, user_id: int) -> Optional[CreditBalance]:
     return db.query(CreditBalance).filter(CreditBalance.user_id == user_id).first()
 
 
+def get_credit_balance_for_update(db: Session, user_id: int) -> Optional[CreditBalance]:
+    """Get user's credit balance with a row-level lock for safe read-modify-write."""
+    return (
+        db.query(CreditBalance)
+        .filter(CreditBalance.user_id == user_id)
+        .with_for_update()
+        .first()
+    )
+
+
 def get_user_transactions(
     db: Session, user_id: int, limit: int = 50, offset: int = 0
 ) -> Tuple[List[Transaction], int]:
@@ -80,11 +90,12 @@ def add_credits(
     Returns:
         Created transaction record
     """
-    # Get or create credit balance
-    credit_balance = get_credit_balance(db, user_id)
+    # Get or create credit balance with row lock for safe concurrent access
+    credit_balance = get_credit_balance_for_update(db, user_id)
     if not credit_balance:
         credit_balance = CreditBalance(user_id=user_id, balance_usd=0.0, reserved_usd=0.0)
         db.add(credit_balance)
+        db.flush()
 
     # Update balance
     credit_balance.balance_usd += amount_usd
@@ -120,7 +131,8 @@ def reserve_credits(
     Returns:
         True if reservation successful, False if insufficient balance
     """
-    credit_balance = get_credit_balance(db, user_id)
+    # Lock the row to prevent concurrent read-modify-write races
+    credit_balance = get_credit_balance_for_update(db, user_id)
     if not credit_balance:
         return False
 
@@ -156,7 +168,8 @@ def charge_credits(
     Returns:
         Created transaction record
     """
-    credit_balance = get_credit_balance(db, user_id)
+    # Lock the row to prevent concurrent read-modify-write races
+    credit_balance = get_credit_balance_for_update(db, user_id)
 
     # Release reservation
     credit_balance.reserved_usd -= reserved_amount
@@ -215,7 +228,8 @@ def refund_credits(
     Returns:
         Created transaction record
     """
-    credit_balance = get_credit_balance(db, user_id)
+    # Lock the row to prevent concurrent read-modify-write races
+    credit_balance = get_credit_balance_for_update(db, user_id)
 
     # Release reservation
     credit_balance.reserved_usd -= reserved_amount
@@ -356,7 +370,8 @@ def charge_inference(
     """
     cost = calculate_inference_cost(prompt_tokens, generated_tokens, model_id=model_name)
 
-    credit_balance = get_credit_balance(db, user_id)
+    # Lock the row to prevent concurrent read-modify-write races
+    credit_balance = get_credit_balance_for_update(db, user_id)
     if not credit_balance:
         raise InsufficientBalanceError(required=cost, available=0.0)
 
@@ -554,7 +569,8 @@ def charge_analysis(
         model_id=model_name,
     )
 
-    credit_balance = get_credit_balance(db, user_id)
+    # Lock the row to prevent concurrent read-modify-write races
+    credit_balance = get_credit_balance_for_update(db, user_id)
     if not credit_balance:
         raise InsufficientBalanceError(required=cost, available=0.0)
 
@@ -643,7 +659,8 @@ def charge_patching(
         num_patches=num_patches,
     )
 
-    credit_balance = get_credit_balance(db, user_id)
+    # Lock the row to prevent concurrent read-modify-write races
+    credit_balance = get_credit_balance_for_update(db, user_id)
     if not credit_balance:
         raise InsufficientBalanceError(required=cost, available=0.0)
 
@@ -751,7 +768,8 @@ def charge_sae(
         operation_type=operation_type,
     )
 
-    credit_balance = get_credit_balance(db, user_id)
+    # Lock the row to prevent concurrent read-modify-write races
+    credit_balance = get_credit_balance_for_update(db, user_id)
     if not credit_balance:
         raise InsufficientBalanceError(required=cost, available=0.0)
 

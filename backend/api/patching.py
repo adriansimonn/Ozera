@@ -201,8 +201,8 @@ async def capture_activations(
             decoded_tokens=captured.decoded_tokens,
         )
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to capture activations: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to capture activations")
 
 
 @router.get("/activations", response_model=list[CapturedActivationSummary])
@@ -398,8 +398,8 @@ async def run_patching_experiment(
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Patching experiment failed: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Patching experiment failed")
 
 
 @router.post("/run-with-captured", response_model=PatchingResult)
@@ -519,8 +519,8 @@ async def run_patching_with_captured(
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Patching experiment failed: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Patching experiment failed")
 
 
 def _convert_result_to_response(result, patches: list[PatchSpec]) -> PatchingResult:

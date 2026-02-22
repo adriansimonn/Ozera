@@ -242,8 +242,8 @@ async def generate(
         raise HTTPException(status_code=404, detail=str(e))
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/models", response_model=list[str])
@@ -281,8 +281,8 @@ async def get_model_info(model_name: str):
         raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/models/{model_name}/prepare")
@@ -323,8 +323,8 @@ async def prepare_model(model_name: str):
         raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to prepare model: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to prepare model")
 
 
 @app.post("/generate/stream")
@@ -419,8 +419,8 @@ async def generate_stream(
         raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/generate/with-activations")
@@ -502,8 +502,8 @@ async def generate_with_activations(
         raise HTTPException(status_code=404, detail=str(e))
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/activations/{activation_id}")
@@ -558,8 +558,8 @@ async def decode_tokens(request: dict):
 
         return {'decoded_tokens': decoded}
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error decoding tokens: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error decoding tokens")
 
 
 @app.get("/activations")
