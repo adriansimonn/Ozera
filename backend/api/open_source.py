@@ -20,13 +20,14 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from core.open_source import OPEN_SOURCE_MODELS, ModelFamily
-from middleware.auth_middleware import get_optional_current_user
+from middleware.auth_middleware import get_current_user
 from models.database import User
 from db import get_db
 from services.credit_service import (
     calculate_inference_cost,
     charge_inference,
     check_sufficient_balance,
+    InsufficientBalanceError,
 )
 from inference.activation_store import get_activation_store
 
@@ -339,29 +340,28 @@ async def warmup_model(model_id: str):
 @router.post("/generate")
 async def generate(
     request: GenerateRequest,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Generate text using an open-source model.
 
-    Charges user credits if authenticated.
+    Requires authentication and charges user credits.
     """
     if request.model not in OPEN_SOURCE_MODELS:
         raise HTTPException(status_code=404, detail=f"Unknown model: {request.model}")
 
     # Check credits (with model-size-based pricing)
-    if current_user:
-        estimated_cost = calculate_inference_cost(
-            prompt_tokens=len(request.prompt.split()) * 2,
-            generated_tokens=request.max_tokens,
-            model_id=request.model,
+    estimated_cost = calculate_inference_cost(
+        prompt_tokens=len(request.prompt.split()) * 2,
+        generated_tokens=request.max_tokens,
+        model_id=request.model,
+    )
+    if not check_sufficient_balance(db, current_user.id, estimated_cost):
+        raise HTTPException(
+            status_code=402,
+            detail="Insufficient credits. Please add more credits to continue."
         )
-        if not check_sufficient_balance(db, current_user.id, estimated_cost):
-            raise HTTPException(
-                status_code=402,
-                detail="Insufficient credits. Please add more credits to continue."
-            )
 
     try:
         worker = _get_inference_worker(request.model)
@@ -374,25 +374,22 @@ async def generate(
             top_p=request.top_p,
         )
 
-        # Charge user
-        if current_user:
-            try:
-                charge_inference(
-                    db=db,
-                    user_id=current_user.id,
-                    prompt_tokens=result.get('prompt_tokens', 0),
-                    generated_tokens=result.get('generated_tokens', 0),
-                    model_name=request.model,
-                )
-                result['charged'] = True
-            except Exception as charge_error:
-                print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
-                result['charged'] = False
-        else:
-            result['charged'] = False
+        # Charge user — fail if charge fails
+        charge_inference(
+            db=db,
+            user_id=current_user.id,
+            prompt_tokens=result.get('prompt_tokens', 0),
+            generated_tokens=result.get('generated_tokens', 0),
+            model_name=request.model,
+        )
+        result['charged'] = True
 
         return result
 
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
@@ -400,34 +397,34 @@ async def generate(
 @router.post("/generate/stream")
 async def generate_stream(
     request: GenerateRequest,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Stream text generation using an open-source model.
 
     Returns Server-Sent Events with generated tokens.
-    Charges user credits if authenticated.
+    Requires authentication and charges user credits.
     """
     if request.model not in OPEN_SOURCE_MODELS:
         raise HTTPException(status_code=404, detail=f"Unknown model: {request.model}")
 
     # Check credits (with model-size-based pricing)
-    if current_user:
-        estimated_cost = calculate_inference_cost(
-            prompt_tokens=len(request.prompt.split()) * 2,
-            generated_tokens=request.max_tokens,
-            model_id=request.model,
+    estimated_cost = calculate_inference_cost(
+        prompt_tokens=len(request.prompt.split()) * 2,
+        generated_tokens=request.max_tokens,
+        model_id=request.model,
+    )
+    if not check_sufficient_balance(db, current_user.id, estimated_cost):
+        raise HTTPException(
+            status_code=402,
+            detail="Insufficient credits. Please add more credits to continue."
         )
-        if not check_sufficient_balance(db, current_user.id, estimated_cost):
-            raise HTTPException(
-                status_code=402,
-                detail="Insufficient credits. Please add more credits to continue."
-            )
 
     async def event_stream():
         token_count = 0
         prompt_token_estimate = len(request.prompt.split()) * 2
+        charge_error_msg = None
 
         try:
             # Send start event
@@ -449,25 +446,27 @@ async def generate_stream(
                 data = json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)
                 yield f"data: {data}\n\n".encode('utf-8')
 
-            # Charge user
-            if current_user:
-                try:
-                    charge_inference(
-                        db=db,
-                        user_id=current_user.id,
-                        prompt_tokens=prompt_token_estimate,
-                        generated_tokens=token_count,
-                        model_name=request.model,
-                    )
-                except Exception as charge_error:
-                    print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+            # Charge user — report error in stream if fails
+            try:
+                charge_inference(
+                    db=db,
+                    user_id=current_user.id,
+                    prompt_tokens=prompt_token_estimate,
+                    generated_tokens=token_count,
+                    model_name=request.model,
+                )
+            except Exception as charge_error:
+                charge_error_msg = str(charge_error)
 
             # Send done event
-            data = json.dumps({
+            done_payload = {
                 'type': 'done',
                 'token_count': token_count,
-                'charged': current_user is not None
-            }, ensure_ascii=False)
+                'charged': charge_error_msg is None,
+            }
+            if charge_error_msg:
+                done_payload['charge_error'] = charge_error_msg
+            data = json.dumps(done_payload, ensure_ascii=False)
             yield f"data: {data}\n\n".encode('utf-8')
 
         except Exception as e:
@@ -489,30 +488,29 @@ async def generate_stream(
 @router.post("/generate/with-activations")
 async def generate_with_activations(
     request: GenerateRequest,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Generate text and capture activations for interpretability visualization.
 
     Returns an activation_id that can be used to retrieve full activation data.
-    Charges user credits if authenticated.
+    Requires authentication and charges user credits.
     """
     if request.model not in OPEN_SOURCE_MODELS:
         raise HTTPException(status_code=404, detail=f"Unknown model: {request.model}")
 
     # Check credits (with model-size-based pricing)
-    if current_user:
-        estimated_cost = calculate_inference_cost(
-            prompt_tokens=len(request.prompt.split()) * 2,
-            generated_tokens=request.max_tokens,
-            model_id=request.model,
+    estimated_cost = calculate_inference_cost(
+        prompt_tokens=len(request.prompt.split()) * 2,
+        generated_tokens=request.max_tokens,
+        model_id=request.model,
+    )
+    if not check_sufficient_balance(db, current_user.id, estimated_cost):
+        raise HTTPException(
+            status_code=402,
+            detail="Insufficient credits. Please add more credits to continue."
         )
-        if not check_sufficient_balance(db, current_user.id, estimated_cost):
-            raise HTTPException(
-                status_code=402,
-                detail="Insufficient credits. Please add more credits to continue."
-            )
 
     try:
         worker = _get_inference_worker(request.model)
@@ -547,25 +545,22 @@ async def generate_with_activations(
             result['activation_id'] = activation_id
             del result['activations']  # Don't send large activations inline
 
-        # Charge user
-        if current_user:
-            try:
-                charge_inference(
-                    db=db,
-                    user_id=current_user.id,
-                    prompt_tokens=result.get('prompt_tokens', 0),
-                    generated_tokens=result.get('generated_tokens', 0),
-                    model_name=request.model,
-                )
-                result['charged'] = True
-            except Exception as charge_error:
-                print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
-                result['charged'] = False
-        else:
-            result['charged'] = False
+        # Charge user — fail if charge fails
+        charge_inference(
+            db=db,
+            user_id=current_user.id,
+            prompt_tokens=result.get('prompt_tokens', 0),
+            generated_tokens=result.get('generated_tokens', 0),
+            model_name=request.model,
+        )
+        result['charged'] = True
 
         return result
 
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 

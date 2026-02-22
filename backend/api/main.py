@@ -29,6 +29,7 @@ from services.credit_service import (
     charge_inference,
     check_sufficient_balance,
     get_credit_balance,
+    InsufficientBalanceError,
 )
 from api.datasets import router as datasets_router
 from api.training import router as training_router
@@ -41,7 +42,7 @@ from api.patching import router as patching_router
 from api.analysis import router as analysis_router
 from api.export import router as export_router
 from api.sae import router as sae_router
-from middleware.auth_middleware import get_optional_current_user
+from middleware.auth_middleware import get_current_user
 from models.database import User
 from db import get_db
 
@@ -158,18 +159,37 @@ async def get_inference_mode():
 
 
 @app.post("/generate", response_model=GenerateResponse)
-async def generate(request: GenerateRequest):
+async def generate(
+    request: GenerateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Generate text from a prompt.
 
     Routes to local or Modal inference based on INFERENCE_MODE env var.
+    Requires authentication and charges user credits.
 
     Args:
         request: Generation request parameters
+        current_user: Authenticated user
+        db: Database session
 
     Returns:
         Generated text and metadata
     """
+    # Check if user has sufficient balance
+    estimated_cost = calculate_inference_cost(
+        prompt_tokens=len(request.prompt.split()) * 2,
+        generated_tokens=request.max_tokens,
+        model_id=request.model,
+    )
+    if not check_sufficient_balance(db, current_user.id, estimated_cost):
+        raise HTTPException(
+            status_code=402,
+            detail="Insufficient credits. Please add more credits to continue."
+        )
+
     try:
         result = await inference_router.generate(
             model_id=request.model,
@@ -178,6 +198,15 @@ async def generate(request: GenerateRequest):
             temperature=request.temperature,
             top_k=request.top_k,
             top_p=request.top_p,
+        )
+
+        # Charge user — fail if charge fails
+        charge_inference(
+            db=db,
+            user_id=current_user.id,
+            prompt_tokens=result['prompt_tokens'],
+            generated_tokens=result['generated_tokens'],
+            model_name=request.model,
         )
 
         return GenerateResponse(
@@ -192,10 +221,14 @@ async def generate(request: GenerateRequest):
             top_p=result['top_p']
         )
 
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
@@ -284,41 +317,41 @@ async def prepare_model(model_name: str):
 @app.post("/generate/stream")
 async def generate_stream(
     request: GenerateRequest,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Generate text from a prompt with streaming (Server-Sent Events).
 
     Routes to local or Modal inference based on INFERENCE_MODE env var.
-    Charges user credits if authenticated.
+    Requires authentication and charges user credits.
 
     Args:
         request: Generation request parameters
-        current_user: Optional authenticated user
+        current_user: Authenticated user
         db: Database session
 
     Returns:
         Stream of generated tokens
     """
     # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
-    if current_user:
-        estimated_cost = calculate_inference_cost(
-            prompt_tokens=len(request.prompt.split()) * 2,  # Rough estimate
-            generated_tokens=request.max_tokens,
-            model_id=request.model,
+    estimated_cost = calculate_inference_cost(
+        prompt_tokens=len(request.prompt.split()) * 2,  # Rough estimate
+        generated_tokens=request.max_tokens,
+        model_id=request.model,
+    )
+    if not check_sufficient_balance(db, current_user.id, estimated_cost):
+        raise HTTPException(
+            status_code=402,
+            detail="Insufficient credits. Please add more credits to continue."
         )
-        if not check_sufficient_balance(db, current_user.id, estimated_cost):
-            raise HTTPException(
-                status_code=402,
-                detail="Insufficient credits. Please add more credits to continue."
-            )
 
     try:
         # Create streaming generator function
         async def event_stream():
             token_count = 0
             prompt_token_estimate = len(request.prompt.split()) * 2  # Rough estimate
+            charge_error_msg = None
             try:
                 # Send initial metadata
                 data = json.dumps({'type': 'start', 'prompt': request.prompt}, ensure_ascii=False)
@@ -337,26 +370,27 @@ async def generate_stream(
                     data = json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)
                     yield f"data: {data}\n\n".encode('utf-8')
 
-                # Charge user after successful generation
-                if current_user:
-                    try:
-                        charge_inference(
-                            db=db,
-                            user_id=current_user.id,
-                            prompt_tokens=prompt_token_estimate,
-                            generated_tokens=token_count,
-                            model_name=request.model,
-                        )
-                    except Exception as charge_error:
-                        # Log but don't fail the request
-                        print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+                # Charge user after successful generation — report error in stream if fails
+                try:
+                    charge_inference(
+                        db=db,
+                        user_id=current_user.id,
+                        prompt_tokens=prompt_token_estimate,
+                        generated_tokens=token_count,
+                        model_name=request.model,
+                    )
+                except Exception as charge_error:
+                    charge_error_msg = str(charge_error)
 
                 # Send completion with token count
-                data = json.dumps({
+                done_payload = {
                     'type': 'done',
                     'token_count': token_count,
-                    'charged': current_user is not None
-                }, ensure_ascii=False)
+                    'charged': charge_error_msg is None,
+                }
+                if charge_error_msg:
+                    done_payload['charge_error'] = charge_error_msg
+                data = json.dumps(done_payload, ensure_ascii=False)
                 yield f"data: {data}\n\n".encode('utf-8')
 
             except Exception as e:
@@ -385,7 +419,7 @@ async def generate_stream(
 @app.post("/generate/with-activations")
 async def generate_with_activations(
     request: GenerateRequest,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -393,28 +427,27 @@ async def generate_with_activations(
 
     Note: For Modal mode, activations are returned inline. For local mode,
     an activation_id is returned for later retrieval.
-    Charges user credits if authenticated.
+    Requires authentication and charges user credits.
 
     Args:
         request: Generation request parameters
-        current_user: Optional authenticated user
+        current_user: Authenticated user
         db: Database session
 
     Returns:
         Generated text, metadata, and activation ID or inline activations
     """
     # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
-    if current_user:
-        estimated_cost = calculate_inference_cost(
-            prompt_tokens=len(request.prompt.split()) * 2,  # Rough estimate
-            generated_tokens=request.max_tokens,
-            model_id=request.model,
+    estimated_cost = calculate_inference_cost(
+        prompt_tokens=len(request.prompt.split()) * 2,  # Rough estimate
+        generated_tokens=request.max_tokens,
+        model_id=request.model,
+    )
+    if not check_sufficient_balance(db, current_user.id, estimated_cost):
+        raise HTTPException(
+            status_code=402,
+            detail="Insufficient credits. Please add more credits to continue."
         )
-        if not check_sufficient_balance(db, current_user.id, estimated_cost):
-            raise HTTPException(
-                status_code=402,
-                detail="Insufficient credits. Please add more credits to continue."
-            )
 
     try:
         result = await inference_router.generate_with_activations(
@@ -448,30 +481,26 @@ async def generate_with_activations(
             result['activation_id'] = activation_id
             del result['activations']  # Don't send large activations to frontend
 
-        # Charge user after successful generation
-        if current_user:
-            try:
-                charge_inference(
-                    db=db,
-                    user_id=current_user.id,
-                    prompt_tokens=result.get('prompt_tokens', 0),
-                    generated_tokens=result.get('generated_tokens', 0),
-                    model_name=request.model,
-                )
-                result['charged'] = True
-            except Exception as charge_error:
-                # Log but don't fail the request
-                print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
-                result['charged'] = False
-        else:
-            result['charged'] = False
+        # Charge user — fail if charge fails
+        charge_inference(
+            db=db,
+            user_id=current_user.id,
+            prompt_tokens=result.get('prompt_tokens', 0),
+            generated_tokens=result.get('generated_tokens', 0),
+            model_name=request.model,
+        )
+        result['charged'] = True
 
         return result
 
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 

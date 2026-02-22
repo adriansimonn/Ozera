@@ -47,8 +47,10 @@ def verify_modal_secret(x_modal_secret: Optional[str] = Header(None)) -> bool:
         HTTPException if invalid
     """
     if not MODAL_WEBHOOK_SECRET:
-        # If no secret configured, allow all (for development)
-        return True
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook secret not configured"
+        )
 
     if not x_modal_secret or x_modal_secret != MODAL_WEBHOOK_SECRET:
         raise HTTPException(status_code=403, detail="Invalid webhook secret")

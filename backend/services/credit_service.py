@@ -9,6 +9,14 @@ from sqlalchemy.orm import Session
 from models.database import CreditBalance, Transaction, TransactionType, User
 
 
+class InsufficientBalanceError(Exception):
+    """Raised when a user's balance is insufficient for a charge."""
+    def __init__(self, required: float, available: float):
+        self.required = required
+        self.available = available
+        super().__init__(f"Insufficient balance: need ${required:.4f}, have ${available:.4f}")
+
+
 # GPU pricing tiers (30% markup on Modal base costs)
 GPU_PRICING = {
     "t4": {
@@ -350,8 +358,11 @@ def charge_inference(
 
     credit_balance = get_credit_balance(db, user_id)
     if not credit_balance:
-        credit_balance = CreditBalance(user_id=user_id, balance_usd=0.0, reserved_usd=0.0)
-        db.add(credit_balance)
+        raise InsufficientBalanceError(required=cost, available=0.0)
+
+    # Check sufficient balance before deducting
+    if credit_balance.balance_usd < cost:
+        raise InsufficientBalanceError(required=cost, available=credit_balance.balance_usd)
 
     # Deduct cost from balance
     credit_balance.balance_usd -= cost
@@ -545,8 +556,11 @@ def charge_analysis(
 
     credit_balance = get_credit_balance(db, user_id)
     if not credit_balance:
-        credit_balance = CreditBalance(user_id=user_id, balance_usd=0.0, reserved_usd=0.0)
-        db.add(credit_balance)
+        raise InsufficientBalanceError(required=cost, available=0.0)
+
+    # Check sufficient balance before deducting
+    if credit_balance.balance_usd < cost:
+        raise InsufficientBalanceError(required=cost, available=credit_balance.balance_usd)
 
     # Deduct cost from balance
     credit_balance.balance_usd -= cost
@@ -631,8 +645,11 @@ def charge_patching(
 
     credit_balance = get_credit_balance(db, user_id)
     if not credit_balance:
-        credit_balance = CreditBalance(user_id=user_id, balance_usd=0.0, reserved_usd=0.0)
-        db.add(credit_balance)
+        raise InsufficientBalanceError(required=cost, available=0.0)
+
+    # Check sufficient balance before deducting
+    if credit_balance.balance_usd < cost:
+        raise InsufficientBalanceError(required=cost, available=credit_balance.balance_usd)
 
     # Deduct cost from balance
     credit_balance.balance_usd -= cost
@@ -736,8 +753,11 @@ def charge_sae(
 
     credit_balance = get_credit_balance(db, user_id)
     if not credit_balance:
-        credit_balance = CreditBalance(user_id=user_id, balance_usd=0.0, reserved_usd=0.0)
-        db.add(credit_balance)
+        raise InsufficientBalanceError(required=cost, available=0.0)
+
+    # Check sufficient balance before deducting
+    if credit_balance.balance_usd < cost:
+        raise InsufficientBalanceError(required=cost, available=credit_balance.balance_usd)
 
     # Deduct cost from balance
     credit_balance.balance_usd -= cost

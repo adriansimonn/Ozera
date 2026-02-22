@@ -30,6 +30,7 @@ from api.schemas.patching import (
     ChangedToken,
 )
 from middleware.auth_middleware import get_optional_current_user, get_current_user
+from services.credit_service import InsufficientBalanceError
 from models.database import User, TrainingJob, UploadedModel, JobStatus
 from db import get_db
 from services.credit_service import (
@@ -282,7 +283,7 @@ async def clear_all_activations():
 @router.post("/run", response_model=PatchingResult)
 async def run_patching_experiment(
     request: RunPatchingRequest,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -317,20 +318,19 @@ async def run_patching_experiment(
         )
 
     # Check credits before running experiment
-    if current_user:
-        source_prompt_length = len(request.source_prompt) if request.source_prompt else 0
-        estimated_cost = estimate_patching_cost(
-            source_prompt_length=source_prompt_length,
-            target_prompt_length=len(request.target_prompt),
-            max_tokens=request.max_tokens,
-            model_id=request.model,
-            num_patches=len(request.patches),
+    source_prompt_length = len(request.source_prompt) if request.source_prompt else 0
+    estimated_cost = estimate_patching_cost(
+        source_prompt_length=source_prompt_length,
+        target_prompt_length=len(request.target_prompt),
+        max_tokens=request.max_tokens,
+        model_id=request.model,
+        num_patches=len(request.patches),
+    )
+    if not check_sufficient_balance(db, current_user.id, estimated_cost):
+        raise HTTPException(
+            status_code=402,
+            detail="INSUFFICIENT_CREDITS"
         )
-        if not check_sufficient_balance(db, current_user.id, estimated_cost):
-            raise HTTPException(
-                status_code=402,
-                detail="INSUFFICIENT_CREDITS"
-            )
 
     try:
         # All models run on Modal GPU workers (base, open-source, and custom)
@@ -360,29 +360,26 @@ async def run_patching_experiment(
             temperature=request.temperature,
         )
 
-        # Charge user after successful experiment
-        if current_user:
-            try:
-                # Calculate actual token counts from result
-                source_tokens = len(request.source_prompt.split()) if request.source_prompt else 0
-                target_tokens = len(result.get('baseline_tokens', []))
-                generated_tokens = len(result.get('patched_tokens', [])) - target_tokens
+        # Charge user after successful experiment — fail if charge fails
+        source_tokens = len(request.source_prompt.split()) if request.source_prompt else 0
+        target_tokens = len(result.get('baseline_tokens', []))
+        generated_tokens = len(result.get('patched_tokens', [])) - target_tokens
 
-                charge_patching(
-                    db=db,
-                    user_id=current_user.id,
-                    source_tokens=source_tokens,
-                    target_tokens=target_tokens,
-                    generated_tokens=max(generated_tokens, request.max_tokens),
-                    model_name=request.model,
-                    num_patches=len(request.patches),
-                )
-            except Exception as charge_error:
-                print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+        charge_patching(
+            db=db,
+            user_id=current_user.id,
+            source_tokens=source_tokens,
+            target_tokens=target_tokens,
+            generated_tokens=max(generated_tokens, request.max_tokens),
+            model_name=request.model,
+            num_patches=len(request.patches),
+        )
 
         # Convert Modal result to response
         return _convert_modal_result_to_response(result, request.patches)
 
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
@@ -394,7 +391,7 @@ async def run_patching_experiment(
 @router.post("/run-with-captured", response_model=PatchingResult)
 async def run_patching_with_captured(
     request: RunPatchingWithCapturedRequest,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -433,19 +430,18 @@ async def run_patching_with_captured(
     model_type = captured.model_type
 
     # Check credits before running experiment
-    if current_user:
-        estimated_cost = estimate_patching_cost(
-            source_prompt_length=len(captured.prompt),
-            target_prompt_length=len(request.target_prompt),
-            max_tokens=request.max_tokens,
-            model_id=request.model,
-            num_patches=len(request.patches),
+    estimated_cost = estimate_patching_cost(
+        source_prompt_length=len(captured.prompt),
+        target_prompt_length=len(request.target_prompt),
+        max_tokens=request.max_tokens,
+        model_id=request.model,
+        num_patches=len(request.patches),
+    )
+    if not check_sufficient_balance(db, current_user.id, estimated_cost):
+        raise HTTPException(
+            status_code=402,
+            detail="INSUFFICIENT_CREDITS"
         )
-        if not check_sufficient_balance(db, current_user.id, estimated_cost):
-            raise HTTPException(
-                status_code=402,
-                detail="INSUFFICIENT_CREDITS"
-            )
 
     try:
         # All models run on Modal GPU (base, open-source, and custom)
@@ -490,23 +486,21 @@ async def run_patching_with_captured(
             temperature=request.temperature,
         )
 
-        # Charge user after successful experiment
-        if current_user:
-            try:
-                charge_patching(
-                    db=db,
-                    user_id=current_user.id,
-                    source_tokens=len(captured.tokens),
-                    target_tokens=len(result.get('baseline_tokens', [])),
-                    generated_tokens=len(result.get('patched_tokens', [])) - len(result.get('baseline_tokens', [])),
-                    model_name=request.model,
-                    num_patches=len(request.patches),
-                )
-            except Exception as charge_error:
-                print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+        # Charge user after successful experiment — fail if charge fails
+        charge_patching(
+            db=db,
+            user_id=current_user.id,
+            source_tokens=len(captured.tokens),
+            target_tokens=len(result.get('baseline_tokens', [])),
+            generated_tokens=len(result.get('patched_tokens', [])) - len(result.get('baseline_tokens', [])),
+            model_name=request.model,
+            num_patches=len(request.patches),
+        )
 
         return _convert_modal_result_to_response(result, request.patches)
 
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:

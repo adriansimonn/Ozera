@@ -103,18 +103,29 @@ async def stripe_webhook(
             payment_intent_id = metadata["payment_intent_id"]
 
             if user_id and credits_usd:
-                # Add credits to user's account
-                add_credits(
-                    db=db,
-                    user_id=user_id,
-                    amount_usd=credits_usd,
-                    stripe_payment_intent_id=payment_intent_id,
-                    description=f"Credit purchase: ${credits_usd:.2f}",
-                )
-                logger.info(
-                    f"Added ${credits_usd:.2f} credits to user {user_id} "
-                    f"(payment: {payment_intent_id})"
-                )
+                # Idempotency check: skip if already processed
+                from models.database import Transaction
+                existing = db.query(Transaction).filter(
+                    Transaction.stripe_payment_intent_id == payment_intent_id
+                ).first()
+
+                if existing:
+                    logger.info(
+                        f"Webhook already processed for payment {payment_intent_id}, skipping"
+                    )
+                else:
+                    # Add credits to user's account
+                    add_credits(
+                        db=db,
+                        user_id=user_id,
+                        amount_usd=credits_usd,
+                        stripe_payment_intent_id=payment_intent_id,
+                        description=f"Credit purchase: ${credits_usd:.2f}",
+                    )
+                    logger.info(
+                        f"Added ${credits_usd:.2f} credits to user {user_id} "
+                        f"(payment: {payment_intent_id})"
+                    )
             else:
                 logger.warning(
                     f"Payment succeeded but missing metadata: {payment_intent_id}"
