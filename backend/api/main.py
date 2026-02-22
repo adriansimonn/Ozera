@@ -8,12 +8,13 @@ Supports both local and Modal cloud inference based on INFERENCE_MODE env var.
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import Optional
+from slowapi.errors import RateLimitExceeded
 import sys
 import os
 import json
@@ -43,6 +44,7 @@ from api.analysis import router as analysis_router
 from api.export import router as export_router
 from api.sae import router as sae_router
 from middleware.auth_middleware import get_current_user
+from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from models.database import User
 from db import get_db
 
@@ -52,9 +54,18 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
 # CORS middleware for frontend
 _app_env = os.getenv("APP_ENV", "development")
-_cors_origins = ["*"] if _app_env == "development" else [
+_cors_origins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+] if _app_env == "development" else [
     "https://ozera.app",
     "https://www.ozera.app",
 ]
@@ -159,8 +170,10 @@ async def get_inference_mode():
 
 
 @app.post("/generate", response_model=GenerateResponse)
+@limiter.limit("10/minute")
 async def generate(
-    request: GenerateRequest,
+    request: Request,
+    body: GenerateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -180,9 +193,9 @@ async def generate(
     """
     # Check if user has sufficient balance
     estimated_cost = calculate_inference_cost(
-        prompt_tokens=len(request.prompt.split()) * 2,
-        generated_tokens=request.max_tokens,
-        model_id=request.model,
+        prompt_tokens=len(body.prompt.split()) * 2,
+        generated_tokens=body.max_tokens,
+        model_id=body.model,
     )
     if not check_sufficient_balance(db, current_user.id, estimated_cost):
         raise HTTPException(
@@ -192,12 +205,12 @@ async def generate(
 
     try:
         result = await inference_router.generate(
-            model_id=request.model,
-            prompt=request.prompt,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
-            top_k=request.top_k,
-            top_p=request.top_p,
+            model_id=body.model,
+            prompt=body.prompt,
+            max_tokens=body.max_tokens,
+            temperature=body.temperature,
+            top_k=body.top_k,
+            top_p=body.top_p,
         )
 
         # Charge user — fail if charge fails
@@ -206,13 +219,13 @@ async def generate(
             user_id=current_user.id,
             prompt_tokens=result['prompt_tokens'],
             generated_tokens=result['generated_tokens'],
-            model_name=request.model,
+            model_name=body.model,
         )
 
         return GenerateResponse(
             text=result['text'],
             prompt=result['prompt'],
-            model=result.get('model', request.model),
+            model=result.get('model', body.model),
             prompt_tokens=result['prompt_tokens'],
             generated_tokens=result['generated_tokens'],
             total_tokens=result['total_tokens'],
@@ -315,8 +328,10 @@ async def prepare_model(model_name: str):
 
 
 @app.post("/generate/stream")
+@limiter.limit("10/minute")
 async def generate_stream(
-    request: GenerateRequest,
+    request: Request,
+    body: GenerateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -325,20 +340,12 @@ async def generate_stream(
 
     Routes to local or Modal inference based on INFERENCE_MODE env var.
     Requires authentication and charges user credits.
-
-    Args:
-        request: Generation request parameters
-        current_user: Authenticated user
-        db: Database session
-
-    Returns:
-        Stream of generated tokens
     """
     # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
     estimated_cost = calculate_inference_cost(
-        prompt_tokens=len(request.prompt.split()) * 2,  # Rough estimate
-        generated_tokens=request.max_tokens,
-        model_id=request.model,
+        prompt_tokens=len(body.prompt.split()) * 2,  # Rough estimate
+        generated_tokens=body.max_tokens,
+        model_id=body.model,
     )
     if not check_sufficient_balance(db, current_user.id, estimated_cost):
         raise HTTPException(
@@ -350,21 +357,21 @@ async def generate_stream(
         # Create streaming generator function
         async def event_stream():
             token_count = 0
-            prompt_token_estimate = len(request.prompt.split()) * 2  # Rough estimate
+            prompt_token_estimate = len(body.prompt.split()) * 2  # Rough estimate
             charge_error_msg = None
             try:
                 # Send initial metadata
-                data = json.dumps({'type': 'start', 'prompt': request.prompt}, ensure_ascii=False)
+                data = json.dumps({'type': 'start', 'prompt': body.prompt}, ensure_ascii=False)
                 yield f"data: {data}\n\n".encode('utf-8')
 
                 # Stream tokens using the inference router
                 async for token in inference_router.generate_stream(
-                    model_id=request.model,
-                    prompt=request.prompt,
-                    max_tokens=request.max_tokens,
-                    temperature=request.temperature,
-                    top_k=request.top_k,
-                    top_p=request.top_p,
+                    model_id=body.model,
+                    prompt=body.prompt,
+                    max_tokens=body.max_tokens,
+                    temperature=body.temperature,
+                    top_k=body.top_k,
+                    top_p=body.top_p,
                 ):
                     token_count += 1
                     data = json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)
@@ -377,7 +384,7 @@ async def generate_stream(
                         user_id=current_user.id,
                         prompt_tokens=prompt_token_estimate,
                         generated_tokens=token_count,
-                        model_name=request.model,
+                        model_name=body.model,
                     )
                 except Exception as charge_error:
                     charge_error_msg = str(charge_error)
@@ -417,8 +424,10 @@ async def generate_stream(
 
 
 @app.post("/generate/with-activations")
+@limiter.limit("10/minute")
 async def generate_with_activations(
-    request: GenerateRequest,
+    request: Request,
+    body: GenerateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -428,20 +437,12 @@ async def generate_with_activations(
     Note: For Modal mode, activations are returned inline. For local mode,
     an activation_id is returned for later retrieval.
     Requires authentication and charges user credits.
-
-    Args:
-        request: Generation request parameters
-        current_user: Authenticated user
-        db: Database session
-
-    Returns:
-        Generated text, metadata, and activation ID or inline activations
     """
     # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
     estimated_cost = calculate_inference_cost(
-        prompt_tokens=len(request.prompt.split()) * 2,  # Rough estimate
-        generated_tokens=request.max_tokens,
-        model_id=request.model,
+        prompt_tokens=len(body.prompt.split()) * 2,  # Rough estimate
+        generated_tokens=body.max_tokens,
+        model_id=body.model,
     )
     if not check_sufficient_balance(db, current_user.id, estimated_cost):
         raise HTTPException(
@@ -451,12 +452,12 @@ async def generate_with_activations(
 
     try:
         result = await inference_router.generate_with_activations(
-            model_id=request.model,
-            prompt=request.prompt,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
-            top_k=request.top_k,
-            top_p=request.top_p,
+            model_id=body.model,
+            prompt=body.prompt,
+            max_tokens=body.max_tokens,
+            temperature=body.temperature,
+            top_k=body.top_k,
+            top_p=body.top_p,
         )
 
         # If Modal mode returned inline activations, store them locally
@@ -465,7 +466,7 @@ async def generate_with_activations(
                 activations=result['activations'],
                 tokens=result.get('tokens', []),
                 prompt=result['prompt'],
-                model_name=result.get('model', request.model),
+                model_name=result.get('model', body.model),
                 metadata={
                     'temperature': result['temperature'],
                     'top_k': result['top_k'],
@@ -475,7 +476,7 @@ async def generate_with_activations(
                     'total_tokens': result['total_tokens'],
                     'generated_text': result['text'],
                     'decoded_tokens': result.get('decoded_tokens', []),
-                    'model_family': OPEN_SOURCE_MODELS[request.model].family.value if request.model in OPEN_SOURCE_MODELS else 'ozera',
+                    'model_family': OPEN_SOURCE_MODELS[body.model].family.value if body.model in OPEN_SOURCE_MODELS else 'ozera',
                 }
             )
             result['activation_id'] = activation_id
@@ -487,7 +488,7 @@ async def generate_with_activations(
             user_id=current_user.id,
             prompt_tokens=result.get('prompt_tokens', 0),
             generated_tokens=result.get('generated_tokens', 0),
-            model_name=request.model,
+            model_name=body.model,
         )
         result['charged'] = True
 
@@ -506,16 +507,11 @@ async def generate_with_activations(
 
 
 @app.get("/activations/{activation_id}")
-async def get_activations(activation_id: str):
-    """
-    Retrieve stored activations by ID.
-
-    Args:
-        activation_id: UUID of stored activations
-
-    Returns:
-        Complete activation data
-    """
+async def get_activations(
+    activation_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve stored activations by ID. Requires authentication."""
     activations = activation_store.get_activations(activation_id)
 
     if activations is None:
@@ -525,16 +521,11 @@ async def get_activations(activation_id: str):
 
 
 @app.get("/activations/{activation_id}/summary")
-async def get_activation_summary(activation_id: str):
-    """
-    Get metadata summary for activations without full tensors.
-
-    Args:
-        activation_id: UUID of stored activations
-
-    Returns:
-        Activation metadata summary
-    """
+async def get_activation_summary(
+    activation_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Get metadata summary for activations without full tensors. Requires authentication."""
     summary = activation_store.get_activation_summary(activation_id)
 
     if summary is None:
@@ -572,18 +563,19 @@ async def decode_tokens(request: dict):
 
 
 @app.get("/activations")
-async def list_activations():
-    """
-    List all stored activations (summaries only).
-
-    Returns:
-        List of activation summaries
-    """
+async def list_activations(
+    current_user: User = Depends(get_current_user),
+):
+    """List all stored activations (summaries only). Requires authentication."""
     return activation_store.list_activations()
 
 
 @app.get("/activations/{activation_id}/layer/{layer_idx}")
-async def get_layer_activations(activation_id: str, layer_idx: int):
+async def get_layer_activations(
+    activation_id: str,
+    layer_idx: int,
+    current_user: User = Depends(get_current_user),
+):
     """
     Get activations for a specific layer (lazy loading).
 
@@ -610,7 +602,11 @@ async def get_layer_activations(activation_id: str, layer_idx: int):
 
 
 @app.get("/activations/{activation_id}/tensor/{tensor_name}")
-async def get_tensor_activation(activation_id: str, tensor_name: str):
+async def get_tensor_activation(
+    activation_id: str,
+    tensor_name: str,
+    current_user: User = Depends(get_current_user),
+):
     """
     Get a specific top-level tensor activation (lazy loading).
 
@@ -648,7 +644,10 @@ async def get_tensor_activation(activation_id: str, tensor_name: str):
 
 
 @app.delete("/activations/{activation_id}")
-async def delete_activations(activation_id: str):
+async def delete_activations(
+    activation_id: str,
+    current_user: User = Depends(get_current_user),
+):
     """
     Delete stored activations.
 

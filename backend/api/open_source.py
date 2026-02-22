@@ -8,7 +8,7 @@ Provides endpoints for:
 - Managing cached models
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from core.open_source import OPEN_SOURCE_MODELS, ModelFamily
 from middleware.auth_middleware import get_current_user
+from middleware.rate_limit import limiter
 from models.database import User
 from db import get_db
 from services.credit_service import (
@@ -338,8 +339,10 @@ async def warmup_model(model_id: str):
 # Generation Endpoints
 
 @router.post("/generate")
+@limiter.limit("10/minute")
 async def generate(
-    request: GenerateRequest,
+    request: Request,
+    body: GenerateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -348,14 +351,14 @@ async def generate(
 
     Requires authentication and charges user credits.
     """
-    if request.model not in OPEN_SOURCE_MODELS:
-        raise HTTPException(status_code=404, detail=f"Unknown model: {request.model}")
+    if body.model not in OPEN_SOURCE_MODELS:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {body.model}")
 
     # Check credits (with model-size-based pricing)
     estimated_cost = calculate_inference_cost(
-        prompt_tokens=len(request.prompt.split()) * 2,
-        generated_tokens=request.max_tokens,
-        model_id=request.model,
+        prompt_tokens=len(body.prompt.split()) * 2,
+        generated_tokens=body.max_tokens,
+        model_id=body.model,
     )
     if not check_sufficient_balance(db, current_user.id, estimated_cost):
         raise HTTPException(
@@ -364,14 +367,14 @@ async def generate(
         )
 
     try:
-        worker = _get_inference_worker(request.model)
+        worker = _get_inference_worker(body.model)
         result = worker().generate.remote(
-            model_id=request.model,
-            prompt=request.prompt,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
-            top_k=request.top_k,
-            top_p=request.top_p,
+            model_id=body.model,
+            prompt=body.prompt,
+            max_tokens=body.max_tokens,
+            temperature=body.temperature,
+            top_k=body.top_k,
+            top_p=body.top_p,
         )
 
         # Charge user — fail if charge fails
@@ -380,7 +383,7 @@ async def generate(
             user_id=current_user.id,
             prompt_tokens=result.get('prompt_tokens', 0),
             generated_tokens=result.get('generated_tokens', 0),
-            model_name=request.model,
+            model_name=body.model,
         )
         result['charged'] = True
 
@@ -395,8 +398,10 @@ async def generate(
 
 
 @router.post("/generate/stream")
+@limiter.limit("10/minute")
 async def generate_stream(
-    request: GenerateRequest,
+    request: Request,
+    body: GenerateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -406,14 +411,14 @@ async def generate_stream(
     Returns Server-Sent Events with generated tokens.
     Requires authentication and charges user credits.
     """
-    if request.model not in OPEN_SOURCE_MODELS:
-        raise HTTPException(status_code=404, detail=f"Unknown model: {request.model}")
+    if body.model not in OPEN_SOURCE_MODELS:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {body.model}")
 
     # Check credits (with model-size-based pricing)
     estimated_cost = calculate_inference_cost(
-        prompt_tokens=len(request.prompt.split()) * 2,
-        generated_tokens=request.max_tokens,
-        model_id=request.model,
+        prompt_tokens=len(body.prompt.split()) * 2,
+        generated_tokens=body.max_tokens,
+        model_id=body.model,
     )
     if not check_sufficient_balance(db, current_user.id, estimated_cost):
         raise HTTPException(
@@ -423,24 +428,24 @@ async def generate_stream(
 
     async def event_stream():
         token_count = 0
-        prompt_token_estimate = len(request.prompt.split()) * 2
+        prompt_token_estimate = len(body.prompt.split()) * 2
         charge_error_msg = None
 
         try:
             # Send start event
-            data = json.dumps({'type': 'start', 'prompt': request.prompt}, ensure_ascii=False)
+            data = json.dumps({'type': 'start', 'prompt': body.prompt}, ensure_ascii=False)
             yield f"data: {data}\n\n".encode('utf-8')
 
             # Get worker and stream tokens
-            worker = _get_inference_worker(request.model)
+            worker = _get_inference_worker(body.model)
 
             for token in worker().generate_stream.remote(
-                model_id=request.model,
-                prompt=request.prompt,
-                max_tokens=request.max_tokens,
-                temperature=request.temperature,
-                top_k=request.top_k,
-                top_p=request.top_p,
+                model_id=body.model,
+                prompt=body.prompt,
+                max_tokens=body.max_tokens,
+                temperature=body.temperature,
+                top_k=body.top_k,
+                top_p=body.top_p,
             ):
                 token_count += 1
                 data = json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)
@@ -453,7 +458,7 @@ async def generate_stream(
                     user_id=current_user.id,
                     prompt_tokens=prompt_token_estimate,
                     generated_tokens=token_count,
-                    model_name=request.model,
+                    model_name=body.model,
                 )
             except Exception as charge_error:
                 charge_error_msg = str(charge_error)
@@ -486,8 +491,10 @@ async def generate_stream(
 
 
 @router.post("/generate/with-activations")
+@limiter.limit("10/minute")
 async def generate_with_activations(
-    request: GenerateRequest,
+    request: Request,
+    body: GenerateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -497,14 +504,14 @@ async def generate_with_activations(
     Returns an activation_id that can be used to retrieve full activation data.
     Requires authentication and charges user credits.
     """
-    if request.model not in OPEN_SOURCE_MODELS:
-        raise HTTPException(status_code=404, detail=f"Unknown model: {request.model}")
+    if body.model not in OPEN_SOURCE_MODELS:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {body.model}")
 
     # Check credits (with model-size-based pricing)
     estimated_cost = calculate_inference_cost(
-        prompt_tokens=len(request.prompt.split()) * 2,
-        generated_tokens=request.max_tokens,
-        model_id=request.model,
+        prompt_tokens=len(body.prompt.split()) * 2,
+        generated_tokens=body.max_tokens,
+        model_id=body.model,
     )
     if not check_sufficient_balance(db, current_user.id, estimated_cost):
         raise HTTPException(
@@ -513,14 +520,14 @@ async def generate_with_activations(
         )
 
     try:
-        worker = _get_inference_worker(request.model)
+        worker = _get_inference_worker(body.model)
         result = worker().generate_with_activations.remote(
-            model_id=request.model,
-            prompt=request.prompt,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
-            top_k=request.top_k,
-            top_p=request.top_p,
+            model_id=body.model,
+            prompt=body.prompt,
+            max_tokens=body.max_tokens,
+            temperature=body.temperature,
+            top_k=body.top_k,
+            top_p=body.top_p,
         )
 
         # Store activations and return ID
@@ -529,7 +536,7 @@ async def generate_with_activations(
                 activations=result['activations'],
                 tokens=result.get('tokens', []),
                 prompt=result['prompt'],
-                model_name=result.get('model', request.model),
+                model_name=result.get('model', body.model),
                 metadata={
                     'temperature': result.get('temperature'),
                     'top_k': result.get('top_k'),
@@ -539,7 +546,7 @@ async def generate_with_activations(
                     'total_tokens': result.get('total_tokens'),
                     'generated_text': result.get('text'),
                     'decoded_tokens': result.get('decoded_tokens', []),
-                    'model_family': OPEN_SOURCE_MODELS[request.model].family.value,
+                    'model_family': OPEN_SOURCE_MODELS[body.model].family.value,
                 }
             )
             result['activation_id'] = activation_id
@@ -551,7 +558,7 @@ async def generate_with_activations(
             user_id=current_user.id,
             prompt_tokens=result.get('prompt_tokens', 0),
             generated_tokens=result.get('generated_tokens', 0),
-            model_name=request.model,
+            model_name=body.model,
         )
         result['charged'] = True
 

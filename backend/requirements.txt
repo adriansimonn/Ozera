@@ -62,6 +62,7 @@ python-dotenv>=1.0.0
 
 # Authentication & Security
 python-jose[cryptography]>=3.3.0  # JWT verification (Supabase tokens)
+slowapi>=0.1.9  # Rate limiting
 
 # Payments (Phase 2)
 stripe>=7.0.0  # Stripe payment processing

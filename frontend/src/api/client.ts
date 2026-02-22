@@ -560,6 +560,7 @@ class OzeraAPIClient {
 
     const response = await fetch(`${this.baseUrl}/datasets/upload`, {
       method: 'POST',
+      headers: getAuthHeaders(),
       body: formData,
     })
 

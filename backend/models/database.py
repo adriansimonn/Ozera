@@ -13,6 +13,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
 )
@@ -64,9 +65,9 @@ class CreditBalance(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
-    balance_usd = Column(Float, default=0.0, nullable=False)
+    balance_usd = Column(Numeric(precision=10, scale=4), default=0.0, nullable=False)
     reserved_usd = Column(
-        Float, default=0.0, nullable=False
+        Numeric(precision=10, scale=4), default=0.0, nullable=False
     )  # Reserved for running jobs
     updated_at = Column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
@@ -105,7 +106,7 @@ class Transaction(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     amount_usd = Column(
-        Float, nullable=False
+        Numeric(precision=10, scale=4), nullable=False
     )  # Positive = credit added, Negative = credit deducted
     transaction_type = Column(Enum(TransactionType), nullable=False)
     description = Column(String(500), nullable=True)
@@ -164,12 +165,12 @@ class TrainingJob(Base):
     modal_call_id = Column(String(255), nullable=True, index=True)  # Modal's job ID
 
     # Cost tracking
-    estimated_cost_usd = Column(Float, nullable=False)
+    estimated_cost_usd = Column(Numeric(precision=10, scale=4), nullable=False)
     estimated_minutes = Column(Float, nullable=False)
     reserved_credits_usd = Column(
-        Float, nullable=False
+        Numeric(precision=10, scale=4), nullable=False
     )  # Amount reserved upfront (with buffer)
-    actual_cost_usd = Column(Float, nullable=True)  # Final cost after completion
+    actual_cost_usd = Column(Numeric(precision=10, scale=4), nullable=True)  # Final cost after completion
     actual_minutes = Column(Float, nullable=True)  # Actual duration
 
     # Progress tracking

@@ -10,11 +10,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from db import get_db
+from middleware.rate_limit import limiter
 from api.schemas.training import (
     JobStatus,
     TrainingJobRequest,
@@ -29,7 +30,7 @@ from api.schemas.training import (
     ModelUploadResponse,
     CustomModelCount,
 )
-from api.datasets import load_dataset_metadata
+from services.modal_volumes import read_dataset_metadata_from_volume
 from middleware.auth_middleware import get_current_user, get_optional_current_user
 from models.database import User, TrainingJob as TrainingJobModel, JobStatus as DBJobStatus, UploadedModel
 from services.job_orchestrator import (
@@ -67,7 +68,9 @@ async def get_training_estimate(
         if not metadata:
             raise HTTPException(status_code=404, detail=f"Generic dataset not found: {actual_dataset_id}")
     else:
-        metadata = load_dataset_metadata(request.dataset_id)
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Authentication required for user datasets")
+        metadata = read_dataset_metadata_from_volume(current_user.id, request.dataset_id)
         if not metadata:
             raise HTTPException(status_code=404, detail=f"Dataset not found: {request.dataset_id}")
 
@@ -134,7 +137,7 @@ async def start_training_job(
         if not metadata:
             raise HTTPException(status_code=404, detail=f"Generic dataset not found: {actual_dataset_id}")
     else:
-        metadata = load_dataset_metadata(request.dataset_id)
+        metadata = read_dataset_metadata_from_volume(current_user.id, request.dataset_id)
         if not metadata:
             raise HTTPException(status_code=404, detail=f"Dataset not found: {request.dataset_id}")
 
@@ -267,17 +270,17 @@ async def list_training_jobs(
 @router.get("/jobs/{job_id}", response_model=TrainingProgress)
 async def get_job_status(
     job_id: str,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get the current status of a training job."""
+    """Get the current status of a training job. Requires authentication."""
     job = get_job_by_id(db, job_id)
 
     if not job:
         raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
 
-    # Check authorization (job owner or public view for demo)
-    if current_user and job.user_id != current_user.id:
+    # Check authorization — only the job owner can view
+    if job.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Calculate elapsed and remaining time
@@ -312,7 +315,7 @@ async def get_job_status(
 @router.get("/jobs/{job_id}/stream")
 async def stream_job_progress(
     job_id: str,
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -320,10 +323,15 @@ async def stream_job_progress(
 
     Sends progress updates every 2 seconds until the job completes or fails.
     Progress is read from the database (updated by Modal webhooks).
+    Requires authentication — only the job owner can stream progress.
     """
     job = get_job_by_id(db, job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+
+    # Check authorization — only the job owner can stream progress
+    if job.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     async def event_stream():
         last_epoch = -1
@@ -648,7 +656,9 @@ async def download_custom_model(
 # Uploaded model management
 
 @router.post("/models/upload", response_model=ModelUploadResponse)
+@limiter.limit("3/minute")
 async def upload_model(
+    request: Request,
     file: UploadFile = File(...),
     model_name: str = Form(...),
     overwrite_existing: bool = Form(default=False),

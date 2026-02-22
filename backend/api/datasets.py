@@ -9,59 +9,42 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Request
 from pydantic import BaseModel
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from core.tokenizer.bpe_tokenizer import get_tokenizer
+from middleware.auth_middleware import get_current_user
+from middleware.rate_limit import limiter
+from models.database import User
 
 from api.schemas.training import DatasetMetadata, DatasetDetail
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
 
 # Configuration
-DATA_DIR = Path(__file__).parent.parent / "data" / "datasets"
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 MIN_FILE_SIZE = 10 * 1024  # 10KB
 
 
-def get_dataset_dir(dataset_id: str) -> Path:
-    """Get the directory for a dataset."""
-    return DATA_DIR / dataset_id
-
-
-def load_dataset_metadata(dataset_id: str) -> Optional[dict]:
-    """Load dataset metadata from JSON file."""
-    metadata_path = get_dataset_dir(dataset_id) / "metadata.json"
-    if not metadata_path.exists():
-        return None
-    with open(metadata_path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_dataset_metadata(dataset_id: str, metadata: dict) -> None:
-    """Save dataset metadata to JSON file."""
-    dataset_dir = get_dataset_dir(dataset_id)
-    dataset_dir.mkdir(parents=True, exist_ok=True)
-    metadata_path = dataset_dir / "metadata.json"
-    with open(metadata_path, "w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2, default=str)
-
-
-# list_all_datasets removed - datasets are session-only
-
-
 @router.post("/upload", response_model=DatasetMetadata)
-async def upload_dataset(file: UploadFile = File(...)):
+@limiter.limit("5/minute")
+async def upload_dataset(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
     """
-    Upload a text dataset file.
+    Upload a text dataset file directly to Modal volume storage.
 
     - Maximum file size: 50MB
     - Minimum file size: 10KB
     - Accepted formats: .txt (UTF-8 encoded)
     """
+    from services.modal_volumes import upload_dataset_to_volume
+
     # Validate file extension
     if not file.filename or not file.filename.endswith(".txt"):
         raise HTTPException(
@@ -107,15 +90,8 @@ async def upload_dataset(file: UploadFile = File(...)):
     tokens = tokenizer.encode(text)
     num_tokens = len(tokens)
 
-    # Generate dataset ID and save
+    # Generate dataset ID
     dataset_id = str(uuid.uuid4())[:8]
-    dataset_dir = get_dataset_dir(dataset_id)
-    dataset_dir.mkdir(parents=True, exist_ok=True)
-
-    # Save raw text file
-    raw_path = dataset_dir / "raw.txt"
-    with open(raw_path, "w", encoding="utf-8") as f:
-        f.write(text)
 
     # Create metadata
     metadata = {
@@ -125,7 +101,20 @@ async def upload_dataset(file: UploadFile = File(...)):
         "num_tokens": num_tokens,
         "created_at": datetime.utcnow().isoformat(),
     }
-    save_dataset_metadata(dataset_id, metadata)
+    metadata_json = json.dumps(metadata, indent=2, default=str).encode("utf-8")
+
+    # Upload directly to Modal volume (no local storage)
+    success = await upload_dataset_to_volume(
+        user_id=current_user.id,
+        dataset_id=dataset_id,
+        content=content,
+        metadata_json=metadata_json,
+    )
+    if not success:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to upload dataset to storage"
+        )
 
     return DatasetMetadata(**metadata)
 
@@ -171,21 +160,19 @@ async def list_generic_datasets_endpoint():
 
 
 @router.get("/{dataset_id}", response_model=DatasetDetail)
-async def get_dataset(dataset_id: str):
+async def get_dataset(
+    dataset_id: str,
+    current_user: User = Depends(get_current_user),
+):
     """Get dataset details including a preview of the content."""
-    metadata = load_dataset_metadata(dataset_id)
+    from services.modal_volumes import read_dataset_metadata_from_volume, read_dataset_from_volume
+
+    metadata = read_dataset_metadata_from_volume(current_user.id, dataset_id)
     if not metadata:
         raise HTTPException(status_code=404, detail=f"Dataset not found: {dataset_id}")
 
-    # Read preview
-    raw_path = get_dataset_dir(dataset_id) / "raw.txt"
-    if raw_path.exists():
-        with open(raw_path, "r", encoding="utf-8") as f:
-            preview = f.read(500)
-    else:
-        preview = ""
+    # Read preview from Modal volume (first 500 bytes)
+    preview_bytes = read_dataset_from_volume(current_user.id, dataset_id, max_bytes=500)
+    preview = preview_bytes.decode("utf-8", errors="replace") if preview_bytes else ""
 
     return DatasetDetail(**metadata, preview=preview)
-
-
-# delete_dataset endpoint removed - datasets are temporary and cleaned up automatically

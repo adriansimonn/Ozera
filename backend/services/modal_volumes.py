@@ -98,31 +98,89 @@ def get_model_path(user_id: int, model_name: str) -> str:
 
 
 async def upload_dataset_to_volume(
-    local_path: Path,
     user_id: int,
     dataset_id: str,
+    content: bytes,
+    metadata_json: Optional[bytes] = None,
 ) -> bool:
     """
-    Upload a dataset file to the Modal volume.
+    Upload dataset content directly to the Modal volume.
 
     Args:
-        local_path: Local path to the dataset file
         user_id: User ID
         dataset_id: Dataset ID
+        content: Raw dataset content as bytes
+        metadata_json: Optional metadata JSON as bytes
 
     Returns:
         True if successful
     """
+    import tempfile
     try:
         remote_dir = f"/{user_id}/{dataset_id}"
 
-        with datasets_volume.batch_upload() as batch:
-            batch.put_file(str(local_path), f"{remote_dir}/raw.txt")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            raw_path = Path(tmpdir) / "raw.txt"
+            raw_path.write_bytes(content)
+
+            with datasets_volume.batch_upload() as batch:
+                batch.put_file(str(raw_path), f"{remote_dir}/raw.txt")
+
+                if metadata_json is not None:
+                    meta_path = Path(tmpdir) / "metadata.json"
+                    meta_path.write_bytes(metadata_json)
+                    batch.put_file(str(meta_path), f"{remote_dir}/metadata.json")
 
         return True
     except Exception as e:
         print(f"Error uploading dataset to Modal volume: {e}")
         return False
+
+
+def read_dataset_from_volume(user_id: int, dataset_id: str, max_bytes: Optional[int] = None) -> Optional[bytes]:
+    """
+    Read dataset content from the Modal volume.
+
+    Args:
+        user_id: User ID
+        dataset_id: Dataset ID
+        max_bytes: If set, only read up to this many bytes
+
+    Returns:
+        Dataset content as bytes, or None if not found
+    """
+    try:
+        remote_path = f"/{user_id}/{dataset_id}/raw.txt"
+        content = b""
+        for chunk in datasets_volume.read_file(remote_path):
+            content += chunk
+            if max_bytes and len(content) >= max_bytes:
+                return content[:max_bytes]
+        return content
+    except Exception:
+        return None
+
+
+def read_dataset_metadata_from_volume(user_id: int, dataset_id: str) -> Optional[dict]:
+    """
+    Read dataset metadata from the Modal volume.
+
+    Args:
+        user_id: User ID
+        dataset_id: Dataset ID
+
+    Returns:
+        Metadata dict, or None if not found
+    """
+    import json
+    try:
+        remote_path = f"/{user_id}/{dataset_id}/metadata.json"
+        content = b""
+        for chunk in datasets_volume.read_file(remote_path):
+            content += chunk
+        return json.loads(content.decode("utf-8"))
+    except Exception:
+        return None
 
 
 async def check_dataset_exists(user_id: int, dataset_id: str) -> bool:

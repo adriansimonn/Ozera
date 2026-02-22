@@ -21,7 +21,6 @@ from services.credit_service import (
 )
 from services.modal_volumes import (
     datasets_volume,
-    upload_dataset_to_volume,
     check_dataset_exists,
     check_generic_dataset_exists,
     is_generic_dataset,
@@ -41,9 +40,6 @@ GPU_RATES = {gpu: info["rate_per_hour"] for gpu, info in GPU_PRICING.items()}
 
 # Credit reservation buffer (20%)
 RESERVATION_BUFFER = 1.2
-
-# Local datasets directory
-DATASETS_DIR = Path(__file__).parent.parent / "data" / "datasets"
 
 
 def estimate_training_cost(
@@ -178,17 +174,13 @@ async def submit_training_job(
                 db.rollback()
                 return None, f"Generic dataset not found: {actual_dataset_id}"
         else:
-            # User-uploaded dataset - upload to Modal volume if not already there
+            # User-uploaded dataset - verify it exists in Modal volume
             dataset_exists = await check_dataset_exists(user_id, dataset_id)
             if not dataset_exists:
-                local_dataset_path = DATASETS_DIR / dataset_id / "raw.txt"
-                if local_dataset_path.exists():
-                    await upload_dataset_to_volume(local_dataset_path, user_id, dataset_id)
-                else:
-                    # Try user-scoped path
-                    user_dataset_path = DATASETS_DIR / str(user_id) / dataset_id / "raw.txt"
-                    if user_dataset_path.exists():
-                        await upload_dataset_to_volume(user_dataset_path, user_id, dataset_id)
+                refund_credits(db, user_id, 0, reservation_amount, job_id,
+                               f"Dataset not found in storage: {dataset_id}")
+                db.rollback()
+                return None, f"Dataset not found in storage: {dataset_id}"
 
         # Update status to queued
         job.status = JobStatus.QUEUED

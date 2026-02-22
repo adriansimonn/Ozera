@@ -5,7 +5,7 @@ Provides endpoints for exporting attention heatmaps, activation histograms,
 and patching results in publication-quality formats (PNG, PDF, SVG).
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
@@ -21,6 +21,8 @@ from core.export import (
 )
 from core.patching import get_patching_engine
 from inference.activation_store import get_activation_store
+from middleware.auth_middleware import get_current_user
+from models.database import User
 
 
 router = APIRouter(prefix="/export", tags=["Export"])
@@ -305,7 +307,10 @@ async def list_presets() -> dict[str, PresetInfo]:
 
 
 @router.post("/attention-heatmap")
-async def export_attention_heatmap(request: AttentionHeatmapRequest) -> Response:
+async def export_attention_heatmap(
+    request: AttentionHeatmapRequest,
+    current_user: User = Depends(get_current_user),
+) -> Response:
     """
     Export attention heatmap as publication-ready figure.
 
@@ -372,7 +377,10 @@ async def export_attention_heatmap(request: AttentionHeatmapRequest) -> Response
 
 
 @router.post("/attention-heatmap/multi-head")
-async def export_multi_head_heatmap(request: MultiHeadHeatmapRequest) -> Response:
+async def export_multi_head_heatmap(
+    request: MultiHeadHeatmapRequest,
+    current_user: User = Depends(get_current_user),
+) -> Response:
     """
     Export multi-head attention heatmap as publication-ready figure.
 
@@ -437,7 +445,10 @@ async def export_multi_head_heatmap(request: MultiHeadHeatmapRequest) -> Respons
 
 
 @router.post("/activation-histogram")
-async def export_activation_histogram(request: ActivationHistogramRequest) -> Response:
+async def export_activation_histogram(
+    request: ActivationHistogramRequest,
+    current_user: User = Depends(get_current_user),
+) -> Response:
     """
     Export activation histogram as publication-ready figure.
 
@@ -504,7 +515,10 @@ async def export_activation_histogram(request: ActivationHistogramRequest) -> Re
 
 
 @router.post("/patching-comparison")
-async def export_patching_comparison(request: PatchingComparisonRequest) -> Response:
+async def export_patching_comparison(
+    request: PatchingComparisonRequest,
+    current_user: User = Depends(get_current_user),
+) -> Response:
     """
     Export patching comparison figure.
 
@@ -589,7 +603,10 @@ async def export_patching_comparison(request: PatchingComparisonRequest) -> Resp
 
 
 @router.post("/batch")
-async def export_batch(request: BatchExportRequest) -> Response:
+async def export_batch(
+    request: BatchExportRequest,
+    current_user: User = Depends(get_current_user),
+) -> Response:
     """
     Export multiple figures as a ZIP archive.
 

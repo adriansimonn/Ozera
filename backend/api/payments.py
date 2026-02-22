@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from db import get_db
 from middleware.auth_middleware import get_current_user
+from middleware.rate_limit import limiter
 from models.database import User
 from services.stripe_service import (
     create_payment_intent,
@@ -29,8 +30,10 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 
 
 @router.post("/create-intent", response_model=CreatePaymentIntentResponse)
+@limiter.limit("5/minute")
 async def create_intent(
-    request: CreatePaymentIntentRequest,
+    request: Request,
+    body: CreatePaymentIntentRequest,
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -46,7 +49,7 @@ async def create_intent(
 
     try:
         result = create_payment_intent(
-            amount_usd=request.amount_usd,
+            amount_usd=body.amount_usd,
             user_id=current_user.id,
             user_email=current_user.email,
         )

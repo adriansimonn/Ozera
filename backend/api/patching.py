@@ -137,7 +137,11 @@ def _patch_spec_to_config(spec: PatchSpec) -> PatchConfig:
 # Activation capture endpoints
 
 @router.post("/capture", response_model=CaptureActivationsResponse)
-async def capture_activations(request: CaptureActivationsRequest):
+async def capture_activations(
+    request: CaptureActivationsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Capture activations from a source prompt.
 
@@ -202,7 +206,9 @@ async def capture_activations(request: CaptureActivationsRequest):
 
 
 @router.get("/activations", response_model=list[CapturedActivationSummary])
-async def list_captured_activations():
+async def list_captured_activations(
+    current_user: User = Depends(get_current_user),
+):
     """
     List all captured activations.
 
@@ -225,7 +231,10 @@ async def list_captured_activations():
 
 
 @router.get("/activations/{activation_id}", response_model=CapturedActivationDetail)
-async def get_captured_activation(activation_id: str):
+async def get_captured_activation(
+    activation_id: str,
+    current_user: User = Depends(get_current_user),
+):
     """
     Get details for a specific captured activation set.
 
@@ -251,7 +260,10 @@ async def get_captured_activation(activation_id: str):
 
 
 @router.delete("/activations/{activation_id}")
-async def delete_captured_activation(activation_id: str):
+async def delete_captured_activation(
+    activation_id: str,
+    current_user: User = Depends(get_current_user),
+):
     """
     Delete captured activations.
 
@@ -267,7 +279,9 @@ async def delete_captured_activation(activation_id: str):
 
 
 @router.delete("/activations")
-async def clear_all_activations():
+async def clear_all_activations(
+    current_user: User = Depends(get_current_user),
+):
     """
     Clear all captured activations.
 
