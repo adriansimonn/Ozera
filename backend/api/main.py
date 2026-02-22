@@ -52,9 +52,15 @@ app = FastAPI(
 )
 
 # CORS middleware for frontend
+_app_env = os.getenv("APP_ENV", "development")
+_cors_origins = ["*"] if _app_env == "development" else [
+    "https://ozera.app",
+    "https://www.ozera.app",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
