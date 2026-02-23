@@ -47,6 +47,12 @@ def _get_jwks() -> Optional[dict]:
         return _jwks_cache  # return stale cache if available
 
 
+def _invalidate_jwks_cache():
+    """Invalidate the JWKS cache, forcing a refresh on next fetch."""
+    global _jwks_cache_time
+    _jwks_cache_time = 0
+
+
 def _get_signing_key(token: str) -> Optional[str]:
     """Extract the correct public key from JWKS for the given token."""
     jwks_data = _get_jwks()
@@ -63,7 +69,17 @@ def _get_signing_key(token: str) -> Optional[str]:
         if key_data.get("kid") == kid:
             return jwk.construct(key_data, algorithm="ES256")
 
-    logger.debug(f"No matching key found for kid={kid}")
+    # Key not found — may be a key rotation; invalidate cache and retry once
+    _invalidate_jwks_cache()
+    jwks_data = _get_jwks()
+    if not jwks_data:
+        return None
+
+    for key_data in jwks_data.get("keys", []):
+        if key_data.get("kid") == kid:
+            return jwk.construct(key_data, algorithm="ES256")
+
+    logger.debug(f"No matching key found for kid={kid} after JWKS refresh")
     return None
 
 

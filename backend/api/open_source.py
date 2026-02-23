@@ -15,10 +15,6 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import json
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
 from core.open_source import OPEN_SOURCE_MODELS, ModelFamily
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import limiter

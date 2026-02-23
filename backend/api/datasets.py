@@ -13,9 +13,6 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Request
 from pydantic import BaseModel
 
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
 from core.tokenizer.bpe_tokenizer import get_tokenizer
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import limiter

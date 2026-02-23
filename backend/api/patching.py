@@ -11,9 +11,6 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import Optional
 import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from core.open_source import OPEN_SOURCE_MODELS, OpenSourceModelLoader, get_loader_for_model
 from core.patching import get_patching_engine, PatchConfig
