@@ -5,7 +5,7 @@
 
 import { useEffect, useRef } from 'react'
 import * as d3 from 'd3'
-import { Activity, TrendingDown, AlertTriangle, CheckCircle, BarChart3 } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 
 interface SparsityMetrics {
   avg_l0: number
@@ -269,37 +269,31 @@ export function SparsityDashboard({
   const isHealthy = qualityIssues.length === 0
 
   return (
-    <div className={`bg-black/40 border border-gray-800 ${className}`}>
+    <div className={className} style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-800">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-purple-400" />
-            <h3 className="text-lg font-semibold text-gray-200 tracking-tight">
-              SAE Quality Metrics
-            </h3>
+      <div style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'rgba(255,255,255,0.95)', letterSpacing: '-0.01em', margin: 0 }}>
+          SAE Quality Metrics
+        </h3>
+        {isHealthy ? (
+          <div style={{ fontSize: '0.875rem', color: 'rgba(34,197,94,0.9)' }}>
+            Healthy
           </div>
-          {isHealthy ? (
-            <div className="flex items-center gap-1 text-green-400 text-sm">
-              <CheckCircle className="w-4 h-4" />
-              Healthy
-            </div>
-          ) : (
-            <div className="flex items-center gap-1 text-yellow-400 text-sm">
-              <AlertTriangle className="w-4 h-4" />
-              {qualityIssues.length} issue{qualityIssues.length > 1 ? 's' : ''}
-            </div>
-          )}
-        </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.875rem', color: 'rgba(234,179,8,0.9)' }}>
+            <AlertTriangle className="w-4 h-4" />
+            {qualityIssues.length} issue{qualityIssues.length > 1 ? 's' : ''}
+          </div>
+        )}
       </div>
 
       {/* Quality issues */}
       {qualityIssues.length > 0 && (
-        <div className="px-4 py-3 bg-yellow-500/10 border-b border-yellow-500/20">
-          <div className="text-xs text-yellow-400 uppercase tracking-wide mb-2">Potential Issues</div>
-          <ul className="text-sm text-yellow-300 space-y-1">
+        <div style={{ padding: '0.75rem 1rem', background: 'rgba(234,179,8,0.06)', borderBottom: '1px solid rgba(234,179,8,0.15)' }}>
+          <div style={{ fontSize: '0.75rem', color: 'rgba(234,179,8,0.9)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Potential Issues</div>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             {qualityIssues.map((issue, idx) => (
-              <li key={idx} className="flex items-center gap-2">
+              <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: 'rgba(234,179,8,0.8)' }}>
                 <AlertTriangle className="w-3 h-3" />
                 {issue}
               </li>
@@ -309,14 +303,13 @@ export function SparsityDashboard({
       )}
 
       {/* Main metrics */}
-      <div className="grid grid-cols-3 gap-px bg-gray-800">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)' }}>
         {/* Sparsity section */}
-        <div className="bg-black/40 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Activity className="w-4 h-4 text-purple-400" />
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Sparsity</span>
+        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+          <div style={{ marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sparsity</span>
           </div>
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <MetricRow label="Avg L0" value={sparsity.avg_l0.toFixed(1)} sublabel="features/input" />
             <MetricRow label="L0 Std" value={sparsity.l0_std.toFixed(1)} />
             <MetricRow label="Sparsity" value={`${(sparsity.sparsity_fraction * 100).toFixed(2)}%`} />
@@ -326,12 +319,11 @@ export function SparsityDashboard({
         </div>
 
         {/* Reconstruction section */}
-        <div className="bg-black/40 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <TrendingDown className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Reconstruction</span>
+        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+          <div style={{ marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reconstruction</span>
           </div>
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <MetricRow label="MSE" value={reconstruction.mse.toExponential(2)} />
             <MetricRow label="RMSE" value={reconstruction.rmse.toFixed(4)} />
             <MetricRow
@@ -345,12 +337,11 @@ export function SparsityDashboard({
         </div>
 
         {/* Feature health section */}
-        <div className="bg-black/40 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="w-4 h-4 text-yellow-400" />
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Feature Health</span>
+        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+          <div style={{ marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Feature Health</span>
           </div>
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <MetricRow label="Total" value={feature_health.num_features.toLocaleString()} />
             <MetricRow
               label="Dead"
@@ -369,15 +360,15 @@ export function SparsityDashboard({
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-2 gap-px bg-gray-800 border-t border-gray-800">
-        <div className="bg-black/40 p-4">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
           <svg ref={frequencyChartRef} width="100%" height={200} />
         </div>
-        <div className="bg-black/40 p-4">
+        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
           {trainingProgress.length > 0 ? (
             <svg ref={lossChartRef} width="100%" height={200} />
           ) : (
-            <div className="h-[200px] flex items-center justify-center text-gray-600 text-sm">
+            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.875rem', color: 'rgba(255,255,255,0.2)' }}>
               No training history available
             </div>
           )}
@@ -396,19 +387,21 @@ interface MetricRowProps {
 }
 
 function MetricRow({ label, value, sublabel, highlight, warning }: MetricRowProps) {
+  const valueColor = warning
+    ? 'rgba(234,179,8,0.9)'
+    : highlight
+      ? 'rgba(34,197,94,0.9)'
+      : '#fff'
+
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-gray-500">{label}</span>
-      <div className="text-right">
-        <span className={`font-mono text-sm ${
-          warning ? 'text-yellow-400' :
-          highlight ? 'text-green-400' :
-          'text-white'
-        }`}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>{label}</span>
+      <div style={{ textAlign: 'right' }}>
+        <span style={{ fontFamily: 'monospace', fontSize: '0.875rem', color: valueColor }}>
           {value}
         </span>
         {sublabel && (
-          <span className="text-xs text-gray-600 ml-1">{sublabel}</span>
+          <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.2)', marginLeft: '0.25rem' }}>{sublabel}</span>
         )}
       </div>
     </div>
