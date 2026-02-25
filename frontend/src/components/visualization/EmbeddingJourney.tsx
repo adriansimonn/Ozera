@@ -393,8 +393,7 @@ function EmbeddingVectorDisplay({ values, stage }: EmbeddingVectorDisplayProps) 
     const innerWidth = width - margin.left - margin.right
     const innerHeight = height - margin.top - margin.bottom
 
-    // Limit to first 128 dimensions for visualization
-    const displayValues = values.slice(0, 128)
+    const displayValues = values
 
     const xScale = d3.scaleBand()
       .domain(displayValues.map((_, i) => i.toString()))
