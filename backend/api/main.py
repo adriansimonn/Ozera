@@ -15,11 +15,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import Optional
 from slowapi.errors import RateLimitExceeded
+import logging
 import sys
 import os
 import json
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+logger = logging.getLogger(__name__)
 
 from inference import ModelLoader
 from inference.activation_store import get_activation_store
@@ -243,6 +246,7 @@ async def generate(
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -282,6 +286,7 @@ async def get_model_info(model_name: str):
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception:
+        logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -324,6 +329,7 @@ async def prepare_model(model_name: str):
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception:
+        logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Failed to prepare model")
 
 
@@ -420,6 +426,7 @@ async def generate_stream(
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception:
+        logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -503,6 +510,7 @@ async def generate_with_activations(
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -559,6 +567,7 @@ async def decode_tokens(request: dict):
         return {'decoded_tokens': decoded}
 
     except Exception:
+        logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Error decoding tokens")
 
 

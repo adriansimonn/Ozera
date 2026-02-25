@@ -332,15 +332,20 @@ class OzeraAPIClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
 
     if (!response.ok) {
       const error = await response.json()
+      if (response.status === 402) {
+        throw new Error('INSUFFICIENT_CREDITS')
+      }
       throw new Error(error.detail || `Generation failed: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -472,7 +477,9 @@ class OzeraAPIClient {
    * Get activation data by ID.
    */
   async getActivations(activationId: string): Promise<ActivationData> {
-    const response = await fetch(`${this.baseUrl}/activations/${activationId}`)
+    const response = await fetch(`${this.baseUrl}/activations/${activationId}`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to get activations: ${response.statusText}`)
@@ -486,7 +493,9 @@ class OzeraAPIClient {
    * Enhanced with layer info and tensor info for lazy loading.
    */
   async getActivationSummary(activationId: string): Promise<ActivationSummary> {
-    const response = await fetch(`${this.baseUrl}/activations/${activationId}/summary`)
+    const response = await fetch(`${this.baseUrl}/activations/${activationId}/summary`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to get activation summary: ${response.statusText}`)
@@ -500,7 +509,9 @@ class OzeraAPIClient {
    * Use this to load individual layers on-demand instead of loading all at once.
    */
   async getLayerActivations(activationId: string, layerIdx: number): Promise<{ layer_idx: number; activations: Record<string, any> }> {
-    const response = await fetch(`${this.baseUrl}/activations/${activationId}/layer/${layerIdx}`)
+    const response = await fetch(`${this.baseUrl}/activations/${activationId}/layer/${layerIdx}`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to get layer activations: ${response.statusText}`)
@@ -514,7 +525,9 @@ class OzeraAPIClient {
    * Valid tensor names: token_embeddings, positional_embeddings, combined_embeddings, final_layer_norm, logits
    */
   async getTensorActivation(activationId: string, tensorName: string): Promise<{ tensor_name: string; data: Record<string, any> }> {
-    const response = await fetch(`${this.baseUrl}/activations/${activationId}/tensor/${tensorName}`)
+    const response = await fetch(`${this.baseUrl}/activations/${activationId}/tensor/${tensorName}`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to get tensor activation: ${response.statusText}`)
@@ -527,7 +540,9 @@ class OzeraAPIClient {
    * List all stored activations.
    */
   async listActivations(): Promise<ActivationSummary[]> {
-    const response = await fetch(`${this.baseUrl}/activations`)
+    const response = await fetch(`${this.baseUrl}/activations`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to list activations: ${response.statusText}`)
@@ -542,6 +557,7 @@ class OzeraAPIClient {
   async deleteActivations(activationId: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}/activations/${activationId}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -679,7 +695,9 @@ class OzeraAPIClient {
    * Get training job status.
    */
   async getTrainingJobStatus(jobId: string): Promise<TrainingProgress> {
-    const response = await fetch(`${this.baseUrl}/training/jobs/${jobId}`)
+    const response = await fetch(`${this.baseUrl}/training/jobs/${jobId}`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to get job status: ${response.statusText}`)
@@ -697,7 +715,9 @@ class OzeraAPIClient {
     onComplete?: (modelName: string) => void,
     onError?: (message: string) => void
   ): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/training/jobs/${jobId}/stream`)
+    const response = await fetch(`${this.baseUrl}/training/jobs/${jobId}/stream`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to stream progress: ${response.statusText}`)
@@ -761,6 +781,7 @@ class OzeraAPIClient {
   async cancelTrainingJob(jobId: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}/training/jobs/${jobId}/cancel`, {
       method: 'POST',
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -957,7 +978,9 @@ class OzeraAPIClient {
    * Check cache status for an open-source model.
    */
   async getOpenSourceCacheStatus(modelId: string): Promise<ModelCacheStatus> {
-    const response = await fetch(`${this.baseUrl}/open-source/cache/${modelId}/status`)
+    const response = await fetch(`${this.baseUrl}/open-source/cache/${modelId}/status`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to get cache status: ${response.statusText}`)
@@ -972,6 +995,7 @@ class OzeraAPIClient {
   async downloadOpenSourceModel(modelId: string, force: boolean = false): Promise<ModelDownloadResponse> {
     const response = await fetch(`${this.baseUrl}/open-source/cache/${modelId}/download?force=${force}`, {
       method: 'POST',
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -987,6 +1011,7 @@ class OzeraAPIClient {
   async deleteOpenSourceCache(modelId: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}/open-source/cache/${modelId}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -1000,6 +1025,7 @@ class OzeraAPIClient {
   async warmupOpenSourceModel(modelId: string): Promise<{ status: string; model: string; display_name: string; parameters: number; gpu_tier: string }> {
     const response = await fetch(`${this.baseUrl}/open-source/models/${modelId}/warmup`, {
       method: 'POST',
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -1179,7 +1205,9 @@ class OzeraAPIClient {
    * List all captured activations.
    */
   async listCapturedActivations(): Promise<CapturedActivationSummary[]> {
-    const response = await fetch(`${this.baseUrl}/patching/activations`)
+    const response = await fetch(`${this.baseUrl}/patching/activations`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to list captured activations: ${response.statusText}`)
@@ -1192,7 +1220,9 @@ class OzeraAPIClient {
    * Get detailed info for a captured activation.
    */
   async getCapturedActivation(activationId: string): Promise<CapturedActivationDetail> {
-    const response = await fetch(`${this.baseUrl}/patching/activations/${activationId}`)
+    const response = await fetch(`${this.baseUrl}/patching/activations/${activationId}`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to get captured activation: ${response.statusText}`)
@@ -1207,6 +1237,7 @@ class OzeraAPIClient {
   async deleteCapturedActivation(activationId: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}/patching/activations/${activationId}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -1220,6 +1251,7 @@ class OzeraAPIClient {
   async clearCapturedActivations(): Promise<void> {
     const response = await fetch(`${this.baseUrl}/patching/activations`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -1298,7 +1330,9 @@ class OzeraAPIClient {
    * Get layer info for a specific model (for patch configuration).
    */
   async getModelLayerInfo(modelId: string): Promise<ModelLayerInfo> {
-    const response = await fetch(`${this.baseUrl}/patching/models/${modelId}/layers`)
+    const response = await fetch(`${this.baseUrl}/patching/models/${modelId}/layers`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to get model layer info: ${response.statusText}`)
@@ -1438,6 +1472,7 @@ class OzeraAPIClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
@@ -1459,6 +1494,7 @@ class OzeraAPIClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
@@ -1480,6 +1516,7 @@ class OzeraAPIClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
@@ -1501,6 +1538,7 @@ class OzeraAPIClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
@@ -1522,6 +1560,7 @@ class OzeraAPIClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
     })
@@ -1962,6 +2001,7 @@ class SAEAPIClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify({ repo_id: repoId }),
     })

@@ -8,12 +8,16 @@ Provides endpoints for:
 - Managing cached models
 """
 
+import logging
+
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import Optional
 import json
+
+logger = logging.getLogger(__name__)
 
 from core.open_source import OPEN_SOURCE_MODELS, ModelFamily
 from middleware.auth_middleware import get_current_user
@@ -211,6 +215,7 @@ async def list_cached_models(current_user: User = Depends(get_current_user)):
         cached = list_cached_fn.remote()
         return cached
     except Exception:
+        logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Failed to list cached models")
 
 
@@ -292,6 +297,7 @@ async def delete_cached_model(model_id: str, current_user: User = Depends(get_cu
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Failed to delete model")
 
 
@@ -334,6 +340,7 @@ async def warmup_model(model_id: str, current_user: User = Depends(get_current_u
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Warmup failed")
 
 
@@ -395,6 +402,7 @@ async def generate(
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Generation failed")
 
 
@@ -570,6 +578,7 @@ async def generate_with_activations(
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Generation failed")
 
 
@@ -597,4 +606,5 @@ async def decode_tokens(request: DecodeTokensRequest):
         return {"decoded_tokens": decoded}
 
     except Exception:
+        logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Token decoding failed")
