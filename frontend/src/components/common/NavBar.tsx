@@ -158,8 +158,6 @@ export function NavBar({
         }
 
         .navbar-content {
-          max-width: 1800px;
-          margin: 0 auto;
           padding: 0.75rem 2rem;
           display: flex;
           justify-content: space-between;
