@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { NavBar } from '../components/common/NavBar'
 import { PatchConfigPanel } from '../components/patching/PatchConfigPanel'
 import { PatchSelector } from '../components/patching/PatchSelector'
@@ -19,14 +20,16 @@ import type {
   PatchingExperiment,
 } from '../types/patching'
 import { Play, Zap, Trash2, AlertCircle, Info, ChevronDown, ChevronUp } from 'lucide-react'
+import { useAuthStore } from '../stores/authStore'
 
 interface PatchingPlaygroundProps {
-  onShowLogin: () => void
-  onShowSignup: () => void
   onShowPurchaseCredits?: () => void
 }
 
-export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCredits }: PatchingPlaygroundProps) {
+export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlaygroundProps) {
+  const { isAuthenticated } = useAuthStore()
+  const navigate = useNavigate()
+
   // Model selection
   const [models, setModels] = useState<PatchingModelInfo[]>([])
   const [selectedModel, setSelectedModel] = useState<string>('')
@@ -113,6 +116,10 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
   const requiresSourcePrompt = patches.length === 0 || hasPatches
 
   const handleRunExperiment = async () => {
+    if (!isAuthenticated) {
+      navigate('/auth')
+      return
+    }
     if (!selectedModel || patches.length === 0) {
       setError('Please select a model and add at least one patch')
       return
@@ -221,7 +228,7 @@ export function PatchingPlayground({ onShowLogin, onShowSignup, onShowPurchaseCr
 
   return (
     <div className="patching-playground">
-      <NavBar onShowLogin={onShowLogin} onShowSignup={onShowSignup} />
+      <NavBar />
 
       <div className="playground-content">
         <div className="playground-header">

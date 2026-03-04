@@ -8,6 +8,7 @@ import { DatasetUpload } from './DatasetUpload'
 import { useTrainingEstimate, useGpuPricing } from '../../hooks/useTraining'
 import type { GpuType, DatasetMetadata, GenericDatasetInfo } from '../../api/client'
 import { apiClient } from '../../api/client'
+import { useAuthStore } from '../../stores/authStore'
 
 // Dataset sources - "uploaded" is user's uploaded dataset, others are generic datasets from Modal volume
 type DatasetSource = 'uploaded' | string
@@ -26,12 +27,15 @@ interface TrainingPanelProps {
     overwriteExisting: boolean
   ) => Promise<void>
   disabled?: boolean
+  onShowLogin?: () => void
 }
 
 export const TrainingPanel: React.FC<TrainingPanelProps> = ({
   onStartTraining,
   disabled = false,
+  onShowLogin,
 }) => {
+  const { isAuthenticated } = useAuthStore()
   // Dataset state - tracks the selected source and the current session's uploaded dataset
   const [datasetSource, setDatasetSource] = useState<DatasetSource>('uploaded')
   const [uploadedDataset, setUploadedDataset] = useState<DatasetMetadata | null>(null)
@@ -93,11 +97,15 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
   }, [currentDatasetId, modelConfig, epochs, batchSize, seqLen, gpuType, getEstimate, clearEstimate])
 
   const handleUpload = useCallback(async (file: File) => {
+    if (!isAuthenticated) {
+      onShowLogin?.()
+      return undefined as any
+    }
     const metadata = await apiClient.uploadDataset(file)
     setUploadedDataset(metadata)
     setDatasetSource('uploaded')
     return metadata
-  }, [])
+  }, [isAuthenticated, onShowLogin])
 
   const handleStartTraining = async () => {
     if (!currentDatasetId || !modelName.trim()) {

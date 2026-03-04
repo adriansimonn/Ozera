@@ -23,12 +23,10 @@ type SingleViewType = 'generator' | 'visualizations'
 type VisualizationType = 'network' | 'attention' | 'activations' | 'journey' | 'flow'
 
 interface UnifiedPageProps {
-  onShowLogin: () => void
-  onShowSignup: () => void
   onShowPurchaseCredits?: () => void
 }
 
-export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }: UnifiedPageProps) {
+export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
   const [searchParams] = useSearchParams()
   const urlActivationId = searchParams.get('id')
 
@@ -342,8 +340,6 @@ export function UnifiedPage({ onShowLogin, onShowSignup, onShowPurchaseCredits }
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         showViewToggle={true}
-        onShowLogin={onShowLogin}
-        onShowSignup={onShowSignup}
       />
 
       <div className={`page-content ${viewMode === 'split' ? 'split-view' : 'single-view'}`}>

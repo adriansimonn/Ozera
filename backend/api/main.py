@@ -46,6 +46,7 @@ from api.patching import router as patching_router
 from api.analysis import router as analysis_router
 from api.export import router as export_router
 from api.sae import router as sae_router
+from api.settings import router as settings_router
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from models.database import User
@@ -102,6 +103,7 @@ app.include_router(patching_router)
 app.include_router(analysis_router)
 app.include_router(export_router)
 app.include_router(sae_router)
+app.include_router(settings_router)
 
 
 class GenerateRequest(BaseModel):

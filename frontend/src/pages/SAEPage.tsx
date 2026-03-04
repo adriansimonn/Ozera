@@ -37,8 +37,6 @@ import type {
 } from '../types/model'
 
 interface SAEPageProps {
-  onShowLogin: () => void
-  onShowSignup: () => void
   onShowPurchaseCredits: () => void
 }
 
@@ -320,8 +318,6 @@ function generateQualityMetrics(
 }
 
 export default function SAEPage({
-  onShowLogin,
-  onShowSignup,
   onShowPurchaseCredits,
 }: SAEPageProps) {
   const [mode, setMode] = useState<SAEMode>('analyze')
@@ -507,7 +503,7 @@ export default function SAEPage({
 
   return (
     <div className="sae-page">
-      <NavBar onShowLogin={onShowLogin} onShowSignup={onShowSignup} />
+      <NavBar />
 
       <div className="sae-content">
         {/* Header */}

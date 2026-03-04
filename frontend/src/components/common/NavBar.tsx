@@ -4,7 +4,7 @@
  * Supports custom models page mode toggle (training/upload).
  */
 
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Cpu, Square, SplitSquareVertical, Sparkles, GraduationCap, Upload, Zap, Search, Layers } from 'lucide-react'
 import { UserMenu } from './UserMenu'
 import { useAuthStore } from '../../stores/authStore'
@@ -19,8 +19,6 @@ interface NavBarProps {
   customModelsMode?: CustomModelsMode
   onCustomModelsModeChange?: (mode: CustomModelsMode) => void
   showCustomModelsToggle?: boolean
-  onShowLogin?: () => void
-  onShowSignup?: () => void
 }
 
 export function NavBar({
@@ -30,10 +28,9 @@ export function NavBar({
   customModelsMode,
   onCustomModelsModeChange,
   showCustomModelsToggle = false,
-  onShowLogin,
-  onShowSignup,
 }: NavBarProps) {
   const location = useLocation()
+  const navigate = useNavigate()
   const { user } = useAuthStore()
 
   const isActive = (path: string) => location.pathname === path
@@ -133,10 +130,10 @@ export function NavBar({
             <UserMenu />
           ) : (
             <div className="auth-buttons">
-              <button onClick={onShowLogin} className="auth-btn login-btn">
+              <button onClick={() => navigate('/auth')} className="auth-btn login-btn">
                 Login
               </button>
-              <button onClick={onShowSignup} className="auth-btn signup-btn">
+              <button onClick={() => navigate('/auth')} className="auth-btn signup-btn">
                 Sign Up
               </button>
             </div>
@@ -292,15 +289,15 @@ export function NavBar({
         }
 
         .signup-btn {
-          background: rgba(59, 130, 246, 0.8);
+          background: rgba(255, 255, 255, 0.1);
           color: #ffffff;
-          border-color: rgba(59, 130, 246, 0.3);
+          border-color: rgba(255, 255, 255, 0.15);
         }
 
         .signup-btn:hover {
-          background: rgba(59, 130, 246, 1);
-          border-color: rgba(59, 130, 246, 0.5);
-          box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+          background: rgba(255, 255, 255, 0.15);
+          color: #ffffff;
+          border-color: rgba(255, 255, 255, 0.25);
         }
 
         @media (max-width: 768px) {

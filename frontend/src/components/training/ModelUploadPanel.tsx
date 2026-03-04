@@ -5,16 +5,20 @@
 import React, { useState, useCallback, useRef } from 'react'
 import { Upload, X, Box, Check, AlertCircle, Loader2, Info } from 'lucide-react'
 import { useModelUpload, useCustomModelCount } from '../../hooks/useTraining'
+import { useAuthStore } from '../../stores/authStore'
 
 interface ModelUploadPanelProps {
   onUploadComplete?: () => void
   disabled?: boolean
+  onShowLogin?: () => void
 }
 
 export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
   onUploadComplete,
   disabled = false,
+  onShowLogin,
 }) => {
+  const { isAuthenticated } = useAuthStore()
   const [isDragging, setIsDragging] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [modelName, setModelName] = useState('')
@@ -98,6 +102,10 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
   }, [handleFile])
 
   const handleUpload = useCallback(async () => {
+    if (!isAuthenticated) {
+      onShowLogin?.()
+      return
+    }
     if (!selectedFile || !modelName.trim()) {
       setLocalError('Please select a file and enter a model name')
       return
@@ -119,7 +127,7 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
     } catch {
       // Error is handled by the hook
     }
-  }, [selectedFile, modelName, hasExistingModel, overwriteExisting, uploadModel, fetchCount, onUploadComplete])
+  }, [isAuthenticated, onShowLogin, selectedFile, modelName, hasExistingModel, overwriteExisting, uploadModel, fetchCount, onUploadComplete])
 
   const handleReset = useCallback(() => {
     setSelectedFile(null)

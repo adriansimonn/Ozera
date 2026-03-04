@@ -4,10 +4,12 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
 import { useStreamingGeneration } from '../../hooks/useGeneration'
 import { useModels } from '../../hooks/useModels'
 import { apiClient } from '../../api/client'
+import { useAuthStore } from '../../stores/authStore'
 
 interface TextGeneratorProps {
   defaultModel?: string
@@ -33,6 +35,8 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   externalModel,
   onShowPurchaseCredits,
 }) => {
+  const { isAuthenticated } = useAuthStore()
+  const navigate = useNavigate()
   const [prompt, setPrompt] = useState(defaultPrompt)
   const [internalModel, setInternalModel] = useState<string>(defaultModel)
 
@@ -171,6 +175,10 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   }
 
   const handleGenerateClick = () => {
+    if (!isAuthenticated) {
+      navigate('/auth')
+      return
+    }
     if (generationMode === 'visualize') {
       handleGenerateWithActivations()
     } else {

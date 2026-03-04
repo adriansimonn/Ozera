@@ -17,13 +17,10 @@ import {
 } from '../hooks/useTraining'
 import { NavBar, CustomModelsMode } from '../components/common/NavBar'
 import { apiClient, GpuType } from '../api/client'
+import { useAuthStore } from '../stores/authStore'
 
-interface TrainingPageProps {
-  onShowLogin: () => void
-  onShowSignup: () => void
-}
-
-export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowSignup }) => {
+export const TrainingPage: React.FC = () => {
+  const { isAuthenticated } = useAuthStore()
   const navigate = useNavigate()
   const [mode, setMode] = useState<CustomModelsMode>('training')
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
@@ -82,6 +79,10 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
     autoDownload: boolean,
     overwriteExisting: boolean
   ) => {
+    if (!isAuthenticated) {
+      navigate('/auth')
+      return
+    }
     // Reset auto-download trigger for new job
     autoDownloadTriggeredRef.current = false
     setAutoDownloadEnabled(autoDownload)
@@ -98,7 +99,7 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
       overwriteExisting
     )
     setActiveJobId(response.job_id)
-  }, [startJob])
+  }, [isAuthenticated, navigate, startJob])
 
   const handleCancel = useCallback(async () => {
     if (activeJobId) {
@@ -183,8 +184,6 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
   return (
     <div style={{ minHeight: '100vh', paddingTop: '100px' }}>
       <NavBar
-        onShowLogin={onShowLogin}
-        onShowSignup={onShowSignup}
         showCustomModelsToggle={true}
         customModelsMode={mode}
         onCustomModelsModeChange={setMode}
@@ -218,11 +217,13 @@ export const TrainingPage: React.FC<TrainingPageProps> = ({ onShowLogin, onShowS
               <TrainingPanel
                 onStartTraining={handleStartTraining}
                 disabled={isTrainingActive || false}
+                onShowLogin={() => navigate('/auth')}
               />
             ) : (
               <ModelUploadPanel
                 onUploadComplete={handleUploadComplete}
                 disabled={isTrainingActive || false}
+                onShowLogin={() => navigate('/auth')}
               />
             )}
           </div>

@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { NavBar } from '../components/common/NavBar'
 import { HeadClassifier, AttentionPatternGrid, HeadComparer } from '../components/analysis'
 import { apiClient } from '../api/client'
@@ -28,20 +29,20 @@ import {
   Check,
   X,
 } from 'lucide-react'
+import { useAuthStore } from '../stores/authStore'
 
 interface AnalysisPageProps {
-  onShowLogin: () => void
-  onShowSignup: () => void
   onShowPurchaseCredits?: () => void
 }
 
 type AnalysisMode = 'classify' | 'compare' | 'mine'
 
 export default function AnalysisPage({
-  onShowLogin,
-  onShowSignup,
   onShowPurchaseCredits,
 }: AnalysisPageProps) {
+  const { isAuthenticated } = useAuthStore()
+  const navigate = useNavigate()
+
   // Mode selection
   const [mode, setMode] = useState<AnalysisMode>('classify')
 
@@ -122,6 +123,10 @@ export default function AnalysisPage({
 
   // Capture new activations
   const handleCaptureActivations = async () => {
+    if (!isAuthenticated) {
+      navigate('/auth')
+      return
+    }
     if (!capturePrompt.trim() || !selectedModel) {
       setError('Please enter a prompt and select a model')
       return
@@ -155,6 +160,10 @@ export default function AnalysisPage({
 
   // Run classification
   const handleClassify = async () => {
+    if (!isAuthenticated) {
+      navigate('/auth')
+      return
+    }
     if (!selectedActivation1) {
       setError('Please select captured activations to analyze')
       return
@@ -183,6 +192,10 @@ export default function AnalysisPage({
 
   // Run comparison
   const handleCompare = async () => {
+    if (!isAuthenticated) {
+      navigate('/auth')
+      return
+    }
     if (!selectedActivation1 || !selectedActivation2) {
       setError('Please select two activations to compare')
       return
@@ -212,6 +225,10 @@ export default function AnalysisPage({
 
   // Run pattern mining
   const handleMinePatterns = async () => {
+    if (!isAuthenticated) {
+      navigate('/auth')
+      return
+    }
     if (!selectedActivation1) {
       setError('Please select captured activations to analyze')
       return
@@ -240,7 +257,7 @@ export default function AnalysisPage({
 
   return (
     <div className="analysis-page">
-      <NavBar onShowLogin={onShowLogin} onShowSignup={onShowSignup} />
+      <NavBar />
 
       <div className="analysis-content">
         {/* Header */}

@@ -6,6 +6,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { apiClient } from '../api/axios';
+import { useSettingsStore } from './settingsStore';
 
 export interface User {
   id: number;
@@ -47,6 +48,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       if (session) {
         const response = await apiClient.get('/auth/me');
         set({ user: response.data, isAuthenticated: true });
+        useSettingsStore.getState().fetchSettings();
       }
     } catch (error) {
       console.error('Failed to initialize auth:', error);
@@ -65,6 +67,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         try {
           const response = await apiClient.get('/auth/me');
           set({ user: response.data, isAuthenticated: true });
+          useSettingsStore.getState().fetchSettings();
         } catch {
           set({ user: null, isAuthenticated: false });
         }
@@ -81,6 +84,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // Fetch local user record from our backend
       const response = await apiClient.get('/auth/me');
       set({ user: response.data, isAuthenticated: true, isLoading: false });
+      useSettingsStore.getState().fetchSettings();
     } catch (error: any) {
       set({ isLoading: false });
       throw new Error(error.message || 'Login failed. Please check your credentials.');
@@ -115,6 +119,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   logout: async () => {
     await supabase.auth.signOut();
     set({ user: null, isAuthenticated: false });
+    useSettingsStore.getState().clear();
   },
 
   refreshUser: async () => {

@@ -2,12 +2,14 @@
  * User menu dropdown component.
  */
 import { useState, useRef, useEffect } from 'react';
-import { User, LogOut, Wallet, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { User, LogOut, Wallet, Plus, Settings } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 
 export function UserMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
   // Close menu when clicking outside
@@ -98,6 +100,13 @@ export function UserMenu() {
 
           {/* Menu items */}
           <div className="py-1">
+            <button
+              onClick={() => { navigate('/settings'); setIsOpen(false); }}
+              className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#2a2a2a] flex items-center gap-2 transition-colors"
+            >
+              <Settings size={14} />
+              Settings
+            </button>
             <button
               onClick={handleLogout}
               className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#2a2a2a] flex items-center gap-2 transition-colors"

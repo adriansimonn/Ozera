@@ -6,9 +6,9 @@ import TrainingPage from './pages/TrainingPage'
 import PatchingPlayground from './pages/PatchingPlayground'
 import AnalysisPage from './pages/AnalysisPage'
 import SAEPage from './pages/SAEPage'
+import SettingsPage from './pages/SettingsPage'
+import AuthPage from './pages/AuthPage'
 import { AnimatedBackground } from './components/common/AnimatedBackground'
-import { LoginModal } from './components/auth/LoginModal'
-import { SignupModal } from './components/auth/SignupModal'
 import { PurchaseCreditsModal } from './components/payments/PurchaseCreditsModal'
 import { useAuthStore } from './stores/authStore'
 
@@ -22,8 +22,6 @@ const queryClient = new QueryClient({
 })
 
 function App() {
-  const [showLogin, setShowLogin] = useState(false)
-  const [showSignup, setShowSignup] = useState(false)
   const [showPurchaseCredits, setShowPurchaseCredits] = useState(false)
   const { initialize } = useAuthStore()
 
@@ -32,10 +30,8 @@ function App() {
     initialize()
   }, [initialize])
 
-  // Make modals available globally via window
+  // Make purchase credits modal available globally via window
   useEffect(() => {
-    ;(window as any).showLoginModal = () => setShowLogin(true)
-    ;(window as any).showSignupModal = () => setShowSignup(true)
     ;(window as any).showPurchaseCreditsModal = () => setShowPurchaseCredits(true)
   }, [])
 
@@ -50,27 +46,18 @@ function App() {
                 path="/"
                 element={
                   <UnifiedPage
-                    onShowLogin={() => setShowLogin(true)}
-                    onShowSignup={() => setShowSignup(true)}
                     onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
                   />
                 }
               />
               <Route
                 path="/training"
-                element={
-                  <TrainingPage
-                    onShowLogin={() => setShowLogin(true)}
-                    onShowSignup={() => setShowSignup(true)}
-                  />
-                }
+                element={<TrainingPage />}
               />
               <Route
                 path="/patching"
                 element={
                   <PatchingPlayground
-                    onShowLogin={() => setShowLogin(true)}
-                    onShowSignup={() => setShowSignup(true)}
                     onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
                   />
                 }
@@ -79,8 +66,6 @@ function App() {
                 path="/analysis"
                 element={
                   <AnalysisPage
-                    onShowLogin={() => setShowLogin(true)}
-                    onShowSignup={() => setShowSignup(true)}
                     onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
                   />
                 }
@@ -89,32 +74,20 @@ function App() {
                 path="/sae"
                 element={
                   <SAEPage
-                    onShowLogin={() => setShowLogin(true)}
-                    onShowSignup={() => setShowSignup(true)}
                     onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
                   />
                 }
               />
+              <Route
+                path="/settings"
+                element={<SettingsPage />}
+              />
+              <Route
+                path="/auth"
+                element={<AuthPage />}
+              />
             </Routes>
           </main>
-
-          {/* Auth Modals */}
-          <LoginModal
-            isOpen={showLogin}
-            onClose={() => setShowLogin(false)}
-            onSwitchToSignup={() => {
-              setShowLogin(false)
-              setShowSignup(true)
-            }}
-          />
-          <SignupModal
-            isOpen={showSignup}
-            onClose={() => setShowSignup(false)}
-            onSwitchToLogin={() => {
-              setShowSignup(false)
-              setShowLogin(true)
-            }}
-          />
 
           {/* Purchase Credits Modal */}
           <PurchaseCreditsModal
