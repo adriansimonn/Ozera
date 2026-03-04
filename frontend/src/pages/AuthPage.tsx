@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import authVideo from '../assets/videos/AuthAnimation.mp4'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 
@@ -461,6 +462,7 @@ export default function AuthPage() {
           overflow: 'hidden',
         }}>
           <video
+            src={authVideo}
             autoPlay
             muted
             loop
