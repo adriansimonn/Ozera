@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Download, Loader2, Settings, FileImage } from 'lucide-react'
+import { Dropdown } from '../common/Dropdown'
 import { apiClient } from '../../api/client'
 import { downloadBlob } from '../../utils/svgExport'
 import type {
@@ -214,17 +215,14 @@ export function ExportModal({
             <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
               Publication Preset
             </label>
-            <select
+            <Dropdown
               value={preset}
-              onChange={(e) => setPreset(e.target.value as PresetName)}
-              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-gray-200 focus:border-gray-500 focus:outline-none transition-colors"
-            >
-              {Object.entries(PRESET_DISPLAY_INFO).map(([key, info]) => (
-                <option key={key} value={key}>
-                  {info.label} - {info.description}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setPreset(v as PresetName)}
+              options={Object.entries(PRESET_DISPLAY_INFO).map(([key, info]) => ({
+                value: key,
+                label: `${info.label} - ${info.description}`,
+              }))}
+            />
           </div>
 
           {/* Type-specific options */}
@@ -235,17 +233,11 @@ export function ExportModal({
                 <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
                   Colormap
                 </label>
-                <select
+                <Dropdown
                   value={colormap}
-                  onChange={(e) => setColormap(e.target.value)}
-                  className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-gray-200 focus:border-gray-500 focus:outline-none transition-colors"
-                >
-                  {COLORMAP_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setColormap(v)}
+                  options={COLORMAP_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+                />
               </div>
 
               {/* Heatmap options */}
@@ -255,14 +247,14 @@ export function ExportModal({
                     <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
                       Labels
                     </label>
-                    <select
+                    <Dropdown
                       value={tokenLabels}
-                      onChange={(e) => setTokenLabels(e.target.value as 'text' | 'number')}
-                      className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-gray-200 focus:border-gray-500 focus:outline-none transition-colors"
-                    >
-                      <option value="text">Token Text</option>
-                      <option value="number">Token Number</option>
-                    </select>
+                      onChange={(v) => setTokenLabels(v as 'text' | 'number')}
+                      options={[
+                        { value: 'text', label: 'Token Text' },
+                        { value: 'number', label: 'Token Number' },
+                      ]}
+                    />
                   </div>
                   <label className="flex items-center gap-3 text-sm text-gray-300 cursor-pointer">
                     <input
@@ -302,15 +294,15 @@ export function ExportModal({
                 <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
                   Activation Type
                 </label>
-                <select
+                <Dropdown
                   value={activationType}
-                  onChange={(e) => setActivationType(e.target.value as ActivationType)}
-                  className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-gray-200 focus:border-gray-500 focus:outline-none transition-colors"
-                >
-                  <option value="all">All Activations</option>
-                  <option value="attn_output">Attention Output</option>
-                  <option value="ff_output">Feed-Forward Output</option>
-                </select>
+                  onChange={(v) => setActivationType(v as ActivationType)}
+                  options={[
+                    { value: 'all', label: 'All Activations' },
+                    { value: 'attn_output', label: 'Attention Output' },
+                    { value: 'ff_output', label: 'Feed-Forward Output' },
+                  ]}
+                />
               </div>
 
               {/* Bins */}

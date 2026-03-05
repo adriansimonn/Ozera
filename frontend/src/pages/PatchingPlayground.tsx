@@ -20,6 +20,7 @@ import type {
   PatchingExperiment,
 } from '../types/patching'
 import { Play, Zap, Trash2, AlertCircle, Info, ChevronDown, ChevronUp } from 'lucide-react'
+import { Dropdown, type DropdownGroup } from '../components/common/Dropdown'
 import { useAuthStore } from '../stores/authStore'
 
 interface PatchingPlaygroundProps {
@@ -254,55 +255,28 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           <div className="left-column">
             <div className="section model-section">
               <h2>Model</h2>
-              <select
+              <Dropdown
                 value={selectedModel}
-                onChange={e => setSelectedModel(e.target.value)}
+                onChange={v => setSelectedModel(v)}
                 disabled={loadingModels || running}
-                className="model-select"
-              >
-                {loadingModels ? (
-                  <option>Loading models...</option>
-                ) : (
-                  <>
-                    {/* Ozera Base Models */}
-                    {models.filter(m => m.model_type === 'ozera' && (m.model_id === 'nano' || m.model_id === 'mini')).length > 0 && (
-                      <optgroup label="Ozera Models">
-                        {models
-                          .filter(m => m.model_type === 'ozera' && (m.model_id === 'nano' || m.model_id === 'mini'))
-                          .map(model => (
-                            <option key={model.model_id} value={model.model_id}>
-                              {model.display_name} · {model.num_layers}L / {model.num_heads}H
-                            </option>
-                          ))}
-                      </optgroup>
-                    )}
-                    {/* Open Source Models */}
-                    {models.filter(m => m.model_type === 'open_source').length > 0 && (
-                      <optgroup label="Open Source">
-                        {models
-                          .filter(m => m.model_type === 'open_source')
-                          .map(model => (
-                            <option key={model.model_id} value={model.model_id}>
-                              {model.display_name} · {model.num_layers}L / {model.num_heads}H
-                            </option>
-                          ))}
-                      </optgroup>
-                    )}
-                    {/* Custom Models */}
-                    {models.filter(m => m.model_type === 'custom').length > 0 && (
-                      <optgroup label="Custom Models">
-                        {models
-                          .filter(m => m.model_type === 'custom')
-                          .map(model => (
-                            <option key={model.model_id} value={model.model_id}>
-                              {model.display_name} · {model.num_layers}L / {model.num_heads}H
-                            </option>
-                          ))}
-                      </optgroup>
-                    )}
-                  </>
-                )}
-              </select>
+                groups={(() => {
+                  if (loadingModels) return [{ label: 'Models', options: [{ value: '', label: 'Loading models...' }] }]
+                  const groups: DropdownGroup[] = []
+                  const ozera = models.filter(m => m.model_type === 'ozera' && (m.model_id === 'nano' || m.model_id === 'mini'))
+                  if (ozera.length > 0) {
+                    groups.push({ label: 'Ozera Models', options: ozera.map(m => ({ value: m.model_id, label: `${m.display_name} · ${m.num_layers}L / ${m.num_heads}H` })) })
+                  }
+                  const os = models.filter(m => m.model_type === 'open_source')
+                  if (os.length > 0) {
+                    groups.push({ label: 'Open Source', options: os.map(m => ({ value: m.model_id, label: `${m.display_name} · ${m.num_layers}L / ${m.num_heads}H` })) })
+                  }
+                  const custom = models.filter(m => m.model_type === 'custom')
+                  if (custom.length > 0) {
+                    groups.push({ label: 'Custom Models', options: custom.map(m => ({ value: m.model_id, label: `${m.display_name} · ${m.num_layers}L / ${m.num_heads}H` })) })
+                  }
+                  return groups
+                })()}
+              />
               {modelInfo && (
                 <div className="model-info-row">
                   <span className="info-badge">{modelInfo.model_type}</span>

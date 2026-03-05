@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { NavBar } from '../components/common/NavBar'
 import { HeadClassifier, AttentionPatternGrid, HeadComparer } from '../components/analysis'
 import { apiClient } from '../api/client'
+import { Dropdown } from '../components/common/Dropdown'
 import type {
   ClassifyHeadsResponse,
   CompareAttentionResponse,
@@ -306,21 +307,18 @@ export default function AnalysisPage({
             {/* Model Selection */}
             <div className="section">
               <h2>Model</h2>
-              <select
+              <Dropdown
                 value={selectedModel}
-                onChange={(e) => {
-                  setSelectedModel(e.target.value)
+                onChange={(v) => {
+                  setSelectedModel(v)
                   setSelectedActivation1('')
                   setSelectedActivation2('')
                 }}
-                className="model-select"
-              >
-                {models.map((model) => (
-                  <option key={model.model_id} value={model.model_id}>
-                    {model.display_name} ({model.num_layers}L, {model.num_heads}H)
-                  </option>
-                ))}
-              </select>
+                options={models.map((model) => ({
+                  value: model.model_id,
+                  label: `${model.display_name} (${model.num_layers}L, ${model.num_heads}H)`,
+                }))}
+              />
             </div>
 
             {/* Capture New Activations */}

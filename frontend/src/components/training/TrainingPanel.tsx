@@ -10,6 +10,7 @@ import type { GpuType, DatasetMetadata, GenericDatasetInfo } from '../../api/cli
 import { apiClient } from '../../api/client'
 import { useAuthStore } from '../../stores/authStore'
 import { useThemeColors } from '../../hooks/useTheme'
+import { Dropdown } from '../common/Dropdown'
 
 // Dataset sources - "uploaded" is user's uploaded dataset, others are generic datasets from Modal volume
 type DatasetSource = 'uploaded' | string
@@ -205,29 +206,17 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
         </label>
 
         {/* Dataset source selector */}
-        <select
-          value={datasetSource}
-          onChange={(e) => setDatasetSource(e.target.value)}
-          disabled={disabled || starting}
-          style={{
-            width: '100%',
-            padding: '10px 12px',
-            background: tc.inputBg,
-            border: `1px solid ${tc.borderStrong}`,
-            borderRadius: '0',
-            color: tc.text,
-            fontSize: '13px',
-            cursor: 'pointer',
-            marginBottom: '12px',
-          }}
-        >
-          {datasetOptions.map((opt) => (
-            <option key={opt.id} value={opt.id}>
-              {opt.name}
-              {opt.tokens ? ` (${formatTokens(opt.tokens)} tokens)` : ''}
-            </option>
-          ))}
-        </select>
+        <div style={{ marginBottom: '12px' }}>
+          <Dropdown
+            value={datasetSource}
+            onChange={(v) => setDatasetSource(v)}
+            disabled={disabled || starting}
+            options={datasetOptions.map((opt) => ({
+              value: opt.id,
+              label: `${opt.name}${opt.tokens ? ` (${formatTokens(opt.tokens)} tokens)` : ''}`,
+            }))}
+          />
+        </div>
 
         {/* Show upload component when "Uploaded Dataset" is selected */}
         {datasetSource === 'uploaded' && (
@@ -272,23 +261,15 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
             <label style={{ display: 'block', color: tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
               Architecture
             </label>
-            <select
+            <Dropdown
               value={modelConfig}
-              onChange={(e) => setModelConfig(e.target.value as 'nano' | 'mini')}
+              onChange={(v) => setModelConfig(v as 'nano' | 'mini')}
               disabled={disabled || starting}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                background: tc.inputBg,
-                border: `1px solid ${tc.borderStrong}`,
-                borderRadius: '0',
-                color: tc.text,
-                fontSize: '12px',
-              }}
-            >
-              <option value="nano">Nano (~4M params)</option>
-              <option value="mini">Mini (~51M params)</option>
-            </select>
+              options={[
+                { value: 'nano', label: 'Nano (~4M params)' },
+                { value: 'mini', label: 'Mini (~51M params)' },
+              ]}
+            />
           </div>
 
           {/* Model Name */}
@@ -415,25 +396,17 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
             <label style={{ display: 'block', color: tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
               Batch Size
             </label>
-            <select
-              value={batchSize}
-              onChange={(e) => setBatchSize(parseInt(e.target.value))}
+            <Dropdown
+              value={String(batchSize)}
+              onChange={(v) => setBatchSize(parseInt(v))}
               disabled={disabled || starting}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                background: tc.inputBg,
-                border: `1px solid ${tc.borderStrong}`,
-                borderRadius: '0',
-                color: tc.text,
-                fontSize: '12px',
-              }}
-            >
-              <option value={8}>8</option>
-              <option value={16}>16</option>
-              <option value={32}>32</option>
-              <option value={64}>64</option>
-            </select>
+              options={[
+                { value: '8', label: '8' },
+                { value: '16', label: '16' },
+                { value: '32', label: '32' },
+                { value: '64', label: '64' },
+              ]}
+            />
           </div>
 
           {/* Learning Rate */}
@@ -458,24 +431,16 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
             <label style={{ display: 'block', color: tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
               Sequence Length
             </label>
-            <select
-              value={seqLen}
-              onChange={(e) => setSeqLen(parseInt(e.target.value))}
+            <Dropdown
+              value={String(seqLen)}
+              onChange={(v) => setSeqLen(parseInt(v))}
               disabled={disabled || starting}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                background: tc.inputBg,
-                border: `1px solid ${tc.borderStrong}`,
-                borderRadius: '0',
-                color: tc.text,
-                fontSize: '12px',
-              }}
-            >
-              <option value={128}>128</option>
-              <option value={256}>256</option>
-              <option value={512}>512</option>
-            </select>
+              options={[
+                { value: '128', label: '128' },
+                { value: '256', label: '256' },
+                { value: '512', label: '512' },
+              ]}
+            />
           </div>
         </div>
       </div>

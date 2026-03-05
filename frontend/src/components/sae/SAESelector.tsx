@@ -4,9 +4,10 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronDown, Loader2, AlertCircle, RefreshCw, Database, ExternalLink } from 'lucide-react'
+import { Loader2, AlertCircle, RefreshCw, Database, ExternalLink } from 'lucide-react'
 import { saeClient, type SAEListResponse } from '../../api/client'
 import { useThemeColors } from '../../hooks/useTheme'
+import { Dropdown } from '../common/Dropdown'
 
 export interface SAESelection {
   model: 'nano' | 'mini'
@@ -220,22 +221,11 @@ export function SAESelector({
           <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
             Model
           </label>
-          <div style={{ position: 'relative' }}>
-            <select
-              value={selection?.model || ''}
-              onChange={(e) => handleModelChange(e.target.value as 'nano' | 'mini')}
-              style={{ width: '100%', appearance: 'none', background: tc.surface, border: `1px solid ${tc.border}`, color: tc.text, padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
-              onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
-              onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
-            >
-              {Object.keys(saeList.models).map(model => (
-                <option key={model} value={model}>
-                  ozera-{model}
-                </option>
-              ))}
-            </select>
-            <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tc.textFaint }} className="w-4 h-4" />
-          </div>
+          <Dropdown
+            value={selection?.model || ''}
+            onChange={(v) => handleModelChange(v as 'nano' | 'mini')}
+            options={Object.keys(saeList.models).map(model => ({ value: model, label: `ozera-${model}` }))}
+          />
         </div>
 
         {/* Layer Selector */}
@@ -243,22 +233,11 @@ export function SAESelector({
           <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
             Layer
           </label>
-          <div style={{ position: 'relative' }}>
-            <select
-              value={selection?.layer ?? ''}
-              onChange={(e) => handleLayerChange(parseInt(e.target.value))}
-              style={{ width: '100%', appearance: 'none', background: tc.surface, border: `1px solid ${tc.border}`, color: tc.text, padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
-              onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
-              onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
-            >
-              {availableLayers.map(layer => (
-                <option key={layer} value={layer}>
-                  Layer {layer}
-                </option>
-              ))}
-            </select>
-            <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tc.textFaint }} className="w-4 h-4" />
-          </div>
+          <Dropdown
+            value={String(selection?.layer ?? '')}
+            onChange={(v) => handleLayerChange(parseInt(v))}
+            options={availableLayers.map(layer => ({ value: String(layer), label: `Layer ${layer}` }))}
+          />
         </div>
 
         {/* Activation Type Selector */}
@@ -266,22 +245,11 @@ export function SAESelector({
           <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
             Activation Type
           </label>
-          <div style={{ position: 'relative' }}>
-            <select
-              value={selection?.activationType || ''}
-              onChange={(e) => handleActivationTypeChange(e.target.value as 'residual' | 'mlp_output')}
-              style={{ width: '100%', appearance: 'none', background: tc.surface, border: `1px solid ${tc.border}`, color: tc.text, padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
-              onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
-              onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
-            >
-              {availableTypes.map(type => (
-                <option key={type} value={type}>
-                  {type === 'residual' ? 'Residual Stream' : 'MLP Output'}
-                </option>
-              ))}
-            </select>
-            <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tc.textFaint }} className="w-4 h-4" />
-          </div>
+          <Dropdown
+            value={selection?.activationType || ''}
+            onChange={(v) => handleActivationTypeChange(v as 'residual' | 'mlp_output')}
+            options={availableTypes.map(type => ({ value: type, label: type === 'residual' ? 'Residual Stream' : 'MLP Output' }))}
+          />
         </div>
       </div>
 

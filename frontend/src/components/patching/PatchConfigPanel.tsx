@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { Plus, X, Layers, Settings2 } from 'lucide-react'
 import type { PatchSpec, PatchType, InterventionType } from '../../types/patching'
+import { Dropdown } from '../common/Dropdown'
 
 interface PatchConfigPanelProps {
   modelId: string
@@ -80,18 +81,12 @@ export function PatchConfigPanel({
         <div className="form-row">
           <div className="form-group">
             <label>Intervention Type</label>
-            <select
+            <Dropdown
               value={interventionType}
-              onChange={e => setInterventionType(e.target.value as InterventionType)}
+              onChange={v => setInterventionType(v as InterventionType)}
               disabled={disabled}
-              className={isAblationType ? 'ablation-select' : ''}
-            >
-              {INTERVENTION_TYPES.map(it => (
-                <option key={it.value} value={it.value}>
-                  {it.label}
-                </option>
-              ))}
-            </select>
+              options={INTERVENTION_TYPES.map(it => ({ value: it.value, label: it.label }))}
+            />
             <span className="intervention-hint">
               {INTERVENTION_TYPES.find(it => it.value === interventionType)?.description}
             </span>
@@ -101,32 +96,22 @@ export function PatchConfigPanel({
         <div className="form-row">
           <div className="form-group">
             <label>Layer</label>
-            <select
-              value={layer}
-              onChange={e => setLayer(parseInt(e.target.value))}
+            <Dropdown
+              value={String(layer)}
+              onChange={v => setLayer(parseInt(v))}
               disabled={disabled}
-            >
-              {Array.from({ length: numLayers }, (_, i) => (
-                <option key={i} value={i}>
-                  Layer {i}
-                </option>
-              ))}
-            </select>
+              options={Array.from({ length: numLayers }, (_, i) => ({ value: String(i), label: `Layer ${i}` }))}
+            />
           </div>
 
           <div className="form-group">
             <label>Activation Type</label>
-            <select
+            <Dropdown
               value={patchType}
-              onChange={e => setPatchType(e.target.value as PatchType)}
+              onChange={v => setPatchType(v as PatchType)}
               disabled={disabled}
-            >
-              {PATCH_TYPES.map(pt => (
-                <option key={pt.value} value={pt.value}>
-                  {pt.label}
-                </option>
-              ))}
-            </select>
+              options={PATCH_TYPES.map(pt => ({ value: pt.value, label: pt.label }))}
+            />
           </div>
         </div>
 

@@ -13,6 +13,7 @@ import { EmbeddingJourney } from '../components/visualization/EmbeddingJourney'
 import { TransformationFlow } from '../components/visualization/TransformationFlow'
 import { GenerationFlow } from '../components/visualization/GenerationFlow'
 import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network } from 'lucide-react'
+import { Dropdown } from '../components/common/Dropdown'
 
 export function VisualizationPage() {
   const [searchParams] = useSearchParams()
@@ -187,14 +188,15 @@ export function VisualizationPage() {
           {view === 'attention' && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-white/60 font-semibold uppercase tracking-wide">Labels:</span>
-              <select
+              <Dropdown
                 value={showTextLabels ? 'text' : 'number'}
-                onChange={(e) => setShowTextLabels(e.target.value === 'text')}
-                className="px-3 py-[0.625rem] min-w-[150px] bg-black/40 border border-white/[0.15] text-white/90 text-sm cursor-pointer hover:border-white/[0.25] focus:outline-none focus:border-white/[0.4] transition-all"
-              >
-                <option value="number">Token Number</option>
-                <option value="text">Token Text</option>
-              </select>
+                onChange={(v) => setShowTextLabels(v === 'text')}
+                options={[
+                  { value: 'number', label: 'Token Number' },
+                  { value: 'text', label: 'Token Text' },
+                ]}
+                style={{ minWidth: '150px' }}
+              />
             </div>
           )}
 

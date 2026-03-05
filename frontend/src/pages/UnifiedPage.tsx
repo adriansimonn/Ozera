@@ -17,6 +17,7 @@ import { NavBar } from '../components/common/NavBar'
 import { apiClient } from '../api/client'
 import type { ActivationData, LayerActivations } from '../types/model'
 import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network } from 'lucide-react'
+import { Dropdown } from '../components/common/Dropdown'
 
 type ViewMode = 'single' | 'split'
 type SingleViewType = 'generator' | 'visualizations'
@@ -382,32 +383,26 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
             <div className="visualization-header">
               <div className="visualization-dropdown">
                 <label htmlFor="vis-select">Visualization:</label>
-                <select
+                <Dropdown
                   id="vis-select"
                   value={selectedVisualization}
-                  onChange={(e) => setSelectedVisualization(e.target.value as VisualizationType)}
-                  className="visualization-select"
-                >
-                  {visualizationOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setSelectedVisualization(v as VisualizationType)}
+                  options={visualizationOptions.map((opt) => ({ value: opt.value, label: opt.label }))}
+                />
               </div>
 
               {selectedVisualization === 'attention' && activationData && (
                 <div className="labels-dropdown">
                   <label htmlFor="labels-select">Labels:</label>
-                  <select
+                  <Dropdown
                     id="labels-select"
                     value={showTextLabels ? 'text' : 'number'}
-                    onChange={(e) => setShowTextLabels(e.target.value === 'text')}
-                    className="labels-select"
-                  >
-                    <option value="number">Token Number</option>
-                    <option value="text">Token Text</option>
-                  </select>
+                    onChange={(v) => setShowTextLabels(v === 'text')}
+                    options={[
+                      { value: 'number', label: 'Token Number' },
+                      { value: 'text', label: 'Token Text' },
+                    ]}
+                  />
                 </div>
               )}
 

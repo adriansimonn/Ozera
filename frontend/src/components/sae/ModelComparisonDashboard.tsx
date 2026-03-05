@@ -15,7 +15,6 @@ import {
   Play,
   Loader2,
   AlertCircle,
-  ChevronDown,
   Database,
   Grid3x3,
   Zap,
@@ -32,6 +31,7 @@ import {
 import { FeatureComparison } from './FeatureComparison'
 import { SimilarityMatrix } from './SimilarityMatrix'
 import { useThemeColors } from '../../hooks/useTheme'
+import { Dropdown } from '../common/Dropdown'
 
 interface SAECompareSelection {
   model: 'nano' | 'mini'
@@ -338,78 +338,34 @@ export function ModelComparisonDashboard({
             <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
               Model
             </label>
-            <div style={{ position: 'relative' }}>
-              <select
-                value={selection?.model || ''}
-                onChange={(e) =>
-                  handleSelectionChange(which, 'model', e.target.value)
-                }
-                disabled={isExternal}
-                style={{ width: '100%', appearance: 'none', background: tc.surface, border: `1px solid ${tc.border}`, color: tc.text, padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
-                onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
-                onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
-              >
-                {saeList &&
-                  Object.keys(saeList.models).map((model) => (
-                    <option key={model} value={model}>
-                      ozera-{model}
-                    </option>
-                  ))}
-              </select>
-              <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tc.textFaint }} className="w-4 h-4" />
-            </div>
+            <Dropdown
+              value={selection?.model || ''}
+              onChange={(v) => handleSelectionChange(which, 'model', v)}
+              disabled={isExternal}
+              options={saeList ? Object.keys(saeList.models).map(model => ({ value: model, label: `ozera-${model}` })) : []}
+            />
           </div>
           <div style={{ background: tc.deepBg, padding: '1rem' }}>
             <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
               Layer
             </label>
-            <div style={{ position: 'relative' }}>
-              <select
-                value={selection?.layer ?? ''}
-                onChange={(e) =>
-                  handleSelectionChange(which, 'layer', parseInt(e.target.value))
-                }
-                disabled={isExternal}
-                style={{ width: '100%', appearance: 'none', background: tc.surface, border: `1px solid ${tc.border}`, color: tc.text, padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
-                onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
-                onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
-              >
-                {selection && !isExternal &&
-                  getAvailableLayers(selection.model).map((layer) => (
-                    <option key={layer} value={layer}>
-                      Layer {layer}
-                    </option>
-                  ))}
-              </select>
-              <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tc.textFaint }} className="w-4 h-4" />
-            </div>
+            <Dropdown
+              value={String(selection?.layer ?? '')}
+              onChange={(v) => handleSelectionChange(which, 'layer', parseInt(v))}
+              disabled={isExternal}
+              options={selection && !isExternal ? getAvailableLayers(selection.model).map(layer => ({ value: String(layer), label: `Layer ${layer}` })) : []}
+            />
           </div>
           <div style={{ background: tc.deepBg, padding: '1rem' }}>
             <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
               Activation Type
             </label>
-            <div style={{ position: 'relative' }}>
-              <select
-                value={selection?.activationType || ''}
-                onChange={(e) =>
-                  handleSelectionChange(which, 'activationType', e.target.value)
-                }
-                disabled={isExternal}
-                style={{ width: '100%', appearance: 'none', background: tc.surface, border: `1px solid ${tc.border}`, color: tc.text, padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
-                onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
-                onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
-              >
-                {selection && !isExternal &&
-                  getAvailableTypes(selection.model, selection.layer).map(
-                    (type) => (
-                      <option key={type} value={type}>
-                        {type === 'residual' ? 'Residual Stream' : 'MLP Output'}
-                      </option>
-                    )
-                  )}
-              </select>
-              <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tc.textFaint }} className="w-4 h-4" />
-            </div>
+            <Dropdown
+              value={selection?.activationType || ''}
+              onChange={(v) => handleSelectionChange(which, 'activationType', v)}
+              disabled={isExternal}
+              options={selection && !isExternal ? getAvailableTypes(selection.model, selection.layer).map(type => ({ value: type, label: type === 'residual' ? 'Residual Stream' : 'MLP Output' })) : []}
+            />
           </div>
         </div>
 

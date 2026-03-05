@@ -18,6 +18,7 @@ import {
   Lock,
   Plus,
 } from 'lucide-react'
+import { Dropdown } from '../components/common/Dropdown'
 
 type SettingsTab = 'account' | 'credits' | 'ui'
 
@@ -361,58 +362,58 @@ export default function SettingsPage() {
             {/* Background */}
             <div>
               <label className="block text-base text-gray-300 mb-2">Background</label>
-              <select
+              <Dropdown
                 value={settings?.ui.background ?? 'glow'}
-                onChange={(e) => handleUISetting('background', e.target.value)}
-                className="bg-white/5 border border-white/10 px-4 py-3 text-base text-white focus:outline-none focus:border-white/30"
-              >
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
-                <option value="glow">Glow</option>
-                <option value="system">System</option>
-              </select>
+                onChange={(v) => handleUISetting('background', v)}
+                options={[
+                  { value: 'dark', label: 'Dark' },
+                  { value: 'light', label: 'Light' },
+                  { value: 'glow', label: 'Glow' },
+                  { value: 'system', label: 'System' },
+                ]}
+              />
             </div>
 
             {/* Interface */}
             <div>
               <label className="block text-base text-gray-300 mb-2">Interface</label>
-              <select
+              <Dropdown
                 value={settings?.ui.interface ?? 'glass'}
-                onChange={(e) => handleUISetting('interface', e.target.value)}
-                className="bg-white/5 border border-white/10 px-4 py-3 text-base text-white focus:outline-none focus:border-white/30"
-              >
-                <option value="default">Default</option>
-                <option value="glass">Glass</option>
-              </select>
+                onChange={(v) => handleUISetting('interface', v)}
+                options={[
+                  { value: 'default', label: 'Default' },
+                  { value: 'glass', label: 'Glass' },
+                ]}
+              />
             </div>
 
             {/* Default View Mode */}
             <div>
               <label className="block text-base text-gray-300 mb-2">Default View Mode</label>
-              <select
+              <Dropdown
                 value={settings?.ui.default_view_mode ?? 'split'}
-                onChange={(e) => handleUISetting('default_view_mode', e.target.value)}
-                className="bg-white/5 border border-white/10 px-4 py-3 text-base text-white focus:outline-none focus:border-white/30"
-              >
-                <option value="split">Split</option>
-                <option value="single">Single</option>
-              </select>
+                onChange={(v) => handleUISetting('default_view_mode', v)}
+                options={[
+                  { value: 'split', label: 'Split' },
+                  { value: 'single', label: 'Single' },
+                ]}
+              />
             </div>
 
             {/* Default Landing Page */}
             <div>
               <label className="block text-base text-gray-300 mb-2">Default Landing Page</label>
-              <select
+              <Dropdown
                 value={settings?.ui.default_page ?? '/'}
-                onChange={(e) => handleUISetting('default_page', e.target.value)}
-                className="bg-white/5 border border-white/10 px-4 py-3 text-base text-white focus:outline-none focus:border-white/30"
-              >
-                <option value="/">Generate</option>
-                <option value="/training">Custom Models</option>
-                <option value="/patching">Activation Patching</option>
-                <option value="/analysis">Attention Analysis</option>
-                <option value="/sae">SAE Analysis</option>
-              </select>
+                onChange={(v) => handleUISetting('default_page', v)}
+                options={[
+                  { value: '/', label: 'Generate' },
+                  { value: '/training', label: 'Custom Models' },
+                  { value: '/patching', label: 'Activation Patching' },
+                  { value: '/analysis', label: 'Attention Analysis' },
+                  { value: '/sae', label: 'SAE Analysis' },
+                ]}
+              />
             </div>
           </div>
         )}

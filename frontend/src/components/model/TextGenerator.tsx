@@ -10,6 +10,7 @@ import { useStreamingGeneration } from '../../hooks/useGeneration'
 import { useModels } from '../../hooks/useModels'
 import { apiClient } from '../../api/client'
 import { useAuthStore } from '../../stores/authStore'
+import { Dropdown, type DropdownGroup } from '../common/Dropdown'
 
 interface TextGeneratorProps {
   defaultModel?: string
@@ -197,52 +198,31 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       <div className="controls">
         <div className="control-group">
           <label htmlFor="model-select">Model:</label>
-          <select
+          <Dropdown
             id="model-select"
             value={model}
-            onChange={(e) => handleModelChange(e.target.value)}
+            onChange={handleModelChange}
             disabled={loading || streaming || modelsLoading || models.length === 0}
-          >
-            {models.length === 0 && (
-              <option value="">No models available</option>
-            )}
-            {/* Base Ozera models */}
-            {models.filter(m => m === 'nano' || m === 'mini').map((m) => (
-              <option key={m} value={m}>
-                ozera-{m}
-              </option>
-            ))}
-            {/* Open Source models - non-ozera families */}
-            {models.filter(m => {
-              const family = modelFamilies[m]
-              return family && family !== 'ozera'
-            }).length > 0 && (
-              <option disabled>── Open Source ──</option>
-            )}
-            {models.filter(m => {
-              const family = modelFamilies[m]
-              return family && family !== 'ozera'
-            }).map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-            {/* Custom Ozera models - ozera family but not nano/mini */}
-            {models.filter(m => {
-              const family = modelFamilies[m]
-              return (family === 'ozera' || !family) && m !== 'nano' && m !== 'mini'
-            }).length > 0 && (
-              <option disabled>── Custom Models ──</option>
-            )}
-            {models.filter(m => {
-              const family = modelFamilies[m]
-              return (family === 'ozera' || !family) && m !== 'nano' && m !== 'mini'
-            }).map((m) => (
-              <option key={m} value={m}>
-                {modelNames[m] || m}
-              </option>
-            ))}
-          </select>
+            groups={(() => {
+              const groups: DropdownGroup[] = []
+              const base = models.filter(m => m === 'nano' || m === 'mini')
+              if (base.length > 0) {
+                groups.push({ label: 'Ozera Models', options: base.map(m => ({ value: m, label: `ozera-${m}` })) })
+              }
+              const os = models.filter(m => { const f = modelFamilies[m]; return f && f !== 'ozera' })
+              if (os.length > 0) {
+                groups.push({ label: 'Open Source', options: os.map(m => ({ value: m, label: m })) })
+              }
+              const custom = models.filter(m => { const f = modelFamilies[m]; return (f === 'ozera' || !f) && m !== 'nano' && m !== 'mini' })
+              if (custom.length > 0) {
+                groups.push({ label: 'Custom Models', options: custom.map(m => ({ value: m, label: modelNames[m] || m })) })
+              }
+              if (groups.length === 0) {
+                groups.push({ label: 'Models', options: [{ value: '', label: 'No models available' }] })
+              }
+              return groups
+            })()}
+          />
         </div>
 
         <div className="control-group">
@@ -452,36 +432,6 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           color: rgba(255, 255, 255, 0.6);
           letter-spacing: 0.05em;
           text-transform: uppercase;
-        }
-
-        .control-group select {
-          padding: 0.875rem 1rem;
-          background: rgba(0, 0, 0, 0.2);
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: #ffffff;
-          font-size: 0.95rem;
-          cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        .control-group select:hover {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.2);
-          box-shadow:
-            0 4px 12px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        }
-
-        .control-group select:focus {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.25);
-          box-shadow:
-            0 4px 16px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.12),
-            0 0 0 2px rgba(255, 255, 255, 0.05);
         }
 
         .control-group input[type="range"] {
@@ -866,29 +816,6 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
 
         [data-bg="light"] .control-group label {
           color: rgba(0, 0, 0, 0.55);
-        }
-
-        [data-bg="light"] .control-group select {
-          background: rgba(0, 0, 0, 0.03);
-          border-color: rgba(0, 0, 0, 0.12);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .control-group select:hover {
-          background: rgba(0, 0, 0, 0.05);
-          border-color: rgba(0, 0, 0, 0.2);
-          box-shadow:
-            0 4px 12px rgba(0, 0, 0, 0.08),
-            inset 0 1px 0 rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .control-group select:focus {
-          background: rgba(0, 0, 0, 0.05);
-          border-color: rgba(0, 0, 0, 0.2);
-          box-shadow:
-            0 4px 16px rgba(0, 0, 0, 0.08),
-            inset 0 1px 0 rgba(0, 0, 0, 0.1),
-            0 0 0 2px rgba(0, 0, 0, 0.04);
         }
 
         [data-bg="light"] .control-group input[type="range"] {

@@ -7,6 +7,7 @@ import React from 'react'
 import { Info, Cpu, Layers, Grid3X3, Hash, Database } from 'lucide-react'
 import { useModels, useModelInfo } from '../../hooks/useModels'
 import type { ModelFamily } from '../../types/model'
+import { Dropdown, type DropdownGroup } from '../common/Dropdown'
 
 // Static model information for base models
 const BASE_MODEL_INFO: Record<'nano' | 'mini', {
@@ -96,36 +97,24 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
 
       <div className="model-selector">
         <label htmlFor="model-info-select">Select Model:</label>
-        <select
+        <Dropdown
           id="model-info-select"
           value={selectedModel}
-          onChange={(e) => onModelChange(e.target.value)}
-        >
-          {/* Base models */}
-          {baseModels.map((m) => (
-            <option key={m} value={m}>
-              ozera-{m}
-            </option>
-          ))}
-          {/* Open Source models */}
-          {osModels.length > 0 && (
-            <option disabled>── Open Source ──</option>
-          )}
-          {osModels.map((m) => (
-            <option key={m} value={m}>
-              {modelNames[m] || m}
-            </option>
-          ))}
-          {/* Custom models */}
-          {customModels.length > 0 && (
-            <option disabled>── Custom Models ──</option>
-          )}
-          {customModels.map((m) => (
-            <option key={m} value={m}>
-              {modelNames[m] || m} (custom)
-            </option>
-          ))}
-        </select>
+          onChange={onModelChange}
+          groups={(() => {
+            const groups: DropdownGroup[] = []
+            if (baseModels.length > 0) {
+              groups.push({ label: 'Ozera Models', options: baseModels.map(m => ({ value: m, label: `ozera-${m}` })) })
+            }
+            if (osModels.length > 0) {
+              groups.push({ label: 'Open Source', options: osModels.map(m => ({ value: m, label: modelNames[m] || m })) })
+            }
+            if (customModels.length > 0) {
+              groups.push({ label: 'Custom Models', options: customModels.map(m => ({ value: m, label: `${modelNames[m] || m} (custom)` })) })
+            }
+            return groups
+          })()}
+        />
       </div>
 
       <div className="model-info-content">
@@ -245,42 +234,6 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
           text-transform: uppercase;
         }
 
-        .model-selector select {
-          padding: 0.875rem 1rem;
-          background: rgba(0, 0, 0, 0.2);
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: #ffffff;
-          font-size: 0.95rem;
-          cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        .model-selector select:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.2);
-          box-shadow:
-            0 4px 12px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        }
-
-        .model-selector select:focus {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.25);
-          box-shadow:
-            0 4px 16px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.12),
-            0 0 0 2px rgba(255, 255, 255, 0.05);
-          outline: none;
-        }
-
-        .model-selector select:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
         .model-info-content {
           min-height: 120px;
         }
@@ -394,28 +347,6 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
 
         [data-bg="light"] .model-selector label {
           color: rgba(0, 0, 0, 0.55);
-        }
-
-        [data-bg="light"] .model-selector select {
-          border: 1px solid rgba(0, 0, 0, 0.12);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .model-selector select:hover:not(:disabled) {
-          background: rgba(0, 0, 0, 0.05);
-          border-color: rgba(0, 0, 0, 0.2);
-          box-shadow:
-            0 4px 12px rgba(0, 0, 0, 0.08),
-            inset 0 1px 0 rgba(0, 0, 0, 0.05);
-        }
-
-        [data-bg="light"] .model-selector select:focus {
-          background: rgba(0, 0, 0, 0.03);
-          border-color: rgba(0, 0, 0, 0.25);
-          box-shadow:
-            0 4px 16px rgba(0, 0, 0, 0.08),
-            inset 0 1px 0 rgba(0, 0, 0, 0.06),
-            0 0 0 2px rgba(0, 0, 0, 0.05);
         }
 
         [data-bg="light"] .model-description {
