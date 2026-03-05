@@ -279,7 +279,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
               />
               {modelInfo && (
                 <div className="model-info-row">
-                  <span className="info-badge">{modelInfo.model_type}</span>
+                  <span className="info-badge">{modelInfo.model_type.replace(/_/g, ' ')}</span>
                   <span className="info-text">{modelInfo.num_layers} layers, {modelInfo.num_heads} heads</span>
                 </div>
               )}
@@ -624,9 +624,9 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
 
         .info-badge {
           padding: 0.25rem 0.5rem;
-          background: rgba(59, 130, 246, 0.2);
-          border: 1px solid rgba(59, 130, 246, 0.3);
-          color: rgba(59, 130, 246, 0.9);
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.6);
           font-size: 0.7rem;
           font-weight: 500;
           text-transform: uppercase;
@@ -937,6 +937,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
         [data-bg="light"] .section { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
         [data-bg="light"] .section h2 { color: rgba(0,0,0,0.6); }
         [data-bg="light"] .model-select { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
+        [data-bg="light"] .info-badge { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); color: rgba(0,0,0,0.55); }
         [data-bg="light"] .info-text { color: rgba(0,0,0,0.5); }
         [data-bg="light"] .label-main { color: rgba(0,0,0,0.7); }
         [data-bg="light"] .label-hint { color: rgba(0,0,0,0.5); }
