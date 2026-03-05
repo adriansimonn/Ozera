@@ -168,9 +168,9 @@ export default function SettingsPage() {
     return (
       <div className="min-h-screen" style={{ minHeight: '125vh' }}>
         <NavBar />
-        <div className="max-w-2xl mx-auto px-6 pt-24">
-          <div className="bg-white/[0.03] border border-white/10 p-8 text-center">
-            <p className="text-gray-400">Please log in to access settings.</p>
+        <div className="max-w-3xl mx-auto px-8 pt-28">
+          <div className="bg-white/[0.03] border border-white/10 p-10 text-center">
+            <p className="text-base text-gray-300">Please log in to access settings.</p>
           </div>
         </div>
       </div>
@@ -187,19 +187,19 @@ export default function SettingsPage() {
     <div className="min-h-screen" style={{ minHeight: '125vh' }}>
       <NavBar />
 
-      <div className="max-w-2xl mx-auto px-6 pt-24 pb-16">
-        <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
+      <div className="max-w-3xl mx-auto px-8 pt-28 pb-20">
+        <h1 className="text-3xl font-bold text-white mb-8">Settings</h1>
 
         {/* Tab Buttons */}
-        <div className="flex gap-1 mb-6 border-b border-white/10 pb-px">
+        <div className="flex gap-1 mb-8 border-b border-white/10 pb-px">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              className={`px-5 py-3 text-base font-medium transition-colors border-b-2 -mb-px ${
                 activeTab === tab.key
                   ? 'border-white text-white'
-                  : 'border-transparent text-gray-500 hover:text-gray-300'
+                  : 'border-transparent text-gray-400 hover:text-gray-200'
               }`}
             >
               {tab.label}
@@ -209,56 +209,56 @@ export default function SettingsPage() {
 
         {/* Account Tab */}
         {activeTab === 'account' && (
-          <div className="bg-white/[0.03] border border-white/10 p-5 space-y-4">
+          <div className="bg-white/[0.03] border border-white/10 p-7 space-y-6">
             {/* Display Name */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Display Name</label>
-              <div className="flex items-center gap-2">
+              <label className="block text-base text-gray-300 mb-2">Display Name</label>
+              <div className="flex items-center gap-3">
                 <input
                   type="text"
                   value={displayName}
                   onChange={(e) => handleDisplayNameChange(e.target.value)}
-                  className="flex-1 bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
+                  className="flex-1 bg-white/5 border border-white/10 px-4 py-3 text-base text-white placeholder-gray-400 focus:outline-none focus:border-white/30"
                   placeholder="Your name"
                 />
-                {nameSaveStatus === 'saving' && <Loader2 size={14} className="text-gray-400 animate-spin" />}
-                {nameSaveStatus === 'saved' && <Check size={14} className="text-green-400" />}
-                {nameSaveStatus === 'error' && <AlertCircle size={14} className="text-red-400" />}
+                {nameSaveStatus === 'saving' && <Loader2 size={18} className="text-gray-300 animate-spin" />}
+                {nameSaveStatus === 'saved' && <Check size={18} className="text-green-400" />}
+                {nameSaveStatus === 'error' && <AlertCircle size={18} className="text-red-400" />}
               </div>
             </div>
 
             {/* Email (read-only) */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Email</label>
+              <label className="block text-base text-gray-300 mb-2">Email</label>
               <input
                 type="email"
                 value={user.email}
                 disabled
-                className="w-full bg-white/5 border border-white/10 px-3 py-2 text-sm text-gray-500 cursor-not-allowed"
+                className="w-full bg-white/5 border border-white/10 px-4 py-3 text-base text-gray-500 cursor-not-allowed"
               />
             </div>
 
             {/* Change Password */}
-            <div className="pt-2 border-t border-white/5">
-              <div className="flex items-center gap-2 mb-3">
-                <Lock size={14} className="text-gray-400" />
-                <span className="text-sm font-medium text-gray-300">Change Password</span>
+            <div className="pt-3 border-t border-white/5">
+              <div className="flex items-center gap-2 mb-4">
+                <Lock size={18} className="text-gray-300" />
+                <span className="text-base font-medium text-gray-200">Change Password</span>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="relative">
                   <input
                     type={showCurrentPassword ? 'text' : 'password'}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 pr-10"
+                    className="w-full bg-white/5 border border-white/10 px-4 py-3 text-base text-white placeholder-gray-400 focus:outline-none focus:border-white/30 pr-12"
                     placeholder="Current password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
                   >
-                    {showCurrentPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
                 <div className="relative">
@@ -266,34 +266,34 @@ export default function SettingsPage() {
                     type={showNewPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 pr-10"
+                    className="w-full bg-white/5 border border-white/10 px-4 py-3 text-base text-white placeholder-gray-400 focus:outline-none focus:border-white/30 pr-12"
                     placeholder="New password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
                   >
-                    {showNewPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
+                  className="w-full bg-white/5 border border-white/10 px-4 py-3 text-base text-white placeholder-gray-400 focus:outline-none focus:border-white/30"
                   placeholder="Confirm new password"
                 />
                 {passwordError && (
-                  <p className="text-xs text-red-400">{passwordError}</p>
+                  <p className="text-sm text-red-400">{passwordError}</p>
                 )}
                 <button
                   onClick={handlePasswordChange}
                   disabled={!currentPassword || !newPassword || !confirmPassword || passwordStatus === 'saving'}
-                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-400 hover:text-white border border-white/10 hover:border-white/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-5 py-3 text-base text-gray-300 hover:text-white border border-white/10 hover:border-white/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {passwordStatus === 'saving' && <Loader2 size={14} className="animate-spin" />}
-                  {passwordStatus === 'saved' && <Check size={14} className="text-green-400" />}
+                  {passwordStatus === 'saving' && <Loader2 size={18} className="animate-spin" />}
+                  {passwordStatus === 'saved' && <Check size={18} className="text-green-400" />}
                   Update Password
                 </button>
               </div>
@@ -303,10 +303,10 @@ export default function SettingsPage() {
 
         {/* Credit Balance Tab */}
         {activeTab === 'credits' && (
-          <div className="bg-white/[0.03] border border-white/10 p-5 space-y-4">
+          <div className="bg-white/[0.03] border border-white/10 p-7 space-y-6">
             {/* Low Balance Alert */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Low Balance Alert Threshold ($)</label>
+              <label className="block text-base text-gray-300 mb-2">Low Balance Alert Threshold ($)</label>
               <input
                 type="number"
                 min={0}
@@ -317,26 +317,26 @@ export default function SettingsPage() {
                   setLowBalanceAlert(val)
                   handleCreditsSetting('low_balance_alert', val, true)
                 }}
-                className="w-32 bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                className="w-40 bg-white/5 border border-white/10 px-4 py-3 text-base text-white focus:outline-none focus:border-white/30"
               />
-              <p className="text-xs text-gray-500 mt-1">Warn when balance drops below this amount</p>
+              <p className="text-sm text-gray-400 mt-2">Warn when balance drops below this amount</p>
             </div>
 
             {/* Show Balance in Navbar */}
             <div className="flex items-center justify-between">
               <div>
-                <label className="text-sm text-gray-300">Show balance in navbar</label>
-                <p className="text-xs text-gray-500">Display credit balance next to your profile</p>
+                <label className="text-base text-gray-200">Show balance in navbar</label>
+                <p className="text-sm text-gray-400">Display credit balance next to your profile</p>
               </div>
               <button
                 onClick={() => handleCreditsSetting('show_balance_in_navbar', !(settings?.credits.show_balance_in_navbar ?? true))}
-                className={`w-10 h-5 rounded-full transition-colors relative ${
-                  (settings?.credits.show_balance_in_navbar ?? true) ? 'bg-blue-600' : 'bg-gray-600'
+                className={`w-14 h-8 rounded-full transition-colors relative ${
+                  (settings?.credits.show_balance_in_navbar ?? true) ? 'bg-green-500' : 'bg-white/10'
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                    (settings?.credits.show_balance_in_navbar ?? true) ? 'left-5' : 'left-0.5'
+                  className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-transform ${
+                    (settings?.credits.show_balance_in_navbar ?? true) ? 'left-[30px]' : 'left-1'
                   }`}
                 />
               </button>
@@ -346,9 +346,9 @@ export default function SettingsPage() {
             <div>
               <button
                 onClick={handleAddCredits}
-                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-400 hover:text-white border border-white/10 hover:border-white/20 transition-colors"
+                className="flex items-center gap-2 px-5 py-3 text-base text-gray-300 hover:text-white border border-white/10 hover:border-white/20 transition-colors"
               >
-                <Plus size={14} />
+                <Plus size={18} />
                 Add Credits
               </button>
             </div>
@@ -357,74 +357,55 @@ export default function SettingsPage() {
 
         {/* UI Preferences Tab */}
         {activeTab === 'ui' && (
-          <div className="bg-white/[0.03] border border-white/10 p-5 space-y-4">
+          <div className="bg-white/[0.03] border border-white/10 p-7 space-y-6">
             {/* Background */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Background</label>
-              <div className="flex gap-2">
-                {(['dark', 'light', 'glow', 'system'] as const).map((bg) => (
-                  <button
-                    key={bg}
-                    onClick={() => handleUISetting('background', bg)}
-                    className={`px-4 py-2 text-sm transition-colors border ${
-                      (settings?.ui.background ?? 'glow') === bg
-                        ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
-                        : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
-                    }`}
-                  >
-                    {bg.charAt(0).toUpperCase() + bg.slice(1)}
-                  </button>
-                ))}
-              </div>
+              <label className="block text-base text-gray-300 mb-2">Background</label>
+              <select
+                value={settings?.ui.background ?? 'glow'}
+                onChange={(e) => handleUISetting('background', e.target.value)}
+                className="bg-white/5 border border-white/10 px-4 py-3 text-base text-white focus:outline-none focus:border-white/30"
+              >
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+                <option value="glow">Glow</option>
+                <option value="system">System</option>
+              </select>
             </div>
 
             {/* Interface */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Interface</label>
-              <div className="flex gap-2">
-                {(['default', 'glass'] as const).map((style) => (
-                  <button
-                    key={style}
-                    onClick={() => handleUISetting('interface', style)}
-                    className={`px-4 py-2 text-sm transition-colors border ${
-                      (settings?.ui.interface ?? 'glass') === style
-                        ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
-                        : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
-                    }`}
-                  >
-                    {style.charAt(0).toUpperCase() + style.slice(1)}
-                  </button>
-                ))}
-              </div>
+              <label className="block text-base text-gray-300 mb-2">Interface</label>
+              <select
+                value={settings?.ui.interface ?? 'glass'}
+                onChange={(e) => handleUISetting('interface', e.target.value)}
+                className="bg-white/5 border border-white/10 px-4 py-3 text-base text-white focus:outline-none focus:border-white/30"
+              >
+                <option value="default">Default</option>
+                <option value="glass">Glass</option>
+              </select>
             </div>
 
             {/* Default View Mode */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Default View Mode</label>
-              <div className="flex gap-2">
-                {(['split', 'single'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => handleUISetting('default_view_mode', mode)}
-                    className={`px-4 py-2 text-sm capitalize transition-colors border ${
-                      (settings?.ui.default_view_mode ?? 'split') === mode
-                        ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
-                        : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
-                    }`}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
+              <label className="block text-base text-gray-300 mb-2">Default View Mode</label>
+              <select
+                value={settings?.ui.default_view_mode ?? 'split'}
+                onChange={(e) => handleUISetting('default_view_mode', e.target.value)}
+                className="bg-white/5 border border-white/10 px-4 py-3 text-base text-white focus:outline-none focus:border-white/30"
+              >
+                <option value="split">Split</option>
+                <option value="single">Single</option>
+              </select>
             </div>
 
             {/* Default Landing Page */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Default Landing Page</label>
+              <label className="block text-base text-gray-300 mb-2">Default Landing Page</label>
               <select
                 value={settings?.ui.default_page ?? '/'}
                 onChange={(e) => handleUISetting('default_page', e.target.value)}
-                className="bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                className="bg-white/5 border border-white/10 px-4 py-3 text-base text-white focus:outline-none focus:border-white/30"
               >
                 <option value="/">Generate</option>
                 <option value="/training">Custom Models</option>
