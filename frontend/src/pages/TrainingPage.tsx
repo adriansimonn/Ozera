@@ -18,6 +18,7 @@ import {
 import { NavBar, CustomModelsMode } from '../components/common/NavBar'
 import { apiClient, GpuType } from '../api/client'
 import { useAuthStore } from '../stores/authStore'
+import { useThemeColors } from '../hooks/useTheme'
 
 export const TrainingPage: React.FC = () => {
   const { isAuthenticated } = useAuthStore()
@@ -35,6 +36,7 @@ export const TrainingPage: React.FC = () => {
   const { progress, completed, completedModelName, error, reset: resetProgress } = useTrainingProgress(activeJobId)
   const { models, fetchModels, deleteModel } = useCustomModels()
   const { models: uploadedModels, fetchModels: fetchUploadedModels, deleteModel: deleteUploadedModel } = useUploadedModels()
+  const tc = useThemeColors()
 
   // Handle auto-download when training completes
   useEffect(() => {
@@ -155,7 +157,7 @@ export const TrainingPage: React.FC = () => {
       case 'running': return '#3b82f6'
       case 'failed': return '#ef4444'
       case 'cancelled': return '#f59e0b'
-      default: return 'rgba(255,255,255,0.5)'
+      default: return tc.textSub
     }
   }
 
@@ -182,7 +184,7 @@ export const TrainingPage: React.FC = () => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', paddingTop: '100px' }}>
+    <div style={{ minHeight: '125vh', paddingTop: '100px' }}>
       <NavBar
         showCustomModelsToggle={true}
         customModelsMode={mode}
@@ -198,10 +200,10 @@ export const TrainingPage: React.FC = () => {
       >
         {/* Header */}
         <div style={{ marginBottom: '24px' }}>
-          <h1 style={{ color: '#fff', fontSize: '28px', fontWeight: 700, margin: 0 }}>
+          <h1 style={{ color: tc.text, fontSize: '28px', fontWeight: 700, margin: 0 }}>
             {mode === 'training' ? 'Custom Model Training' : 'Upload Model'}
           </h1>
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', marginTop: '8px' }}>
+          <p style={{ color: tc.textSub, fontSize: '14px', marginTop: '8px' }}>
             {mode === 'training'
               ? 'Train and save your own Ozera models on custom datasets'
               : 'Upload a .safetensors model file to use for generation'
@@ -247,19 +249,19 @@ export const TrainingPage: React.FC = () => {
             {/* Custom Models List (shows both trained and uploaded) */}
             <div
               style={{
-                background: 'rgba(255,255,255,0.03)',
+                background: tc.surface,
                 backdropFilter: 'blur(20px)',
                 borderRadius: '0',
-                border: '1px solid rgba(255,255,255,0.1)',
+                border: `1px solid ${tc.border}`,
                 padding: '20px',
               }}
             >
-              <h3 style={{ color: '#fff', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>
+              <h3 style={{ color: tc.text, fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>
                 Custom Models
               </h3>
 
               {allCustomModels.length === 0 ? (
-                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
+                <div style={{ color: tc.textMuted, fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
                   No custom models yet
                 </div>
               ) : (
@@ -268,7 +270,7 @@ export const TrainingPage: React.FC = () => {
                     <div
                       key={model.model_id}
                       style={{
-                        background: 'rgba(0,0,0,0.2)',
+                        background: tc.deepBg,
                         borderRadius: '0',
                         padding: '12px',
                         display: 'flex',
@@ -295,7 +297,7 @@ export const TrainingPage: React.FC = () => {
                           )}
                         </div>
                         <div>
-                          <div style={{ color: '#fff', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ color: tc.text, fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {model.name}
                             <span
                               style={{
@@ -311,7 +313,7 @@ export const TrainingPage: React.FC = () => {
                               {model.type}
                             </span>
                           </div>
-                          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginTop: '2px' }}>
+                          <div style={{ color: tc.textMuted, fontSize: '11px', marginTop: '2px' }}>
                             {model.type === 'trained' ? (
                               <>{model.base_config} · Val loss: {model.val_loss.toFixed(4)}</>
                             ) : (
@@ -351,7 +353,7 @@ export const TrainingPage: React.FC = () => {
                               border: 'none',
                               padding: '6px',
                               cursor: downloadingModelId === model.model_id ? 'not-allowed' : 'pointer',
-                              color: 'rgba(255,255,255,0.4)',
+                              color: tc.textMuted,
                             }}
                           >
                             {downloadingModelId === model.model_id ? (
@@ -370,7 +372,7 @@ export const TrainingPage: React.FC = () => {
                             border: 'none',
                             padding: '6px',
                             cursor: deletingUploadedModelId === model.model_id ? 'not-allowed' : 'pointer',
-                            color: 'rgba(255,255,255,0.4)',
+                            color: tc.textMuted,
                           }}
                         >
                           {deletingUploadedModelId === model.model_id ? (
@@ -390,19 +392,19 @@ export const TrainingPage: React.FC = () => {
             {mode === 'training' && (
               <div
                 style={{
-                  background: 'rgba(255,255,255,0.03)',
+                  background: tc.surface,
                   backdropFilter: 'blur(20px)',
                   borderRadius: '0',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  border: `1px solid ${tc.border}`,
                   padding: '20px',
                 }}
               >
-                <h3 style={{ color: '#fff', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>
+                <h3 style={{ color: tc.text, fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>
                   Recent Jobs
                 </h3>
 
                 {jobs.length === 0 ? (
-                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
+                  <div style={{ color: tc.textMuted, fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
                     No training jobs yet
                   </div>
                 ) : (
@@ -411,7 +413,7 @@ export const TrainingPage: React.FC = () => {
                       <div
                         key={job.job_id}
                         style={{
-                          background: 'rgba(0,0,0,0.2)',
+                          background: tc.deepBg,
                           borderRadius: '0',
                           padding: '12px',
                           display: 'flex',
@@ -428,14 +430,14 @@ export const TrainingPage: React.FC = () => {
                           }}
                         />
                         <div style={{ flex: 1 }}>
-                          <div style={{ color: '#fff', fontSize: '13px', fontWeight: 500 }}>
+                          <div style={{ color: tc.text, fontSize: '13px', fontWeight: 500 }}>
                             {job.model_name}
                           </div>
-                          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginTop: '2px' }}>
+                          <div style={{ color: tc.textMuted, fontSize: '11px', marginTop: '2px' }}>
                             {job.dataset_name} · {job.current_epoch}/{job.total_epochs} epochs
                           </div>
                         </div>
-                        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ color: tc.textMuted, fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <Clock size={10} />
                           {formatDate(job.created_at)}
                         </div>

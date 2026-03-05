@@ -721,7 +721,7 @@ export default function SAEPage({
 
       <style>{`
         .sae-page {
-          min-height: 100vh;
+          min-height: 125vh;
           padding-top: 70px;
         }
 
@@ -1014,6 +1014,29 @@ export default function SAEPage({
             justify-content: center;
           }
         }
+
+        /* Light mode */
+        [data-bg="light"] .sae-header h1 { color: #1d1d1f; }
+        [data-bg="light"] .header-description { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .sae-input { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
+        [data-bg="light"] .sae-input:focus { border-color: rgba(0,0,0,0.25); }
+        [data-bg="light"] .sae-input::placeholder { color: rgba(0,0,0,0.3); }
+        [data-bg="light"] .analyze-button { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
+        [data-bg="light"] .analyze-button:hover:not(:disabled) { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
+        [data-bg="light"] .analyze-button:disabled { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.08); color: rgba(0,0,0,0.35); }
+        [data-bg="light"] .mode-tab { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .mode-tab:hover { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: rgba(0,0,0,0.7); }
+        [data-bg="light"] .mode-tab.active { background: rgba(0,0,0,0.08); border-color: rgba(0,0,0,0.25); color: #1d1d1f; }
+        [data-bg="light"] .empty-state,
+        [data-bg="light"] .loading-state { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
+        [data-bg="light"] .empty-state .empty-icon { color: rgba(0,0,0,0.15); }
+        [data-bg="light"] .empty-state h3 { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .empty-state p { color: rgba(0,0,0,0.35); }
+        [data-bg="light"] .empty-detail,
+        [data-bg="light"] .loading-detail { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
+        [data-bg="light"] .empty-icon { color: rgba(0,0,0,0.15); }
+        [data-bg="light"] .empty-detail h3 { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .empty-detail p { color: rgba(0,0,0,0.35); }
       `}</style>
     </div>
   )

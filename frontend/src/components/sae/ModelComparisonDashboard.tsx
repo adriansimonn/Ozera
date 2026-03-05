@@ -31,6 +31,7 @@ import {
 } from '../../api/client'
 import { FeatureComparison } from './FeatureComparison'
 import { SimilarityMatrix } from './SimilarityMatrix'
+import { useThemeColors } from '../../hooks/useTheme'
 
 interface SAECompareSelection {
   model: 'nano' | 'mini'
@@ -50,6 +51,7 @@ export function ModelComparisonDashboard({
   onFeatureSelect,
   className = '',
 }: ModelComparisonDashboardProps) {
+  const tc = useThemeColors()
   const [saeList, setSaeList] = useState<SAEListResponse | null>(null)
   const [loadingList, setLoadingList] = useState(true)
 
@@ -300,7 +302,7 @@ export function ModelComparisonDashboard({
   if (loadingList) {
     return (
       <div className={`flex items-center justify-center p-8 ${className}`}>
-        <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: tc.textMuted }} />
         <span className="ml-3 text-gray-400">Loading SAEs...</span>
       </div>
     )
@@ -316,24 +318,24 @@ export function ModelComparisonDashboard({
     const label = which === 'a' ? 'SAE A' : 'SAE B'
 
     return (
-      <div style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+      <div style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}` }}>
         {/* Header */}
-        <div style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Database className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
-          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'rgba(255,255,255,0.95)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <div style={{ padding: '1rem', borderBottom: `1px solid ${tc.border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Database className="w-4 h-4" style={{ color: tc.textMid }} />
+          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: tc.textStrong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             {label}
           </span>
           {isExternal && (
-            <span style={{ fontSize: '0.65rem', padding: '0.125rem 0.375rem', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)' }}>
+            <span style={{ fontSize: '0.65rem', padding: '0.125rem 0.375rem', background: tc.surfaceActive, border: `1px solid ${tc.borderStrong}`, color: tc.textSub }}>
               EXTERNAL
             </span>
           )}
         </div>
 
         {/* Ozera SAE Dropdowns */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', opacity: isExternal ? 0.35 : 1, pointerEvents: isExternal ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
-          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
-            <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: tc.surfaceActive, opacity: isExternal ? 0.35 : 1, pointerEvents: isExternal ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
+          <div style={{ background: tc.deepBg, padding: '1rem' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
               Model
             </label>
             <div style={{ position: 'relative' }}>
@@ -343,9 +345,9 @@ export function ModelComparisonDashboard({
                   handleSelectionChange(which, 'model', e.target.value)
                 }
                 disabled={isExternal}
-                style={{ width: '100%', appearance: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
-                onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
-                onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+                style={{ width: '100%', appearance: 'none', background: tc.surface, border: `1px solid ${tc.border}`, color: tc.text, padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
+                onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
+                onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
               >
                 {saeList &&
                   Object.keys(saeList.models).map((model) => (
@@ -354,11 +356,11 @@ export function ModelComparisonDashboard({
                     </option>
                   ))}
               </select>
-              <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.35)' }} className="w-4 h-4" />
+              <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tc.textFaint }} className="w-4 h-4" />
             </div>
           </div>
-          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
-            <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+          <div style={{ background: tc.deepBg, padding: '1rem' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
               Layer
             </label>
             <div style={{ position: 'relative' }}>
@@ -368,9 +370,9 @@ export function ModelComparisonDashboard({
                   handleSelectionChange(which, 'layer', parseInt(e.target.value))
                 }
                 disabled={isExternal}
-                style={{ width: '100%', appearance: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
-                onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
-                onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+                style={{ width: '100%', appearance: 'none', background: tc.surface, border: `1px solid ${tc.border}`, color: tc.text, padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
+                onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
+                onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
               >
                 {selection && !isExternal &&
                   getAvailableLayers(selection.model).map((layer) => (
@@ -379,11 +381,11 @@ export function ModelComparisonDashboard({
                     </option>
                   ))}
               </select>
-              <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.35)' }} className="w-4 h-4" />
+              <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tc.textFaint }} className="w-4 h-4" />
             </div>
           </div>
-          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
-            <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+          <div style={{ background: tc.deepBg, padding: '1rem' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
               Activation Type
             </label>
             <div style={{ position: 'relative' }}>
@@ -393,9 +395,9 @@ export function ModelComparisonDashboard({
                   handleSelectionChange(which, 'activationType', e.target.value)
                 }
                 disabled={isExternal}
-                style={{ width: '100%', appearance: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
-                onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
-                onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+                style={{ width: '100%', appearance: 'none', background: tc.surface, border: `1px solid ${tc.border}`, color: tc.text, padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
+                onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
+                onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
               >
                 {selection && !isExternal &&
                   getAvailableTypes(selection.model, selection.layer).map(
@@ -406,52 +408,52 @@ export function ModelComparisonDashboard({
                     )
                   )}
               </select>
-              <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.35)' }} className="w-4 h-4" />
+              <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tc.textFaint }} className="w-4 h-4" />
             </div>
           </div>
         </div>
 
         {/* SAE Info - Built-in */}
         {saeInfo && !isExternal && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
-              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{saeInfo.d_input || '-'}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: tc.surfaceActive, borderTop: `1px solid ${tc.border}` }}>
+            <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{saeInfo.d_input || '-'}</div>
             </div>
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
-              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{saeInfo.d_hidden || '-'}</div>
+            <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{saeInfo.d_hidden || '-'}</div>
             </div>
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
-              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{saeInfo.activation || 'relu'}</div>
+            <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{saeInfo.activation || 'relu'}</div>
             </div>
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
-              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'rgba(255,255,255,0.8)' }}>ozera-{selection?.model}</div>
+            <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.textStrong }}>ozera-{selection?.model}</div>
             </div>
           </div>
         )}
 
         {/* SAE Info - External */}
         {extInfo && isExternal && (
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)' }}>
-              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
-                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{extInfo.d_input || '-'}</div>
+          <div style={{ borderTop: `1px solid ${tc.border}` }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: tc.surfaceActive }}>
+              <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
+                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{extInfo.d_input || '-'}</div>
               </div>
-              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
-                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{extInfo.d_hidden?.toLocaleString() || '-'}</div>
+              <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
+                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{extInfo.d_hidden?.toLocaleString() || '-'}</div>
               </div>
-              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
-                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{extInfo.activation_type || '-'}</div>
+              <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
+                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{extInfo.activation_type || '-'}</div>
               </div>
-              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
-                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'rgba(255,255,255,0.8)' }}>{extInfo.base_model || '-'}</div>
+              <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
+                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.textStrong }}>{extInfo.base_model || '-'}</div>
               </div>
             </div>
           </div>
@@ -459,11 +461,11 @@ export function ModelComparisonDashboard({
 
         {/* External SAEs list */}
         {externalSAEs.length > 0 && (
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <div style={{ borderTop: `1px solid ${tc.border}` }}>
             <div style={{ padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                <ExternalLink className="w-3 h-3" style={{ color: 'rgba(255,255,255,0.5)' }} />
-                <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <ExternalLink className="w-3 h-3" style={{ color: tc.textSub }} />
+                <span style={{ fontSize: '0.7rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   External SAEs ({externalSAEs.length})
                 </span>
               </div>
@@ -473,16 +475,16 @@ export function ModelComparisonDashboard({
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.25rem',
                     padding: '0.125rem 0.5rem', fontSize: '0.65rem',
-                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)',
-                    color: 'rgba(255,255,255,0.5)', cursor: 'pointer', transition: 'all 0.2s',
+                    background: tc.surfaceHover, border: `1px solid ${tc.borderStrong}`,
+                    color: tc.textSub, cursor: 'pointer', transition: 'all 0.2s',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'
-                    e.currentTarget.style.color = 'rgba(255,255,255,0.8)'
+                    e.currentTarget.style.borderColor = tc.borderHover
+                    e.currentTarget.style.color = tc.textStrong
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'
-                    e.currentTarget.style.color = 'rgba(255,255,255,0.5)'
+                    e.currentTarget.style.borderColor = tc.borderStrong
+                    e.currentTarget.style.color = tc.textSub
                   }}
                 >
                   <X className="w-2.5 h-2.5" />
@@ -500,33 +502,33 @@ export function ModelComparisonDashboard({
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       gap: '0.5rem', padding: '0.375rem 0.625rem', width: '100%', textAlign: 'left',
-                      background: isSelected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${isSelected ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                      background: isSelected ? tc.surfaceActive : tc.surface,
+                      border: `1px solid ${isSelected ? tc.borderHover : tc.border}`,
                       cursor: 'pointer', transition: 'all 0.2s',
                     }}
                     onMouseEnter={(e) => {
                       if (!isSelected) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
+                        e.currentTarget.style.background = tc.surfaceHover
+                        e.currentTarget.style.borderColor = tc.borderHover
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (!isSelected) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'
+                        e.currentTarget.style.background = tc.surface
+                        e.currentTarget.style.borderColor = tc.border
                       }
                     }}
                     title={`${ext.source_id || ext.id} - ${ext.base_model || 'unknown model'}`}
                   >
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem', minWidth: 0, flex: 1 }}>
-                      <span style={{ color: isSelected ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.7)', fontSize: '0.75rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ color: isSelected ? tc.textStrong : tc.textMid, fontSize: '0.75rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {ext.display_name || ext.id}
                       </span>
-                      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.65rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ color: tc.textFaint, fontSize: '0.65rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {ext.base_model || 'unknown model'} {ext.hookpoint ? `· ${ext.hookpoint}` : ''}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.65rem', color: tc.textFaint, flexShrink: 0 }}>
                       {ext.d_hidden && <span>{ext.d_hidden.toLocaleString()}f</span>}
                     </div>
                   </button>
@@ -554,19 +556,19 @@ export function ModelComparisonDashboard({
           <button
             onClick={() => setCompareMode('features')}
             style={{
-              background: compareMode === 'features' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.3)',
-              border: `1px solid ${compareMode === 'features' ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)'}`,
-              color: compareMode === 'features' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)',
+              background: compareMode === 'features' ? tc.surfaceActive : tc.inputBg,
+              border: `1px solid ${compareMode === 'features' ? tc.borderHover : tc.border}`,
+              color: compareMode === 'features' ? tc.textStrong : tc.textMuted,
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors"
             onMouseEnter={(e) => {
               if (compareMode !== 'features') {
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
+                e.currentTarget.style.borderColor = tc.borderHover
               }
             }}
             onMouseLeave={(e) => {
               if (compareMode !== 'features') {
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+                e.currentTarget.style.borderColor = tc.border
               }
             }}
           >
@@ -576,20 +578,20 @@ export function ModelComparisonDashboard({
           <button
             onClick={() => setCompareMode('layers')}
             style={{
-              background: compareMode === 'layers' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.3)',
-              border: `1px solid ${compareMode === 'layers' ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)'}`,
-              color: compareMode === 'layers' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)',
+              background: compareMode === 'layers' ? tc.surfaceActive : tc.inputBg,
+              border: `1px solid ${compareMode === 'layers' ? tc.borderHover : tc.border}`,
+              color: compareMode === 'layers' ? tc.textStrong : tc.textMuted,
               cursor: 'pointer',
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors"
             onMouseEnter={(e) => {
               if (compareMode !== 'layers') {
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
+                e.currentTarget.style.borderColor = tc.borderHover
               }
             }}
             onMouseLeave={(e) => {
               if (compareMode !== 'layers') {
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+                e.currentTarget.style.borderColor = tc.border
               }
             }}
           >
@@ -616,8 +618,8 @@ export function ModelComparisonDashboard({
               placeholder="Enter shared text for comparison..."
               className="w-full h-full bg-black/50 border border-gray-700 text-white px-3 py-2 text-sm resize-none"
               style={{ outline: 'none' }}
-              onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
-              onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+              onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
+              onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
               rows={2}
               disabled={comparing}
             />
@@ -626,22 +628,22 @@ export function ModelComparisonDashboard({
             onClick={runComparison}
             disabled={comparing || !selectionA || !selectionB || !compareText.trim()}
             style={{
-              background: (comparing || !selectionA || !selectionB || !compareText.trim()) ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.1)',
-              border: `1px solid ${(comparing || !selectionA || !selectionB || !compareText.trim()) ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.25)'}`,
-              color: (comparing || !selectionA || !selectionB || !compareText.trim()) ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.95)',
+              background: (comparing || !selectionA || !selectionB || !compareText.trim()) ? tc.surface : tc.surfaceActive,
+              border: `1px solid ${(comparing || !selectionA || !selectionB || !compareText.trim()) ? tc.border : tc.borderHover}`,
+              color: (comparing || !selectionA || !selectionB || !compareText.trim()) ? tc.textMuted : tc.textStrong,
               cursor: (comparing || !selectionA || !selectionB || !compareText.trim()) ? 'not-allowed' : 'pointer',
             }}
             className="px-5 py-2 font-medium text-sm transition-colors flex items-center gap-2 self-stretch"
             onMouseEnter={(e) => {
               if (!comparing && selectionA && selectionB && compareText.trim()) {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)'
+                e.currentTarget.style.background = tc.surfaceActive
+                e.currentTarget.style.borderColor = tc.borderHover
               }
             }}
             onMouseLeave={(e) => {
               if (!comparing && selectionA && selectionB && compareText.trim()) {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'
+                e.currentTarget.style.background = tc.surfaceActive
+                e.currentTarget.style.borderColor = tc.borderHover
               }
             }}
           >
@@ -671,7 +673,7 @@ export function ModelComparisonDashboard({
       {/* Loading state */}
       {comparing && (
         <div className="flex flex-col items-center justify-center p-12 bg-black/20 border border-dashed border-gray-800">
-          <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: tc.textMuted }} />
           <p className="mt-4 text-gray-400">
             {compareMode === 'features'
               ? 'Running SAE comparison on GPU...'
@@ -690,7 +692,7 @@ export function ModelComparisonDashboard({
                 <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                   CKA Score
                 </div>
-                <div className="text-2xl font-mono" style={{ color: 'rgba(255,255,255,0.95)' }}>
+                <div className="text-2xl font-mono" style={{ color: tc.textStrong }}>
                   {featureResult.cka_score.toFixed(3)}
                 </div>
               </div>
@@ -714,7 +716,7 @@ export function ModelComparisonDashboard({
                 <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                   Unique to A
                 </div>
-                <div className="text-2xl font-mono" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                <div className="text-2xl font-mono" style={{ color: tc.textMid }}>
                   {featureResult.unmatched_a}
                 </div>
               </div>
@@ -722,7 +724,7 @@ export function ModelComparisonDashboard({
                 <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                   Unique to B
                 </div>
-                <div className="text-2xl font-mono" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                <div className="text-2xl font-mono" style={{ color: tc.textMid }}>
                   {featureResult.unmatched_b}
                 </div>
               </div>
@@ -837,7 +839,7 @@ export function ModelComparisonDashboard({
                 <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                   {layerResult.model_a} Layers
                 </div>
-                <div className="text-xl font-mono" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                <div className="text-xl font-mono" style={{ color: tc.textMid }}>
                   {layerResult.layers_a.length}
                 </div>
               </div>
@@ -845,7 +847,7 @@ export function ModelComparisonDashboard({
                 <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                   {layerResult.model_b} Layers
                 </div>
-                <div className="text-xl font-mono" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                <div className="text-xl font-mono" style={{ color: tc.textMid }}>
                   {layerResult.layers_b.length}
                 </div>
               </div>
@@ -921,11 +923,11 @@ export function ModelComparisonDashboard({
                   return (
                     <p>
                       Strongest cross-layer similarity:{' '}
-                      <span style={{ color: 'rgba(255,255,255,0.8)' }}>
+                      <span style={{ color: tc.textStrong }}>
                         L{layerResult.layers_a[maxI]}
                       </span>{' '}
                       and{' '}
-                      <span style={{ color: 'rgba(255,255,255,0.8)' }}>
+                      <span style={{ color: tc.textStrong }}>
                         L{layerResult.layers_b[maxJ]}
                       </span>{' '}
                       (CKA = {maxOffDiag.toFixed(3)}), suggesting these layers

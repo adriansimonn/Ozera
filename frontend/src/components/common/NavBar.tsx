@@ -148,10 +148,25 @@ export function NavBar({
           left: 0;
           right: 0;
           z-index: 100;
+          background: rgba(0, 0, 0, 0.85);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        [data-bg="light"] .navbar {
+          background: rgba(255, 255, 255, 0.85);
+          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-interface="glass"]:not([data-bg="light"]) .navbar {
           background: rgba(0, 0, 0, 0.6);
           backdrop-filter: blur(24px) saturate(200%);
           -webkit-backdrop-filter: blur(24px) saturate(200%);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        [data-bg="light"][data-interface="glass"] .navbar {
+          background: rgba(255, 255, 255, 0.6);
+          backdrop-filter: blur(24px) saturate(200%);
+          -webkit-backdrop-filter: blur(24px) saturate(200%);
         }
 
         .navbar-content {
@@ -209,6 +224,21 @@ export function NavBar({
           border-color: rgba(255, 255, 255, 0.15);
         }
 
+        [data-bg="light"] .nav-link {
+          color: rgba(0, 0, 0, 0.5);
+        }
+
+        [data-bg="light"] .nav-link:hover {
+          color: rgba(0, 0, 0, 0.8);
+          background: rgba(0, 0, 0, 0.05);
+        }
+
+        [data-bg="light"] .nav-link.active {
+          color: #1d1d1f;
+          background: rgba(0, 0, 0, 0.08);
+          border-color: rgba(0, 0, 0, 0.12);
+        }
+
         .nav-icon {
           width: 16px;
           height: 16px;
@@ -226,6 +256,11 @@ export function NavBar({
           background: rgba(0, 0, 0, 0.3);
           padding: 0.25rem;
           border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        [data-bg="light"] .view-mode-toggle {
+          background: rgba(0, 0, 0, 0.05);
+          border-color: rgba(0, 0, 0, 0.1);
         }
 
         .mode-btn {
@@ -254,6 +289,24 @@ export function NavBar({
           border-color: rgba(255, 255, 255, 0.3);
           color: #ffffff;
           box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+        }
+
+        [data-bg="light"] .mode-btn {
+          background: rgba(0, 0, 0, 0.03);
+          border-color: rgba(0, 0, 0, 0.1);
+          color: rgba(0, 0, 0, 0.5);
+        }
+
+        [data-bg="light"] .mode-btn:hover {
+          background: rgba(0, 0, 0, 0.06);
+          border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        [data-bg="light"] .mode-btn.active {
+          background: rgba(0, 0, 0, 0.1);
+          border-color: rgba(0, 0, 0, 0.2);
+          color: #1d1d1f;
+          box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
         }
 
         .mode-icon {
@@ -298,6 +351,32 @@ export function NavBar({
           background: rgba(255, 255, 255, 0.15);
           color: #ffffff;
           border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        [data-bg="light"] .auth-btn {
+          border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        [data-bg="light"] .login-btn {
+          color: rgba(0, 0, 0, 0.7);
+        }
+
+        [data-bg="light"] .login-btn:hover {
+          background: rgba(0, 0, 0, 0.05);
+          color: #1d1d1f;
+          border-color: rgba(0, 0, 0, 0.2);
+        }
+
+        [data-bg="light"] .signup-btn {
+          background: rgba(0, 0, 0, 0.08);
+          color: #1d1d1f;
+          border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        [data-bg="light"] .signup-btn:hover {
+          background: rgba(0, 0, 0, 0.12);
+          color: #1d1d1f;
+          border-color: rgba(0, 0, 0, 0.2);
         }
 
         @media (max-width: 768px) {

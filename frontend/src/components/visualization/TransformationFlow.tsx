@@ -256,6 +256,19 @@ export function TransformationFlow({
           font-size: 0.75rem;
           color: rgba(255, 255, 255, 0.4);
         }
+
+        /* Light mode */
+        [data-bg="light"] .canvas-container {
+          border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .legend-color {
+          border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .legend-label {
+          color: rgba(0, 0, 0, 0.4);
+        }
       `}</style>
     </div>
   )

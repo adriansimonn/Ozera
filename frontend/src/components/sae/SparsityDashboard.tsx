@@ -6,6 +6,7 @@
 import { useEffect, useRef } from 'react'
 import * as d3 from 'd3'
 import { AlertTriangle } from 'lucide-react'
+import { useThemeColors } from '../../hooks/useTheme'
 
 interface SparsityMetrics {
   avg_l0: number
@@ -61,6 +62,7 @@ export function SparsityDashboard({
   trainingProgress = [],
   className = '',
 }: SparsityDashboardProps) {
+  const tc = useThemeColors()
   const frequencyChartRef = useRef<SVGSVGElement>(null)
   const lossChartRef = useRef<SVGSVGElement>(null)
 
@@ -269,10 +271,10 @@ export function SparsityDashboard({
   const isHealthy = qualityIssues.length === 0
 
   return (
-    <div className={className} style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+    <div className={className} style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}` }}>
       {/* Header */}
-      <div style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'rgba(255,255,255,0.95)', letterSpacing: '-0.01em', margin: 0 }}>
+      <div style={{ padding: '1rem', borderBottom: `1px solid ${tc.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: tc.textStrong, letterSpacing: '-0.01em', margin: 0 }}>
           SAE Quality Metrics
         </h3>
         {isHealthy ? (
@@ -303,11 +305,11 @@ export function SparsityDashboard({
       )}
 
       {/* Main metrics */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: tc.surfaceActive }}>
         {/* Sparsity section */}
-        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+        <div style={{ background: tc.deepBg, padding: '1rem' }}>
           <div style={{ marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sparsity</span>
+            <span style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sparsity</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <MetricRow label="Avg L0" value={sparsity.avg_l0.toFixed(1)} sublabel="features/input" />
@@ -319,9 +321,9 @@ export function SparsityDashboard({
         </div>
 
         {/* Reconstruction section */}
-        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+        <div style={{ background: tc.deepBg, padding: '1rem' }}>
           <div style={{ marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reconstruction</span>
+            <span style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reconstruction</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <MetricRow label="MSE" value={reconstruction.mse.toExponential(2)} />
@@ -337,9 +339,9 @@ export function SparsityDashboard({
         </div>
 
         {/* Feature health section */}
-        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+        <div style={{ background: tc.deepBg, padding: '1rem' }}>
           <div style={{ marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Feature Health</span>
+            <span style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Feature Health</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <MetricRow label="Total" value={feature_health.num_features.toLocaleString()} />
@@ -360,15 +362,15 @@ export function SparsityDashboard({
       </div>
 
       {/* Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1px', background: tc.surfaceActive, borderTop: `1px solid ${tc.border}` }}>
+        <div style={{ background: tc.deepBg, padding: '1rem' }}>
           <svg ref={frequencyChartRef} width="100%" height={200} />
         </div>
-        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
+        <div style={{ background: tc.deepBg, padding: '1rem' }}>
           {trainingProgress.length > 0 ? (
             <svg ref={lossChartRef} width="100%" height={200} />
           ) : (
-            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.875rem', color: 'rgba(255,255,255,0.2)' }}>
+            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.875rem', color: tc.textFaint }}>
               No training history available
             </div>
           )}
@@ -387,21 +389,22 @@ interface MetricRowProps {
 }
 
 function MetricRow({ label, value, sublabel, highlight, warning }: MetricRowProps) {
+  const tc = useThemeColors()
   const valueColor = warning
     ? 'rgba(234,179,8,0.9)'
     : highlight
       ? 'rgba(34,197,94,0.9)'
-      : '#fff'
+      : tc.text
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>{label}</span>
+      <span style={{ fontSize: '0.75rem', color: tc.textSub }}>{label}</span>
       <div style={{ textAlign: 'right' }}>
         <span style={{ fontFamily: 'monospace', fontSize: '0.875rem', color: valueColor }}>
           {value}
         </span>
         {sublabel && (
-          <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.2)', marginLeft: '0.25rem' }}>{sublabel}</span>
+          <span style={{ fontSize: '0.75rem', color: tc.textFaint, marginLeft: '0.25rem' }}>{sublabel}</span>
         )}
       </div>
     </div>

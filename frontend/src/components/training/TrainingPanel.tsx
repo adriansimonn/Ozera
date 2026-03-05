@@ -9,6 +9,7 @@ import { useTrainingEstimate, useGpuPricing } from '../../hooks/useTraining'
 import type { GpuType, DatasetMetadata, GenericDatasetInfo } from '../../api/client'
 import { apiClient } from '../../api/client'
 import { useAuthStore } from '../../stores/authStore'
+import { useThemeColors } from '../../hooks/useTheme'
 
 // Dataset sources - "uploaded" is user's uploaded dataset, others are generic datasets from Modal volume
 type DatasetSource = 'uploaded' | string
@@ -36,6 +37,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
   onShowLogin,
 }) => {
   const { isAuthenticated } = useAuthStore()
+  const tc = useThemeColors()
   // Dataset state - tracks the selected source and the current session's uploaded dataset
   const [datasetSource, setDatasetSource] = useState<DatasetSource>('uploaded')
   const [uploadedDataset, setUploadedDataset] = useState<DatasetMetadata | null>(null)
@@ -177,10 +179,10 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
   return (
     <div
       style={{
-        background: 'rgba(255,255,255,0.03)',
+        background: tc.surface,
         backdropFilter: 'blur(20px)',
         borderRadius: '0',
-        border: '1px solid rgba(255,255,255,0.1)',
+        border: `1px solid ${tc.border}`,
         padding: '20px',
         display: 'flex',
         flexDirection: 'column',
@@ -189,15 +191,15 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
     >
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Cpu size={20} color="rgba(255,255,255,0.7)" />
-        <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: 600, margin: 0 }}>
+        <Cpu size={20} color={tc.textMid} />
+        <h3 style={{ color: tc.text, fontSize: '16px', fontWeight: 600, margin: 0 }}>
           Train Custom Model
         </h3>
       </div>
 
       {/* Dataset Section */}
       <div>
-        <label style={{ display: 'block', color: 'rgba(255,255,255,0.6)', fontSize: '12px', marginBottom: '8px' }}>
+        <label style={{ display: 'block', color: tc.textSub, fontSize: '12px', marginBottom: '8px' }}>
           <Database size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
           Dataset
         </label>
@@ -210,10 +212,10 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
           style={{
             width: '100%',
             padding: '10px 12px',
-            background: 'rgba(0,0,0,0.3)',
-            border: '1px solid rgba(255,255,255,0.15)',
+            background: tc.inputBg,
+            border: `1px solid ${tc.borderStrong}`,
             borderRadius: '0',
-            color: '#fff',
+            color: tc.text,
             fontSize: '13px',
             cursor: 'pointer',
             marginBottom: '12px',
@@ -243,12 +245,12 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
                 <div style={{ color: '#22c55e', fontWeight: 500 }}>
                   {uploadedDataset.name}
                 </div>
-                <div style={{ color: 'rgba(255,255,255,0.5)', marginTop: '4px' }}>
+                <div style={{ color: tc.textSub, marginTop: '4px' }}>
                   {formatTokens(uploadedDataset.num_tokens)} tokens • {(uploadedDataset.size_bytes / 1024).toFixed(1)} KB
                 </div>
               </div>
             ) : (
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginBottom: '12px' }}>
+              <div style={{ color: tc.textMuted, fontSize: '12px', marginBottom: '12px' }}>
                 No dataset uploaded yet
               </div>
             )}
@@ -259,7 +261,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
 
       {/* Model Configuration */}
       <div>
-        <label style={{ display: 'block', color: 'rgba(255,255,255,0.6)', fontSize: '12px', marginBottom: '8px' }}>
+        <label style={{ display: 'block', color: tc.textSub, fontSize: '12px', marginBottom: '8px' }}>
           <Settings size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
           Model Configuration
         </label>
@@ -267,7 +269,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           {/* Architecture */}
           <div>
-            <label style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginBottom: '4px' }}>
+            <label style={{ display: 'block', color: tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
               Architecture
             </label>
             <select
@@ -277,10 +279,10 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
               style={{
                 width: '100%',
                 padding: '8px 10px',
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid rgba(255,255,255,0.15)',
+                background: tc.inputBg,
+                border: `1px solid ${tc.borderStrong}`,
                 borderRadius: '0',
-                color: '#fff',
+                color: tc.text,
                 fontSize: '12px',
               }}
             >
@@ -291,7 +293,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
 
           {/* Model Name */}
           <div>
-            <label style={{ display: 'block', color: isReservedName ? '#ef4444' : 'rgba(255,255,255,0.4)', fontSize: '11px', marginBottom: '4px' }}>
+            <label style={{ display: 'block', color: isReservedName ? '#ef4444' : tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
               Model Name
             </label>
             <input
@@ -303,10 +305,10 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
               style={{
                 width: '100%',
                 padding: '8px 10px',
-                background: 'rgba(0,0,0,0.3)',
-                border: isReservedName ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(255,255,255,0.15)',
+                background: tc.inputBg,
+                border: isReservedName ? '1px solid rgba(239, 68, 68, 0.5)' : `1px solid ${tc.borderStrong}`,
                 borderRadius: '0',
-                color: '#fff',
+                color: tc.text,
                 fontSize: '12px',
                 boxSizing: 'border-box',
               }}
@@ -322,7 +324,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
 
       {/* GPU Selection */}
       <div>
-        <label style={{ display: 'block', color: 'rgba(255,255,255,0.6)', fontSize: '12px', marginBottom: '8px' }}>
+        <label style={{ display: 'block', color: tc.textSub, fontSize: '12px', marginBottom: '8px' }}>
           <Zap size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
           GPU Selection
         </label>
@@ -340,8 +342,8 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
                 style={{
                   width: '100%',
                   padding: '12px',
-                  background: isSelected ? 'rgba(59, 130, 246, 0.15)' : 'rgba(0,0,0,0.2)',
-                  border: isSelected ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid rgba(255,255,255,0.1)',
+                  background: isSelected ? 'rgba(59, 130, 246, 0.15)' : tc.deepBg,
+                  border: isSelected ? '1px solid rgba(59, 130, 246, 0.5)' : `1px solid ${tc.border}`,
                   borderRadius: '0',
                   cursor: disabled || starting ? 'not-allowed' : 'pointer',
                   textAlign: 'left',
@@ -350,7 +352,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ color: '#fff', fontSize: '13px', fontWeight: 500 }}>
+                    <div style={{ color: tc.text, fontSize: '13px', fontWeight: 500 }}>
                       {gpu.display_name}
                       {gpu.gpu_type === 'a10g' && (
                         <span style={{
@@ -365,15 +367,15 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
                         </span>
                       )}
                     </div>
-                    <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginTop: '2px' }}>
+                    <div style={{ color: tc.textMuted, fontSize: '11px', marginTop: '2px' }}>
                       {gpu.description}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ color: '#fff', fontSize: '13px', fontWeight: 600 }}>
+                    <div style={{ color: tc.text, fontSize: '13px', fontWeight: 600 }}>
                       ${gpu.rate_per_hour.toFixed(2)}/hr
                     </div>
-                    <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '10px', marginTop: '2px' }}>
+                    <div style={{ color: tc.textMuted, fontSize: '10px', marginTop: '2px' }}>
                       ~{(tokensPerSec / 1000).toFixed(0)}K tok/s
                     </div>
                   </div>
@@ -386,14 +388,14 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
 
       {/* Hyperparameters */}
       <div>
-        <label style={{ display: 'block', color: 'rgba(255,255,255,0.6)', fontSize: '12px', marginBottom: '8px' }}>
+        <label style={{ display: 'block', color: tc.textSub, fontSize: '12px', marginBottom: '8px' }}>
           Hyperparameters
         </label>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           {/* Epochs */}
           <div>
-            <label style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginBottom: '4px' }}>
+            <label style={{ display: 'block', color: tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
               Epochs: {epochs}
             </label>
             <input
@@ -404,13 +406,13 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
               value={epochs}
               onChange={(e) => setEpochs(parseInt(e.target.value))}
               disabled={disabled || starting}
-              style={{ width: '100%', accentColor: '#fff' }}
+              style={{ width: '100%', accentColor: tc.text }}
             />
           </div>
 
           {/* Batch Size */}
           <div>
-            <label style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginBottom: '4px' }}>
+            <label style={{ display: 'block', color: tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
               Batch Size
             </label>
             <select
@@ -420,10 +422,10 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
               style={{
                 width: '100%',
                 padding: '8px 10px',
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid rgba(255,255,255,0.15)',
+                background: tc.inputBg,
+                border: `1px solid ${tc.borderStrong}`,
                 borderRadius: '0',
-                color: '#fff',
+                color: tc.text,
                 fontSize: '12px',
               }}
             >
@@ -436,7 +438,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
 
           {/* Learning Rate */}
           <div>
-            <label style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginBottom: '4px' }}>
+            <label style={{ display: 'block', color: tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
               Learning Rate: {learningRate.toExponential(0)}
             </label>
             <input
@@ -447,13 +449,13 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
               value={Math.log10(learningRate)}
               onChange={(e) => setLearningRate(Math.pow(10, parseFloat(e.target.value)))}
               disabled={disabled || starting}
-              style={{ width: '100%', accentColor: '#fff' }}
+              style={{ width: '100%', accentColor: tc.text }}
             />
           </div>
 
           {/* Sequence Length */}
           <div>
-            <label style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginBottom: '4px' }}>
+            <label style={{ display: 'block', color: tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
               Sequence Length
             </label>
             <select
@@ -463,10 +465,10 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
               style={{
                 width: '100%',
                 padding: '8px 10px',
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid rgba(255,255,255,0.15)',
+                background: tc.inputBg,
+                border: `1px solid ${tc.borderStrong}`,
                 borderRadius: '0',
-                color: '#fff',
+                color: tc.text,
                 fontSize: '12px',
               }}
             >
@@ -490,20 +492,20 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '11px', marginBottom: '2px' }}>
+              <div style={{ color: tc.textSub, fontSize: '11px', marginBottom: '2px' }}>
                 Estimated Time
               </div>
-              <div style={{ color: '#fff', fontSize: '16px', fontWeight: 600 }}>
+              <div style={{ color: tc.text, fontSize: '16px', fontWeight: 600 }}>
                 {estimate.estimated_minutes < 60
                   ? `${estimate.estimated_minutes.toFixed(0)} min`
                   : `${(estimate.estimated_minutes / 60).toFixed(1)} hr`}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '11px', marginBottom: '2px' }}>
+              <div style={{ color: tc.textSub, fontSize: '11px', marginBottom: '2px' }}>
                 Estimated Cost
               </div>
-              <div style={{ color: '#fff', fontSize: '16px', fontWeight: 600 }}>
+              <div style={{ color: tc.text, fontSize: '16px', fontWeight: 600 }}>
                 ${estimate.estimated_cost_usd.toFixed(2)}
               </div>
             </div>
@@ -544,8 +546,8 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
           alignItems: 'center',
           gap: '10px',
           padding: '12px',
-          background: 'rgba(0,0,0,0.2)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          background: tc.deepBg,
+          border: `1px solid ${tc.border}`,
           cursor: disabled || starting ? 'not-allowed' : 'pointer',
         }}
       >
@@ -562,11 +564,11 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
           }}
         />
         <div>
-          <div style={{ color: '#fff', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ color: tc.text, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Download size={14} />
             Download model when complete
           </div>
-          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginTop: '2px' }}>
+          <div style={{ color: tc.textMuted, fontSize: '11px', marginTop: '2px' }}>
             Automatically download model weights as a .zip file
           </div>
         </div>
@@ -580,11 +582,11 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
           width: '100%',
           padding: '12px 16px',
           background: isValid && !disabled && !starting
-            ? 'linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))'
-            : 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.2)',
+            ? `linear-gradient(135deg, ${tc.borderStrong}, ${tc.surfaceHover})`
+            : tc.surfaceHover,
+          border: `1px solid ${tc.borderHover}`,
           borderRadius: '0',
-          color: isValid && !disabled && !starting ? '#fff' : 'rgba(255,255,255,0.4)',
+          color: isValid && !disabled && !starting ? tc.text : tc.textMuted,
           fontSize: '14px',
           fontWeight: 600,
           cursor: isValid && !disabled && !starting ? 'pointer' : 'not-allowed',
@@ -601,8 +603,8 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
               style={{
                 width: '16px',
                 height: '16px',
-                border: '2px solid rgba(255,255,255,0.2)',
-                borderTopColor: '#fff',
+                border: `2px solid ${tc.spinnerTrack}`,
+                borderTopColor: tc.spinnerHead,
                 borderRadius: '50%',
                 animation: 'spin 1s linear infinite',
               }}
@@ -643,17 +645,17 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
           <div
             style={{
               background: '#1a1a1a',
-              border: '1px solid rgba(255,255,255,0.15)',
+              border: `1px solid ${tc.borderStrong}`,
               padding: '24px',
               maxWidth: '400px',
               width: '90%',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: 600, margin: '0 0 12px 0' }}>
+            <h3 style={{ color: tc.text, fontSize: '16px', fontWeight: 600, margin: '0 0 12px 0' }}>
               Replace Existing Model?
             </h3>
-            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', margin: '0 0 20px 0', lineHeight: 1.5 }}>
+            <p style={{ color: tc.textSub, fontSize: '13px', margin: '0 0 20px 0', lineHeight: 1.5 }}>
               You already have a custom model. Ozera currently limits users to 1 custom model.
               Training a new model will permanently delete your existing model.
             </p>
@@ -663,8 +665,8 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
                 style={{
                   padding: '10px 16px',
                   background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  color: 'rgba(255,255,255,0.7)',
+                  border: `1px solid ${tc.borderHover}`,
+                  color: tc.textMid,
                   fontSize: '13px',
                   cursor: 'pointer',
                 }}

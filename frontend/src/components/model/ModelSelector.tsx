@@ -609,6 +609,146 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           font-size: 0.9rem;
           font-family: 'JetBrains Mono', monospace;
         }
+
+        /* Light mode */
+        [data-bg="light"] .model-selector {
+          background: rgba(0, 0, 0, 0.03);
+          border: 1px solid rgba(0, 0, 0, 0.12);
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.08),
+            inset 0 1px 0 rgba(0, 0, 0, 0.05),
+            0 0 0 1px rgba(0, 0, 0, 0.03);
+        }
+
+        [data-bg="light"] .selector-header {
+          border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        [data-bg="light"] .selector-header h3 {
+          color: rgba(0, 0, 0, 0.55);
+        }
+
+        [data-bg="light"] .loading {
+          color: rgba(0, 0, 0, 0.45);
+        }
+
+        [data-bg="light"] .error-box {
+          background: rgba(0, 0, 0, 0.03);
+          border: 1px solid rgba(0, 0, 0, 0.1);
+          color: rgba(0, 0, 0, 0.7);
+        }
+
+        [data-bg="light"] .no-models {
+          color: rgba(0, 0, 0, 0.45);
+        }
+
+        [data-bg="light"] .family-name {
+          color: rgba(0, 0, 0, 0.45);
+        }
+
+        [data-bg="light"] .family-badge {
+          background: rgba(0, 0, 0, 0.05);
+          color: rgba(0, 0, 0, 0.45);
+        }
+
+        [data-bg="light"] .subsection-divider {
+          color: rgba(0, 0, 0, 0.3);
+        }
+
+        [data-bg="light"] .subsection-divider::before,
+        [data-bg="light"] .subsection-divider::after {
+          background: rgba(0, 0, 0, 0.08);
+        }
+
+        [data-bg="light"] .model-card {
+          border: 1px solid rgba(0, 0, 0, 0.1);
+          background: rgba(0, 0, 0, 0.03);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        }
+
+        [data-bg="light"] .model-card:hover:not(:disabled) {
+          background: rgba(0, 0, 0, 0.05);
+          border-color: rgba(0, 0, 0, 0.2);
+          box-shadow:
+            0 8px 24px rgba(0, 0, 0, 0.1),
+            inset 0 1px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        [data-bg="light"] .model-card.selected {
+          border-color: rgba(0, 0, 0, 0.3);
+          background: rgba(0, 0, 0, 0.06);
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.12),
+            inset 0 1px 0 rgba(0, 0, 0, 0.08),
+            0 0 20px rgba(0, 0, 0, 0.05);
+        }
+
+        [data-bg="light"] .model-card.os-model {
+          border-color: var(--family-border, rgba(0, 0, 0, 0.1));
+        }
+
+        [data-bg="light"] .model-card.os-model:hover:not(:disabled) {
+          border-color: var(--family-border, rgba(0, 0, 0, 0.2));
+        }
+
+        [data-bg="light"] .model-card.os-model.selected {
+          border-color: var(--family-border, rgba(0, 0, 0, 0.3));
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.12),
+            inset 0 1px 0 rgba(0, 0, 0, 0.05),
+            0 0 20px var(--family-border, rgba(0, 0, 0, 0.05));
+        }
+
+        [data-bg="light"] .model-name {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .model-badge {
+          background: rgba(0, 0, 0, 0.06);
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .model-params,
+        [data-bg="light"] .model-gpu {
+          background: rgba(0, 0, 0, 0.05);
+          color: rgba(0, 0, 0, 0.6);
+        }
+
+        [data-bg="light"] .model-details {
+          background: var(--family-bg, rgba(0, 0, 0, 0.03));
+          border: 1px solid var(--family-border, rgba(0, 0, 0, 0.1));
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        }
+
+        [data-bg="light"] .model-details h4 {
+          color: rgba(0, 0, 0, 0.55);
+        }
+
+        [data-bg="light"] .loading-details,
+        [data-bg="light"] .no-info {
+          color: rgba(0, 0, 0, 0.4);
+        }
+
+        [data-bg="light"] .detail-item {
+          background: rgba(0, 0, 0, 0.03);
+          border: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        [data-bg="light"] .detail-item:hover {
+          background: rgba(0, 0, 0, 0.05);
+          border-color: rgba(0, 0, 0, 0.12);
+          box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.06),
+            inset 0 1px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        [data-bg="light"] .detail-label {
+          color: rgba(0, 0, 0, 0.45);
+        }
+
+        [data-bg="light"] .detail-value {
+          color: #1d1d1f;
+        }
       `}</style>
     </div>
   )

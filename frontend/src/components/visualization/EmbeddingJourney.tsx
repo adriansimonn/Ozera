@@ -345,6 +345,67 @@ export function EmbeddingJourney({
           font-size: 0.75rem;
           line-height: 1;
         }
+
+        /* Light mode */
+        [data-bg="light"] .journey-header {
+          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .journey-title {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .journey-subtitle {
+          color: rgba(0, 0, 0, 0.4);
+        }
+
+        [data-bg="light"] .expand-collapse-btn {
+          border: 1px solid rgba(0, 0, 0, 0.1);
+          color: rgba(0, 0, 0, 0.55);
+        }
+
+        [data-bg="light"] .expand-collapse-btn:hover {
+          background: rgba(0, 0, 0, 0.04);
+          border-color: rgba(0, 0, 0, 0.2);
+          color: rgba(0, 0, 0, 0.7);
+        }
+
+        [data-bg="light"] .stage-header {
+          border: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        [data-bg="light"] .stage-header:hover {
+          background: rgba(0, 0, 0, 0.03);
+          border-color: rgba(0, 0, 0, 0.2);
+        }
+
+        [data-bg="light"] .stage-title {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .stat {
+          color: rgba(0, 0, 0, 0.4);
+        }
+
+        [data-bg="light"] .stat-value {
+          color: rgba(0, 0, 0, 0.7);
+        }
+
+        [data-bg="light"] .expand-icon {
+          color: rgba(0, 0, 0, 0.3);
+        }
+
+        [data-bg="light"] .stage-visualization {
+          border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        [data-bg="light"] .arrow-line {
+          background: rgba(0, 0, 0, 0.15);
+        }
+
+        [data-bg="light"] .arrow-head {
+          color: rgba(0, 0, 0, 0.25);
+        }
       `}</style>
     </div>
   )

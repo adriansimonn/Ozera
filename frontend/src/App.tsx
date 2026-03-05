@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import UnifiedPage from './pages/UnifiedPage'
 import TrainingPage from './pages/TrainingPage'
@@ -11,6 +11,7 @@ import AuthPage from './pages/AuthPage'
 import { AnimatedBackground } from './components/common/AnimatedBackground'
 import { PurchaseCreditsModal } from './components/payments/PurchaseCreditsModal'
 import { useAuthStore } from './stores/authStore'
+import { useTheme } from './hooks/useTheme'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,9 +22,12 @@ const queryClient = new QueryClient({
   },
 })
 
-function App() {
+function AppShell() {
   const [showPurchaseCredits, setShowPurchaseCredits] = useState(false)
   const { initialize } = useAuthStore()
+  const { background, interfaceStyle, isGlow, isGlass } = useTheme()
+  const location = useLocation()
+  const isAuthPage = location.pathname === '/auth'
 
   // Hydrate auth state from Supabase session on mount
   useEffect(() => {
@@ -36,11 +40,9 @@ function App() {
   }, [])
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <Router>
-        <div className="min-h-screen bg-black">
-          <AnimatedBackground />
-          <main className="content-container">
+    <div className="min-h-screen bg-black" data-bg={isAuthPage ? undefined : background} data-interface={isAuthPage ? undefined : interfaceStyle}>
+      {isGlow && !isAuthPage && <AnimatedBackground />}
+      <main className="content-container">
             <Routes>
               <Route
                 path="/"
@@ -95,6 +97,14 @@ function App() {
             onClose={() => setShowPurchaseCredits(false)}
           />
         </div>
+  )
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <AppShell />
       </Router>
     </QueryClientProvider>
   )

@@ -5,6 +5,7 @@
 
 import { useState, useMemo } from 'react'
 import { Search, Filter, ChevronDown, ChevronUp, Zap, AlertTriangle } from 'lucide-react'
+import { useThemeColors } from '../../hooks/useTheme'
 
 interface FeatureStats {
   feature_idx: number
@@ -42,6 +43,8 @@ export function FeatureBrowser({
   onFeatureSelect,
   className = '',
 }: FeatureBrowserProps) {
+  const tc = useThemeColors()
+
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState<SortField>('activation_frequency')
   const [sortAscending, setSortAscending] = useState(false)
@@ -106,12 +109,12 @@ export function FeatureBrowser({
       : <ChevronDown className="w-3 h-3" />
   }
 
-  const getFrequencyColor = (freq: number) => {
-    if (freq === 0) return 'rgba(255,255,255,0.2)'
-    if (freq < 0.01) return 'rgba(255,255,255,0.35)'
-    if (freq < 0.1) return 'rgba(255,255,255,0.6)'
-    if (freq < 0.5) return 'rgba(255,255,255,0.7)'
-    return 'rgba(255,255,255,0.85)'
+  const getFrequencyColor = (freq: number): string => {
+    if (freq === 0) return tc.textFaint
+    if (freq < 0.01) return tc.textFaint
+    if (freq < 0.1) return tc.textMid
+    if (freq < 0.5) return tc.textMid
+    return tc.textStrong
   }
 
   const getPolysemanticity = (score: number) => {
@@ -121,7 +124,7 @@ export function FeatureBrowser({
   }
 
   return (
-    <div className={`feature-browser ${className}`} style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+    <div className={`feature-browser ${className}`} style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}` }}>
       {/* Header */}
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center justify-between mb-4">
@@ -251,7 +254,7 @@ export function FeatureBrowser({
                 <div className="col-span-3 text-sm text-gray-300 truncate" title={feature.suggested_label}>
                   {feature.suggested_label}
                 </div>
-                <div className={`col-span-2 font-mono text-sm ${getFrequencyColor(feature.activation_frequency)}`}>
+                <div className="col-span-2 font-mono text-sm" style={{ color: getFrequencyColor(feature.activation_frequency) }}>
                   {(feature.activation_frequency * 100).toFixed(1)}%
                 </div>
                 <div className="col-span-2 font-mono text-sm text-gray-400">
@@ -318,6 +321,34 @@ export function FeatureBrowser({
         .feature-browser button:hover.border-gray-700 { border-color: rgba(255,255,255,0.2); }
         .feature-browser button:hover.border-gray-600 { border-color: rgba(255,255,255,0.2); }
         .feature-browser button:hover.border-purple-500 { border-color: rgba(255,255,255,0.5); }
+
+        [data-bg="light"] .feature-browser .border-b { border-bottom: 1px solid rgba(0,0,0,0.1); }
+        [data-bg="light"] .feature-browser .border-t { border-top: 1px solid rgba(0,0,0,0.1); }
+        [data-bg="light"] .feature-browser .bg-black\\/40 { background: rgba(0,0,0,0.04); }
+        [data-bg="light"] .feature-browser .bg-black\\/50 { background: rgba(0,0,0,0.03); }
+        [data-bg="light"] .feature-browser .bg-black\\/60 { background: rgba(0,0,0,0.05); }
+        [data-bg="light"] .feature-browser .bg-gray-800 { background: rgba(0,0,0,0.08); }
+        [data-bg="light"] .feature-browser .bg-gray-800\\/50 { background: rgba(0,0,0,0.03); }
+        [data-bg="light"] .feature-browser .bg-purple-500\\/10 { background: rgba(0,0,0,0.05); }
+        [data-bg="light"] .feature-browser .bg-purple-500\\/20 { background: rgba(0,0,0,0.08); }
+        [data-bg="light"] .feature-browser .border-gray-700 { border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .feature-browser .border-gray-800 { border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .feature-browser .border-gray-800\\/50 { border-color: rgba(0,0,0,0.05); }
+        [data-bg="light"] .feature-browser .border-purple-500 { border-color: rgba(0,0,0,0.3); }
+        [data-bg="light"] .feature-browser .border-l-purple-500 { border-left-color: rgba(0,0,0,0.3); }
+        [data-bg="light"] .feature-browser .text-white { color: #1d1d1f; }
+        [data-bg="light"] .feature-browser .text-gray-200 { color: rgba(0,0,0,0.85); }
+        [data-bg="light"] .feature-browser .text-gray-300 { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .feature-browser .text-gray-400 { color: rgba(0,0,0,0.4); }
+        [data-bg="light"] .feature-browser .text-gray-500 { color: rgba(0,0,0,0.55); }
+        [data-bg="light"] .feature-browser .text-gray-600 { color: rgba(0,0,0,0.3); }
+        [data-bg="light"] .feature-browser .text-purple-300 { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .feature-browser .text-purple-400 { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .feature-browser input:focus { border-color: rgba(0,0,0,0.25); }
+        [data-bg="light"] .feature-browser button:hover .text-gray-300 { color: rgba(0,0,0,0.7); }
+        [data-bg="light"] .feature-browser button:hover.border-gray-700 { border-color: rgba(0,0,0,0.2); }
+        [data-bg="light"] .feature-browser button:hover.border-gray-600 { border-color: rgba(0,0,0,0.2); }
+        [data-bg="light"] .feature-browser button:hover.border-purple-500 { border-color: rgba(0,0,0,0.4); }
       `}</style>
     </div>
   )

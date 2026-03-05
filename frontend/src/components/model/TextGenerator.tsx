@@ -850,6 +850,204 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           0%, 50% { opacity: 1; }
           51%, 100% { opacity: 0; }
         }
+
+        /* Light mode */
+        [data-bg="light"] .generator-header {
+          border-bottom-color: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .generator-header h2 {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .status {
+          color: rgba(0, 0, 0, 0.55);
+        }
+
+        [data-bg="light"] .control-group label {
+          color: rgba(0, 0, 0, 0.55);
+        }
+
+        [data-bg="light"] .control-group select {
+          background: rgba(0, 0, 0, 0.03);
+          border-color: rgba(0, 0, 0, 0.12);
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .control-group select:hover {
+          background: rgba(0, 0, 0, 0.05);
+          border-color: rgba(0, 0, 0, 0.2);
+          box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.08),
+            inset 0 1px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .control-group select:focus {
+          background: rgba(0, 0, 0, 0.05);
+          border-color: rgba(0, 0, 0, 0.2);
+          box-shadow:
+            0 4px 16px rgba(0, 0, 0, 0.08),
+            inset 0 1px 0 rgba(0, 0, 0, 0.1),
+            0 0 0 2px rgba(0, 0, 0, 0.04);
+        }
+
+        [data-bg="light"] .control-group input[type="range"] {
+          background: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .control-group input[type="range"]::-webkit-slider-thumb {
+          background: #1d1d1f;
+          box-shadow:
+            0 2px 8px rgba(0, 0, 0, 0.15),
+            0 0 0 2px rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .control-group input[type="range"]::-webkit-slider-thumb:hover {
+          box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.2),
+            0 0 0 3px rgba(0, 0, 0, 0.12),
+            0 0 12px rgba(0, 0, 0, 0.15);
+        }
+
+        [data-bg="light"] .prompt-area label {
+          color: rgba(0, 0, 0, 0.55);
+        }
+
+        [data-bg="light"] .prompt-area textarea {
+          background: rgba(0, 0, 0, 0.03);
+          border-color: rgba(0, 0, 0, 0.12);
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .prompt-area textarea:hover {
+          background: rgba(0, 0, 0, 0.05);
+          border-color: rgba(0, 0, 0, 0.2);
+          box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.08),
+            inset 0 1px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .prompt-area textarea:focus {
+          background: rgba(0, 0, 0, 0.05);
+          border-color: rgba(0, 0, 0, 0.2);
+          box-shadow:
+            0 4px 16px rgba(0, 0, 0, 0.08),
+            inset 0 1px 0 rgba(0, 0, 0, 0.1),
+            0 0 0 2px rgba(0, 0, 0, 0.04);
+        }
+
+        [data-bg="light"] .prompt-area textarea::placeholder {
+          color: rgba(0, 0, 0, 0.3);
+        }
+
+        [data-bg="light"] .btn-generate-main {
+          background: rgba(0, 0, 0, 0.06);
+          border-color: rgba(0, 0, 0, 0.12);
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .btn-generate-main:hover:not(:disabled) {
+          background: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .btn-generate-toggle {
+          background: rgba(0, 0, 0, 0.06);
+          border-color: rgba(0, 0, 0, 0.12);
+          border-left-color: rgba(0, 0, 0, 0.1);
+          color: rgba(0, 0, 0, 0.6);
+        }
+
+        [data-bg="light"] .btn-generate-toggle:hover:not(:disabled) {
+          background: rgba(0, 0, 0, 0.1);
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .generate-dropdown-menu {
+          background: rgba(255, 255, 255, 0.98);
+          border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        [data-bg="light"] .dropdown-item {
+          color: rgba(0, 0, 0, 0.7);
+        }
+
+        [data-bg="light"] .dropdown-item:hover {
+          background: rgba(0, 0, 0, 0.05);
+        }
+
+        [data-bg="light"] .dropdown-item.active {
+          background: rgba(0, 0, 0, 0.06);
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .dropdown-item-desc {
+          color: rgba(0, 0, 0, 0.4);
+        }
+
+        [data-bg="light"] .dropdown-item + .dropdown-item {
+          border-top-color: rgba(0, 0, 0, 0.06);
+        }
+
+        [data-bg="light"] .btn-secondary {
+          background: rgba(0, 0, 0, 0.03);
+          color: rgba(0, 0, 0, 0.6);
+          border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .btn-secondary:hover:not(:disabled) {
+          background: rgba(0, 0, 0, 0.06);
+          border-color: rgba(0, 0, 0, 0.15);
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .warmup-message {
+          background: rgba(0, 0, 0, 0.04);
+          border-color: rgba(0, 0, 0, 0.12);
+          color: rgba(0, 0, 0, 0.7);
+        }
+
+        [data-bg="light"] .warmup-spinner {
+          border-color: rgba(0, 0, 0, 0.15);
+          border-top-color: #1d1d1f;
+        }
+
+        [data-bg="light"] .error-message {
+          background: rgba(0, 0, 0, 0.03);
+          border-color: rgba(0, 0, 0, 0.1);
+          color: rgba(0, 0, 0, 0.7);
+        }
+
+        [data-bg="light"] .insufficient-credits-content p {
+          color: rgba(0, 0, 0, 0.6);
+        }
+
+        [data-bg="light"] .output-area {
+          border-color: rgba(0, 0, 0, 0.12);
+          background: rgba(0, 0, 0, 0.03);
+          box-shadow:
+            0 8px 24px rgba(0, 0, 0, 0.06),
+            inset 0 1px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .output-header {
+          border-bottom-color: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .output-header h3 {
+          color: rgba(0, 0, 0, 0.55);
+        }
+
+        [data-bg="light"] .streaming-indicator {
+          color: rgba(0, 0, 0, 0.7);
+        }
+
+        [data-bg="light"] .output-content {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .cursor {
+          color: rgba(0, 0, 0, 0.7);
+        }
       `}</style>
     </div>
   )

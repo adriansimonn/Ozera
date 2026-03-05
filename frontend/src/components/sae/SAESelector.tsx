@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronDown, Loader2, AlertCircle, RefreshCw, Database, ExternalLink } from 'lucide-react'
 import { saeClient, type SAEListResponse } from '../../api/client'
+import { useThemeColors } from '../../hooks/useTheme'
 
 export interface SAESelection {
   model: 'nano' | 'mini'
@@ -28,6 +29,7 @@ export function SAESelector({
   className = '',
   refreshKey = 0,
 }: SAESelectorProps) {
+  const tc = useThemeColors()
   const [saeList, setSaeList] = useState<SAEListResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -152,8 +154,8 @@ export function SAESelector({
 
   if (loading) {
     return (
-      <div style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)', padding: '1rem' }} className={className}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
+      <div style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}`, padding: '1rem' }} className={className}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: tc.textMuted }}>
           <Loader2 className="w-5 h-5 animate-spin" />
           <span>Loading available SAEs...</span>
         </div>
@@ -163,7 +165,7 @@ export function SAESelector({
 
   if (error) {
     return (
-      <div style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(239,68,68,0.3)', padding: '1rem' }} className={className}>
+      <div style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: '1px solid rgba(239,68,68,0.3)', padding: '1rem' }} className={className}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'rgba(239,68,68,0.9)' }}>
             <AlertCircle className="w-5 h-5" />
@@ -171,9 +173,9 @@ export function SAESelector({
           </div>
           <button
             onClick={fetchSAEs}
-            style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'all 0.2s' }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
+            style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem', border: `1px solid ${tc.border}`, background: 'transparent', color: tc.textMuted, cursor: 'pointer', transition: 'all 0.2s' }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = tc.borderHover; e.currentTarget.style.color = tc.textMid }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = tc.border; e.currentTarget.style.color = tc.textMuted }}
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -185,8 +187,8 @@ export function SAESelector({
   const hasExternalSAEs = saeList?.external_saes && saeList.external_saes.length > 0
   if (!saeList || (saeList.total_saes === 0 && !hasExternalSAEs)) {
     return (
-      <div style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)', padding: '1rem' }} className={className}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'rgba(255,255,255,0.35)' }}>
+      <div style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}`, padding: '1rem' }} className={className}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: tc.textFaint }}>
           <Database className="w-5 h-5" />
           <span>No SAEs available. Deploy SAEs to Modal first.</span>
         </div>
@@ -195,36 +197,36 @@ export function SAESelector({
   }
 
   return (
-    <div style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }} className={className}>
+    <div style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}` }} className={className}>
       {/* Header */}
-      <div style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+      <div style={{ padding: '1rem', borderBottom: `1px solid ${tc.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Database className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
-            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'rgba(255,255,255,0.95)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+            <Database className="w-4 h-4" style={{ color: tc.textMid }} />
+            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: tc.textStrong, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
               SAE Selection
             </h3>
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>
+          <div style={{ fontSize: '0.75rem', color: tc.textSub }}>
             {saeList.total_saes} SAEs available
           </div>
         </div>
       </div>
 
       {/* Selectors */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', opacity: isExternalSelected ? 0.4 : 1, transition: 'opacity 0.2s' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: tc.surfaceActive, opacity: isExternalSelected ? 0.4 : 1, transition: 'opacity 0.2s' }}>
         {/* Model Selector */}
-        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
-          <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+        <div style={{ background: tc.deepBg, padding: '1rem' }}>
+          <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
             Model
           </label>
           <div style={{ position: 'relative' }}>
             <select
               value={selection?.model || ''}
               onChange={(e) => handleModelChange(e.target.value as 'nano' | 'mini')}
-              style={{ width: '100%', appearance: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
-              onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
-              onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+              style={{ width: '100%', appearance: 'none', background: tc.surface, border: `1px solid ${tc.border}`, color: tc.text, padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
+              onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
+              onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
             >
               {Object.keys(saeList.models).map(model => (
                 <option key={model} value={model}>
@@ -232,22 +234,22 @@ export function SAESelector({
                 </option>
               ))}
             </select>
-            <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.35)' }} className="w-4 h-4" />
+            <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tc.textFaint }} className="w-4 h-4" />
           </div>
         </div>
 
         {/* Layer Selector */}
-        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
-          <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+        <div style={{ background: tc.deepBg, padding: '1rem' }}>
+          <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
             Layer
           </label>
           <div style={{ position: 'relative' }}>
             <select
               value={selection?.layer ?? ''}
               onChange={(e) => handleLayerChange(parseInt(e.target.value))}
-              style={{ width: '100%', appearance: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
-              onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
-              onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+              style={{ width: '100%', appearance: 'none', background: tc.surface, border: `1px solid ${tc.border}`, color: tc.text, padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
+              onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
+              onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
             >
               {availableLayers.map(layer => (
                 <option key={layer} value={layer}>
@@ -255,22 +257,22 @@ export function SAESelector({
                 </option>
               ))}
             </select>
-            <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.35)' }} className="w-4 h-4" />
+            <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tc.textFaint }} className="w-4 h-4" />
           </div>
         </div>
 
         {/* Activation Type Selector */}
-        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem' }}>
-          <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+        <div style={{ background: tc.deepBg, padding: '1rem' }}>
+          <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
             Activation Type
           </label>
           <div style={{ position: 'relative' }}>
             <select
               value={selection?.activationType || ''}
               onChange={(e) => handleActivationTypeChange(e.target.value as 'residual' | 'mlp_output')}
-              style={{ width: '100%', appearance: 'none', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
-              onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'}
-              onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+              style={{ width: '100%', appearance: 'none', background: tc.surface, border: `1px solid ${tc.border}`, color: tc.text, padding: '0.5rem 2rem 0.5rem 0.75rem', fontSize: '0.875rem', cursor: 'pointer', outline: 'none' }}
+              onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
+              onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
             >
               {availableTypes.map(type => (
                 <option key={type} value={type}>
@@ -278,38 +280,38 @@ export function SAESelector({
                 </option>
               ))}
             </select>
-            <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(255,255,255,0.35)' }} className="w-4 h-4" />
+            <ChevronDown style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tc.textFaint }} className="w-4 h-4" />
           </div>
         </div>
       </div>
 
       {/* SAE Info - Built-in */}
       {currentSaeInfo && !isExternalSelected && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
-            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{currentSaeInfo.d_input || '-'}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: tc.surfaceActive, borderTop: `1px solid ${tc.border}` }}>
+          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
+            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{currentSaeInfo.d_input || '-'}</div>
           </div>
-          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
-            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{currentSaeInfo.d_hidden || '-'}</div>
+          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
+            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{currentSaeInfo.d_hidden || '-'}</div>
           </div>
-          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
-            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{currentSaeInfo.activation || 'relu'}</div>
+          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
+            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{currentSaeInfo.activation || 'relu'}</div>
           </div>
           {currentSaeInfo.training && (
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Final L0</div>
+            <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Final L0</div>
               <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'rgba(34,197,94,0.9)' }}>
                 {currentSaeInfo.training.final_l0?.toFixed(1) || '-'}
               </div>
             </div>
           )}
           {!currentSaeInfo.training && (
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Params</div>
-              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>
+            <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Params</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>
                 {currentSaeInfo.num_parameters
                   ? `${(currentSaeInfo.num_parameters / 1e6).toFixed(1)}M`
                   : '-'}
@@ -321,32 +323,32 @@ export function SAESelector({
 
       {/* SAE Info - External */}
       {selectedExternalSae && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
-            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{selectedExternalSae.d_input || '-'}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: tc.surfaceActive, borderTop: `1px solid ${tc.border}` }}>
+          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
+            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{selectedExternalSae.d_input || '-'}</div>
           </div>
-          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
-            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{selectedExternalSae.d_hidden?.toLocaleString() || '-'}</div>
+          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
+            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{selectedExternalSae.d_hidden?.toLocaleString() || '-'}</div>
           </div>
-          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
-            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: '#fff' }}>{selectedExternalSae.activation_type || '-'}</div>
+          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
+            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{selectedExternalSae.activation_type || '-'}</div>
           </div>
-          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
-            <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'rgba(255,255,255,0.8)' }}>{selectedExternalSae.base_model || '-'}</div>
+          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
+            <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: tc.textStrong }}>{selectedExternalSae.base_model || '-'}</div>
           </div>
         </div>
       )}
 
       {/* External SAEs */}
       {saeList.external_saes && saeList.external_saes.length > 0 && (
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ borderTop: `1px solid ${tc.border}` }}>
           <div style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ExternalLink className="w-3 h-3" style={{ color: 'rgba(255,255,255,0.5)' }} />
-            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <ExternalLink className="w-3 h-3" style={{ color: tc.textSub }} />
+            <span style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               External SAEs ({saeList.external_saes.length})
             </span>
           </div>
@@ -365,33 +367,33 @@ export function SAESelector({
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     gap: '0.75rem', padding: '0.5rem 0.75rem', width: '100%', textAlign: 'left',
-                    background: isSelected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${isSelected ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                    background: isSelected ? tc.surfaceActive : tc.surface,
+                    border: `1px solid ${isSelected ? tc.borderHover : tc.border}`,
                     cursor: 'pointer', transition: 'all 0.2s',
                   }}
                   onMouseEnter={(e) => {
                     if (!isSelected) {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
+                      e.currentTarget.style.background = tc.surfaceHover
+                      e.currentTarget.style.borderColor = tc.borderHover
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!isSelected) {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+                      e.currentTarget.style.background = tc.surface
+                      e.currentTarget.style.borderColor = tc.border
                     }
                   }}
                   title={`${ext.source_id || ext.id} - ${ext.base_model || 'unknown model'}`}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
-                    <span style={{ color: isSelected ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.8)', fontSize: '0.8rem', fontWeight: 500 }}>
+                    <span style={{ color: isSelected ? tc.textStrong : tc.textStrong, fontSize: '0.8rem', fontWeight: 500 }}>
                       {ext.display_name || ext.id}
                     </span>
-                    <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.7rem' }}>
+                    <span style={{ color: tc.textFaint, fontSize: '0.7rem' }}>
                       {ext.base_model || 'unknown model'} {ext.hookpoint ? `· ${ext.hookpoint}` : ''}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.7rem', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.7rem', color: tc.textFaint, flexShrink: 0 }}>
                     {ext.d_hidden && <span>{ext.d_hidden.toLocaleString()} features</span>}
                     {ext.activation_type && <span>{ext.activation_type}</span>}
                   </div>

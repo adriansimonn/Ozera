@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import { GitCompare, ArrowRight, Layers, Zap } from 'lucide-react'
+import { useThemeColors } from '../../hooks/useTheme'
 
 interface FeatureMatch {
   feature_a: number
@@ -51,6 +52,7 @@ export function FeatureComparison({
 }: FeatureComparisonProps) {
   const matchChartRef = useRef<SVGSVGElement>(null)
   const [selectedMatch, setSelectedMatch] = useState<FeatureMatch | null>(null)
+  const tc = useThemeColors()
 
   // Render feature matching visualization
   useEffect(() => {
@@ -81,7 +83,7 @@ export function FeatureComparison({
       .attr('x', width / 2)
       .attr('y', 20)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#e5e7eb')
+      .attr('fill', tc.isLight ? '#374151' : '#e5e7eb')
       .attr('font-size', '14px')
       .attr('font-weight', 'bold')
       .text('Feature Alignment')
@@ -100,17 +102,17 @@ export function FeatureComparison({
       .range([0, innerHeight])
       .padding(0.5)
 
-    // Color scale for similarity: dark gray (low) → white (high)
+    // Color scale for similarity
     const colorScale = d3.scaleSequential()
       .domain([0, 1])
-      .interpolator(d3.interpolateRgb('#333', '#fff'))
+      .interpolator(d3.interpolateRgb(tc.isLight ? '#ccc' : '#333', tc.isLight ? '#111' : '#fff'))
 
     // Draw SAE A labels on left
     svg.append('text')
       .attr('x', margin.left - 10)
       .attr('y', margin.top - 15)
       .attr('text-anchor', 'end')
-      .attr('fill', 'rgba(255,255,255,0.7)')
+      .attr('fill', tc.textMid)
       .attr('font-size', '12px')
       .text(nameA)
 
@@ -119,7 +121,7 @@ export function FeatureComparison({
       .attr('x', width - margin.right + 10)
       .attr('y', margin.top - 15)
       .attr('text-anchor', 'start')
-      .attr('fill', 'rgba(255,255,255,0.7)')
+      .attr('fill', tc.textMid)
       .attr('font-size', '12px')
       .text(nameB)
 
@@ -152,8 +154,8 @@ export function FeatureComparison({
         .attr('cx', 0)
         .attr('cy', y1)
         .attr('r', 6)
-        .attr('fill', 'rgba(255,255,255,0.7)')
-        .attr('stroke', isSelected ? '#fff' : 'none')
+        .attr('fill', tc.textMid)
+        .attr('stroke', isSelected ? tc.text : 'none')
         .attr('stroke-width', 2)
         .style('cursor', 'pointer')
         .on('click', () => onFeatureSelect?.(saeA.id, match.feature_a))
@@ -163,8 +165,8 @@ export function FeatureComparison({
         .attr('cx', innerWidth)
         .attr('cy', y2)
         .attr('r', 6)
-        .attr('fill', 'rgba(255,255,255,0.7)')
-        .attr('stroke', isSelected ? '#fff' : 'none')
+        .attr('fill', tc.textMid)
+        .attr('stroke', isSelected ? tc.text : 'none')
         .attr('stroke-width', 2)
         .style('cursor', 'pointer')
         .on('click', () => onFeatureSelect?.(saeB.id, match.feature_b))
@@ -175,7 +177,7 @@ export function FeatureComparison({
         .attr('y', y1)
         .attr('text-anchor', 'end')
         .attr('dominant-baseline', 'middle')
-        .attr('fill', '#9ca3af')
+        .attr('fill', tc.isLight ? '#6b7280' : '#9ca3af')
         .attr('font-size', '10px')
         .attr('font-family', 'monospace')
         .text(`F${match.feature_a}`)
@@ -186,7 +188,7 @@ export function FeatureComparison({
         .attr('y', y2)
         .attr('text-anchor', 'start')
         .attr('dominant-baseline', 'middle')
-        .attr('fill', '#9ca3af')
+        .attr('fill', tc.isLight ? '#6b7280' : '#9ca3af')
         .attr('font-size', '10px')
         .attr('font-family', 'monospace')
         .text(`F${match.feature_b}`)
@@ -248,22 +250,22 @@ export function FeatureComparison({
       .attr('font-size', '8px')
       .text('100%')
 
-  }, [comparison.top_matches, selectedMatch, saeA, saeB, onFeatureSelect])
+  }, [comparison.top_matches, selectedMatch, saeA, saeB, onFeatureSelect, tc])
 
   return (
     <div className={`bg-black/40 border border-gray-800 ${className}`}>
       {/* Header */}
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-2">
-          <GitCompare className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.6)' }} />
+          <GitCompare className="w-5 h-5" style={{ color: tc.textMid }} />
           <h3 className="text-lg font-semibold text-gray-200 tracking-tight">
             Feature Comparison
           </h3>
         </div>
         <div className="flex items-center gap-3 text-sm text-gray-400">
-          <span style={{ color: 'rgba(255,255,255,0.7)' }}>{saeA.name}</span>
+          <span style={{ color: tc.textMid }}>{saeA.name}</span>
           <ArrowRight className="w-4 h-4" />
-          <span style={{ color: 'rgba(255,255,255,0.7)' }}>{saeB.name}</span>
+          <span style={{ color: tc.textMid }}>{saeB.name}</span>
         </div>
       </div>
 
@@ -285,7 +287,7 @@ export function FeatureComparison({
           <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
             Unique to {saeA.name}
           </div>
-          <div className="text-2xl font-mono" style={{ color: 'rgba(255,255,255,0.7)' }}>
+          <div className="text-2xl font-mono" style={{ color: tc.textMid }}>
             {comparison.unmatched_a}
           </div>
         </div>
@@ -293,7 +295,7 @@ export function FeatureComparison({
           <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
             Unique to {saeB.name}
           </div>
-          <div className="text-2xl font-mono" style={{ color: 'rgba(255,255,255,0.7)' }}>
+          <div className="text-2xl font-mono" style={{ color: tc.textMid }}>
             {comparison.unmatched_b}
           </div>
         </div>
@@ -318,9 +320,9 @@ export function FeatureComparison({
 
       {/* Selected match details */}
       {selectedMatch && (
-        <div className="p-4 border-t border-gray-800" style={{ background: 'rgba(255,255,255,0.03)' }}>
+        <div className="p-4 border-t border-gray-800" style={{ background: tc.surface }}>
           <div className="flex items-center gap-2 mb-3">
-            <Zap className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
+            <Zap className="w-4 h-4" style={{ color: tc.textMid }} />
             <span className="text-sm text-gray-300 font-semibold">Match Details</span>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -328,7 +330,7 @@ export function FeatureComparison({
               <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                 {saeA.name} - Feature {selectedMatch.feature_a}
               </div>
-              <div className="text-sm" style={{ color: 'rgba(255,255,255,0.8)' }}>
+              <div className="text-sm" style={{ color: tc.textStrong }}>
                 {selectedMatch.label_a || 'No label'}
               </div>
             </div>
@@ -336,7 +338,7 @@ export function FeatureComparison({
               <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                 {saeB.name} - Feature {selectedMatch.feature_b}
               </div>
-              <div className="text-sm" style={{ color: 'rgba(255,255,255,0.8)' }}>
+              <div className="text-sm" style={{ color: tc.textStrong }}>
                 {selectedMatch.label_b || 'No label'}
               </div>
             </div>
@@ -366,19 +368,19 @@ export function FeatureComparison({
           <div className="mt-3 flex items-center gap-4">
             <button
               onClick={() => onFeatureSelect?.(saeA.id, selectedMatch.feature_a)}
-              style={{ color: 'rgba(255,255,255,0.6)' }}
+              style={{ color: tc.textMid }}
               className="text-xs transition-colors"
-              onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.9)'}
-              onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
+              onMouseEnter={(e) => e.currentTarget.style.color = tc.textStrong}
+              onMouseLeave={(e) => e.currentTarget.style.color = tc.textMid}
             >
               View in {saeA.name}
             </button>
             <button
               onClick={() => onFeatureSelect?.(saeB.id, selectedMatch.feature_b)}
-              style={{ color: 'rgba(255,255,255,0.6)' }}
+              style={{ color: tc.textMid }}
               className="text-xs transition-colors"
-              onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.9)'}
-              onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
+              onMouseEnter={(e) => e.currentTarget.style.color = tc.textStrong}
+              onMouseLeave={(e) => e.currentTarget.style.color = tc.textMid}
             >
               View in {saeB.name}
             </button>
@@ -390,7 +392,7 @@ export function FeatureComparison({
       <div className="grid grid-cols-2 gap-px bg-gray-800 border-t border-gray-800">
         <div className="bg-black/40 p-3">
           <div className="flex items-center gap-2 mb-2">
-            <Layers className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
+            <Layers className="w-4 h-4" style={{ color: tc.textMid }} />
             <span className="text-xs text-gray-500 uppercase tracking-wide">{saeA.name}</span>
           </div>
           <div className="space-y-1 text-xs text-gray-400">
@@ -401,7 +403,7 @@ export function FeatureComparison({
         </div>
         <div className="bg-black/40 p-3">
           <div className="flex items-center gap-2 mb-2">
-            <Layers className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.6)' }} />
+            <Layers className="w-4 h-4" style={{ color: tc.textMid }} />
             <span className="text-xs text-gray-500 uppercase tracking-wide">{saeB.name}</span>
           </div>
           <div className="space-y-1 text-xs text-gray-400">

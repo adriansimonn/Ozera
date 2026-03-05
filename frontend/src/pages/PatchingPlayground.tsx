@@ -412,7 +412,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           {/* Center Column: Intervention Configuration */}
           <div className="center-column">
             {/* Visual Layer Selector */}
-            <div className="section">
+            <div className="section section-transparent">
               <PatchSelector
                 modelInfo={modelInfo}
                 patches={patches}
@@ -422,7 +422,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
             </div>
 
             {/* Detailed Intervention Configuration */}
-            <div className="section">
+            <div className="section section-transparent">
               <PatchConfigPanel
                 modelId={selectedModel}
                 numLayers={numLayers}
@@ -522,7 +522,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
 
       <style>{`
         .patching-playground {
-          min-height: 100vh;
+          min-height: 125vh;
           padding-top: 70px;
         }
 
@@ -606,6 +606,15 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
 
         .section {
           margin-bottom: 1.5rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          padding: 1.25rem;
+        }
+
+        .section-transparent {
+          background: none;
+          border: none;
+          padding: 0;
         }
 
         .section h2 {
@@ -823,7 +832,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           text-align: center;
           color: rgba(255, 255, 255, 0.4);
           font-size: 0.85rem;
-          background: rgba(0, 0, 0, 0.3);
+          background: rgba(255, 255, 255, 0.03);
           border: 1px dashed rgba(255, 255, 255, 0.1);
         }
 
@@ -848,8 +857,8 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           align-items: center;
           justify-content: space-between;
           padding: 0.75rem;
-          background: rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
           margin-bottom: 0.5rem;
         }
 
@@ -907,7 +916,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           display: flex;
           align-items: center;
           justify-content: center;
-          background: rgba(0, 0, 0, 0.3);
+          background: rgba(255, 255, 255, 0.03);
           border: 1px dashed rgba(255, 255, 255, 0.1);
         }
 
@@ -947,6 +956,31 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
             grid-column: span 1;
           }
         }
+
+        /* Light mode */
+        [data-bg="light"] .header-title h1 { color: #1d1d1f; }
+        [data-bg="light"] .header-description { color: rgba(0,0,0,0.55); }
+        [data-bg="light"] .section { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .section h2 { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .model-select { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
+        [data-bg="light"] .info-text { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .label-main { color: rgba(0,0,0,0.7); }
+        [data-bg="light"] .label-hint { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .prompt-group textarea { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
+        [data-bg="light"] .setting-group label { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .setting-group input { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
+        [data-bg="light"] .settings-hint { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .run-experiment-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
+        [data-bg="light"] .run-experiment-btn:hover:not(:disabled) { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
+        [data-bg="light"] .spinner { border-color: rgba(0,0,0,0.15); border-top-color: #1d1d1f; }
+        [data-bg="light"] .section-toggle { color: rgba(0,0,0,0.7); }
+        [data-bg="light"] .empty-state { color: rgba(0,0,0,0.5); background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
+        [data-bg="light"] .captured-item { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.08); }
+        [data-bg="light"] .captured-prompt { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .captured-meta { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .delete-btn { color: rgba(0,0,0,0.4); }
+        [data-bg="light"] .results-placeholder { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
+        [data-bg="light"] .placeholder-content { color: rgba(0,0,0,0.5); }
       `}</style>
     </div>
   )

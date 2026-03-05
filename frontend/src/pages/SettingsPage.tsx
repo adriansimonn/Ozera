@@ -166,7 +166,7 @@ export default function SettingsPage() {
 
   if (!isAuthenticated || !user) {
     return (
-      <div className="min-h-screen">
+      <div className="min-h-screen" style={{ minHeight: '125vh' }}>
         <NavBar />
         <div className="max-w-2xl mx-auto px-6 pt-24">
           <div className="bg-white/[0.03] border border-white/10 p-8 text-center">
@@ -184,7 +184,7 @@ export default function SettingsPage() {
   ]
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen" style={{ minHeight: '125vh' }}>
       <NavBar />
 
       <div className="max-w-2xl mx-auto px-6 pt-24 pb-16">
@@ -358,21 +358,41 @@ export default function SettingsPage() {
         {/* UI Preferences Tab */}
         {activeTab === 'ui' && (
           <div className="bg-white/[0.03] border border-white/10 p-5 space-y-4">
-            {/* Theme */}
+            {/* Background */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Theme</label>
+              <label className="block text-sm text-gray-400 mb-1">Background</label>
               <div className="flex gap-2">
-                {(['dark', 'light', 'liquid_glass', 'system'] as const).map((theme) => (
+                {(['dark', 'light', 'glow', 'system'] as const).map((bg) => (
                   <button
-                    key={theme}
-                    onClick={() => handleUISetting('theme', theme)}
+                    key={bg}
+                    onClick={() => handleUISetting('background', bg)}
                     className={`px-4 py-2 text-sm transition-colors border ${
-                      (settings?.ui.theme ?? 'dark') === theme
+                      (settings?.ui.background ?? 'glow') === bg
                         ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
                         : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
                     }`}
                   >
-                    {theme === 'liquid_glass' ? 'Liquid Glass' : theme.charAt(0).toUpperCase() + theme.slice(1)}
+                    {bg.charAt(0).toUpperCase() + bg.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Interface */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Interface</label>
+              <div className="flex gap-2">
+                {(['default', 'glass'] as const).map((style) => (
+                  <button
+                    key={style}
+                    onClick={() => handleUISetting('interface', style)}
+                    className={`px-4 py-2 text-sm transition-colors border ${
+                      (settings?.ui.interface ?? 'glass') === style
+                        ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
+                        : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                    }`}
+                  >
+                    {style.charAt(0).toUpperCase() + style.slice(1)}
                   </button>
                 ))}
               </div>

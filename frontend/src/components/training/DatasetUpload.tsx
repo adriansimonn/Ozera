@@ -5,6 +5,7 @@
 import React, { useState, useCallback, useRef } from 'react'
 import { Upload, X, FileText, Check } from 'lucide-react'
 import type { DatasetMetadata } from '../../api/client'
+import { useThemeColors } from '../../hooks/useTheme'
 
 interface DatasetUploadProps {
   onUpload: (file: File) => Promise<DatasetMetadata>
@@ -20,6 +21,7 @@ export const DatasetUpload: React.FC<DatasetUploadProps> = ({
   const [uploadedFile, setUploadedFile] = useState<DatasetMetadata | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const tc = useThemeColors()
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -148,7 +150,7 @@ export const DatasetUpload: React.FC<DatasetUploadProps> = ({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
-                color: '#fff',
+                color: tc.text,
                 fontSize: '13px',
                 fontWeight: 500,
                 overflow: 'hidden',
@@ -158,7 +160,7 @@ export const DatasetUpload: React.FC<DatasetUploadProps> = ({
             >
               {uploadedFile.name}
             </div>
-            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '11px', marginTop: '2px' }}>
+            <div style={{ color: tc.textSub, fontSize: '11px', marginTop: '2px' }}>
               {formatBytes(uploadedFile.size_bytes)} · {formatTokens(uploadedFile.num_tokens)} tokens
             </div>
           </div>
@@ -169,7 +171,7 @@ export const DatasetUpload: React.FC<DatasetUploadProps> = ({
               border: 'none',
               padding: '4px',
               cursor: 'pointer',
-              color: 'rgba(255,255,255,0.5)',
+              color: tc.textSub,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -186,12 +188,12 @@ export const DatasetUpload: React.FC<DatasetUploadProps> = ({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           style={{
-            border: `2px dashed ${isDragging ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)'}`,
+            border: `2px dashed ${isDragging ? tc.textSub : tc.borderHover}`,
             borderRadius: '8px',
             padding: '24px',
             textAlign: 'center',
             cursor: disabled || uploading ? 'not-allowed' : 'pointer',
-            background: isDragging ? 'rgba(255,255,255,0.05)' : 'transparent',
+            background: isDragging ? tc.surfaceHover : 'transparent',
             transition: 'all 0.2s ease',
             opacity: disabled ? 0.5 : 1,
           }}
@@ -203,13 +205,13 @@ export const DatasetUpload: React.FC<DatasetUploadProps> = ({
                   width: '40px',
                   height: '40px',
                   margin: '0 auto 12px',
-                  border: '2px solid rgba(255,255,255,0.2)',
-                  borderTopColor: '#fff',
+                  border: `2px solid ${tc.borderHover}`,
+                  borderTopColor: tc.spinnerHead,
                   borderRadius: '50%',
                   animation: 'spin 1s linear infinite',
                 }}
               />
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px' }}>
+              <div style={{ color: tc.textMid, fontSize: '13px' }}>
                 Uploading...
               </div>
             </>
@@ -221,18 +223,18 @@ export const DatasetUpload: React.FC<DatasetUploadProps> = ({
                   height: '40px',
                   margin: '0 auto 12px',
                   borderRadius: '0',
-                  background: 'rgba(255,255,255,0.1)',
+                  background: tc.surfaceActive,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                {isDragging ? <FileText size={20} color="#fff" /> : <Upload size={20} color="rgba(255,255,255,0.6)" />}
+                {isDragging ? <FileText size={20} color={tc.text} /> : <Upload size={20} color={tc.textSub} />}
               </div>
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', marginBottom: '4px' }}>
+              <div style={{ color: tc.textMid, fontSize: '13px', marginBottom: '4px' }}>
                 {isDragging ? 'Drop file here' : 'Drag & drop a .txt file or click to browse'}
               </div>
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}>
+              <div style={{ color: tc.textMuted, fontSize: '11px' }}>
                 10KB - 50MB, UTF-8 encoded text
               </div>
             </>

@@ -47,7 +47,7 @@ export function UserMenu() {
         className="flex items-center gap-2 px-3 py-2 bg-transparent border border-transparent hover:bg-white/5 hover:border-white/15 transition-colors"
       >
         <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
-          <User size={16} className="text-white" />
+          <User size={16} style={{ color: '#fff' }} />
         </div>
         <div className="hidden md:block text-left">
           <div className="text-sm font-medium text-white">

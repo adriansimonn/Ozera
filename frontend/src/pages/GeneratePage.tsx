@@ -34,7 +34,7 @@ export const GeneratePage: React.FC = () => {
 
       <style>{`
         .generate-page {
-          min-height: 100vh;
+          min-height: 125vh;
           padding: 3rem 2rem;
         }
 

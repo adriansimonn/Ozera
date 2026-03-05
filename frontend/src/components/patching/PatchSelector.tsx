@@ -7,6 +7,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { Network, Plus, Eye, Zap, CircleOff } from 'lucide-react'
 import type { PatchSpec, PatchType, InterventionType, ModelLayerInfo } from '../../types/patching'
+import { useTheme } from '../../hooks/useTheme'
 
 interface PatchSelectorProps {
   modelInfo: ModelLayerInfo | null
@@ -74,6 +75,7 @@ export function PatchSelector({
   onAddPatch,
   disabled = false,
 }: PatchSelectorProps) {
+  const { isLight } = useTheme()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 300 })
@@ -132,8 +134,21 @@ export function PatchSelector({
     canvas.width = width
     canvas.height = height
 
+    // Theme-aware canvas colors
+    const bgColor = isLight ? '#f5f5f7' : 'rgba(10, 10, 10, 1)'
+    const lineColor = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.06)'
+    const defaultNodeColor = isLight ? '160, 160, 170' : '100, 100, 100'
+    const inactiveNodeColor = isLight ? '190, 190, 200' : '60, 60, 60'
+    const borderDefault = (hovered: boolean) => isLight
+      ? `rgba(0, 0, 0, ${hovered ? 0.35 : 0.15})`
+      : `rgba(255, 255, 255, ${hovered ? 0.5 : 0.2})`
+    const borderInactive = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.1)'
+    const textPrimary = (opacity: number) => isLight
+      ? `rgba(0, 0, 0, ${opacity})`
+      : `rgba(255, 255, 255, ${opacity})`
+
     // Clear canvas
-    ctx.fillStyle = 'rgba(10, 10, 10, 1)'
+    ctx.fillStyle = bgColor
     ctx.fillRect(0, 0, width, height)
 
     // Layout calculations
@@ -202,7 +217,7 @@ export function PatchSelector({
         ctx.beginPath()
         ctx.moveTo(from.x, from.y + yOffset)
         ctx.lineTo(to.x, to.y + yOffset)
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)'
+        ctx.strokeStyle = lineColor
         ctx.lineWidth = 1
         ctx.stroke()
       }
@@ -223,7 +238,7 @@ export function PatchSelector({
           layer.x, layer.y, nodeRadius * 0.5,
           layer.x, layer.y, nodeRadius * 2.5
         )
-        gradient.addColorStop(0, `rgba(${primaryColor}, 0.4)`)
+        gradient.addColorStop(0, `rgba(${primaryColor}, ${isLight ? 0.25 : 0.4})`)
         gradient.addColorStop(1, `rgba(${primaryColor}, 0)`)
 
         ctx.beginPath()
@@ -236,8 +251,8 @@ export function PatchSelector({
       const baseColor = hasPatch && firstPatchColors
         ? firstPatchColors.primary
         : isClickable
-          ? '100, 100, 100'
-          : '60, 60, 60'
+          ? defaultNodeColor
+          : inactiveNodeColor
 
       const nodeGradient = ctx.createRadialGradient(
         layer.x - nodeRadius * 0.3, layer.y - nodeRadius * 0.3, 0,
@@ -255,8 +270,8 @@ export function PatchSelector({
       ctx.strokeStyle = hasPatch && firstPatchColors
         ? `rgba(${firstPatchColors.secondary}, ${isHovered ? 1 : 0.8})`
         : isClickable
-          ? `rgba(255, 255, 255, ${isHovered ? 0.5 : 0.2})`
-          : 'rgba(255, 255, 255, 0.1)'
+          ? borderDefault(isHovered)
+          : borderInactive
       ctx.lineWidth = isHovered ? 2.5 : 1.5
       ctx.stroke()
 
@@ -280,10 +295,10 @@ export function PatchSelector({
 
       // Draw label below node
       ctx.fillStyle = isHovered
-        ? 'rgba(255, 255, 255, 0.95)'
+        ? textPrimary(0.95)
         : hasPatch && firstPatchColors
           ? `rgba(${firstPatchColors.secondary}, 0.9)`
-          : 'rgba(255, 255, 255, 0.6)'
+          : textPrimary(0.6)
       ctx.font = `${isHovered ? '600' : '500'} 11px Inter, system-ui, sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'top'
@@ -291,7 +306,7 @@ export function PatchSelector({
 
       // Draw clickable indicator for transformer layers
       if (isClickable && isHovered && !hasPatch) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
+        ctx.fillStyle = textPrimary(0.7)
         ctx.font = 'bold 16px Inter, system-ui, sans-serif'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
@@ -300,7 +315,7 @@ export function PatchSelector({
     })
 
     // Draw title
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
+    ctx.fillStyle = textPrimary(0.7)
     ctx.font = '500 12px Inter, system-ui, sans-serif'
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
@@ -310,11 +325,11 @@ export function PatchSelector({
     const legendX = width - padding.right
     const legendY = 12
     ctx.textAlign = 'right'
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'
+    ctx.fillStyle = textPrimary(0.4)
     ctx.font = '400 10px Inter, system-ui, sans-serif'
     ctx.fillText('Hover for details', legendX, legendY)
 
-  }, [dimensions, numLayers, hoveredLayer, patches, getLayerPatchInfo, disabled])
+  }, [dimensions, numLayers, hoveredLayer, patches, getLayerPatchInfo, disabled, isLight])
 
   // Handle mouse movement for hover detection
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -324,8 +339,11 @@ export function PatchSelector({
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    // getBoundingClientRect is affected by CSS zoom, so scale to canvas coordinates
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    const x = (e.clientX - rect.left) * scaleX
+    const y = (e.clientY - rect.top) * scaleY
 
     // Check if hovering over any layer node
     const nodeRadius = 18
@@ -374,11 +392,13 @@ export function PatchSelector({
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
 
     setShowPatchMenu({
       layerIdx: hoveredLayer.layerIdx,
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
     })
   }, [disabled, hoveredLayer])
 
@@ -776,6 +796,25 @@ export function PatchSelector({
           border: 1px solid;
           font-weight: 500;
         }
+
+        /* Light mode */
+        [data-bg="light"] .patch-selector { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .selector-header { border-bottom-color: rgba(0,0,0,0.08); }
+        [data-bg="light"] .selector-header h3 { color: #1d1d1f; }
+        [data-bg="light"] .header-icon { color: rgba(0,0,0,0.45); }
+        [data-bg="light"] .layer-tooltip { background: rgba(255,255,255,0.97); border-color: rgba(0,0,0,0.12); box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        [data-bg="light"] .tooltip-layer { color: #1d1d1f; }
+        [data-bg="light"] .tooltip-heads { color: rgba(0,0,0,0.45); }
+        [data-bg="light"] .tooltip-hint { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .patch-menu { background: rgba(255,255,255,0.98); border-color: rgba(0,0,0,0.12); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+        [data-bg="light"] .menu-header { color: #1d1d1f; border-bottom-color: rgba(0,0,0,0.08); }
+        [data-bg="light"] .menu-section { border-top-color: rgba(0,0,0,0.06); }
+        [data-bg="light"] .section-label { color: rgba(0,0,0,0.45); }
+        [data-bg="light"] .menu-item { color: rgba(0,0,0,0.7); }
+        [data-bg="light"] .menu-item:hover { background: rgba(0,0,0,0.04); color: #1d1d1f; }
+        [data-bg="light"] .legend-icon { color: rgba(0,0,0,0.45); }
+        [data-bg="light"] .legend-label { color: rgba(0,0,0,0.55); }
+        [data-bg="light"] .patches-legend { border-top-color: rgba(0,0,0,0.08); }
       `}</style>
     </div>
   )

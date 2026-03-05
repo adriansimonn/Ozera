@@ -378,6 +378,80 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
           font-family: 'JetBrains Mono', monospace;
           font-weight: 600;
         }
+
+        /* Light mode */
+        [data-bg="light"] .model-info-header {
+          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .header-icon {
+          color: rgba(0, 0, 0, 0.55);
+        }
+
+        [data-bg="light"] .model-info-header h3 {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .model-selector label {
+          color: rgba(0, 0, 0, 0.55);
+        }
+
+        [data-bg="light"] .model-selector select {
+          border: 1px solid rgba(0, 0, 0, 0.12);
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .model-selector select:hover:not(:disabled) {
+          background: rgba(0, 0, 0, 0.05);
+          border-color: rgba(0, 0, 0, 0.2);
+          box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.08),
+            inset 0 1px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        [data-bg="light"] .model-selector select:focus {
+          background: rgba(0, 0, 0, 0.03);
+          border-color: rgba(0, 0, 0, 0.25);
+          box-shadow:
+            0 4px 16px rgba(0, 0, 0, 0.08),
+            inset 0 1px 0 rgba(0, 0, 0, 0.06),
+            0 0 0 2px rgba(0, 0, 0, 0.05);
+        }
+
+        [data-bg="light"] .model-description {
+          color: rgba(0, 0, 0, 0.55);
+        }
+
+        [data-bg="light"] .model-description.loading {
+          color: rgba(0, 0, 0, 0.4);
+        }
+
+        [data-bg="light"] .info-card {
+          background: rgba(0, 0, 0, 0.03);
+          border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .info-card:hover {
+          background: rgba(0, 0, 0, 0.04);
+          border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        [data-bg="light"] .info-icon-wrapper {
+          background: rgba(0, 0, 0, 0.04);
+          border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .info-icon {
+          color: rgba(0, 0, 0, 0.7);
+        }
+
+        [data-bg="light"] .info-label {
+          color: rgba(0, 0, 0, 0.5);
+        }
+
+        [data-bg="light"] .info-value {
+          color: #1d1d1f;
+        }
       `}</style>
     </div>
   )

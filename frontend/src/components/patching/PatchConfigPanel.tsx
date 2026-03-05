@@ -323,7 +323,7 @@ export function PatchConfigPanel({
           -webkit-appearance: none;
           width: 16px;
           height: 16px;
-          background: #3b82f6;
+          background: #1d1d1f;
           border-radius: 50%;
           cursor: pointer;
         }
@@ -487,6 +487,27 @@ export function PatchConfigPanel({
           width: 14px;
           height: 14px;
         }
+
+        /* Light mode */
+        [data-bg="light"] .patch-config-panel { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .panel-header { border-bottom-color: rgba(0,0,0,0.08); }
+        [data-bg="light"] .panel-header h3 { color: #1d1d1f; }
+        [data-bg="light"] .header-icon { color: rgba(0,0,0,0.45); }
+        [data-bg="light"] .form-group label { color: rgba(0,0,0,0.55); }
+        [data-bg="light"] .form-group select,
+        [data-bg="light"] .form-group input[type="text"] { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
+        [data-bg="light"] .intervention-hint { color: rgba(0,0,0,0.45); }
+        [data-bg="light"] .blend-labels { color: rgba(0,0,0,0.45); }
+        [data-bg="light"] .blend-group input[type="range"] { background: rgba(0,0,0,0.1); }
+        [data-bg="light"] .add-patch-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
+        [data-bg="light"] .add-patch-btn:hover:not(:disabled) { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
+        [data-bg="light"] .patches-list { border-top-color: rgba(0,0,0,0.08); }
+        [data-bg="light"] .list-header { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .patch-item { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.08); }
+        [data-bg="light"] .patch-type { background: rgba(0,0,0,0.06); color: rgba(0,0,0,0.7); }
+        [data-bg="light"] .patch-detail { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .remove-patch-btn { color: rgba(0,0,0,0.3); }
+        [data-bg="light"] .menu-item { color: rgba(0,0,0,0.7); }
       `}</style>
     </div>
   )

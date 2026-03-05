@@ -1439,6 +1439,211 @@ export function GenerationFlow({
         .prompt-tokens-content::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.25);
         }
+
+        /* Light mode */
+        [data-bg="light"] .controls-panel {
+          background: rgba(255, 255, 255, 0.9);
+          border: 1px solid rgba(0, 0, 0, 0.1);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.05);
+        }
+
+        [data-bg="light"] .btn-control {
+          background: rgba(0, 0, 0, 0.04);
+          border: 1px solid rgba(0, 0, 0, 0.12);
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .btn-control:hover:not(:disabled) {
+          background: rgba(0, 0, 0, 0.06);
+          box-shadow: 0 0 15px rgba(0, 0, 0, 0.08);
+        }
+
+        [data-bg="light"] .btn-control.primary {
+          background: rgba(0, 0, 0, 0.06);
+          border-color: rgba(0, 0, 0, 0.2);
+          box-shadow: 0 0 10px rgba(0, 0, 0, 0.06);
+        }
+
+        [data-bg="light"] .control-group input[type="range"] {
+          background: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .control-group input[type="range"]::-webkit-slider-thumb {
+          background: #1d1d1f;
+          box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+        }
+
+        [data-bg="light"] .top-tokens-panel {
+          background: rgba(255, 255, 255, 0.9);
+          border: 1px solid rgba(0, 0, 0, 0.1);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.05);
+        }
+
+        [data-bg="light"] .top-tokens-header {
+          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .top-tokens-title {
+          color: rgba(0, 0, 0, 0.45);
+        }
+
+        [data-bg="light"] .top-tokens-count {
+          color: rgba(0, 0, 0, 0.45);
+        }
+
+        [data-bg="light"] .top-token-item {
+          background: rgba(0, 0, 0, 0.03);
+          border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .top-token-item:hover {
+          background: rgba(0, 0, 0, 0.05);
+          border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        [data-bg="light"] .top-token-item.selected {
+          background: rgba(0, 0, 0, 0.06);
+          border-color: rgba(0, 0, 0, 0.2);
+          box-shadow: 0 0 20px rgba(0, 0, 0, 0.06);
+        }
+
+        [data-bg="light"] .top-token-item.selected .top-token-text {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .top-token-text {
+          color: rgba(0, 0, 0, 0.7);
+        }
+
+        [data-bg="light"] .top-token-item.selected .top-token-probability {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .selected-indicator {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .top-tokens-list::-webkit-scrollbar-track {
+          background: rgba(0, 0, 0, 0.03);
+        }
+
+        [data-bg="light"] .top-tokens-list::-webkit-scrollbar-thumb {
+          background: rgba(0, 0, 0, 0.12);
+        }
+
+        [data-bg="light"] .top-tokens-list::-webkit-scrollbar-thumb:hover {
+          background: rgba(0, 0, 0, 0.2);
+        }
+
+        [data-bg="light"] .embedding-tooltip {
+          background: rgba(255, 255, 255, 0.98);
+          border: 1px solid rgba(0, 0, 0, 0.2);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 20px rgba(0, 0, 0, 0.06);
+        }
+
+        [data-bg="light"] .tooltip-header {
+          color: #1d1d1f;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .tooltip-header strong {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .embedding-value {
+          background: rgba(0, 0, 0, 0.04);
+        }
+
+        [data-bg="light"] .dim-value {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .output-panel {
+          background: rgba(255, 255, 255, 0.9);
+          border: 1px solid rgba(0, 0, 0, 0.1);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.05);
+        }
+
+        [data-bg="light"] .output-header {
+          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .output-title {
+          color: rgba(0, 0, 0, 0.45);
+        }
+
+        [data-bg="light"] .output-count {
+          color: rgba(0, 0, 0, 0.45);
+        }
+
+        [data-bg="light"] .output-text {
+          color: rgba(0, 0, 0, 0.7);
+        }
+
+        [data-bg="light"] .output-token {
+          background: rgba(0, 0, 0, 0.04);
+        }
+
+        [data-bg="light"] .output-content::-webkit-scrollbar-track {
+          background: rgba(0, 0, 0, 0.03);
+        }
+
+        [data-bg="light"] .output-content::-webkit-scrollbar-thumb {
+          background: rgba(0, 0, 0, 0.12);
+        }
+
+        [data-bg="light"] .output-content::-webkit-scrollbar-thumb:hover {
+          background: rgba(0, 0, 0, 0.2);
+        }
+
+        [data-bg="light"] .prompt-tokens-panel {
+          background: rgba(255, 255, 255, 0.9);
+          border: 1px solid rgba(0, 0, 0, 0.1);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.05);
+        }
+
+        [data-bg="light"] .prompt-tokens-header {
+          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .prompt-tokens-title {
+          color: rgba(0, 0, 0, 0.45);
+        }
+
+        [data-bg="light"] .prompt-tokens-count {
+          color: rgba(0, 0, 0, 0.45);
+        }
+
+        [data-bg="light"] .prompt-token {
+          background: rgba(0, 0, 0, 0.04);
+          border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .prompt-token:hover {
+          background: rgba(0, 0, 0, 0.06);
+          border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        [data-bg="light"] .prompt-token-index {
+          background: rgba(0, 0, 0, 0.05);
+          border-right: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .prompt-token-text {
+          color: rgba(0, 0, 0, 0.7);
+        }
+
+        [data-bg="light"] .prompt-tokens-content::-webkit-scrollbar-track {
+          background: rgba(0, 0, 0, 0.03);
+        }
+
+        [data-bg="light"] .prompt-tokens-content::-webkit-scrollbar-thumb {
+          background: rgba(0, 0, 0, 0.12);
+        }
+
+        [data-bg="light"] .prompt-tokens-content::-webkit-scrollbar-thumb:hover {
+          background: rgba(0, 0, 0, 0.2);
+        }
       `}</style>
     </div>
   )

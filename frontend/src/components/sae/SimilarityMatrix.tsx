@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import { Grid3x3, Info } from 'lucide-react'
+import { useThemeColors } from '../../hooks/useTheme'
 
 interface SimilarityMatrixProps {
   ckaMatrix: number[][]
@@ -35,6 +36,7 @@ export function SimilarityMatrix({
   labelPrefix = 'L',
   className = '',
 }: SimilarityMatrixProps) {
+  const tc = useThemeColors()
   const svgRef = useRef<SVGSVGElement>(null)
   const [hoveredCell, setHoveredCell] = useState<{
     layerA: number
@@ -63,11 +65,11 @@ export function SimilarityMatrix({
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`)
 
-    // Color scale: dark gray (low) → white (high)
+    // Color scale for similarity
     const colorScale = d3
       .scaleSequential()
       .domain([0, 1])
-      .interpolator(d3.interpolateRgb('#333', '#fff'))
+      .interpolator(d3.interpolateRgb(tc.isLight ? '#ccc' : '#333', tc.isLight ? '#111' : '#fff'))
 
     // Draw cells
     for (let i = 0; i < nRows; i++) {
@@ -80,16 +82,16 @@ export function SimilarityMatrix({
           .attr('width', cellSize - 1)
           .attr('height', cellSize - 1)
           .attr('fill', colorScale(value))
-          .attr('stroke', 'rgba(255,255,255,0.05)')
+          .attr('stroke', tc.isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)')
           .attr('stroke-width', 0.5)
           .style('cursor', 'pointer')
           .on('mouseenter', function () {
-            d3.select(this).attr('stroke', 'rgba(255,255,255,0.7)').attr('stroke-width', 2)
+            d3.select(this).attr('stroke', tc.isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)').attr('stroke-width', 2)
             setHoveredCell({ layerA: layersA[i], layerB: layersB[j], value })
           })
           .on('mouseleave', function () {
             d3.select(this)
-              .attr('stroke', 'rgba(255,255,255,0.05)')
+              .attr('stroke', tc.isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)')
               .attr('stroke-width', 0.5)
             setHoveredCell(null)
           })
@@ -144,7 +146,7 @@ export function SimilarityMatrix({
       .attr('y', margin.top + (nRows * cellSize) / 2)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
-      .attr('fill', 'rgba(255,255,255,0.7)')
+      .attr('fill', tc.textMid)
       .attr('font-size', '11px')
       .attr('font-weight', 'bold')
       .attr('transform', `rotate(-90, 14, ${margin.top + (nRows * cellSize) / 2})`)
@@ -156,7 +158,7 @@ export function SimilarityMatrix({
       .attr('x', margin.left + (nCols * cellSize) / 2)
       .attr('y', 16)
       .attr('text-anchor', 'middle')
-      .attr('fill', 'rgba(255,255,255,0.7)')
+      .attr('fill', tc.textMid)
       .attr('font-size', '11px')
       .attr('font-weight', 'bold')
       .text(`${modelB} (${activationTypeB})`)
@@ -215,7 +217,7 @@ export function SimilarityMatrix({
       .attr('fill', '#6b7280')
       .attr('font-size', '8px')
       .text('CKA Similarity')
-  }, [ckaMatrix, layersA, layersB, modelA, modelB, activationTypeA, activationTypeB, labelPrefix])
+  }, [ckaMatrix, layersA, layersB, modelA, modelB, activationTypeA, activationTypeB, labelPrefix, tc])
 
   const isSameModel = modelA === modelB && activationTypeA === activationTypeB
 
@@ -224,7 +226,7 @@ export function SimilarityMatrix({
       {/* Header */}
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-1">
-          <Grid3x3 className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.6)' }} />
+          <Grid3x3 className="w-5 h-5" style={{ color: tc.textMid }} />
           <h3 className="text-lg font-semibold text-gray-200 tracking-tight">
             {title || 'Layer Similarity Matrix'}
           </h3>
@@ -246,9 +248,9 @@ export function SimilarityMatrix({
         <div className="px-4 pb-3 flex items-center gap-2 text-sm">
           <Info className="w-3.5 h-3.5 text-gray-500" />
           <span className="text-gray-400">
-            <span style={{ color: 'rgba(255,255,255,0.8)' }}>{modelA} {labelPrefix}{hoveredCell.layerA}</span>
+            <span style={{ color: tc.textStrong }}>{modelA} {labelPrefix}{hoveredCell.layerA}</span>
             {' vs '}
-            <span style={{ color: 'rgba(255,255,255,0.8)' }}>{modelB} {labelPrefix}{hoveredCell.layerB}</span>
+            <span style={{ color: tc.textStrong }}>{modelB} {labelPrefix}{hoveredCell.layerB}</span>
             {': '}
             <span className="text-white font-mono">{hoveredCell.value.toFixed(4)}</span>
           </span>

@@ -6,6 +6,7 @@ import React, { useState, useCallback, useRef } from 'react'
 import { Upload, X, Box, Check, AlertCircle, Loader2, Info } from 'lucide-react'
 import { useModelUpload, useCustomModelCount } from '../../hooks/useTraining'
 import { useAuthStore } from '../../stores/authStore'
+import { useThemeColors } from '../../hooks/useTheme'
 
 interface ModelUploadPanelProps {
   onUploadComplete?: () => void
@@ -19,6 +20,7 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
   onShowLogin,
 }) => {
   const { isAuthenticated } = useAuthStore()
+  const tc = useThemeColors()
   const [isDragging, setIsDragging] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [modelName, setModelName] = useState('')
@@ -155,14 +157,14 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
   return (
     <div
       style={{
-        background: 'rgba(255,255,255,0.03)',
+        background: tc.surface,
         backdropFilter: 'blur(20px)',
         borderRadius: '0',
-        border: '1px solid rgba(255,255,255,0.1)',
+        border: `1px solid ${tc.border}`,
         padding: '20px',
       }}
     >
-      <h3 style={{ color: '#fff', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>
+      <h3 style={{ color: tc.text, fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>
         Upload Model
       </h3>
 
@@ -202,22 +204,22 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
               <div style={{ color: '#22c55e', fontSize: '14px', fontWeight: 600 }}>
                 Model Uploaded Successfully
               </div>
-              <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '12px', marginTop: '2px' }}>
+              <div style={{ color: tc.textSub, fontSize: '12px', marginTop: '2px' }}>
                 {uploadedModel.name}
               </div>
             </div>
           </div>
-          <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '12px' }}>
+          <div style={{ color: tc.textSub, fontSize: '12px', marginBottom: '12px' }}>
             {formatBytes(uploadedModel.file_size_bytes)} · {formatParams(uploadedModel.num_parameters)} parameters
           </div>
           <button
             onClick={handleReset}
             style={{
-              background: 'rgba(255,255,255,0.1)',
-              border: '1px solid rgba(255,255,255,0.2)',
+              background: tc.surfaceActive,
+              border: `1px solid ${tc.borderHover}`,
               borderRadius: '0',
               padding: '8px 16px',
-              color: '#fff',
+              color: tc.text,
               fontSize: '12px',
               cursor: 'pointer',
             }}
@@ -235,12 +237,12 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               style={{
-                border: `2px dashed ${isDragging ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)'}`,
+                border: `2px dashed ${isDragging ? tc.textSub : tc.borderHover}`,
                 borderRadius: '8px',
                 padding: '32px',
                 textAlign: 'center',
                 cursor: disabled || uploading ? 'not-allowed' : 'pointer',
-                background: isDragging ? 'rgba(255,255,255,0.05)' : 'transparent',
+                background: isDragging ? tc.surfaceHover : 'transparent',
                 transition: 'all 0.2s ease',
                 opacity: disabled ? 0.5 : 1,
               }}
@@ -251,21 +253,21 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
                   height: '48px',
                   margin: '0 auto 12px',
                   borderRadius: '0',
-                  background: 'rgba(255,255,255,0.1)',
+                  background: tc.surfaceActive,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                {isDragging ? <Box size={24} color="#fff" /> : <Upload size={24} color="rgba(255,255,255,0.6)" />}
+                {isDragging ? <Box size={24} color={tc.text} /> : <Upload size={24} color={tc.textSub} />}
               </div>
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', marginBottom: '4px' }}>
+              <div style={{ color: tc.textMid, fontSize: '14px', marginBottom: '4px' }}>
                 {isDragging ? 'Drop model file here' : 'Drag & drop a .safetensors file'}
               </div>
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', marginBottom: '8px' }}>
+              <div style={{ color: tc.textMid, fontSize: '14px', marginBottom: '8px' }}>
                 or click to browse
               </div>
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>
+              <div style={{ color: tc.textMuted, fontSize: '12px' }}>
                 Maximum file size: 500MB
               </div>
             </div>
@@ -299,7 +301,7 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
-                    color: '#fff',
+                    color: tc.text,
                     fontSize: '13px',
                     fontWeight: 500,
                     overflow: 'hidden',
@@ -309,7 +311,7 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
                 >
                   {selectedFile.name}
                 </div>
-                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '11px', marginTop: '2px' }}>
+                <div style={{ color: tc.textSub, fontSize: '11px', marginTop: '2px' }}>
                   {formatBytes(selectedFile.size)}
                 </div>
               </div>
@@ -321,7 +323,7 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
                   border: 'none',
                   padding: '4px',
                   cursor: uploading ? 'not-allowed' : 'pointer',
-                  color: 'rgba(255,255,255,0.5)',
+                  color: tc.textSub,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -338,7 +340,7 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
               <label
                 style={{
                   display: 'block',
-                  color: 'rgba(255,255,255,0.7)',
+                  color: tc.textMid,
                   fontSize: '12px',
                   marginBottom: '6px',
                 }}
@@ -354,11 +356,11 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
                 placeholder="e.g., my-custom-model"
                 style={{
                   width: '100%',
-                  background: 'rgba(0,0,0,0.3)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  background: tc.inputBg,
+                  border: `1px solid ${tc.borderHover}`,
                   borderRadius: '0',
                   padding: '10px 12px',
-                  color: '#fff',
+                  color: tc.text,
                   fontSize: '13px',
                   outline: 'none',
                 }}
@@ -384,7 +386,7 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
                   disabled={uploading}
                   style={{ accentColor: '#3b82f6' }}
                 />
-                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px' }}>
+                <span style={{ color: tc.textMid, fontSize: '12px' }}>
                   Replace existing custom model
                 </span>
               </label>
@@ -421,7 +423,7 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
                 border: '1px solid rgba(59, 130, 246, 0.5)',
                 borderRadius: '0',
                 padding: '12px',
-                color: '#fff',
+                color: tc.text,
                 fontSize: '14px',
                 fontWeight: 500,
                 cursor: uploading || !modelName.trim() || (hasExistingModel && !overwriteExisting)
@@ -499,20 +501,20 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
         style={{
           marginTop: '12px',
           padding: '12px',
-          background: 'rgba(0,0,0,0.2)',
+          background: tc.deepBg,
           borderRadius: '0',
           fontSize: '11px',
-          color: 'rgba(255,255,255,0.5)',
+          color: tc.textSub,
         }}
       >
-        <div style={{ fontWeight: 500, marginBottom: '6px', color: 'rgba(255,255,255,0.7)' }}>
+        <div style={{ fontWeight: 500, marginBottom: '6px', color: tc.textMid }}>
           Supported format
         </div>
         <div>
           Upload a .safetensors model file. The model will be available for text generation
           and visualization on the Generate page.
         </div>
-        <div style={{ marginTop: '8px', color: 'rgba(255,255,255,0.4)' }}>
+        <div style={{ marginTop: '8px', color: tc.textMuted }}>
           Note: You can only have one custom model at a time (trained or uploaded).
         </div>
       </div>

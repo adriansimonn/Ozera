@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import { Tag, TrendingUp, Hash } from 'lucide-react'
+import { useThemeColors } from '../../hooks/useTheme'
 
 interface TokenActivationExample {
   token: string
@@ -42,6 +43,7 @@ export function FeatureTopTokens({
   maxExamples = 10,
   className = '',
 }: FeatureTopTokensProps) {
+  const tc = useThemeColors()
   const chartRef = useRef<SVGSVGElement>(null)
   const [selectedExample, setSelectedExample] = useState<TokenActivationExample | null>(null)
 
@@ -122,7 +124,7 @@ export function FeatureTopTokens({
   const { activation_statistics: stats } = interpretation
 
   return (
-    <div className={`feature-top-tokens ${className}`} style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+    <div className={`feature-top-tokens ${className}`} style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}` }}>
       {/* Header */}
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-2">
@@ -272,6 +274,24 @@ export function FeatureTopTokens({
         .feature-top-tokens .text-yellow-400 { color: rgba(234,179,8,0.9); }
         .feature-top-tokens .text-red-400 { color: rgba(239,68,68,0.9); }
         .feature-top-tokens button:hover .border-gray-700 { border-color: rgba(255,255,255,0.2); }
+
+        [data-bg="light"] .feature-top-tokens .border-b { border-bottom: 1px solid rgba(0,0,0,0.1); }
+        [data-bg="light"] .feature-top-tokens .border-t { border-top: 1px solid rgba(0,0,0,0.1); }
+        [data-bg="light"] .feature-top-tokens .border-gray-800 { border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .feature-top-tokens .border-gray-700 { border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .feature-top-tokens .border-purple-500 { border-color: rgba(0,0,0,0.3); }
+        [data-bg="light"] .feature-top-tokens .bg-black\\/40 { background: rgba(0,0,0,0.04); }
+        [data-bg="light"] .feature-top-tokens .bg-gray-800 { background: rgba(0,0,0,0.08); }
+        [data-bg="light"] .feature-top-tokens .bg-purple-500\\/10 { background: rgba(0,0,0,0.06); }
+        [data-bg="light"] .feature-top-tokens .text-white { color: #1d1d1f; }
+        [data-bg="light"] .feature-top-tokens .text-gray-200 { color: rgba(0,0,0,0.9); }
+        [data-bg="light"] .feature-top-tokens .text-gray-400 { color: rgba(0,0,0,0.55); }
+        [data-bg="light"] .feature-top-tokens .text-gray-500 { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .feature-top-tokens .text-gray-600 { color: rgba(0,0,0,0.4); }
+        [data-bg="light"] .feature-top-tokens .text-purple-200 { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .feature-top-tokens .text-purple-300 { color: rgba(0,0,0,0.7); }
+        [data-bg="light"] .feature-top-tokens .text-purple-400 { color: rgba(0,0,0,0.55); }
+        [data-bg="light"] .feature-top-tokens button:hover .border-gray-700 { border-color: rgba(0,0,0,0.2); }
       `}</style>
     </div>
   )

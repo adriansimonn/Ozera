@@ -5,7 +5,6 @@
 
 import { useEffect, useRef, useState, useMemo } from 'react'
 import * as d3 from 'd3'
-
 interface FeatureActivation {
   feature_idx: number
   activation_value: number
@@ -379,6 +378,15 @@ export function FeatureActivationDisplay({
         .feature-activation-display .text-gray-400 { color: rgba(255,255,255,0.4); }
         .feature-activation-display .text-gray-500 { color: rgba(255,255,255,0.5); }
         .feature-activation-display .text-purple-300 { color: rgba(168,85,247,0.9); }
+
+        [data-bg="light"] .feature-activation-display .bg-black\\/30 { background: rgba(0,0,0,0.03); }
+        [data-bg="light"] .feature-activation-display .bg-black\\/40 { background: rgba(0,0,0,0.03); backdrop-filter: blur(20px); }
+        [data-bg="light"] .feature-activation-display .bg-black\\/90 { background: rgba(255,255,255,0.95); }
+        [data-bg="light"] .feature-activation-display .border-gray-700 { border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .feature-activation-display .border-gray-800 { border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .feature-activation-display .text-white { color: #1d1d1f; }
+        [data-bg="light"] .feature-activation-display .text-gray-400 { color: rgba(0,0,0,0.4); }
+        [data-bg="light"] .feature-activation-display .text-gray-500 { color: rgba(0,0,0,0.55); }
       `}</style>
     </div>
   )
