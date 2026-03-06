@@ -29,6 +29,7 @@ export function useTheme() {
     interfaceStyle,
     isGlow: background === 'glow',
     isGlass: interfaceStyle === 'glass',
+    isDefault: interfaceStyle === 'default',
     isLight,
   }
 }

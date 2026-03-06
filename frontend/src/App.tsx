@@ -6,6 +6,11 @@ import TrainingPage from './pages/TrainingPage'
 import PatchingPlayground from './pages/PatchingPlayground'
 import AnalysisPage from './pages/AnalysisPage'
 import SAEPage from './pages/SAEPage'
+import DefaultUnifiedPage from './pages/default/UnifiedPage'
+import DefaultTrainingPage from './pages/default/TrainingPage'
+import DefaultPatchingPlayground from './pages/default/PatchingPlayground'
+import DefaultAnalysisPage from './pages/default/AnalysisPage'
+import DefaultSAEPage from './pages/default/SAEPage'
 import SettingsPage from './pages/SettingsPage'
 import AuthPage from './pages/AuthPage'
 import { AnimatedBackground } from './components/common/AnimatedBackground'
@@ -25,7 +30,7 @@ const queryClient = new QueryClient({
 function AppShell() {
   const [showPurchaseCredits, setShowPurchaseCredits] = useState(false)
   const { initialize } = useAuthStore()
-  const { background, interfaceStyle, isGlow, isGlass } = useTheme()
+  const { background, interfaceStyle, isGlow, isDefault } = useTheme()
   const location = useLocation()
   const isAuthPage = location.pathname === '/auth'
 
@@ -47,37 +52,61 @@ function AppShell() {
               <Route
                 path="/"
                 element={
-                  <UnifiedPage
-                    onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                  />
+                  isDefault ? (
+                    <DefaultUnifiedPage
+                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                    />
+                  ) : (
+                    <UnifiedPage
+                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                    />
+                  )
                 }
               />
               <Route
                 path="/training"
-                element={<TrainingPage />}
+                element={isDefault ? <DefaultTrainingPage /> : <TrainingPage />}
               />
               <Route
                 path="/patching"
                 element={
-                  <PatchingPlayground
-                    onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                  />
+                  isDefault ? (
+                    <DefaultPatchingPlayground
+                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                    />
+                  ) : (
+                    <PatchingPlayground
+                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                    />
+                  )
                 }
               />
               <Route
                 path="/analysis"
                 element={
-                  <AnalysisPage
-                    onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                  />
+                  isDefault ? (
+                    <DefaultAnalysisPage
+                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                    />
+                  ) : (
+                    <AnalysisPage
+                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                    />
+                  )
                 }
               />
               <Route
                 path="/sae"
                 element={
-                  <SAEPage
-                    onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                  />
+                  isDefault ? (
+                    <DefaultSAEPage
+                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                    />
+                  ) : (
+                    <SAEPage
+                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                    />
+                  )
                 }
               />
               <Route
