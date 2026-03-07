@@ -46,7 +46,7 @@ function AppShell() {
 
   return (
     <div className="min-h-screen bg-black" data-bg={isAuthPage ? undefined : background} data-interface={isAuthPage ? undefined : interfaceStyle}>
-      {isGlow && !isAuthPage && <AnimatedBackground />}
+      {isGlow && !isAuthPage && !isDefault && <AnimatedBackground />}
       <main className="content-container">
             <Routes>
               <Route

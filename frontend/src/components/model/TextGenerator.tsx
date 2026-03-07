@@ -12,6 +12,15 @@ import { apiClient } from '../../api/client'
 import { useAuthStore } from '../../stores/authStore'
 import { Dropdown, type DropdownGroup } from '../common/Dropdown'
 
+export interface PlainGenerationResult {
+  text: string
+  prompt: string
+  model: string
+  maxTokens: number
+  temperature: number
+  topK: number
+}
+
 interface TextGeneratorProps {
   defaultModel?: string
   defaultPrompt?: string
@@ -19,6 +28,8 @@ interface TextGeneratorProps {
   onActivationGenerated?: (activationId: string) => void
   onGeneratingChange?: (isGenerating: boolean) => void
   onModelChange?: (model: string) => void
+  onPlainTextGenerated?: (result: PlainGenerationResult) => void
+  onStreamingText?: (text: string, streaming: boolean) => void
   externalModel?: string
   onShowPurchaseCredits?: () => void
 }
@@ -33,6 +44,8 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   onActivationGenerated,
   onGeneratingChange,
   onModelChange,
+  onPlainTextGenerated,
+  onStreamingText,
   externalModel,
   onShowPurchaseCredits,
 }) => {
@@ -74,6 +87,13 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
     }
   }, [])
 
+  // Forward streaming text to parent for token-by-token display
+  useEffect(() => {
+    if (onStreamingText && generationMode === 'tokens' && (loading || streaming || text)) {
+      onStreamingText(text, loading || streaming)
+    }
+  }, [text, loading, streaming, generationMode, onStreamingText])
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -99,7 +119,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
     }, COLD_START_THRESHOLD_MS)
 
     try {
-      await generate({
+      const finalText = await generate({
         prompt: prompt.trim(),
         model,
         max_tokens: maxTokens,
@@ -108,7 +128,18 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       })
 
       if (onGenerate) {
-        onGenerate(text)
+        onGenerate(finalText)
+      }
+
+      if (onPlainTextGenerated && finalText) {
+        onPlainTextGenerated({
+          text: finalText,
+          prompt: prompt.trim(),
+          model,
+          maxTokens,
+          temperature,
+          topK,
+        })
       }
     } catch (err) {
       console.error('Generation error:', err)
@@ -154,6 +185,18 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       // Call callback with activation ID if provided
       if (onActivationGenerated) {
         onActivationGenerated(result.activation_id)
+      }
+
+      // Also store the generated text in outputs
+      if (onPlainTextGenerated && result.text) {
+        onPlainTextGenerated({
+          text: result.text,
+          prompt: prompt.trim(),
+          model,
+          maxTokens,
+          temperature,
+          topK,
+        })
       }
     } catch (err) {
       console.error('Activation generation error:', err)
@@ -226,47 +269,96 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         </div>
 
         <div className="control-group">
-          <label htmlFor="max-tokens">Tokens: {maxTokens}</label>
-          <input
-            id="max-tokens"
-            type="range"
-            min="1"
-            max="300"
-            step="1"
-            value={maxTokens}
-            onChange={(e) => setMaxTokens(parseInt(e.target.value))}
-            disabled={loading || streaming}
-          />
+          <label htmlFor="max-tokens">
+            Tokens: <span className="control-value-display">{maxTokens}</span>
+          </label>
+          <div className="control-row">
+            <input
+              id="max-tokens"
+              type="range"
+              min="1"
+              max="300"
+              step="1"
+              value={maxTokens}
+              onChange={(e) => setMaxTokens(parseInt(e.target.value))}
+              disabled={loading || streaming}
+            />
+            <input
+              type="number"
+              className="control-number-input"
+              min={1}
+              max={300}
+              value={maxTokens}
+              onChange={(e) => {
+                const v = parseInt(e.target.value)
+                if (!isNaN(v)) setMaxTokens(Math.max(1, Math.min(300, v)))
+              }}
+              disabled={loading || streaming}
+            />
+          </div>
         </div>
       </div>
 
       <div className="controls">
         <div className="control-group">
-          <label htmlFor="temperature">Temperature: {temperature.toFixed(2)}</label>
-          <input
-            id="temperature"
-            type="range"
-            min="0"
-            max="2.0"
-            step="0.01"
-            value={temperature}
-            onChange={(e) => setTemperature(parseFloat(e.target.value))}
-            disabled={loading || streaming}
-          />
+          <label htmlFor="temperature">
+            Temperature: <span className="control-value-display">{temperature.toFixed(2)}</span>
+          </label>
+          <div className="control-row">
+            <input
+              id="temperature"
+              type="range"
+              min="0"
+              max="2.0"
+              step="0.01"
+              value={temperature}
+              onChange={(e) => setTemperature(parseFloat(e.target.value))}
+              disabled={loading || streaming}
+            />
+            <input
+              type="number"
+              className="control-number-input"
+              min={0}
+              max={2}
+              step={0.01}
+              value={temperature}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value)
+                if (!isNaN(v)) setTemperature(Math.max(0, Math.min(2, v)))
+              }}
+              disabled={loading || streaming}
+            />
+          </div>
         </div>
 
         <div className="control-group">
-          <label htmlFor="top-k">Top-K: {topK}</label>
-          <input
-            id="top-k"
-            type="range"
-            min="1"
-            max="100"
-            step="1"
-            value={topK}
-            onChange={(e) => setTopK(parseInt(e.target.value))}
-            disabled={loading || streaming}
-          />
+          <label htmlFor="top-k">
+            Top-K: <span className="control-value-display">{topK}</span>
+          </label>
+          <div className="control-row">
+            <input
+              id="top-k"
+              type="range"
+              min="1"
+              max="100"
+              step="1"
+              value={topK}
+              onChange={(e) => setTopK(parseInt(e.target.value))}
+              disabled={loading || streaming}
+            />
+            <input
+              type="number"
+              className="control-number-input"
+              min={1}
+              max={100}
+              value={topK}
+              onChange={(e) => {
+                const v = parseInt(e.target.value)
+                if (!isNaN(v)) setTopK(Math.max(1, Math.min(100, v)))
+              }}
+              disabled={loading || streaming}
+            />
+          </div>
         </div>
       </div>
 
@@ -277,7 +369,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Enter your prompt here..."
-          rows={4}
+          rows={6}
           disabled={loading || streaming}
         />
       </div>
@@ -371,7 +463,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         </div>
       )}
 
-      {text && (
+      {text && !(onPlainTextGenerated && generationMode === 'tokens') && (
         <div className="output-area">
           <div className="output-header">
             <h3>Generated Text</h3>
@@ -432,6 +524,48 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           color: rgba(255, 255, 255, 0.6);
           letter-spacing: 0.05em;
           text-transform: uppercase;
+        }
+
+        .control-row {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .control-row input[type="range"] {
+          flex: 1;
+        }
+
+        .control-number-input {
+          width: 64px;
+          padding: 0.4rem 0.5rem;
+          background: rgba(0, 0, 0, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.8rem;
+          text-align: center;
+          outline: none;
+          transition: border-color 0.2s;
+          -moz-appearance: textfield;
+        }
+
+        .control-number-input::-webkit-inner-spin-button,
+        .control-number-input::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+
+        .control-number-input:focus {
+          border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .control-number-input:disabled {
+          opacity: 0.3;
+        }
+
+        .control-value-display {
+          font-family: 'JetBrains Mono', monospace;
         }
 
         .control-group input[type="range"] {
@@ -974,6 +1108,43 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
 
         [data-bg="light"] .cursor {
           color: rgba(0, 0, 0, 0.7);
+        }
+
+        [data-bg="light"] .control-number-input {
+          background: rgba(0, 0, 0, 0.03);
+          border-color: rgba(0, 0, 0, 0.12);
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .control-number-input:focus {
+          border-color: rgba(0, 0, 0, 0.25);
+        }
+
+        /* Default interface: stack reset below generate */
+        [data-interface="default"] .actions {
+          flex-direction: column;
+        }
+
+        [data-interface="default"] .generate-dropdown {
+          width: 100%;
+        }
+
+        [data-interface="default"] .btn-generate-main {
+          flex: 1;
+          padding: 0.625rem 1.5rem;
+        }
+
+        [data-interface="default"] .btn-secondary {
+          width: 100%;
+          padding: 0.625rem 2rem;
+        }
+
+        [data-interface="default"] .control-row {
+          flex-direction: row-reverse;
+        }
+
+        [data-interface="default"] .control-value-display {
+          display: none;
         }
       `}</style>
     </div>

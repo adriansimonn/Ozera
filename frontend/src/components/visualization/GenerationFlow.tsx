@@ -1644,6 +1644,11 @@ export function GenerationFlow({
         [data-bg="light"] .prompt-tokens-content::-webkit-scrollbar-thumb:hover {
           background: rgba(0, 0, 0, 0.2);
         }
+
+        /* Default interface: remove gap below controls panel */
+        [data-interface="default"] .controls-panel {
+          margin-bottom: 0;
+        }
       `}</style>
     </div>
   )

@@ -66,14 +66,16 @@ export function useStreamingGeneration() {
     insufficientCredits: false,
   })
 
-  const generate = useCallback(async (request: GenerateRequest) => {
+  const generate = useCallback(async (request: GenerateRequest): Promise<string> => {
     setState({ loading: true, streaming: false, error: null, text: '', insufficientCredits: false })
 
+    let accumulated = ''
     try {
       await apiClient.generateStream(
         request,
         // onToken
         (token) => {
+          accumulated += token
           setState(prev => ({
             ...prev,
             loading: false,
@@ -99,6 +101,7 @@ export function useStreamingGeneration() {
           }))
         }
       )
+      return accumulated
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       const isInsufficientCredits = errorMessage === 'INSUFFICIENT_CREDITS'

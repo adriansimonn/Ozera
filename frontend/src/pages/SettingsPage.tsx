@@ -359,31 +359,44 @@ export default function SettingsPage() {
         {/* UI Preferences Tab */}
         {activeTab === 'ui' && (
           <div className="bg-white/[0.03] border border-white/10 p-7 space-y-6">
+            {/* Interface */}
+            <div>
+              <label className="block text-base text-gray-300 mb-2">Interface</label>
+              <Dropdown
+                value={settings?.ui.interface ?? 'glass'}
+                onChange={(v) => {
+                  handleUISetting('interface', v)
+                  // If switching to default and glow is selected, fall back to dark
+                  if (v === 'default' && (settings?.ui.background ?? 'glow') === 'glow') {
+                    handleUISetting('background', 'dark')
+                  }
+                }}
+                options={[
+                  { value: 'default', label: 'Default' },
+                  { value: 'glass', label: 'Glass' },
+                ]}
+              />
+            </div>
+
             {/* Background */}
             <div>
               <label className="block text-base text-gray-300 mb-2">Background</label>
               <Dropdown
                 value={settings?.ui.background ?? 'glow'}
                 onChange={(v) => handleUISetting('background', v)}
-                options={[
-                  { value: 'dark', label: 'Dark' },
-                  { value: 'light', label: 'Light' },
-                  { value: 'glow', label: 'Glow' },
-                  { value: 'system', label: 'System' },
-                ]}
-              />
-            </div>
-
-            {/* Interface */}
-            <div>
-              <label className="block text-base text-gray-300 mb-2">Interface</label>
-              <Dropdown
-                value={settings?.ui.interface ?? 'glass'}
-                onChange={(v) => handleUISetting('interface', v)}
-                options={[
-                  { value: 'default', label: 'Default' },
-                  { value: 'glass', label: 'Glass' },
-                ]}
+                options={
+                  (settings?.ui.interface ?? 'glass') === 'default'
+                    ? [
+                        { value: 'dark', label: 'Dark' },
+                        { value: 'light', label: 'Light' },
+                      ]
+                    : [
+                        { value: 'dark', label: 'Dark' },
+                        { value: 'light', label: 'Light' },
+                        { value: 'glow', label: 'Glow' },
+                        { value: 'system', label: 'System' },
+                      ]
+                }
               />
             </div>
 
