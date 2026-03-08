@@ -306,19 +306,19 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                     >
                       <FileText style={{ width: 13, height: 13 }} />
                       Outputs
-                      {generatedOutputs.length > 0 && (
-                        <span className="df-switch-badge" style={{ color: c.textSub }}>{generatedOutputs.length}</span>
-                      )}
                     </button>
                   </div>
                 </div>
                 <div className="df-toolbar-right">
-                  <Dropdown
-                    id="df-vis-select"
-                    value={selectedVisualization}
-                    onChange={(v) => setSelectedVisualization(v as VisualizationType)}
-                    options={visualizationOptions.map((opt) => ({ value: opt.value, label: opt.label }))}
-                  />
+                  <div className="df-toolbar-group">
+                    <span className="df-toolbar-label" style={{ color: c.textSub }}>Visualization:</span>
+                    <Dropdown
+                      id="df-vis-select"
+                      value={selectedVisualization}
+                      onChange={(v) => setSelectedVisualization(v as VisualizationType)}
+                      options={visualizationOptions.map((opt) => ({ value: opt.value, label: opt.label }))}
+                    />
+                  </div>
 
                   {selectedVisualization === 'attention' && activationData && (
                     <div className="df-toolbar-group">
@@ -513,9 +513,6 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                     >
                       <FileText style={{ width: 13, height: 13 }} />
                       Outputs
-                      {generatedOutputs.length > 0 && (
-                        <span className="df-switch-badge" style={{ color: c.textSub }}>{generatedOutputs.length}</span>
-                      )}
                     </button>
                   </div>
                 </div>
@@ -639,7 +636,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
         .df-layout {
           display: flex;
           flex: 1;
-          margin-top: 70px;
+          margin-top: 76px;
           overflow: hidden;
         }
 
@@ -693,7 +690,9 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           align-items: center;
           justify-content: space-between;
           gap: 1rem;
-          padding: 0.875rem 1.25rem;
+          padding: 0 1.25rem;
+          height: 60px;
+          box-sizing: border-box;
           flex-shrink: 0;
           flex-wrap: wrap;
         }
@@ -948,6 +947,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           gap: 0.125rem;
           padding: 0.1875rem;
           border: 1px solid;
+          line-height: 1;
         }
 
         .df-switch-btn {
@@ -963,6 +963,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           transition: all 0.15s;
           letter-spacing: 0.01em;
           white-space: nowrap;
+          line-height: 1;
         }
 
         .df-switch-btn:hover:not(.active) {
