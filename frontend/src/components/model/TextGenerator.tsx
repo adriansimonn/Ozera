@@ -537,6 +537,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         .control-number-input {
+          display: none;
           width: 64px;
           padding: 0.4rem 0.5rem;
           background: rgba(0, 0, 0, 0.2);
@@ -548,6 +549,10 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           outline: none;
           transition: border-color 0.2s;
           -moz-appearance: textfield;
+        }
+
+        [data-interface="default"] .control-number-input {
+          display: block;
         }
 
         .control-number-input::-webkit-inner-spin-button,
