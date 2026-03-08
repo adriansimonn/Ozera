@@ -776,37 +776,43 @@ export function GenerationFlow({
   return (
     <div className={`generation-flow ${className}`}>
       <div className="controls-panel">
-        <button onClick={handlePrevious} className="btn-control">
-          ⏮ Previous
-        </button>
-        <button onClick={handlePlayPause} className="btn-control primary">
-          {isPlaying ? '⏸ Pause' : '▶ Play'}
-        </button>
-        <button onClick={handleNext} className="btn-control">
-          Next ⏭
-        </button>
-        <button onClick={handleReset} className="btn-control">
-          ↺ Reset
-        </button>
-
-        <div className="control-group speed-control">
-          <label>Speed: {animationSpeed.toFixed(2)}x</label>
-          <input
-            type="range"
-            min="0.01"
-            max="3"
-            step="0.01"
-            value={animationSpeed}
-            onChange={(e) => setAnimationSpeed(parseFloat(e.target.value))}
-          />
+        <div className="controls-section controls-left">
+          <div className="control-group speed-control">
+            <label>Speed: {animationSpeed.toFixed(2)}x</label>
+            <input
+              type="range"
+              min="0.01"
+              max="3"
+              step="0.01"
+              value={animationSpeed}
+              onChange={(e) => setAnimationSpeed(parseFloat(e.target.value))}
+            />
+          </div>
         </div>
 
-        <button
-          onClick={() => setShowLabels(!showLabels)}
-          className="btn-control"
-        >
-          {showLabels ? 'Hide Labels' : 'Show Labels'}
-        </button>
+        <div className="controls-section controls-center">
+          <button onClick={handlePrevious} className="btn-control">
+            ⏮ Previous
+          </button>
+          <button onClick={handlePlayPause} className="btn-control primary">
+            {isPlaying ? '⏸ Pause' : '▶ Play'}
+          </button>
+          <button onClick={handleNext} className="btn-control">
+            Next ⏭
+          </button>
+          <button onClick={handleReset} className="btn-control">
+            ↺ Reset
+          </button>
+        </div>
+
+        <div className="controls-section controls-right">
+          <button
+            onClick={() => setShowLabels(!showLabels)}
+            className="btn-control"
+          >
+            {showLabels ? 'Hide Labels' : 'Show Labels'}
+          </button>
+        </div>
       </div>
 
       <div className="visualization-container">
@@ -937,8 +943,8 @@ export function GenerationFlow({
 
         .controls-panel {
           display: flex;
-          gap: 0.75rem;
           align-items: center;
+          justify-content: space-between;
           padding: 1rem;
           margin-bottom: 1.5rem;
           background: rgba(0, 0, 0, 0.5);
@@ -947,6 +953,27 @@ export function GenerationFlow({
           border: 1px solid rgba(255, 255, 255, 0.08);
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
           flex-wrap: wrap;
+          gap: 0.75rem;
+        }
+
+        .controls-section {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .controls-left {
+          flex: 1;
+          justify-content: flex-start;
+        }
+
+        .controls-center {
+          flex: 0 0 auto;
+        }
+
+        .controls-right {
+          flex: 1;
+          justify-content: flex-end;
         }
 
         .btn-control {

@@ -11,7 +11,7 @@ import { GenerationFlow } from '../../components/visualization/GenerationFlow'
 import { NavBar } from '../../components/common/NavBar'
 import { apiClient } from '../../api/client'
 import type { ActivationData, LayerActivations } from '../../types/model'
-import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, Copy, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, Copy, Check, BarChart3, FileText, Trash2 } from 'lucide-react'
 import { Dropdown } from '../../components/common/Dropdown'
 import { useTheme } from '../../hooks/useTheme'
 
@@ -21,6 +21,7 @@ type RightPanelMode = 'visualizations' | 'outputs'
 interface GeneratedOutput extends PlainGenerationResult {
   id: number
   timestamp: Date
+  activationId?: string
 }
 
 interface UnifiedPageProps {
@@ -41,6 +42,8 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
   const [isStreaming, setIsStreaming] = useState(false)
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const outputIdCounter = useRef(0)
+  const [pendingActivationId, setPendingActivationId] = useState<string | null>(null)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
 
   const [activationData, setActivationData] = useState<ActivationData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -107,6 +110,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
   const handleActivationGenerated = (newActivationId: string) => {
     setCurrentActivationId(newActivationId)
+    setPendingActivationId(newActivationId)
     setRightPanelMode('visualizations')
     loadActivationSummary(newActivationId)
   }
@@ -124,10 +128,25 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
       ...result,
       id: outputIdCounter.current++,
       timestamp: new Date(),
+      activationId: pendingActivationId ?? undefined,
     }
+    setPendingActivationId(null)
     setGeneratedOutputs(prev => [output, ...prev])
     setStreamingText('')
     setIsStreaming(false)
+  }
+
+  const handleVisualizeOutput = (activationId: string) => {
+    setCurrentActivationId(activationId)
+    loadActivationSummary(activationId)
+    setRightPanelMode('visualizations')
+  }
+
+  const handleClearOutputs = () => {
+    setGeneratedOutputs([])
+    setStreamingText('')
+    setIsStreaming(false)
+    setShowClearConfirm(false)
   }
 
   const handleCopy = (id: number, text: string) => {
@@ -265,86 +284,42 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           </div>
         </div>
 
-        {/* Right Panel — Visualizations or Generated Outputs */}
+        {/* Right Panel */}
         <div className="df-right" style={{ background: c.bg }}>
-          {rightPanelMode === 'outputs' ? (
-            <>
-              {/* Outputs toolbar */}
+          {rightPanelMode === 'visualizations' ? (
+            <div className="df-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {/* Unified toolbar */}
               <div className="df-toolbar" style={{ background: c.panelBg, borderBottom: `1px solid ${c.divider}` }}>
                 <div className="df-toolbar-left">
-                  <span className="df-toolbar-title" style={{ color: c.text }}>Generated Outputs</span>
-                  <span style={{ fontSize: '0.75rem', color: c.textMid, fontFamily: 'monospace' }}>({generatedOutputs.length})</span>
+                  <div className="df-switch-group" style={{ background: c.controlBg, borderColor: c.controlBorder }}>
+                    <button
+                      className="df-switch-btn active"
+                      style={{ color: c.text, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)' }}
+                    >
+                      <BarChart3 style={{ width: 13, height: 13 }} />
+                      Visualizations
+                    </button>
+                    <button
+                      className="df-switch-btn"
+                      onClick={() => setRightPanelMode('outputs')}
+                      style={{ color: c.textSub }}
+                    >
+                      <FileText style={{ width: 13, height: 13 }} />
+                      Outputs
+                      {generatedOutputs.length > 0 && (
+                        <span className="df-switch-badge" style={{ color: c.textSub }}>{generatedOutputs.length}</span>
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
-
-              {/* Outputs list */}
-              <div className="df-canvas df-outputs-scroll">
-                {generatedOutputs.length === 0 && !isStreaming ? (
-                  <div className="df-placeholder">
-                    <div className="df-placeholder-inner">
-                      <p style={{ color: c.textSub }}>Generate text to see outputs here</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="df-outputs-list">
-                    {isStreaming && (
-                      <div className="df-output-card" style={{ background: c.panelBg, borderColor: c.panelBorder }}>
-                        <div className="df-output-text" style={{ color: c.text }}>
-                          {streamingText}
-                          <span className="df-cursor" style={{ color: c.textMid }}>|</span>
-                        </div>
-                      </div>
-                    )}
-                    {generatedOutputs.map((output) => (
-                      <div key={output.id} className="df-output-card" style={{ background: c.panelBg, borderColor: c.panelBorder }}>
-                        <div className="df-output-text-wrap">
-                          <div className="df-output-text" style={{ color: c.text }}>
-                            {output.text}
-                          </div>
-                          <button
-                            className="df-copy-btn"
-                            onClick={() => handleCopy(output.id, output.text)}
-                            title="Copy to clipboard"
-                            style={{ color: copiedId === output.id ? c.text : c.textSub, background: c.controlBg, borderColor: c.controlBorder }}
-                          >
-                            {copiedId === output.id ? <Check style={{ width: 14, height: 14 }} /> : <Copy style={{ width: 14, height: 14 }} />}
-                          </button>
-                        </div>
-                        <div className="df-output-settings" style={{ borderTop: `1px solid ${c.divider}` }}>
-                          {[
-                            { label: 'Model', value: output.model },
-                            { label: 'Tokens', value: output.maxTokens },
-                            { label: 'Temp', value: output.temperature.toFixed(2) },
-                            { label: 'Top-K', value: output.topK },
-                            { label: 'Prompt', value: output.prompt.length > 60 ? output.prompt.slice(0, 60) + '...' : output.prompt },
-                          ].map((s) => (
-                            <div key={s.label} className="df-output-setting">
-                              <span style={{ fontSize: '0.6rem', color: c.textSub, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>{s.label}</span>
-                              <span style={{ fontSize: '0.75rem', color: c.textMid, fontFamily: 'monospace' }}>{s.value}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Toolbar */}
-              <div className="df-toolbar" style={{ background: c.panelBg, borderBottom: `1px solid ${c.divider}` }}>
-                <div className="df-toolbar-left">
-                  <span className="df-toolbar-title" style={{ color: c.text }}>Visualization</span>
+                <div className="df-toolbar-right">
                   <Dropdown
                     id="df-vis-select"
                     value={selectedVisualization}
                     onChange={(v) => setSelectedVisualization(v as VisualizationType)}
                     options={visualizationOptions.map((opt) => ({ value: opt.value, label: opt.label }))}
                   />
-                </div>
 
-                <div className="df-toolbar-right">
                   {selectedVisualization === 'attention' && activationData && (
                     <div className="df-toolbar-group">
                       <span className="df-toolbar-label" style={{ color: c.textSub }}>Labels</span>
@@ -360,7 +335,6 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                     </div>
                   )}
 
-                  {/* Layer/Head/Token controls */}
                   {activationData && selectedVisualization !== 'network' && (
                     <div className="df-controls">
                       {(selectedVisualization === 'attention' || selectedVisualization === 'activations') && (
@@ -518,7 +492,138 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                   </div>
                 </div>
               )}
-            </>
+            </div>
+          ) : (
+            <div className="df-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {/* Unified toolbar */}
+              <div className="df-toolbar" style={{ background: c.panelBg, borderBottom: `1px solid ${c.divider}` }}>
+                <div className="df-toolbar-left">
+                  <div className="df-switch-group" style={{ background: c.controlBg, borderColor: c.controlBorder }}>
+                    <button
+                      className="df-switch-btn"
+                      onClick={() => setRightPanelMode('visualizations')}
+                      style={{ color: c.textSub }}
+                    >
+                      <BarChart3 style={{ width: 13, height: 13 }} />
+                      Visualizations
+                    </button>
+                    <button
+                      className="df-switch-btn active"
+                      style={{ color: c.text, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)' }}
+                    >
+                      <FileText style={{ width: 13, height: 13 }} />
+                      Outputs
+                      {generatedOutputs.length > 0 && (
+                        <span className="df-switch-badge" style={{ color: c.textSub }}>{generatedOutputs.length}</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="df-toolbar-right">
+                  {generatedOutputs.length > 0 && (
+                    <button
+                      className="df-clear-btn"
+                      onClick={() => setShowClearConfirm(true)}
+                      title="Clear all outputs"
+                      style={{ color: c.textSub, background: c.controlBg, borderColor: c.controlBorder }}
+                    >
+                      <Trash2 style={{ width: 13, height: 13 }} />
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Outputs list */}
+              <div className="df-canvas df-outputs-scroll">
+                {generatedOutputs.length === 0 && !isStreaming ? (
+                  <div className="df-placeholder">
+                    <div className="df-placeholder-inner">
+                      <p style={{ color: c.textSub }}>Generate text to see outputs here</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="df-outputs-list">
+                    {isStreaming && (
+                      <div className="df-output-card" style={{ background: c.panelBg, borderColor: c.panelBorder }}>
+                        <div className="df-output-text" style={{ color: c.text }}>
+                          {streamingText}
+                          <span className="df-cursor" style={{ color: c.textMid }}>|</span>
+                        </div>
+                      </div>
+                    )}
+                    {generatedOutputs.map((output) => (
+                      <div key={output.id} className="df-output-card" style={{ background: c.panelBg, borderColor: c.panelBorder }}>
+                        <div className="df-output-text-wrap">
+                          <div className="df-output-text" style={{ color: c.text }}>
+                            {output.text}
+                          </div>
+                          <div className="df-output-actions">
+                            {output.activationId && (
+                              <button
+                                className="df-visualize-btn"
+                                onClick={() => handleVisualizeOutput(output.activationId!)}
+                                title="View visualizations"
+                                style={{ color: c.textSub, background: c.controlBg, borderColor: c.controlBorder }}
+                              >
+                                <BarChart3 style={{ width: 13, height: 13 }} />
+                                Visualize
+                              </button>
+                            )}
+                            <button
+                              className="df-copy-btn"
+                              onClick={() => handleCopy(output.id, output.text)}
+                              title="Copy to clipboard"
+                              style={{ color: copiedId === output.id ? c.text : c.textSub, background: c.controlBg, borderColor: c.controlBorder }}
+                            >
+                              {copiedId === output.id ? <Check style={{ width: 14, height: 14 }} /> : <Copy style={{ width: 14, height: 14 }} />}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="df-output-settings" style={{ borderTop: `1px solid ${c.divider}` }}>
+                          {[
+                            { label: 'Model', value: output.model },
+                            { label: 'Tokens', value: output.maxTokens },
+                            { label: 'Temp', value: output.temperature.toFixed(2) },
+                            { label: 'Top-K', value: output.topK },
+                            { label: 'Prompt', value: output.prompt.length > 60 ? output.prompt.slice(0, 60) + '...' : output.prompt },
+                          ].map((s) => (
+                            <div key={s.label} className="df-output-setting">
+                              <span style={{ fontSize: '0.6rem', color: c.textSub, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>{s.label}</span>
+                              <span style={{ fontSize: '0.75rem', color: c.textMid, fontFamily: 'monospace' }}>{s.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Clear confirmation modal */}
+          {showClearConfirm && (
+            <div className="df-modal-overlay" onClick={() => setShowClearConfirm(false)}>
+              <div className="df-modal" style={{ background: c.panelBg, borderColor: c.panelBorder }} onClick={(e) => e.stopPropagation()}>
+                <p style={{ color: c.text, fontSize: '0.9rem', margin: '0 0 1rem' }}>Clear all generated outputs?</p>
+                <div className="df-modal-actions">
+                  <button
+                    className="df-modal-btn"
+                    onClick={() => setShowClearConfirm(false)}
+                    style={{ color: c.textMid, background: c.controlBg, borderColor: c.controlBorder }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="df-modal-btn df-modal-btn-danger"
+                    onClick={handleClearOutputs}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -577,12 +682,18 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           overflow: hidden;
         }
 
+        .df-panel {
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
         .df-toolbar {
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 1rem;
-          padding: 1.5rem 1.25rem 1rem;
+          padding: 0.875rem 1.25rem;
           flex-shrink: 0;
           flex-wrap: wrap;
         }
@@ -789,9 +900,6 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
         }
 
         .df-copy-btn {
-          position: absolute;
-          top: 0.75rem;
-          right: 0.75rem;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -799,15 +907,9 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           border: 1px solid;
           cursor: pointer;
           transition: all 0.15s;
-          opacity: 0;
-        }
-
-        .df-output-card:hover .df-copy-btn {
-          opacity: 1;
         }
 
         .df-copy-btn:hover {
-          opacity: 1 !important;
           filter: brightness(1.2);
         }
 
@@ -838,6 +940,131 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
         .df-output-setting:last-child {
           flex: 1;
           min-width: 120px;
+        }
+
+        .df-switch-group {
+          display: flex;
+          align-items: center;
+          gap: 0.125rem;
+          padding: 0.1875rem;
+          border: 1px solid;
+        }
+
+        .df-switch-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          padding: 0.4375rem 0.75rem;
+          background: none;
+          border: none;
+          font-size: 0.775rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.15s;
+          letter-spacing: 0.01em;
+          white-space: nowrap;
+        }
+
+        .df-switch-btn:hover:not(.active) {
+          opacity: 0.7;
+        }
+
+        .df-switch-badge {
+          font-size: 0.675rem;
+          font-family: monospace;
+          opacity: 0.7;
+        }
+
+        .df-output-actions {
+          position: absolute;
+          top: 0.75rem;
+          right: 0.75rem;
+          display: flex;
+          gap: 0.375rem;
+          opacity: 0;
+          transition: opacity 0.15s;
+        }
+
+        .df-output-card:hover .df-output-actions {
+          opacity: 1;
+        }
+
+        .df-visualize-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          padding: 0.35rem 0.625rem;
+          border: 1px solid;
+          cursor: pointer;
+          font-size: 0.7rem;
+          font-weight: 500;
+          transition: all 0.15s;
+        }
+
+        .df-visualize-btn:hover {
+          filter: brightness(1.2);
+        }
+
+        .df-clear-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          padding: 0.35rem 0.75rem;
+          border: 1px solid;
+          cursor: pointer;
+          font-size: 0.75rem;
+          font-weight: 500;
+          transition: all 0.15s;
+        }
+
+        .df-clear-btn:hover {
+          filter: brightness(1.2);
+        }
+
+        .df-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 200;
+        }
+
+        .df-modal {
+          padding: 1.5rem;
+          border: 1px solid;
+          min-width: 300px;
+          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+        }
+
+        .df-modal-actions {
+          display: flex;
+          gap: 0.5rem;
+          justify-content: flex-end;
+        }
+
+        .df-modal-btn {
+          padding: 0.5rem 1rem;
+          border: 1px solid;
+          font-size: 0.8rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+
+        .df-modal-btn:hover {
+          filter: brightness(1.1);
+        }
+
+        .df-modal-btn-danger {
+          background: rgba(239, 68, 68, 0.15);
+          border-color: rgba(239, 68, 68, 0.3);
+          color: #ef4444;
+        }
+
+        .df-modal-btn-danger:hover {
+          background: rgba(239, 68, 68, 0.25);
         }
 
         @media (max-width: 900px) {
