@@ -28,6 +28,7 @@ import {
   type SAECompareLayersResponse,
   type ExternalSAEInfo,
 } from '../../api/client'
+import { DEFAULT_SAE_LIST } from '../../data/defaultSAEs'
 import { FeatureComparison } from './FeatureComparison'
 import { SimilarityMatrix } from './SimilarityMatrix'
 import { useThemeColors } from '../../hooks/useTheme'
@@ -59,12 +60,36 @@ export function ModelComparisonDashboard({
   children,
 }: ModelComparisonDashboardProps) {
   const tc = useThemeColors()
-  const [saeList, setSaeList] = useState<SAEListResponse | null>(null)
-  const [loadingList, setLoadingList] = useState(true)
+  // Use static default SAE list immediately
+  const [saeList] = useState<SAEListResponse>(DEFAULT_SAE_LIST)
+  const [loadedExternalSAEs, setLoadedExternalSAEs] = useState<ExternalSAEInfo[]>([])
+
+  // Set default selections immediately
+  const models = Object.keys(DEFAULT_SAE_LIST.models) as ('nano' | 'mini')[]
+  const firstModel = models[0]
+  const firstSaes = DEFAULT_SAE_LIST.models[firstModel]?.saes || []
+  const secondSae = firstSaes.length > 2 ? firstSaes[2] : firstSaes[firstSaes.length - 1]
+
+  const defaultA: SAECompareSelection = {
+    model: firstModel,
+    layer: firstSaes[0]?.layer ?? 0,
+    activationType: firstSaes[0]?.activation_type ?? 'residual',
+  }
+  const defaultB: SAECompareSelection = models.length > 1
+    ? {
+        model: models[1],
+        layer: DEFAULT_SAE_LIST.models[models[1]]?.saes[0]?.layer ?? 0,
+        activationType: DEFAULT_SAE_LIST.models[models[1]]?.saes[0]?.activation_type ?? 'residual',
+      }
+    : {
+        model: firstModel,
+        layer: secondSae?.layer ?? 0,
+        activationType: secondSae?.activation_type ?? 'residual',
+      }
 
   // Selections
-  const [selectionA, setSelectionA] = useState<SAECompareSelection | null>(null)
-  const [selectionB, setSelectionB] = useState<SAECompareSelection | null>(null)
+  const [selectionA, setSelectionA] = useState<SAECompareSelection | null>(defaultA)
+  const [selectionB, setSelectionB] = useState<SAECompareSelection | null>(defaultB)
   const [compareText, setCompareText] = useState('')
   const [compareMode, setCompareMode] = useState<CompareMode>('features')
 
@@ -74,52 +99,17 @@ export function ModelComparisonDashboard({
   const [featureResult, setFeatureResult] = useState<SAECompareResponse | null>(null)
   const [layerResult, setLayerResult] = useState<SAECompareLayersResponse | null>(null)
 
-  // Fetch available SAEs
+  // Fetch external SAEs in background
   useEffect(() => {
-    const fetchSAEs = async () => {
+    const fetchExternalSAEs = async () => {
       try {
-        const data = await saeClient.listSAEs()
-        setSaeList(data)
-
-        // Set default selections
-        const models = Object.keys(data.models) as ('nano' | 'mini')[]
-        if (models.length > 0) {
-          const firstModel = models[0]
-          const saes = data.models[firstModel]?.saes || []
-          if (saes.length > 0) {
-            setSelectionA({
-              model: firstModel,
-              layer: saes[0].layer,
-              activationType: saes[0].activation_type,
-            })
-            // Default B to a different layer or the second model
-            const secondSae = saes.length > 2 ? saes[2] : saes[saes.length - 1]
-            if (models.length > 1) {
-              const secondModel = models[1]
-              const secondSaes = data.models[secondModel]?.saes || []
-              if (secondSaes.length > 0) {
-                setSelectionB({
-                  model: secondModel,
-                  layer: secondSaes[0].layer,
-                  activationType: secondSaes[0].activation_type,
-                })
-              }
-            } else {
-              setSelectionB({
-                model: firstModel,
-                layer: secondSae.layer,
-                activationType: secondSae.activation_type,
-              })
-            }
-          }
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load SAEs')
-      } finally {
-        setLoadingList(false)
+        const result = await saeClient.listLoadedExternalSAEs()
+        setLoadedExternalSAEs(result.external_saes)
+      } catch {
+        // External SAEs are optional
       }
     }
-    fetchSAEs()
+    fetchExternalSAEs()
   }, [])
 
   // Run comparison
@@ -218,8 +208,8 @@ export function ModelComparisonDashboard({
 
   // Get external SAE info
   const getExternalSaeInfo = (selection: SAECompareSelection | null): ExternalSAEInfo | null => {
-    if (!selection?.externalId || !saeList?.external_saes) return null
-    return saeList.external_saes.find(e => e.id === selection.externalId) || null
+    if (!selection?.externalId) return null
+    return loadedExternalSAEs.find(e => e.id === selection.externalId) || null
   }
 
   const handleSelectionChange = (
@@ -299,7 +289,7 @@ export function ModelComparisonDashboard({
       : `${selectionB.model}-L${selectionB.layer}-${selectionB.activationType}`
     : ''
 
-  const externalSAEs = saeList?.external_saes || []
+  const externalSAEs = loadedExternalSAEs
   const saeInfoA = getSaeInfo(selectionA)
   const saeInfoB = getSaeInfo(selectionB)
   const extInfoA = getExternalSaeInfo(selectionA)
@@ -495,12 +485,7 @@ export function ModelComparisonDashboard({
     )
   }
 
-  const configContent = loadingList ? (
-    <div className={`flex items-center justify-center p-8`}>
-      <Loader2 className="w-6 h-6 animate-spin" style={{ color: tc.textMuted }} />
-      <span className="ml-3 text-gray-400">Loading SAEs...</span>
-    </div>
-  ) : (
+  const configContent = (
     <>
       {/* Dual SAE Selector */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -623,7 +608,7 @@ export function ModelComparisonDashboard({
     </>
   )
 
-  const resultsContent = loadingList ? null : (
+  const resultsContent = (
     <div className="space-y-4">
       {/* Error display */}
       {error && (

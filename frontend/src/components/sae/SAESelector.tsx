@@ -4,8 +4,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { Loader2, AlertCircle, RefreshCw, Database, ExternalLink } from 'lucide-react'
-import { saeClient, type SAEListResponse } from '../../api/client'
+import { Database, ExternalLink } from 'lucide-react'
+import { saeClient, type SAEListResponse, type ExternalSAEInfo } from '../../api/client'
+import { DEFAULT_SAE_LIST } from '../../data/defaultSAEs'
 import { useThemeColors } from '../../hooks/useTheme'
 import { Dropdown } from '../common/Dropdown'
 
@@ -31,44 +32,42 @@ export function SAESelector({
   refreshKey = 0,
 }: SAESelectorProps) {
   const tc = useThemeColors()
-  const [saeList, setSaeList] = useState<SAEListResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // Use static default SAE list immediately - no loading needed
+  const [saeList] = useState<SAEListResponse>(DEFAULT_SAE_LIST)
+  const [externalSAEs, setExternalSAEs] = useState<ExternalSAEInfo[]>([])
 
-  // Fetch available SAEs
-  const fetchSAEs = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await saeClient.listSAEs()
-      setSaeList(data)
-
-      // If no selection, set default
-      if (!selection && data.total_saes > 0) {
-        const firstModel = Object.keys(data.models)[0] as 'nano' | 'mini'
-        const firstSae = data.models[firstModel]?.saes[0]
-        if (firstSae) {
-          onSelectionChange({
-            model: firstModel,
-            layer: firstSae.layer,
-            activationType: firstSae.activation_type,
-          })
-        }
+  // Set default selection immediately on mount
+  useEffect(() => {
+    if (!selection) {
+      const firstModel = Object.keys(saeList.models)[0] as 'nano' | 'mini'
+      const firstSae = saeList.models[firstModel]?.saes[0]
+      if (firstSae) {
+        onSelectionChange({
+          model: firstModel,
+          layer: firstSae.layer,
+          activationType: firstSae.activation_type,
+        })
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch SAEs')
-    } finally {
-      setLoading(false)
     }
-  }, [selection, onSelectionChange])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch external SAEs in background (non-blocking)
+  const fetchExternalSAEs = useCallback(async () => {
+    try {
+      const result = await saeClient.listLoadedExternalSAEs()
+      setExternalSAEs(result.external_saes)
+    } catch {
+      // External SAEs are optional
+    }
+  }, [])
 
   useEffect(() => {
-    fetchSAEs()
-  }, [refreshKey]) // Fetch on mount and when refreshKey changes
+    fetchExternalSAEs()
+  }, [refreshKey, fetchExternalSAEs])
 
   // Get available layers for selected model
   const getAvailableLayers = (): number[] => {
-    if (!saeList || !selection) return []
+    if (!selection) return []
     const modelInfo = saeList.models[selection.model]
     if (!modelInfo) return []
 
@@ -79,7 +78,7 @@ export function SAESelector({
 
   // Get available activation types for selected model and layer
   const getAvailableActivationTypes = (): ('residual' | 'mlp_output')[] => {
-    if (!saeList || !selection) return []
+    if (!selection) return []
     const modelInfo = saeList.models[selection.model]
     if (!modelInfo) return []
 
@@ -92,7 +91,7 @@ export function SAESelector({
 
   // Get current SAE info
   const getCurrentSAEInfo = () => {
-    if (!saeList || !selection) return null
+    if (!selection) return null
     const modelInfo = saeList.models[selection.model]
     if (!modelInfo) return null
 
@@ -102,7 +101,7 @@ export function SAESelector({
   }
 
   const handleModelChange = (model: 'nano' | 'mini') => {
-    const modelInfo = saeList?.models[model]
+    const modelInfo = saeList.models[model]
     if (!modelInfo || modelInfo.saes.length === 0) return
 
     // Reset to first available layer and type for new model, clear external selection
@@ -115,7 +114,7 @@ export function SAESelector({
   }
 
   const handleLayerChange = (layer: number) => {
-    if (!selection || !saeList) return
+    if (!selection) return
 
     const modelInfo = saeList.models[selection.externalId ? 'nano' : selection.model]
     if (!modelInfo) return
@@ -150,52 +149,8 @@ export function SAESelector({
   const availableTypes = getAvailableActivationTypes()
   const isExternalSelected = !!selection?.externalId
   const selectedExternalSae = isExternalSelected
-    ? saeList?.external_saes?.find(e => e.id === selection.externalId)
+    ? externalSAEs.find(e => e.id === selection.externalId)
     : null
-
-  if (loading) {
-    return (
-      <div style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}`, padding: '1rem' }} className={className}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: tc.textMuted }}>
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span>Loading available SAEs...</span>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: '1px solid rgba(239,68,68,0.3)', padding: '1rem' }} className={className}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'rgba(239,68,68,0.9)' }}>
-            <AlertCircle className="w-5 h-5" />
-            <span>{error}</span>
-          </div>
-          <button
-            onClick={fetchSAEs}
-            style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem', border: `1px solid ${tc.border}`, background: 'transparent', color: tc.textMuted, cursor: 'pointer', transition: 'all 0.2s' }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = tc.borderHover; e.currentTarget.style.color = tc.textMid }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = tc.border; e.currentTarget.style.color = tc.textMuted }}
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  const hasExternalSAEs = saeList?.external_saes && saeList.external_saes.length > 0
-  if (!saeList || (saeList.total_saes === 0 && !hasExternalSAEs)) {
-    return (
-      <div style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}`, padding: '1rem' }} className={className}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: tc.textFaint }}>
-          <Database className="w-5 h-5" />
-          <span>No SAEs available. Deploy SAEs to Modal first.</span>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}` }} className={className}>
@@ -209,7 +164,7 @@ export function SAESelector({
             </h3>
           </div>
           <div style={{ fontSize: '0.75rem', color: tc.textSub }}>
-            {saeList.total_saes} SAEs available
+            {saeList.total_saes + externalSAEs.length} SAEs available
           </div>
         </div>
       </div>
@@ -312,16 +267,16 @@ export function SAESelector({
       )}
 
       {/* External SAEs */}
-      {saeList.external_saes && saeList.external_saes.length > 0 && (
+      {externalSAEs.length > 0 && (
         <div style={{ borderTop: `1px solid ${tc.border}` }}>
           <div style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <ExternalLink className="w-3 h-3" style={{ color: tc.textSub }} />
             <span style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              External SAEs ({saeList.external_saes.length})
+              External SAEs ({externalSAEs.length})
             </span>
           </div>
           <div style={{ padding: '0 0.75rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            {saeList.external_saes.map(ext => {
+            {externalSAEs.map(ext => {
               const isSelected = selection?.externalId === ext.id
               return (
                 <button
