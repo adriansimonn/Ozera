@@ -306,15 +306,6 @@ export function ModelComparisonDashboard({
   const extInfoB = getExternalSaeInfo(selectionB)
   const hasExternalSelection = !!(selectionA?.externalId || selectionB?.externalId) // Used for display hints only
 
-  if (loadingList) {
-    return (
-      <div className={`flex items-center justify-center p-8 ${className}`}>
-        <Loader2 className="w-6 h-6 animate-spin" style={{ color: tc.textMuted }} />
-        <span className="ml-3 text-gray-400">Loading SAEs...</span>
-      </div>
-    )
-  }
-
   const renderSaePanel = (
     which: 'a' | 'b',
     selection: SAECompareSelection | null,
@@ -504,7 +495,12 @@ export function ModelComparisonDashboard({
     )
   }
 
-  const configContent = (
+  const configContent = loadingList ? (
+    <div className={`flex items-center justify-center p-8`}>
+      <Loader2 className="w-6 h-6 animate-spin" style={{ color: tc.textMuted }} />
+      <span className="ml-3 text-gray-400">Loading SAEs...</span>
+    </div>
+  ) : (
     <>
       {/* Dual SAE Selector */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -627,7 +623,7 @@ export function ModelComparisonDashboard({
     </>
   )
 
-  const resultsContent = (
+  const resultsContent = loadingList ? null : (
     <div className="space-y-4">
       {/* Error display */}
       {error && (
