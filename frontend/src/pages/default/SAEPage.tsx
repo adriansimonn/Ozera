@@ -487,270 +487,294 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
     { id: 'load', label: 'Load', icon: Download },
   ]
 
+  const renderLeftPanel = (compareConfigContent?: React.ReactNode) => (
+    <div className={`ds-left${mode === 'compare' ? ' ds-left-wide' : ''}`} style={{ background: c.panelBg, borderRight: `1px solid ${c.divider}` }}>
+      <div className="ds-left-scroll">
+        {/* Analysis Mode — always first */}
+        <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+          <div className="ds-section-label" style={{ color: c.textSub }}>View</div>
+          <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+            {modes.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setMode(id)}
+                className="ds-mode-btn"
+                style={{
+                  background: mode === id ? (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)') : c.controlBg,
+                  borderColor: mode === id ? (isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)') : c.controlBorder,
+                  color: mode === id ? c.text : c.textSub,
+                }}
+              >
+                <Icon style={{ width: 12, height: 12 }} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="ds-error" style={{ background: c.errorBg, borderColor: c.errorBorder }}>
+            <AlertCircle style={{ width: 14, height: 14, color: c.errorText, flexShrink: 0 }} />
+            <span style={{ color: c.errorText, fontSize: '0.8rem', flex: 1 }}>
+              {error === 'INSUFFICIENT_CREDITS'
+                ? 'Insufficient credits for SAE analysis.'
+                : error}
+            </span>
+            {error === 'INSUFFICIENT_CREDITS' ? (
+              <button
+                onClick={onShowPurchaseCredits}
+                style={{ background: 'none', border: `1px solid ${c.errorBorder}`, color: c.errorText, cursor: 'pointer', fontSize: '0.7rem', padding: '0.2rem 0.5rem', fontWeight: 500 }}
+              >
+                Add Credits
+              </button>
+            ) : (
+              <button
+                onClick={() => setError(null)}
+                style={{ background: 'none', border: 'none', color: c.errorText, cursor: 'pointer', fontSize: '0.75rem', padding: '0.125rem 0.5rem' }}
+              >
+                Dismiss
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Compare config in left panel */}
+        {compareConfigContent && (
+          <div className="ds-section ds-compare-config" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            <div className="ds-section-label" style={{ color: c.textSub }}>SAE Comparison</div>
+            {compareConfigContent}
+          </div>
+        )}
+
+        {/* SAE Selection — hidden in compare & load modes */}
+        {mode !== 'compare' && mode !== 'load' && (
+          <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            <div className="ds-section-label" style={{ color: c.textSub }}>SAE Selection</div>
+            <SAESelector
+              selection={saeSelection}
+              onSelectionChange={setSaeSelection}
+              refreshKey={saeRefreshKey}
+            />
+          </div>
+        )}
+
+        {/* Text Input — hidden in compare & load modes */}
+        {mode !== 'compare' && mode !== 'load' && (
+          <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            <div className="ds-section-label" style={{ color: c.textSub }}>Input Text</div>
+            <textarea
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Enter text to analyze with the SAE..."
+              rows={3}
+              disabled={analyzing}
+              className="ds-textarea"
+              style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
+            />
+            <button
+              onClick={runAnalysis}
+              disabled={analyzing || !saeSelection || !inputText.trim()}
+              className="ds-run-btn"
+              style={{
+                background: analyzing ? c.controlBg : (isLight ? '#1d1d1f' : '#ffffff'),
+                color: analyzing ? c.textSub : (isLight ? '#ffffff' : '#0a0a0a'),
+                borderColor: 'transparent',
+              }}
+            >
+              {analyzing ? (
+                <>
+                  <div className="ds-spinner" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Play style={{ width: 14, height: 14 }} />
+                  Analyze
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Analysis summary — show when we have results */}
+        {analyzeResponse && mode !== 'compare' && mode !== 'load' && (
+          <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            <div className="ds-section-label" style={{ color: c.textSub }}>Analysis Summary</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                <span style={{ color: c.textMid }}>Tokens</span>
+                <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.num_tokens}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                <span style={{ color: c.textMid }}>Active Features</span>
+                <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.metrics.num_active_features}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                <span style={{ color: c.textMid }}>Avg L0</span>
+                <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.metrics.avg_l0.toFixed(1)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                <span style={{ color: c.textMid }}>Max Activation</span>
+                <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.metrics.max_activation.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Selected feature info */}
+        {selectedFeature !== null && (
+          <div className="ds-section">
+            <div className="ds-section-label" style={{ color: c.textSub }}>Selected Feature</div>
+            <div style={{
+              padding: '0.625rem 0.75rem',
+              background: c.controlBg,
+              border: `1px solid ${c.controlBorder}`,
+              fontSize: '0.8rem',
+              color: c.text,
+              fontFamily: 'monospace',
+            }}>
+              Feature #{selectedFeature}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  const renderRightPanel = (compareResultsContent?: React.ReactNode) => (
+    <div className="ds-right" style={{ background: c.bg }}>
+      <div className="ds-right-scroll">
+        {/* Analyze Activations Mode */}
+        {mode === 'analyze' && !analyzing && analyzeResponse && activations && (
+          <div className="ds-results">
+            <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              <FeatureActivationDisplay
+                activations={activations}
+                selectedFeatures={selectedFeatures}
+                onFeatureSelect={handleFeatureSelect}
+                showTopK={10}
+              />
+            </div>
+            {selectedFeature !== null && featureInfo ? (
+              <div className="ds-section">
+                <FeatureTopTokens
+                  interpretation={featureInfo}
+                  maxExamples={10}
+                />
+              </div>
+            ) : loadingFeature ? (
+              <div className="ds-loading-detail">
+                <Loader2 style={{ width: 20, height: 20, color: c.textSub }} className="ds-spinning" />
+                <p style={{ color: c.textSub, fontSize: '0.8rem', marginTop: '0.5rem' }}>Loading feature info...</p>
+              </div>
+            ) : analyzeResponse ? (
+              <div className="ds-hint" style={{ borderTop: `1px solid ${c.divider}` }}>
+                <p style={{ color: c.textSub, fontSize: '0.8rem', margin: 0 }}>
+                  Click a cell in the heatmap above to view feature details.
+                </p>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {/* Browse Features Mode */}
+        {mode === 'browse' && !analyzing && analyzeResponse && featureCatalog && (
+          <div className="ds-results">
+            <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              <FeatureBrowser
+                catalog={featureCatalog}
+                onFeatureSelect={handleFeatureSelect}
+                selectedFeature={selectedFeature ?? undefined}
+              />
+            </div>
+            {selectedFeature !== null && featureInfo ? (
+              <div className="ds-section">
+                <FeatureTopTokens
+                  interpretation={featureInfo}
+                  maxExamples={15}
+                />
+              </div>
+            ) : loadingFeature ? (
+              <div className="ds-loading-detail">
+                <Loader2 style={{ width: 20, height: 20, color: c.textSub }} className="ds-spinning" />
+                <p style={{ color: c.textSub, fontSize: '0.8rem', marginTop: '0.5rem' }}>Loading feature info...</p>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {/* Quality Dashboard Mode */}
+        {mode === 'dashboard' && !analyzing && analyzeResponse && qualityMetrics && (
+          <div className="ds-section">
+            <SparsityDashboard
+              metrics={qualityMetrics}
+              trainingProgress={trainingProgress}
+            />
+          </div>
+        )}
+
+        {/* Compare SAEs Mode — results only */}
+        {mode === 'compare' && compareResultsContent && (
+          <div className="ds-section">
+            {compareResultsContent}
+          </div>
+        )}
+
+        {/* Load External SAEs Mode */}
+        {mode === 'load' && (
+          <div className="ds-section">
+            <ExternalSAELoader
+              loadedSAEs={externalSAEs}
+              onSAELoaded={refreshExternalSAEs}
+              onSAEDeleted={refreshExternalSAEs}
+            />
+          </div>
+        )}
+
+        {/* Loading state */}
+        {analyzing && (
+          <div className="ds-placeholder">
+            <div className="ds-spinner-lg" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
+            <p style={{ color: c.textSub, fontSize: '0.8rem', marginTop: '1rem' }}>Running SAE analysis on GPU...</p>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!analyzing && !analyzeResponse && mode !== 'compare' && mode !== 'load' && (
+          <div className="ds-placeholder">
+            <Search style={{ width: 36, height: 36, color: c.textSub, opacity: 0.3, marginBottom: '0.75rem' }} />
+            <p style={{ color: c.textSub, fontSize: '0.8rem', margin: 0, maxWidth: 360, lineHeight: 1.5 }}>
+              Select an SAE and enter text to analyze feature activations.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   return (
     <div className="ds-page" style={{ background: c.bg }}>
       <NavBar />
 
-      <div className="ds-layout" style={{ borderColor: c.divider }}>
-        {/* Left Panel — 40% */}
-        <div className="ds-left" style={{ background: c.panelBg, borderRight: `1px solid ${c.divider}` }}>
-          <div className="ds-left-scroll">
-            {/* Error banner */}
-            {error && (
-              <div className="ds-error" style={{ background: c.errorBg, borderColor: c.errorBorder }}>
-                <AlertCircle style={{ width: 14, height: 14, color: c.errorText, flexShrink: 0 }} />
-                <span style={{ color: c.errorText, fontSize: '0.8rem', flex: 1 }}>
-                  {error === 'INSUFFICIENT_CREDITS'
-                    ? 'Insufficient credits for SAE analysis.'
-                    : error}
-                </span>
-                {error === 'INSUFFICIENT_CREDITS' ? (
-                  <button
-                    onClick={onShowPurchaseCredits}
-                    style={{ background: 'none', border: `1px solid ${c.errorBorder}`, color: c.errorText, cursor: 'pointer', fontSize: '0.7rem', padding: '0.2rem 0.5rem', fontWeight: 500 }}
-                  >
-                    Add Credits
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setError(null)}
-                    style={{ background: 'none', border: 'none', color: c.errorText, cursor: 'pointer', fontSize: '0.75rem', padding: '0.125rem 0.5rem' }}
-                  >
-                    Dismiss
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* SAE Selection — hidden in compare & load modes */}
-            {mode !== 'compare' && mode !== 'load' && (
-              <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
-                <div className="ds-section-label" style={{ color: c.textSub }}>SAE Selection</div>
-                <SAESelector
-                  selection={saeSelection}
-                  onSelectionChange={setSaeSelection}
-                  refreshKey={saeRefreshKey}
-                />
-              </div>
-            )}
-
-            {/* Text Input — hidden in compare & load modes */}
-            {mode !== 'compare' && mode !== 'load' && (
-              <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
-                <div className="ds-section-label" style={{ color: c.textSub }}>Input Text</div>
-                <textarea
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Enter text to analyze with the SAE..."
-                  rows={3}
-                  disabled={analyzing}
-                  className="ds-textarea"
-                  style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
-                />
-                <button
-                  onClick={runAnalysis}
-                  disabled={analyzing || !saeSelection || !inputText.trim()}
-                  className="ds-run-btn"
-                  style={{
-                    background: analyzing ? c.controlBg : (isLight ? '#1d1d1f' : '#ffffff'),
-                    color: analyzing ? c.textSub : (isLight ? '#ffffff' : '#0a0a0a'),
-                    borderColor: 'transparent',
-                  }}
-                >
-                  {analyzing ? (
-                    <>
-                      <div className="ds-spinner" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Play style={{ width: 14, height: 14 }} />
-                      Analyze
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-
-            {/* Analysis Mode */}
-            <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
-              <div className="ds-section-label" style={{ color: c.textSub }}>View</div>
-              <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
-                {modes.map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={id}
-                    onClick={() => setMode(id)}
-                    className="ds-mode-btn"
-                    style={{
-                      background: mode === id ? (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)') : c.controlBg,
-                      borderColor: mode === id ? (isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)') : c.controlBorder,
-                      color: mode === id ? c.text : c.textSub,
-                    }}
-                  >
-                    <Icon style={{ width: 12, height: 12 }} />
-                    <span>{label}</span>
-                  </button>
-                ))}
-              </div>
+      {mode === 'compare' ? (
+        <ModelComparisonDashboard
+          onFeatureSelect={handleComparisonFeatureSelect}
+        >
+          {({ configContent, resultsContent }) => (
+            <div className="ds-layout" style={{ borderColor: c.divider }}>
+              {renderLeftPanel(configContent)}
+              {renderRightPanel(resultsContent)}
             </div>
-
-            {/* Analysis summary — show when we have results */}
-            {analyzeResponse && mode !== 'compare' && mode !== 'load' && (
-              <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
-                <div className="ds-section-label" style={{ color: c.textSub }}>Analysis Summary</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                    <span style={{ color: c.textMid }}>Tokens</span>
-                    <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.num_tokens}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                    <span style={{ color: c.textMid }}>Active Features</span>
-                    <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.metrics.num_active_features}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                    <span style={{ color: c.textMid }}>Avg L0</span>
-                    <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.metrics.avg_l0.toFixed(1)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                    <span style={{ color: c.textMid }}>Max Activation</span>
-                    <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.metrics.max_activation.toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Selected feature info */}
-            {selectedFeature !== null && (
-              <div className="ds-section">
-                <div className="ds-section-label" style={{ color: c.textSub }}>Selected Feature</div>
-                <div style={{
-                  padding: '0.625rem 0.75rem',
-                  background: c.controlBg,
-                  border: `1px solid ${c.controlBorder}`,
-                  fontSize: '0.8rem',
-                  color: c.text,
-                  fontFamily: 'monospace',
-                }}>
-                  Feature #{selectedFeature}
-                </div>
-              </div>
-            )}
-          </div>
+          )}
+        </ModelComparisonDashboard>
+      ) : (
+        <div className="ds-layout" style={{ borderColor: c.divider }}>
+          {renderLeftPanel()}
+          {renderRightPanel()}
         </div>
-
-        {/* Right Panel — 60% */}
-        <div className="ds-right" style={{ background: c.bg }}>
-          <div className="ds-right-scroll">
-            {/* Analyze Activations Mode */}
-            {mode === 'analyze' && !analyzing && analyzeResponse && activations && (
-              <div className="ds-results">
-                <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
-                  <FeatureActivationDisplay
-                    activations={activations}
-                    selectedFeatures={selectedFeatures}
-                    onFeatureSelect={handleFeatureSelect}
-                    showTopK={10}
-                  />
-                </div>
-                {selectedFeature !== null && featureInfo ? (
-                  <div className="ds-section">
-                    <FeatureTopTokens
-                      interpretation={featureInfo}
-                      maxExamples={10}
-                    />
-                  </div>
-                ) : loadingFeature ? (
-                  <div className="ds-loading-detail">
-                    <Loader2 style={{ width: 20, height: 20, color: c.textSub }} className="ds-spinning" />
-                    <p style={{ color: c.textSub, fontSize: '0.8rem', marginTop: '0.5rem' }}>Loading feature info...</p>
-                  </div>
-                ) : analyzeResponse ? (
-                  <div className="ds-hint" style={{ borderTop: `1px solid ${c.divider}` }}>
-                    <p style={{ color: c.textSub, fontSize: '0.8rem', margin: 0 }}>
-                      Click a cell in the heatmap above to view feature details.
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            {/* Browse Features Mode */}
-            {mode === 'browse' && !analyzing && analyzeResponse && featureCatalog && (
-              <div className="ds-results">
-                <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
-                  <FeatureBrowser
-                    catalog={featureCatalog}
-                    onFeatureSelect={handleFeatureSelect}
-                    selectedFeature={selectedFeature ?? undefined}
-                  />
-                </div>
-                {selectedFeature !== null && featureInfo ? (
-                  <div className="ds-section">
-                    <FeatureTopTokens
-                      interpretation={featureInfo}
-                      maxExamples={15}
-                    />
-                  </div>
-                ) : loadingFeature ? (
-                  <div className="ds-loading-detail">
-                    <Loader2 style={{ width: 20, height: 20, color: c.textSub }} className="ds-spinning" />
-                    <p style={{ color: c.textSub, fontSize: '0.8rem', marginTop: '0.5rem' }}>Loading feature info...</p>
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            {/* Quality Dashboard Mode */}
-            {mode === 'dashboard' && !analyzing && analyzeResponse && qualityMetrics && (
-              <div className="ds-section">
-                <SparsityDashboard
-                  metrics={qualityMetrics}
-                  trainingProgress={trainingProgress}
-                />
-              </div>
-            )}
-
-            {/* Compare SAEs Mode */}
-            {mode === 'compare' && (
-              <div className="ds-section">
-                <ModelComparisonDashboard
-                  onFeatureSelect={handleComparisonFeatureSelect}
-                />
-              </div>
-            )}
-
-            {/* Load External SAEs Mode */}
-            {mode === 'load' && (
-              <div className="ds-section">
-                <ExternalSAELoader
-                  loadedSAEs={externalSAEs}
-                  onSAELoaded={refreshExternalSAEs}
-                  onSAEDeleted={refreshExternalSAEs}
-                />
-              </div>
-            )}
-
-            {/* Loading state */}
-            {analyzing && (
-              <div className="ds-placeholder">
-                <div className="ds-spinner-lg" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
-                <p style={{ color: c.textSub, fontSize: '0.8rem', marginTop: '1rem' }}>Running SAE analysis on GPU...</p>
-              </div>
-            )}
-
-            {/* Empty state */}
-            {!analyzing && !analyzeResponse && mode !== 'compare' && mode !== 'load' && (
-              <div className="ds-placeholder">
-                <Search style={{ width: 36, height: 36, color: c.textSub, opacity: 0.3, marginBottom: '0.75rem' }} />
-                <p style={{ color: c.textSub, fontSize: '0.8rem', margin: 0, maxWidth: 360, lineHeight: 1.5 }}>
-                  Select an SAE and enter text to analyze feature activations.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      )}
 
       <style>{`
         .ds-page {
@@ -768,12 +792,17 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
         }
 
         .ds-left {
-          width: 40%;
+          width: 30%;
           min-width: 340px;
           max-width: 520px;
           display: flex;
           flex-direction: column;
           overflow: hidden;
+        }
+
+        .ds-left.ds-left-wide {
+          width: 40%;
+          max-width: 600px;
         }
 
         .ds-left-scroll {
@@ -929,6 +958,10 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
           padding: 0.625rem 0.875rem;
           border: 1px solid;
           margin: 0.75rem 1.25rem 0;
+        }
+
+        .ds-compare-config .grid {
+          grid-template-columns: 1fr !important;
         }
 
         @media (max-width: 1000px) {

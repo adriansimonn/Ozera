@@ -40,9 +40,15 @@ interface SAECompareSelection {
   externalId?: string
 }
 
+interface ModelComparisonRenderProps {
+  configContent: React.ReactNode
+  resultsContent: React.ReactNode
+}
+
 interface ModelComparisonDashboardProps {
   onFeatureSelect?: (saeId: string, featureIdx: number) => void
   className?: string
+  children?: (props: ModelComparisonRenderProps) => React.ReactNode
 }
 
 type CompareMode = 'features' | 'layers'
@@ -50,6 +56,7 @@ type CompareMode = 'features' | 'layers'
 export function ModelComparisonDashboard({
   onFeatureSelect,
   className = '',
+  children,
 }: ModelComparisonDashboardProps) {
   const tc = useThemeColors()
   const [saeList, setSaeList] = useState<SAEListResponse | null>(null)
@@ -497,8 +504,8 @@ export function ModelComparisonDashboard({
     )
   }
 
-  return (
-    <div className={`space-y-4 ${className}`}>
+  const configContent = (
+    <>
       {/* Dual SAE Selector */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {renderSaePanel('a', selectionA, saeInfoA, extInfoA)}
@@ -617,7 +624,11 @@ export function ModelComparisonDashboard({
           </button>
         </div>
       </div>
+    </>
+  )
 
+  const resultsContent = (
+    <div className="space-y-4">
       {/* Error display */}
       {error && (
         <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-800/50 text-red-400 text-sm">
@@ -911,6 +922,17 @@ export function ModelComparisonDashboard({
           </p>
         </div>
       )}
+    </div>
+  )
+
+  if (children) {
+    return <>{children({ configContent, resultsContent })}</>
+  }
+
+  return (
+    <div className={`space-y-4 ${className}`}>
+      {configContent}
+      {resultsContent}
     </div>
   )
 }

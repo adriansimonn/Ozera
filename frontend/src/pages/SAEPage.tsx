@@ -505,219 +505,258 @@ export default function SAEPage({
     <div className="sae-page">
       <NavBar />
 
-      <div className="sae-content">
-        {/* Header */}
-        <div className="sae-header">
-          <h1>Sparse Autoencoder Analysis</h1>
-          <p className="header-description">
-            Explore learned features, analyze activations, and evaluate SAE quality
-          </p>
-        </div>
+      {mode === 'compare' ? (
+        <ModelComparisonDashboard
+          onFeatureSelect={handleComparisonFeatureSelect}
+        >
+          {({ configContent, resultsContent }) => (
+            <div className="sae-content">
+              {/* Header */}
+              <div className="sae-header">
+                <h1>Sparse Autoencoder Analysis</h1>
+                <p className="header-description">
+                  Explore learned features, analyze activations, and evaluate SAE quality
+                </p>
+              </div>
 
-        {/* SAE Selector - Hidden in Compare and Load modes */}
-        {mode !== 'compare' && mode !== 'load' && (
-          <SAESelector
-            selection={saeSelection}
-            onSelectionChange={setSaeSelection}
-            refreshKey={saeRefreshKey}
-            className="mb-4"
-          />
-        )}
+              {/* Mode Selection */}
+              <div className="mode-tabs">
+                {[
+                  { id: 'analyze', label: 'Analyze Activations', icon: Search },
+                  { id: 'browse', label: 'Browse Features', icon: Layers },
+                  { id: 'dashboard', label: 'Quality Dashboard', icon: BarChart3 },
+                  { id: 'compare', label: 'Compare SAEs', icon: GitCompare },
+                  { id: 'load', label: 'Load External', icon: Download },
+                ].map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => setMode(id as SAEMode)}
+                    className={`mode-tab ${mode === id ? 'active' : ''}`}
+                  >
+                    <Icon size={16} />
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-        {/* Text Input - Hidden in Compare and Load modes */}
-        {mode !== 'compare' && mode !== 'load' && (
-          <div className="input-section mb-4">
-            <div className="flex gap-3">
-              <div className="flex-1 relative">
-                <textarea
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Enter text to analyze..."
-                  className="sae-input"
-                  rows={2}
-                  disabled={analyzing}
+              {/* Compare config below tabs */}
+              <div className="mb-4">{configContent}</div>
+
+              {/* Results only */}
+              <div className="sae-main">
+                <div className="compare-layout">
+                  {resultsContent}
+                </div>
+              </div>
+            </div>
+          )}
+        </ModelComparisonDashboard>
+      ) : (
+        <div className="sae-content">
+          {/* Header */}
+          <div className="sae-header">
+            <h1>Sparse Autoencoder Analysis</h1>
+            <p className="header-description">
+              Explore learned features, analyze activations, and evaluate SAE quality
+            </p>
+          </div>
+
+          {/* Mode Selection */}
+          <div className="mode-tabs">
+            {[
+              { id: 'analyze', label: 'Analyze Activations', icon: Search },
+              { id: 'browse', label: 'Browse Features', icon: Layers },
+              { id: 'dashboard', label: 'Quality Dashboard', icon: BarChart3 },
+              { id: 'compare', label: 'Compare SAEs', icon: GitCompare },
+              { id: 'load', label: 'Load External', icon: Download },
+            ].map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setMode(id as SAEMode)}
+                className={`mode-tab ${mode === id ? 'active' : ''}`}
+              >
+                <Icon size={16} />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* SAE Selector - Hidden in Load mode */}
+          {mode !== 'load' && (
+            <SAESelector
+              selection={saeSelection}
+              onSelectionChange={setSaeSelection}
+              refreshKey={saeRefreshKey}
+              className="mb-4"
+            />
+          )}
+
+          {/* Text Input - Hidden in Load mode */}
+          {mode !== 'load' && (
+            <div className="input-section mb-4">
+              <div className="flex gap-3">
+                <div className="flex-1 relative">
+                  <textarea
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Enter text to analyze..."
+                    className="sae-input"
+                    rows={2}
+                    disabled={analyzing}
+                  />
+                </div>
+                <button
+                  onClick={runAnalysis}
+                  disabled={analyzing || !saeSelection || !inputText.trim()}
+                  className="analyze-button"
+                >
+                  {analyzing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4" />
+                      Analyze
+                    </>
+                  )}
+                </button>
+              </div>
+              {error && (
+                <div className="mt-2">
+                  {error === 'INSUFFICIENT_CREDITS' ? (
+                    <div className="flex items-center justify-between p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400 text-sm">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" />
+                        <span>Insufficient credits. Please add credits to continue using SAE analysis.</span>
+                      </div>
+                      <button
+                        onClick={onShowPurchaseCredits}
+                        className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-black font-medium rounded transition-colors"
+                      >
+                        Add Credits
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-red-400 text-sm">
+                      <AlertCircle className="w-4 h-4" />
+                      {error}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Content */}
+          <div className="sae-main">
+            {/* No data state */}
+            {!analyzeResponse && !analyzing && mode !== 'load' && (
+              <div className="empty-state">
+                <Search className="empty-icon" />
+                <h3>Enter Text to Analyze</h3>
+                <p>Select an SAE above and enter text to see feature activations</p>
+              </div>
+            )}
+
+            {/* Loading state */}
+            {analyzing && (
+              <div className="loading-state">
+                <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
+                <p className="mt-4 text-gray-400">Running SAE analysis on GPU...</p>
+              </div>
+            )}
+
+            {/* Analyze Activations Mode */}
+            {!analyzing && analyzeResponse && mode === 'analyze' && activations && (
+              <div className="analyze-layout">
+                <div className="activation-display-panel">
+                  <FeatureActivationDisplay
+                    activations={activations}
+                    selectedFeatures={selectedFeatures}
+                    onFeatureSelect={handleFeatureSelect}
+                    showTopK={10}
+                  />
+                </div>
+                <div className="feature-detail-panel">
+                  {selectedFeature !== null && featureInfo ? (
+                    <FeatureTopTokens
+                      interpretation={featureInfo}
+                      maxExamples={10}
+                    />
+                  ) : loadingFeature ? (
+                    <div className="loading-detail">
+                      <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
+                      <p className="mt-2 text-gray-500 text-sm">Loading feature info...</p>
+                    </div>
+                  ) : (
+                    <div className="empty-detail">
+                      <Search className="empty-icon" />
+                      <h3>Select a Feature</h3>
+                      <p>Click on a cell in the activation heatmap to see feature details</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Browse Features Mode */}
+            {!analyzing && analyzeResponse && mode === 'browse' && featureCatalog && (
+              <div className="browse-layout">
+                <div className="browser-panel">
+                  <FeatureBrowser
+                    catalog={featureCatalog}
+                    onFeatureSelect={handleFeatureSelect}
+                    selectedFeature={selectedFeature ?? undefined}
+                  />
+                </div>
+                <div className="detail-panel">
+                  {selectedFeature !== null && featureInfo ? (
+                    <FeatureTopTokens
+                      interpretation={featureInfo}
+                      maxExamples={15}
+                    />
+                  ) : loadingFeature ? (
+                    <div className="loading-detail">
+                      <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
+                      <p className="mt-2 text-gray-500 text-sm">Loading feature info...</p>
+                    </div>
+                  ) : (
+                    <div className="empty-detail">
+                      <Layers className="empty-icon" />
+                      <h3>Select a Feature</h3>
+                      <p>Click on a feature in the browser to see its details</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Quality Dashboard Mode */}
+            {!analyzing && analyzeResponse && mode === 'dashboard' && qualityMetrics && (
+              <div className="dashboard-layout">
+                <SparsityDashboard
+                  metrics={qualityMetrics}
+                  trainingProgress={trainingProgress}
                 />
               </div>
-              <button
-                onClick={runAnalysis}
-                disabled={analyzing || !saeSelection || !inputText.trim()}
-                className="analyze-button"
-              >
-                {analyzing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4" />
-                    Analyze
-                  </>
-                )}
-              </button>
-            </div>
-            {error && (
-              <div className="mt-2">
-                {error === 'INSUFFICIENT_CREDITS' ? (
-                  <div className="flex items-center justify-between p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400 text-sm">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4" />
-                      <span>Insufficient credits. Please add credits to continue using SAE analysis.</span>
-                    </div>
-                    <button
-                      onClick={onShowPurchaseCredits}
-                      className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-black font-medium rounded transition-colors"
-                    >
-                      Add Credits
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-red-400 text-sm">
-                    <AlertCircle className="w-4 h-4" />
-                    {error}
-                  </div>
-                )}
+            )}
+
+            {/* Load External SAEs Mode */}
+            {mode === 'load' && (
+              <div className="load-layout">
+                <ExternalSAELoader
+                  loadedSAEs={externalSAEs}
+                  onSAELoaded={refreshExternalSAEs}
+                  onSAEDeleted={refreshExternalSAEs}
+                />
               </div>
             )}
           </div>
-        )}
-
-        {/* Mode Selection */}
-        <div className="mode-tabs">
-          {[
-            { id: 'analyze', label: 'Analyze Activations', icon: Search },
-            { id: 'browse', label: 'Browse Features', icon: Layers },
-            { id: 'dashboard', label: 'Quality Dashboard', icon: BarChart3 },
-            { id: 'compare', label: 'Compare SAEs', icon: GitCompare },
-            { id: 'load', label: 'Load External', icon: Download },
-          ].map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setMode(id as SAEMode)}
-              className={`mode-tab ${mode === id ? 'active' : ''}`}
-            >
-              <Icon size={16} />
-              {label}
-            </button>
-          ))}
         </div>
-
-        {/* Content */}
-        <div className="sae-main">
-          {/* No data state */}
-          {!analyzeResponse && !analyzing && mode !== 'load' && mode !== 'compare' && (
-            <div className="empty-state">
-              <Search className="empty-icon" />
-              <h3>Enter Text to Analyze</h3>
-              <p>Select an SAE above and enter text to see feature activations</p>
-            </div>
-          )}
-
-          {/* Loading state */}
-          {analyzing && (
-            <div className="loading-state">
-              <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
-              <p className="mt-4 text-gray-400">Running SAE analysis on GPU...</p>
-            </div>
-          )}
-
-          {/* Analyze Activations Mode */}
-          {!analyzing && analyzeResponse && mode === 'analyze' && activations && (
-            <div className="analyze-layout">
-              <div className="activation-display-panel">
-                <FeatureActivationDisplay
-                  activations={activations}
-                  selectedFeatures={selectedFeatures}
-                  onFeatureSelect={handleFeatureSelect}
-                  showTopK={10}
-                />
-              </div>
-              <div className="feature-detail-panel">
-                {selectedFeature !== null && featureInfo ? (
-                  <FeatureTopTokens
-                    interpretation={featureInfo}
-                    maxExamples={10}
-                  />
-                ) : loadingFeature ? (
-                  <div className="loading-detail">
-                    <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
-                    <p className="mt-2 text-gray-500 text-sm">Loading feature info...</p>
-                  </div>
-                ) : (
-                  <div className="empty-detail">
-                    <Search className="empty-icon" />
-                    <h3>Select a Feature</h3>
-                    <p>Click on a cell in the activation heatmap to see feature details</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Browse Features Mode */}
-          {!analyzing && analyzeResponse && mode === 'browse' && featureCatalog && (
-            <div className="browse-layout">
-              <div className="browser-panel">
-                <FeatureBrowser
-                  catalog={featureCatalog}
-                  onFeatureSelect={handleFeatureSelect}
-                  selectedFeature={selectedFeature ?? undefined}
-                />
-              </div>
-              <div className="detail-panel">
-                {selectedFeature !== null && featureInfo ? (
-                  <FeatureTopTokens
-                    interpretation={featureInfo}
-                    maxExamples={15}
-                  />
-                ) : loadingFeature ? (
-                  <div className="loading-detail">
-                    <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
-                    <p className="mt-2 text-gray-500 text-sm">Loading feature info...</p>
-                  </div>
-                ) : (
-                  <div className="empty-detail">
-                    <Layers className="empty-icon" />
-                    <h3>Select a Feature</h3>
-                    <p>Click on a feature in the browser to see its details</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Quality Dashboard Mode */}
-          {!analyzing && analyzeResponse && mode === 'dashboard' && qualityMetrics && (
-            <div className="dashboard-layout">
-              <SparsityDashboard
-                metrics={qualityMetrics}
-                trainingProgress={trainingProgress}
-              />
-            </div>
-          )}
-
-          {/* Compare SAEs Mode */}
-          {mode === 'compare' && (
-            <div className="compare-layout">
-              <ModelComparisonDashboard
-                onFeatureSelect={handleComparisonFeatureSelect}
-              />
-            </div>
-          )}
-
-          {/* Load External SAEs Mode */}
-          {mode === 'load' && (
-            <div className="load-layout">
-              <ExternalSAELoader
-                loadedSAEs={externalSAEs}
-                onSAELoaded={refreshExternalSAEs}
-                onSAEDeleted={refreshExternalSAEs}
-              />
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
       <style>{`
         .sae-page {
