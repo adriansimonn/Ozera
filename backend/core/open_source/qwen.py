@@ -239,5 +239,7 @@ class QwenLoader(OpenSourceModelLoader):
             "final_layer_norm": self._tensor_to_data(
                 self._activations.get("final_layer_norm")
             ),
-            "logits": self._tensor_to_data(self._activations.get("logits")),
+            "top_k_logits": self._logits_to_topk_data(
+                self._activations.get("logits"), k=20
+            ),
         }

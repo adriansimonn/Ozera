@@ -463,7 +463,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         </div>
       )}
 
-      {text && !(onPlainTextGenerated && generationMode === 'tokens') && (
+      {text && !onPlainTextGenerated && (
         <div className="output-area">
           <div className="output-header">
             <h3>Generated Text</h3>

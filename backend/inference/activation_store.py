@@ -138,6 +138,14 @@ class ActivationStore:
                     'max': value.get('max'),
                 }
 
+        # Include top_k_logits summary if present
+        top_k_logits = activations.get('top_k_logits')
+        if isinstance(top_k_logits, dict) and 'k' in top_k_logits:
+            tensor_info['top_k_logits'] = {
+                'k': top_k_logits['k'],
+                'seq_len': top_k_logits['seq_len'],
+            }
+
         return {
             'id': data['id'],
             'prompt': data['prompt'],
@@ -195,7 +203,7 @@ class ActivationStore:
         data = self._store[activation_id]
         activations = data['activations']
 
-        valid_tensors = ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits']
+        valid_tensors = ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits', 'top_k_logits']
         if tensor_name not in valid_tensors:
             return None
 

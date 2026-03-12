@@ -593,8 +593,15 @@ class InferenceWorkerT4:
         token_list = input_ids[0].cpu().tolist()
         decoded_tokens = [self._tokenizer.decode([t]) for t in token_list]
 
-        # Convert activations to serializable format
+        # Extract logits for top-K computation before serializing other activations
+        logits_tensor = activations.pop("logits", None)
         serialized_activations = self._serialize_activations(activations)
+
+        # Add compact top-K logits instead of full tensor
+        if logits_tensor is not None:
+            serialized_activations["top_k_logits"] = self._logits_to_topk_data(
+                logits_tensor, token_list, k=20
+            )
 
         return {
             "text": generated_text,
@@ -624,6 +631,58 @@ class InferenceWorkerT4:
         else:
             # Primitive type (int, float, str, bool, None)
             return value
+
+    def _logits_to_topk_data(self, logits_tensor, token_list: list, k: int = 20) -> dict:
+        """
+        Convert full logits tensor to compact top-K format with decoded tokens.
+
+        Args:
+            logits_tensor: Logits tensor of shape [1, seq_len, vocab_size]
+            token_list: Token IDs for decoding
+            k: Number of top predictions per position
+
+        Returns:
+            Dict with indices, values, probabilities, and decoded tokens
+        """
+        import torch
+
+        logits = logits_tensor.float()
+        if logits.dim() == 3:
+            logits = logits[0]  # [seq_len, vocab_size]
+
+        seq_len, vocab_size = logits.shape
+        actual_k = min(k, vocab_size)
+
+        top_values, top_indices = torch.topk(logits, actual_k, dim=-1)
+        probs = torch.softmax(logits, dim=-1)
+        top_probs = torch.gather(probs, 1, top_indices)
+
+        top_indices_list = top_indices.cpu().tolist()
+        top_values_list = top_values.cpu().tolist()
+        top_probs_list = top_probs.cpu().tolist()
+
+        # Decode all unique token IDs
+        unique_ids = set()
+        for pos_indices in top_indices_list:
+            unique_ids.update(pos_indices)
+
+        id_to_token = {}
+        for token_id in unique_ids:
+            id_to_token[token_id] = self._tokenizer.decode([token_id])
+
+        decoded_tokens = [
+            [id_to_token[tid] for tid in pos_indices]
+            for pos_indices in top_indices_list
+        ]
+
+        return {
+            "indices": top_indices_list,
+            "values": top_values_list,
+            "probabilities": top_probs_list,
+            "decoded_tokens": decoded_tokens,
+            "k": actual_k,
+            "seq_len": seq_len,
+        }
 
     def _serialize_activations(self, activations: dict) -> dict:
         """Convert torch tensors to lists for JSON serialization."""

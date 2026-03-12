@@ -169,8 +169,9 @@ export function NetworkFlow({
         y,
         layer: numLayers - 1,
         index: i,
-        value: activationData.activations.logits
-          ? Math.abs((activationData.activations.logits.values as number[][][])[0][selectedTokenIndex][i] || 0)
+        value: activationData.activations.top_k_logits
+          && selectedTokenIndex < activationData.activations.top_k_logits.seq_len
+          ? Math.abs(activationData.activations.top_k_logits.values[selectedTokenIndex][i % activationData.activations.top_k_logits.k] || 0)
           : Math.random(),
         label: 'Output'
       })

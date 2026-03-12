@@ -308,7 +308,9 @@ class OpenSourceModelLoader(ABC):
             "final_layer_norm": self._tensor_to_data(
                 self._activations.get("final_layer_norm")
             ),
-            "logits": self._tensor_to_data(self._activations.get("logits")),
+            "top_k_logits": self._logits_to_topk_data(
+                self._activations.get("logits"), k=20
+            ),
         }
 
     def _tensor_to_data(self, tensor: Optional[torch.Tensor]) -> Optional[dict]:
@@ -333,6 +335,68 @@ class OpenSourceModelLoader(ABC):
             "std": float(arr.std()),
             "min": float(arr.min()),
             "max": float(arr.max()),
+        }
+
+    def _logits_to_topk_data(self, logits_tensor: Optional[torch.Tensor], k: int = 20) -> Optional[dict]:
+        """
+        Convert full logits tensor to compact top-K format with decoded tokens.
+
+        Instead of sending the entire [1, seq_len, vocab_size] tensor (millions of floats),
+        compute top-K on GPU and send only ~K*seq_len values plus decoded token strings.
+
+        Args:
+            logits_tensor: Logits tensor of shape [1, seq_len, vocab_size] or None
+            k: Number of top predictions per position
+
+        Returns:
+            Dict with indices, values, probabilities, and decoded tokens, or None
+        """
+        if logits_tensor is None or self.tokenizer is None:
+            return None
+
+        # logits_tensor shape: [1, seq_len, vocab_size]
+        logits = logits_tensor.float()
+        if logits.dim() == 3:
+            logits = logits[0]  # [seq_len, vocab_size]
+
+        seq_len, vocab_size = logits.shape
+        actual_k = min(k, vocab_size)
+
+        # Top-K on GPU
+        top_values, top_indices = torch.topk(logits, actual_k, dim=-1)  # [seq_len, k]
+
+        # Softmax probabilities for the top-K values
+        # Use full logits for accurate softmax, then gather top-K probs
+        probs = torch.softmax(logits, dim=-1)
+        top_probs = torch.gather(probs, 1, top_indices)  # [seq_len, k]
+
+        # Move to CPU and convert
+        top_indices_list = top_indices.cpu().tolist()
+        top_values_list = top_values.cpu().tolist()
+        top_probs_list = top_probs.cpu().tolist()
+
+        # Decode all unique token IDs
+        unique_ids = set()
+        for pos_indices in top_indices_list:
+            unique_ids.update(pos_indices)
+
+        id_to_token = {}
+        for token_id in unique_ids:
+            id_to_token[token_id] = self.tokenizer.decode([token_id])
+
+        # Build decoded tokens grid
+        decoded_tokens = [
+            [id_to_token[tid] for tid in pos_indices]
+            for pos_indices in top_indices_list
+        ]
+
+        return {
+            "indices": top_indices_list,
+            "values": top_values_list,
+            "probabilities": top_probs_list,
+            "decoded_tokens": decoded_tokens,
+            "k": actual_k,
+            "seq_len": seq_len,
         }
 
     def generate_with_patch(

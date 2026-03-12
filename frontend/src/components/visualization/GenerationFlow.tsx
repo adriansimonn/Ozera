@@ -137,67 +137,45 @@ export function GenerationFlow({
     return 0.2 + normalized * 0.8
   }
 
-  // Calculate top token probabilities from logits using softmax
+  // Get top token probabilities from pre-computed top-K logits
   const getTopTokenProbabilities = (tokenIdx: number, topKCount: number = 10): Array<{token: string, tokenId: number, probability: number, isSelected: boolean}> => {
-    const logits = activationData.activations.logits
-    if (!logits) return []
+    const topKLogits = activationData.activations.top_k_logits
+    if (!topKLogits || tokenIdx < 0 || tokenIdx >= topKLogits.seq_len) return []
 
-    const logitValues = logits.values as number[][][]
-    if (!logitValues || !logitValues[0] || !logitValues[0][tokenIdx]) return []
-
-    const tokenLogits = logitValues[0][tokenIdx]
-
-    // Apply softmax to get probabilities
-    // Use loop-based max to avoid stack overflow on large vocabularies (256K+ elements)
-    let maxLogit = tokenLogits[0]
-    for (let i = 1; i < tokenLogits.length; i++) {
-      if (tokenLogits[i] > maxLogit) maxLogit = tokenLogits[i]
-    }
-    const expValues = tokenLogits.map(v => Math.exp(v - maxLogit))
-    const sumExp = expValues.reduce((a, b) => a + b, 0)
-    const probabilities = expValues.map(v => v / sumExp)
-
-    // Get top K tokens using partial selection instead of full sort
-    const topTokens: Array<{ tokenId: number, probability: number }> = []
-    for (let i = 0; i < probabilities.length; i++) {
-      const prob = probabilities[i]
-      if (topTokens.length < topKCount) {
-        topTokens.push({ tokenId: i, probability: prob })
-        if (topTokens.length === topKCount) {
-          topTokens.sort((a, b) => b.probability - a.probability)
-        }
-      } else if (prob > topTokens[topKCount - 1].probability) {
-        topTokens[topKCount - 1] = { tokenId: i, probability: prob }
-        topTokens.sort((a, b) => b.probability - a.probability)
-      }
-    }
+    const indices = topKLogits.indices[tokenIdx]
+    const probabilities = topKLogits.probabilities[tokenIdx]
+    const decodedToks = topKLogits.decoded_tokens[tokenIdx]
+    if (!indices || !probabilities || !decodedToks) return []
 
     // Determine which token was actually selected
     const selectedTokenId = tokenIdx + 1 < activationData.tokens.length ? activationData.tokens[tokenIdx + 1] : -1
 
-    return topTokens.map(t => {
-      const decoded = tokenDecodeCache.get(t.tokenId)
-      // Handle empty/whitespace-only decoded tokens with visible representations
+    const count = Math.min(topKCount, indices.length)
+    const result: Array<{token: string, tokenId: number, probability: number, isSelected: boolean}> = []
+
+    for (let i = 0; i < count; i++) {
+      const decoded = decodedToks[i]
       let displayToken: string
-      if (decoded === undefined) {
-        displayToken = `[${t.tokenId}]`
-      } else if (decoded === '') {
-        displayToken = '\u2205' // empty set symbol for empty tokens
+      if (decoded === '') {
+        displayToken = '\u2205'
       } else if (decoded.trim() === '') {
-        displayToken = JSON.stringify(decoded) // show "\n", " ", etc.
+        displayToken = JSON.stringify(decoded)
       } else {
         displayToken = decoded
       }
-      return {
+      result.push({
         token: displayToken,
-        tokenId: t.tokenId,
-        probability: t.probability,
-        isSelected: t.tokenId === selectedTokenId
-      }
-    })
+        tokenId: indices[i],
+        probability: probabilities[i],
+        isSelected: indices[i] === selectedTokenId
+      })
+    }
+
+    return result
   }
 
-  // Pre-fetch all token IDs (sequence tokens + top-K from logits) when activation data loads
+  // Pre-fetch sequence token IDs when activation data loads
+  // (top-K logit tokens are now pre-decoded by the backend)
   useEffect(() => {
     // Detect if this is a new activation (different model/run = different tokenizer)
     const isNewActivation = lastActivationIdRef.current !== activationData.id
@@ -206,49 +184,18 @@ export function GenerationFlow({
       setTopTokenChoices([])
     }
 
-    const prefetchAllTokens = async () => {
-      // Collect all unique token IDs to fetch
+    const prefetchSequenceTokens = async () => {
+      // Only need to decode sequence tokens (for generated output display)
       const allTokenIds = new Set<number>()
-
-      // Add sequence tokens (needed for generated output display)
       activationData.tokens.forEach(tokenId => allTokenIds.add(tokenId))
 
-      // Add top-K tokens from logits (needed for probability display)
-      const logits = activationData.activations.logits
-      if (logits) {
-        const logitValues = logits.values as number[][][]
-        if (logitValues && logitValues[0]) {
-          for (let tokenIdx = 0; tokenIdx < logitValues[0].length; tokenIdx++) {
-            const tokenLogits = logitValues[0][tokenIdx]
-
-            // Get top K token IDs using partial selection instead of full sort
-            const topTokens: Array<{ tokenId: number, logit: number }> = []
-            for (let i = 0; i < tokenLogits.length; i++) {
-              const logit = tokenLogits[i]
-              if (topTokens.length < topK) {
-                topTokens.push({ tokenId: i, logit })
-                if (topTokens.length === topK) {
-                  topTokens.sort((a, b) => b.logit - a.logit)
-                }
-              } else if (logit > topTokens[topK - 1].logit) {
-                topTokens[topK - 1] = { tokenId: i, logit }
-                topTokens.sort((a, b) => b.logit - a.logit)
-              }
-            }
-
-            topTokens.forEach(t => allTokenIds.add(t.tokenId))
-          }
-        }
-      }
-
-      // Fetch all at once - use forceClean on new activations to avoid stale cache
       if (allTokenIds.size > 0) {
         await decodeTokenIds(Array.from(allTokenIds), isNewActivation)
       }
     }
 
-    prefetchAllTokens()
-  }, [activationData, topK])
+    prefetchSequenceTokens()
+  }, [activationData])
 
   // Update canvas dimensions based on container size
   useEffect(() => {
@@ -473,13 +420,14 @@ export function GenerationFlow({
               const transformerLayerIdx = layerIdx - 2
               baseIntensity = getNodeActivations(transformerLayerIdx, flowingTokenIdx, nodeIdx)
             } else {
-              // Output layer - use logits if available
-              if (activationData.activations.logits) {
-                const logits = activationData.activations.logits.values as number[][][]
-                if (logits && logits[0] && logits[0][flowingTokenIdx]) {
-                  const logitValues = logits[0][flowingTokenIdx]
-                  const dimIdx = nodeIdx % logitValues.length
-                  const rawValue = Math.abs(logitValues[dimIdx])
+              // Output layer - use top-K logit values for intensity
+              const topKLogits = activationData.activations.top_k_logits
+              if (topKLogits && flowingTokenIdx < topKLogits.seq_len) {
+                const topValues = topKLogits.values[flowingTokenIdx]
+                if (topValues && topValues.length > 0) {
+                  // Use the spread of top-K values to drive node intensity
+                  const idx = nodeIdx % topValues.length
+                  const rawValue = Math.abs(topValues[idx])
                   baseIntensity = 0.2 + Math.min(1, rawValue / 10) * 0.8
                 }
               }

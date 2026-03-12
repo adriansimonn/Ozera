@@ -143,6 +143,19 @@ export interface TensorData {
   max: number
 }
 
+/**
+ * Pre-computed top-K logits from the backend.
+ * Replaces the full logits tensor to avoid sending millions of floats.
+ */
+export interface TopKLogits {
+  indices: number[][]      // [seq_len, k] - token IDs
+  values: number[][]       // [seq_len, k] - logit values
+  probabilities: number[][] // [seq_len, k] - softmax probabilities
+  decoded_tokens: string[][] // [seq_len, k] - decoded token strings
+  k: number
+  seq_len: number
+}
+
 export interface LayerActivations {
   attn_input?: TensorData
   attn_output?: TensorData
@@ -162,6 +175,7 @@ export interface ActivationData {
     layers?: LayerActivations[]
     final_layer_norm?: TensorData
     logits?: TensorData
+    top_k_logits?: TopKLogits
   }
   tokens: number[]
   prompt: string
