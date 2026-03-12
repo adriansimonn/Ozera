@@ -4,7 +4,7 @@
  * Shows all tokens flowing through the model in a single continuous animation.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import type { ActivationData } from '../../types/model'
 
 interface GenerationFlowProps {
@@ -12,7 +12,7 @@ interface GenerationFlowProps {
   className?: string
 }
 
-export function GenerationFlow({
+export const GenerationFlow = memo(function GenerationFlow({
   activationData,
   className = ''
 }: GenerationFlowProps) {
@@ -1649,4 +1649,4 @@ export function GenerationFlow({
       `}</style>
     </div>
   )
-}
+})

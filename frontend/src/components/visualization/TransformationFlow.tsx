@@ -3,7 +3,7 @@
  * Shows a visual flow diagram of how embeddings transform through the model.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { ActivationData } from '../../types/model'
 
@@ -13,7 +13,7 @@ interface TransformationFlowProps {
   className?: string
 }
 
-export function TransformationFlow({
+export const TransformationFlow = memo(function TransformationFlow({
   activationData,
   selectedTokenIndex,
   className = ''
@@ -272,4 +272,4 @@ export function TransformationFlow({
       `}</style>
     </div>
   )
-}
+})

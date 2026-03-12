@@ -3,7 +3,7 @@
  * Shows how token embeddings transform as they pass through each layer of the model.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { ActivationData } from '../../types/model'
 import { ChevronDown, ChevronsUpDown } from 'lucide-react'
@@ -14,7 +14,7 @@ interface EmbeddingJourneyProps {
   className?: string
 }
 
-export function EmbeddingJourney({
+export const EmbeddingJourney = memo(function EmbeddingJourney({
   activationData,
   selectedTokenIndex,
   className = ''
@@ -409,7 +409,7 @@ export function EmbeddingJourney({
       `}</style>
     </div>
   )
-}
+})
 
 interface EmbeddingVectorDisplayProps {
   values: number[]

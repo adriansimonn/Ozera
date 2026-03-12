@@ -3,7 +3,7 @@
  * Displays attention weights as an interactive heatmap with modern dark styling.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { TensorData } from '../../types/model'
 import { ExportButton } from '../export'
@@ -26,7 +26,7 @@ interface HoveredCell {
   y: number
 }
 
-export function AttentionHeatmap({
+export const AttentionHeatmap = memo(function AttentionHeatmap({
   attentionWeights,
   layerIndex,
   headIndex,
@@ -315,4 +315,4 @@ export function AttentionHeatmap({
 
     </div>
   )
-}
+})

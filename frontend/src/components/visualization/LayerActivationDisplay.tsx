@@ -3,7 +3,7 @@
  * Shows activation statistics and distributions for a specific layer.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { LayerActivations } from '../../types/model'
 import { ExportButton } from '../export'
@@ -15,7 +15,7 @@ interface LayerActivationDisplayProps {
   activationId?: string
 }
 
-export function LayerActivationDisplay({
+export const LayerActivationDisplay = memo(function LayerActivationDisplay({
   layerActivations,
   layerIndex,
   className = '',
@@ -244,7 +244,7 @@ export function LayerActivationDisplay({
       )}
     </div>
   )
-}
+})
 
 interface StatCardProps {
   label: string
