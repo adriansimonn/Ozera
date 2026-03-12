@@ -26,10 +26,18 @@ export function GenerationFlow({
   const [currentOutputTokens, setCurrentOutputTokens] = useState<string[]>([])
   const [hoveredToken, setHoveredToken] = useState<{idx: number, x: number, y: number} | null>(null)
   const canvasContainerRef = useRef<HTMLDivElement>(null)
-  const [lastGeneratedToken, setLastGeneratedToken] = useState<{text: string, index: number} | null>(null)
   const [, setHoveredTopToken] = useState<{token: string, probability: number} | null>(null)
   const [topTokenChoices, setTopTokenChoices] = useState<Array<{token: string, tokenId: number, probability: number, isSelected: boolean}>>([])
   const [tokenDecodeCache, setTokenDecodeCache] = useState<Map<number, string>>(new Map())
+
+  // Animation refs: these track values during rAF without triggering re-renders.
+  // They sync to React state every SYNC_INTERVAL frames so the DOM updates.
+  const SYNC_INTERVAL = 10
+  const frameCountRef = useRef(0)
+  const currentOutputTokensRef = useRef<string[]>([])
+  const lastGeneratedTokenRef = useRef<{text: string, index: number} | null>(null)
+  const topTokenChoicesRef = useRef<Array<{token: string, tokenId: number, probability: number, isSelected: boolean}>>([])
+  const needsSyncRef = useRef(false)
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 1400, height: 550 })
 
   const width = canvasDimensions.width
@@ -290,7 +298,7 @@ export function GenerationFlow({
       const flowingTokenIdx = currentTokenIdx
       const isPromptToken = flowingTokenIdx < promptTokens
 
-      // Update current output tokens for display
+      // Update current output tokens in ref (no re-render)
       if (tokensInCurrentStep > promptTokens) {
         const outputTokenIndices = Array.from(
           { length: tokensInCurrentStep - promptTokens },
@@ -299,12 +307,14 @@ export function GenerationFlow({
         const newOutputTokens = outputTokenIndices.map(idx => {
           return getDecodedToken(idx)
         })
-        if (JSON.stringify(newOutputTokens) !== JSON.stringify(currentOutputTokens)) {
-          setCurrentOutputTokens(newOutputTokens)
+        if (JSON.stringify(newOutputTokens) !== JSON.stringify(currentOutputTokensRef.current)) {
+          currentOutputTokensRef.current = newOutputTokens
+          needsSyncRef.current = true
         }
       } else {
-        if (currentOutputTokens.length > 0) {
-          setCurrentOutputTokens([])
+        if (currentOutputTokensRef.current.length > 0) {
+          currentOutputTokensRef.current = []
+          needsSyncRef.current = true
         }
       }
 
@@ -316,6 +326,14 @@ export function GenerationFlow({
 
       // Draw info
       drawInfo(ctx, progress)
+
+      // Throttle React state syncs to every SYNC_INTERVAL frames
+      frameCountRef.current++
+      if (needsSyncRef.current && frameCountRef.current % SYNC_INTERVAL === 0) {
+        needsSyncRef.current = false
+        setCurrentOutputTokens(currentOutputTokensRef.current)
+        setTopTokenChoices(topTokenChoicesRef.current)
+      }
 
       animationRef.current = requestAnimationFrame(animate)
     }
@@ -536,17 +554,18 @@ export function GenerationFlow({
         // token at position X, we read logits at position X-1.
         if (flowingTokenIdx >= promptTokens && flowingTokenIdx < totalTokens) {
           const topChoices = getTopTokenProbabilities(flowingTokenIdx - 1, topK)
-          if (topChoices.length > 0 && JSON.stringify(topChoices) !== JSON.stringify(topTokenChoices)) {
-            setTopTokenChoices(topChoices)
+          if (topChoices.length > 0 && JSON.stringify(topChoices) !== JSON.stringify(topTokenChoicesRef.current)) {
+            topTokenChoicesRef.current = topChoices
+            needsSyncRef.current = true
           }
         }
 
         if (stepProgress > 0.95 || currentLayerIdx >= layers.length - 1) {
-          // Update state for animation purposes
           const tokenText = getDecodedToken(flowingTokenIdx)
           const tokenToDisplay = { text: tokenText, index: flowingTokenIdx }
-          if (!lastGeneratedToken || lastGeneratedToken.index !== flowingTokenIdx) {
-            setLastGeneratedToken(tokenToDisplay)
+          if (!lastGeneratedTokenRef.current || lastGeneratedTokenRef.current.index !== flowingTokenIdx) {
+            lastGeneratedTokenRef.current = tokenToDisplay
+            needsSyncRef.current = true
           }
         }
 
@@ -615,7 +634,7 @@ export function GenerationFlow({
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [activationData, isPlaying, animationSpeed, showLabels, numLayers, promptTokens, generatedTokens, totalTokens, decodedTokens, tokenDecodeCache, width, height, lastGeneratedToken, canvasDimensions])
+  }, [activationData, isPlaying, animationSpeed, showLabels, numLayers, promptTokens, generatedTokens, totalTokens, decodedTokens, tokenDecodeCache, width, height, canvasDimensions])
 
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying)
@@ -623,8 +642,11 @@ export function GenerationFlow({
 
   const handleReset = () => {
     progressRef.current = 0
-    setLastGeneratedToken(null)
+    lastGeneratedTokenRef.current = null
+    topTokenChoicesRef.current = []
+    currentOutputTokensRef.current = []
     setTopTokenChoices([])
+    setCurrentOutputTokens([])
   }
 
   const handlePrevious = () => {
