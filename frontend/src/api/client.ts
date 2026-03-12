@@ -8,11 +8,14 @@ import { useAuthStore } from '../stores/authStore'
 import type {
   ActivationData,
   ActivationSummary,
+  ActivationSummaryWithInfo,
   GenerateWithActivationsResponse,
   OpenSourceModelInfo,
   ModelCacheStatus,
   ModelDownloadResponse,
   ModelFamilyInfo,
+  TensorData,
+  TopKLogits,
 } from '../types/model'
 import type {
   CaptureActivationsRequest,
@@ -492,7 +495,7 @@ class OzeraAPIClient {
    * Get activation summary (metadata only, no tensors).
    * Enhanced with layer info and tensor info for lazy loading.
    */
-  async getActivationSummary(activationId: string): Promise<ActivationSummary> {
+  async getActivationSummary(activationId: string): Promise<ActivationSummaryWithInfo> {
     const response = await fetch(`${this.baseUrl}/activations/${activationId}/summary`, {
       headers: getAuthHeaders(),
     })
@@ -524,7 +527,7 @@ class OzeraAPIClient {
    * Get a specific top-level tensor (lazy loading).
    * Valid tensor names: token_embeddings, positional_embeddings, combined_embeddings, final_layer_norm, logits
    */
-  async getTensorActivation(activationId: string, tensorName: string): Promise<{ tensor_name: string; data: Record<string, any> }> {
+  async getTensorActivation(activationId: string, tensorName: string): Promise<{ tensor_name: string; data: TensorData | TopKLogits }> {
     const response = await fetch(`${this.baseUrl}/activations/${activationId}/tensor/${tensorName}`, {
       headers: getAuthHeaders(),
     })

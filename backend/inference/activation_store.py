@@ -151,6 +151,7 @@ class ActivationStore:
             'prompt': data['prompt'],
             'model': data['model'],
             'timestamp': data['timestamp'],
+            'tokens': data['tokens'],
             'num_tokens': len(data['tokens']),
             'num_layers': len(data['activations'].get('layers', [])),
             'metadata': data['metadata'],

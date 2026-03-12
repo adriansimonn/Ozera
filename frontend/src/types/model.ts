@@ -216,11 +216,13 @@ export interface TensorStats {
 }
 
 /**
- * Extended activation summary with layer info for lazy loading
+ * Extended activation summary with layer info for lazy loading.
+ * Returned by the /activations/{id}/summary endpoint.
  */
 export interface ActivationSummaryWithInfo extends ActivationSummary {
+  tokens: number[]
   layer_info: Record<string, TensorStats>[]
-  tensor_info: Record<string, TensorStats>
+  tensor_info: Record<string, TensorStats & { k?: number; seq_len?: number }>
 }
 
 /**

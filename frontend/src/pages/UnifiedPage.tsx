@@ -15,7 +15,7 @@ import { TransformationFlow } from '../components/visualization/TransformationFl
 import { GenerationFlow } from '../components/visualization/GenerationFlow'
 import { NavBar } from '../components/common/NavBar'
 import { apiClient } from '../api/client'
-import type { ActivationData, LayerActivations } from '../types/model'
+import type { ActivationData, ActivationSummaryWithInfo, LayerActivations, TensorData, TopKLogits } from '../types/model'
 import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network } from 'lucide-react'
 import { Dropdown } from '../components/common/Dropdown'
 
@@ -49,9 +49,13 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Cache for lazily loaded layers
+  // Cache for lazily loaded layers and tensors
   const layerCacheRef = useRef<Map<number, LayerActivations>>(new Map())
+  const tensorCacheRef = useRef<Map<string, TensorData | TopKLogits>>(new Map())
   const currentActivationIdRef = useRef<string | null>(null)
+  const summaryRef = useRef<ActivationSummaryWithInfo | null>(null)
+  // Track which visualization's data has been loaded to avoid redundant fetches
+  const loadedVizRef = useRef<Set<string>>(new Set())
 
   // Visualization controls
   const [selectedLayer, setSelectedLayer] = useState(0)
@@ -60,6 +64,112 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
   const [tokenInputValue, setTokenInputValue] = useState('0')
   const [showTextLabels, setShowTextLabels] = useState(false)
 
+  // Build ActivationData from summary + cached layers/tensors
+  const buildActivationData = useCallback((summary: ActivationSummaryWithInfo): ActivationData => {
+    const layers: LayerActivations[] = []
+    for (let i = 0; i < summary.num_layers; i++) {
+      layers.push(layerCacheRef.current.get(i) || {})
+    }
+
+    return {
+      id: summary.id,
+      prompt: summary.prompt,
+      model: summary.model,
+      timestamp: summary.timestamp,
+      tokens: summary.tokens,
+      metadata: summary.metadata,
+      activations: {
+        token_embeddings: tensorCacheRef.current.get('token_embeddings') as TensorData | undefined,
+        positional_embeddings: tensorCacheRef.current.get('positional_embeddings') as TensorData | undefined,
+        combined_embeddings: tensorCacheRef.current.get('combined_embeddings') as TensorData | undefined,
+        final_layer_norm: tensorCacheRef.current.get('final_layer_norm') as TensorData | undefined,
+        logits: tensorCacheRef.current.get('logits') as TensorData | undefined,
+        top_k_logits: tensorCacheRef.current.get('top_k_logits') as TopKLogits | undefined,
+        layers,
+      },
+    }
+  }, [])
+
+  // Load a specific tensor by name and merge into activation data
+  const loadTensor = useCallback(async (tensorName: string): Promise<void> => {
+    const id = currentActivationIdRef.current
+    if (!id || tensorCacheRef.current.has(tensorName)) return
+
+    try {
+      const result = await apiClient.getTensorActivation(id, tensorName)
+      if (currentActivationIdRef.current !== id) return // stale
+      tensorCacheRef.current.set(tensorName, result.data)
+    } catch (err) {
+      console.error(`Failed to load tensor ${tensorName}:`, err)
+    }
+  }, [])
+
+  // Load a specific layer and merge into activation data
+  const loadLayer = useCallback(async (layerIdx: number): Promise<void> => {
+    const id = currentActivationIdRef.current
+    if (!id || layerCacheRef.current.has(layerIdx)) return
+
+    try {
+      const result = await apiClient.getLayerActivations(id, layerIdx)
+      if (currentActivationIdRef.current !== id) return // stale
+      layerCacheRef.current.set(layerIdx, result.activations as LayerActivations)
+    } catch (err) {
+      console.error(`Failed to load layer ${layerIdx}:`, err)
+    }
+  }, [])
+
+  // Load data needed for a specific visualization type
+  const loadDataForVisualization = useCallback(async (vizType: VisualizationType, layer?: number) => {
+    const summary = summaryRef.current
+    if (!summary) return
+
+    const id = currentActivationIdRef.current
+
+    try {
+      setLayerLoading(true)
+
+      if (vizType === 'network') {
+        if (!loadedVizRef.current.has('network')) {
+          // GenerationFlow needs: top_k_logits, combined_embeddings (or token_embeddings), and all layers
+          const promises: Promise<void>[] = []
+          if (summary.tensor_info.top_k_logits) promises.push(loadTensor('top_k_logits'))
+          if (summary.tensor_info.combined_embeddings) promises.push(loadTensor('combined_embeddings'))
+          else if (summary.tensor_info.token_embeddings) promises.push(loadTensor('token_embeddings'))
+          // Load all layers for node activation visualization
+          for (let i = 0; i < summary.num_layers; i++) {
+            promises.push(loadLayer(i))
+          }
+          await Promise.all(promises)
+          if (currentActivationIdRef.current === id) loadedVizRef.current.add('network')
+        }
+      } else if (vizType === 'attention' || vizType === 'activations') {
+        // Only need the selected layer
+        const targetLayer = layer ?? 0
+        await loadLayer(targetLayer)
+      } else if (vizType === 'journey' || vizType === 'flow') {
+        if (!loadedVizRef.current.has('journey_flow')) {
+          // Need all embeddings, all layers, and final_layer_norm
+          const promises: Promise<void>[] = []
+          if (summary.tensor_info.token_embeddings) promises.push(loadTensor('token_embeddings'))
+          if (summary.tensor_info.combined_embeddings) promises.push(loadTensor('combined_embeddings'))
+          if (summary.tensor_info.final_layer_norm) promises.push(loadTensor('final_layer_norm'))
+          for (let i = 0; i < summary.num_layers; i++) {
+            promises.push(loadLayer(i))
+          }
+          await Promise.all(promises)
+          if (currentActivationIdRef.current === id) loadedVizRef.current.add('journey_flow')
+        }
+      }
+
+      // Rebuild activation data from caches
+      if (currentActivationIdRef.current === id) {
+        setActivationData(buildActivationData(summary))
+      }
+    } finally {
+      setLayerLoading(false)
+    }
+  }, [buildActivationData, loadTensor, loadLayer])
+
   useEffect(() => {
     if (urlActivationId) {
       setCurrentActivationId(urlActivationId)
@@ -67,72 +177,60 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
     }
   }, [urlActivationId])
 
-  // Load only summary initially (lazy loading)
+  // Load summary first, then load data for current visualization
   async function loadActivationSummary(id: string) {
     try {
       setLoading(true)
       setError(null)
 
-      // Clear cache if loading a new activation
+      // Clear caches if loading a new activation
       if (currentActivationIdRef.current !== id) {
         layerCacheRef.current.clear()
+        tensorCacheRef.current.clear()
+        loadedVizRef.current.clear()
         currentActivationIdRef.current = id
       }
 
-      // Get full activation data - for now we still load everything
-      // but the backend sends summary first and we can progressively load
-      const data = await apiClient.getActivations(id)
-      setActivationData(data)
+      // Get lightweight summary first (metadata + shapes, no tensor values)
+      const summary = await apiClient.getActivationSummary(id)
+      summaryRef.current = summary
+
+      // Build skeleton ActivationData immediately so UI can render
+      setActivationData(buildActivationData(summary))
+      setLoading(false)
+
+      // Then load data needed for the current visualization
+      await loadDataForVisualization(selectedVisualization, selectedLayer)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load activations')
-    } finally {
       setLoading(false)
     }
   }
 
-  // Lazy load a specific layer's activations
-  const loadLayerActivations = useCallback(async (layerIdx: number) => {
-    if (!currentActivationIdRef.current) return null
-
-    // Check cache first
-    if (layerCacheRef.current.has(layerIdx)) {
-      return layerCacheRef.current.get(layerIdx)!
-    }
-
-    // If we already have the data in activationData, use it
-    if (activationData?.activations.layers?.[layerIdx]) {
-      layerCacheRef.current.set(layerIdx, activationData.activations.layers[layerIdx])
-      return activationData.activations.layers[layerIdx]
-    }
-
-    // Otherwise, fetch from API
-    try {
-      setLayerLoading(true)
-      const result = await apiClient.getLayerActivations(currentActivationIdRef.current, layerIdx)
-      layerCacheRef.current.set(layerIdx, result.activations as LayerActivations)
-      return result.activations as LayerActivations
-    } catch (err) {
-      console.error(`Failed to load layer ${layerIdx}:`, err)
-      return null
-    } finally {
-      setLayerLoading(false)
-    }
-  }, [activationData])
-
-  // Preload layer when selected layer changes
+  // Load data when visualization type changes
   useEffect(() => {
-    if (activationData && (selectedVisualization === 'attention' || selectedVisualization === 'activations')) {
-      loadLayerActivations(selectedLayer)
+    if (summaryRef.current && currentActivationIdRef.current) {
+      loadDataForVisualization(selectedVisualization, selectedLayer)
     }
-  }, [selectedLayer, selectedVisualization, activationData, loadLayerActivations])
+  }, [selectedVisualization, loadDataForVisualization])
+
+  // Load layer data when selected layer changes (for attention/activations views)
+  useEffect(() => {
+    if (summaryRef.current && (selectedVisualization === 'attention' || selectedVisualization === 'activations')) {
+      loadDataForVisualization(selectedVisualization, selectedLayer)
+    }
+  }, [selectedLayer, selectedVisualization, loadDataForVisualization])
 
   const handleActivationGenerated = (newActivationId: string) => {
     setCurrentActivationId(newActivationId)
     loadActivationSummary(newActivationId)
   }
 
-  const numLayers = activationData?.activations.layers?.length || 0
-  const numHeads = activationData?.activations.layers?.[0]?.attn_weights?.shape[1] || 0
+  const numLayers = activationData?.activations.layers?.length || summaryRef.current?.num_layers || 0
+  // Try loaded layer data first, then fall back to summary layer_info for head count
+  const numHeads = activationData?.activations.layers?.[0]?.attn_weights?.shape[1]
+    || summaryRef.current?.layer_info?.[0]?.attn_weights?.shape[1]
+    || 0
 
   const visualizationOptions = [
     { value: 'network' as const, label: 'Neural Network Generation Flow', icon: Network },
@@ -192,23 +290,41 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
           <GenerationFlow activationData={activationData} />
         )}
 
-        {selectedVisualization === 'attention' && activationData.activations.layers?.[selectedLayer]?.attn_weights && (
-          <AttentionHeatmap
-            attentionWeights={activationData.activations.layers[selectedLayer].attn_weights!}
-            layerIndex={selectedLayer}
-            headIndex={selectedHead}
-            tokens={activationData.metadata.decoded_tokens}
-            showTextLabels={showTextLabels}
-            activationId={currentActivationId ?? undefined}
-          />
+        {selectedVisualization === 'attention' && (
+          activationData.activations.layers?.[selectedLayer]?.attn_weights ? (
+            <AttentionHeatmap
+              attentionWeights={activationData.activations.layers[selectedLayer].attn_weights!}
+              layerIndex={selectedLayer}
+              headIndex={selectedHead}
+              tokens={activationData.metadata.decoded_tokens}
+              showTextLabels={showTextLabels}
+              activationId={currentActivationId ?? undefined}
+            />
+          ) : layerLoading ? (
+            <div className="visualization-placeholder">
+              <div className="placeholder-content">
+                <div className="spinner" />
+                <p className="placeholder-text">Loading layer {selectedLayer} attention data...</p>
+              </div>
+            </div>
+          ) : null
         )}
 
-        {selectedVisualization === 'activations' && activationData.activations.layers?.[selectedLayer] && (
-          <LayerActivationDisplay
-            layerActivations={activationData.activations.layers[selectedLayer]}
-            layerIndex={selectedLayer}
-            activationId={currentActivationId ?? undefined}
-          />
+        {selectedVisualization === 'activations' && (
+          activationData.activations.layers?.[selectedLayer]?.attn_output || activationData.activations.layers?.[selectedLayer]?.ff_output ? (
+            <LayerActivationDisplay
+              layerActivations={activationData.activations.layers[selectedLayer]}
+              layerIndex={selectedLayer}
+              activationId={currentActivationId ?? undefined}
+            />
+          ) : layerLoading ? (
+            <div className="visualization-placeholder">
+              <div className="placeholder-content">
+                <div className="spinner" />
+                <p className="placeholder-text">Loading layer {selectedLayer} activations...</p>
+              </div>
+            </div>
+          ) : null
         )}
 
         {selectedVisualization === 'journey' && (
