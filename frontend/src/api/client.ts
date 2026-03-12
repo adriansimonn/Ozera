@@ -68,6 +68,61 @@ function notifyCreditsChanged() {
   useAuthStore.getState().refreshUser().catch(() => {})
 }
 
+/**
+ * Decode a base64-encoded float32 buffer into a nested JS array matching the given shape.
+ */
+function decodeBase64Float32(b64: string, shape: number[]): any {
+  const binary = atob(b64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  const floats = new Float32Array(bytes.buffer)
+  return reshapeFlat(floats, shape)
+}
+
+function reshapeFlat(flat: Float32Array, shape: number[]): any {
+  if (shape.length === 0) return flat[0]
+  if (shape.length === 1) return Array.from(flat)
+  const outerSize = shape[0]
+  const innerSize = flat.length / outerSize
+  const innerShape = shape.slice(1)
+  const result: any[] = []
+  for (let i = 0; i < outerSize; i++) {
+    result.push(reshapeFlat(flat.subarray(i * innerSize, (i + 1) * innerSize), innerShape))
+  }
+  return result
+}
+
+/**
+ * Recursively decode any base64-encoded TensorData objects in an activation response.
+ * Converts `{ values: "<base64>", encoding: "base64_float32", shape: [...] }` to nested arrays.
+ */
+function decodeTensorData(obj: any): any {
+  if (obj == null || typeof obj !== 'object') return obj
+
+  // Check if this is a base64-encoded TensorData
+  if (obj.encoding === 'base64_float32' && typeof obj.values === 'string' && Array.isArray(obj.shape)) {
+    return {
+      ...obj,
+      values: decodeBase64Float32(obj.values, obj.shape),
+      encoding: undefined,
+    }
+  }
+
+  // Recurse into arrays
+  if (Array.isArray(obj)) {
+    return obj.map(decodeTensorData)
+  }
+
+  // Recurse into objects
+  const decoded: any = {}
+  for (const key of Object.keys(obj)) {
+    decoded[key] = decodeTensorData(obj[key])
+  }
+  return decoded
+}
+
 // Dataset types
 export interface DatasetMetadata {
   dataset_id: string
@@ -488,7 +543,8 @@ class OzeraAPIClient {
       throw new Error(`Failed to get activations: ${response.statusText}`)
     }
 
-    return response.json()
+    const data = await response.json()
+    return decodeTensorData(data)
   }
 
   /**
@@ -520,7 +576,8 @@ class OzeraAPIClient {
       throw new Error(`Failed to get layer activations: ${response.statusText}`)
     }
 
-    return response.json()
+    const data = await response.json()
+    return decodeTensorData(data)
   }
 
   /**
@@ -536,7 +593,8 @@ class OzeraAPIClient {
       throw new Error(`Failed to get tensor activation: ${response.statusText}`)
     }
 
-    return response.json()
+    const data = await response.json()
+    return decodeTensorData(data)
   }
 
   /**
@@ -1231,7 +1289,8 @@ class OzeraAPIClient {
       throw new Error(`Failed to get captured activation: ${response.statusText}`)
     }
 
-    return response.json()
+    const data = await response.json()
+    return decodeTensorData(data)
   }
 
   /**

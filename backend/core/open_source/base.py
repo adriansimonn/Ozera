@@ -5,6 +5,8 @@ Abstract base class for open-source model loaders.
 from abc import ABC, abstractmethod
 from typing import Optional, Callable
 import os
+import base64
+import numpy as np
 import torch
 
 from .registry import OPEN_SOURCE_MODELS, OpenSourceModelConfig
@@ -326,11 +328,12 @@ class OpenSourceModelLoader(ABC):
         if tensor is None:
             return None
 
-        arr = tensor.cpu().float().numpy()
+        arr = tensor.cpu().float().numpy().astype(np.float32)
         return {
-            "values": arr.tolist(),
+            "values": base64.b64encode(arr.tobytes()).decode("ascii"),
             "shape": list(arr.shape),
-            "dtype": str(arr.dtype),
+            "dtype": "float32",
+            "encoding": "base64_float32",
             "mean": float(arr.mean()),
             "std": float(arr.std()),
             "min": float(arr.min()),

@@ -134,9 +134,10 @@ export interface TrainingMetrics {
  */
 
 export interface TensorData {
-  values: number[] | number[][] | number[][][] | number[][][][]
+  values: number[] | number[][] | number[][][] | number[][][][] | string
   shape: number[]
   dtype: string
+  encoding?: 'base64_float32'
   mean: number
   std: number
   min: number

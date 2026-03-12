@@ -621,9 +621,21 @@ class InferenceWorkerT4:
     def _serialize_value(self, value):
         """Recursively convert a value to JSON-serializable format."""
         import torch
+        import base64
+        import numpy as np
 
         if isinstance(value, torch.Tensor):
-            return value.cpu().tolist()
+            arr = value.cpu().float().numpy().astype(np.float32)
+            return {
+                "values": base64.b64encode(arr.tobytes()).decode("ascii"),
+                "shape": list(arr.shape),
+                "dtype": "float32",
+                "encoding": "base64_float32",
+                "mean": float(arr.mean()),
+                "std": float(arr.std()),
+                "min": float(arr.min()),
+                "max": float(arr.max()),
+            }
         elif isinstance(value, dict):
             return {k: self._serialize_value(v) for k, v in value.items()}
         elif isinstance(value, list):
@@ -934,13 +946,10 @@ class InferenceWorkerT4:
                 tokenizer=self._tokenizer,
             )
 
-        # Serialize activations for transfer
+        # Serialize activations for transfer (base64 for speed)
         serialized_activations = {}
         for key, tensor in captured.activations.items():
-            if isinstance(tensor, torch.Tensor):
-                serialized_activations[key] = tensor.cpu().tolist()
-            else:
-                serialized_activations[key] = tensor
+            serialized_activations[key] = self._serialize_value(tensor)
 
         return {
             "id": captured.id,
@@ -1530,13 +1539,10 @@ class InferenceWorkerA10G:
         else:
             raise ValueError(f"Activation capture not implemented for Ozera models on A10G: {model_id}")
 
-        # Serialize activations for transfer
+        # Serialize activations for transfer (base64 for speed)
         serialized_activations = {}
         for key, tensor in captured.activations.items():
-            if isinstance(tensor, torch.Tensor):
-                serialized_activations[key] = tensor.cpu().tolist()
-            else:
-                serialized_activations[key] = tensor
+            serialized_activations[key] = self._serialize_value(tensor)
 
         return {
             "id": captured.id,

@@ -5,6 +5,8 @@ Stores intermediate activations from model forward passes for visualization
 and analysis purposes.
 """
 
+import base64
+
 import torch
 import numpy as np
 from typing import Dict, Any, Optional, List
@@ -280,8 +282,11 @@ class ActivationStore:
                     processed['layers'].append(layer_processed)
             elif isinstance(value, torch.Tensor):
                 processed[key] = self._tensor_to_data(value)
+            elif isinstance(value, dict) and value.get('encoding') == 'base64_float32':
+                # Already base64-encoded from Modal - pass through
+                processed[key] = value
             elif isinstance(value, list):
-                # Already serialized from Modal - convert to data format
+                # Already serialized from Modal (legacy) - convert to data format
                 processed[key] = self._list_to_data(value)
             else:
                 processed[key] = value
@@ -289,9 +294,12 @@ class ActivationStore:
         return processed
 
     def _value_to_data(self, value) -> Dict[str, Any]:
-        """Convert a tensor or list to data format."""
+        """Convert a tensor, list, or pre-encoded dict to data format."""
         if isinstance(value, torch.Tensor):
             return self._tensor_to_data(value)
+        elif isinstance(value, dict) and value.get('encoding') == 'base64_float32':
+            # Already base64-encoded - pass through
+            return value
         elif isinstance(value, list):
             return self._list_to_data(value)
         else:
@@ -305,14 +313,15 @@ class ActivationStore:
             data: List of values (from Modal serialization)
 
         Returns:
-            Dictionary with array and statistics
+            Dictionary with base64-encoded array and statistics
         """
-        arr = np.array(data)
+        arr = np.array(data, dtype=np.float32)
 
         return {
-            'values': data,  # Keep original list for JSON serialization
+            'values': base64.b64encode(arr.tobytes()).decode('ascii'),
             'shape': list(arr.shape),
-            'dtype': str(arr.dtype),
+            'dtype': 'float32',
+            'encoding': 'base64_float32',
             'mean': float(np.mean(arr)),
             'std': float(np.std(arr)),
             'min': float(np.min(arr)),
@@ -321,21 +330,21 @@ class ActivationStore:
 
     def _tensor_to_data(self, tensor: torch.Tensor) -> Dict[str, Any]:
         """
-        Convert a tensor to numpy array with statistics.
+        Convert a tensor to base64-encoded float32 buffer with statistics.
 
         Args:
             tensor: PyTorch tensor
 
         Returns:
-            Dictionary with array and statistics
+            Dictionary with base64-encoded array and statistics
         """
-        # Move to CPU and convert to numpy
-        arr = tensor.cpu().numpy()
+        arr = tensor.cpu().float().numpy().astype(np.float32)
 
         return {
-            'values': arr.tolist(),  # Convert to list for JSON serialization
+            'values': base64.b64encode(arr.tobytes()).decode('ascii'),
             'shape': list(arr.shape),
-            'dtype': str(arr.dtype),
+            'dtype': 'float32',
+            'encoding': 'base64_float32',
             'mean': float(np.mean(arr)),
             'std': float(np.std(arr)),
             'min': float(np.min(arr)),
