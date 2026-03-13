@@ -12,7 +12,7 @@ from typing import Optional, List
 
 from db import get_db
 from middleware.auth_middleware import get_current_user
-from models.database import User
+from models.database import User, UserExternalSAE
 from services.credit_service import charge_sae, check_sufficient_balance, estimate_sae_cost
 
 # Get SAE API URL from environment
@@ -535,14 +535,19 @@ async def analyze_external_sae(
     return result
 
 
-# External SAE endpoints (proxy to Modal service)
+# External SAE endpoints — per-user tracking via Supabase, shared Modal volume storage
 @router.post("/external/load")
 async def load_external_sae(
     request: ExternalSAELoadRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Load an external SAE from HuggingFace or Gemma Scope."""
+    """Load an external SAE from HuggingFace or Gemma Scope.
+
+    Downloads the SAE to shared Modal volume storage (if not already there),
+    then creates a per-user reference in the database.
+    """
+    # Forward to Modal to download/store the SAE weights
     async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
         try:
             response = await client.post(
@@ -550,17 +555,42 @@ async def load_external_sae(
                 json=request.model_dump(exclude_none=True),
             )
             response.raise_for_status()
-            return response.json()
+            result = response.json()
         except httpx.TimeoutException:
             raise HTTPException(
                 status_code=status.HTTP_504_GATEWAY_TIMEOUT,
                 detail="SAE loading timed out — the SAE may be large. Please try again.",
             )
-        except httpx.HTTPError as e:
+        except httpx.HTTPError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="SAE service error",
             )
+
+    if "error" in result:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
+
+    sae_id = result.get("sae_id", "")
+
+    # Check if user already has this SAE referenced
+    existing = db.query(UserExternalSAE).filter_by(user_id=user.id, sae_id=sae_id).first()
+    if not existing:
+        user_sae = UserExternalSAE(
+            user_id=user.id,
+            sae_id=sae_id,
+            source=result.get("source", request.source),
+            source_id=result.get("source_id", request.repo_id),
+            display_name=result.get("display_name", sae_id),
+            base_model=result.get("base_model"),
+            hookpoint=result.get("hookpoint"),
+            activation_type=result.get("activation_type"),
+            d_input=result.get("d_input"),
+            d_hidden=result.get("d_hidden"),
+        )
+        db.add(user_sae)
+        db.commit()
+
+    return result
 
 
 @router.post("/external/list-sources")
@@ -585,18 +615,36 @@ async def list_external_sae_sources(
 
 
 @router.get("/external/list-loaded")
-async def list_loaded_external_saes():
-    """List all loaded external SAEs."""
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            response = await client.get(f"{SAE_API_URL}/sae/external/list-loaded")
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPError:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="SAE service error",
-            )
+async def list_loaded_external_saes(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """List external SAEs for the current user."""
+    user_saes = (
+        db.query(UserExternalSAE)
+        .filter_by(user_id=user.id)
+        .order_by(UserExternalSAE.created_at.desc())
+        .all()
+    )
+
+    external_saes = [
+        {
+            "id": s.sae_id,
+            "path": f"/saes/external/{s.sae_id}",
+            "source": s.source,
+            "source_id": s.source_id,
+            "display_name": s.display_name,
+            "base_model": s.base_model,
+            "hookpoint": s.hookpoint,
+            "activation_type": s.activation_type,
+            "d_input": s.d_input,
+            "d_hidden": s.d_hidden,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        }
+        for s in user_saes
+    ]
+
+    return {"external_saes": external_saes, "count": len(external_saes)}
 
 
 @router.delete("/external/delete")
@@ -605,20 +653,19 @@ async def delete_external_sae(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Delete a loaded external SAE."""
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            response = await client.delete(
-                f"{SAE_API_URL}/sae/external/delete",
-                params={"sae_id": sae_id},
-            )
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPError:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="SAE service error",
-            )
+    """Remove an external SAE from the current user's list.
+
+    Only removes the user's reference — shared weights on the Modal volume
+    are left in place for other users and cleaned up periodically.
+    """
+    user_sae = db.query(UserExternalSAE).filter_by(user_id=user.id, sae_id=sae_id).first()
+    if not user_sae:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SAE not found in your list")
+
+    db.delete(user_sae)
+    db.commit()
+
+    return {"status": "deleted", "sae_id": sae_id}
 
 
 @router.get("/external/feature")
@@ -676,7 +723,22 @@ async def upload_sae(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Upload a user SAE."""
+    """Upload a user SAE (safetensors).
+
+    Limited to 1 uploaded SAE per user. If the user already has an upload,
+    the old one is replaced (reference removed; weights cleaned up periodically).
+    """
+    # Check for existing upload and remove reference if present
+    existing_upload = (
+        db.query(UserExternalSAE)
+        .filter_by(user_id=user.id, source="user_upload")
+        .first()
+    )
+    if existing_upload:
+        db.delete(existing_upload)
+        db.flush()
+
+    # Forward to Modal to store the weights
     async with httpx.AsyncClient(timeout=300.0) as client:
         try:
             response = await client.post(
@@ -684,9 +746,51 @@ async def upload_sae(
                 json=request.model_dump(exclude_none=True),
             )
             response.raise_for_status()
-            return response.json()
+            result = response.json()
         except httpx.HTTPError:
+            db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="SAE service error",
             )
+
+    if "error" in result:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
+
+    # Create the user reference
+    sae_id = result.get("sae_id", "")
+    user_sae = UserExternalSAE(
+        user_id=user.id,
+        sae_id=sae_id,
+        source="user_upload",
+        source_id=None,
+        display_name=result.get("display_name", request.name),
+        base_model=result.get("base_model"),
+        hookpoint=result.get("hookpoint"),
+        activation_type=result.get("activation_type"),
+        d_input=result.get("d_input"),
+        d_hidden=result.get("d_hidden"),
+    )
+    db.add(user_sae)
+    db.commit()
+
+    return result
+
+
+@router.get("/external/has-upload")
+async def has_uploaded_sae(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Check if the current user already has an uploaded SAE."""
+    existing = (
+        db.query(UserExternalSAE)
+        .filter_by(user_id=user.id, source="user_upload")
+        .first()
+    )
+    return {
+        "has_upload": existing is not None,
+        "upload_name": existing.display_name if existing else None,
+        "upload_sae_id": existing.sae_id if existing else None,
+    }

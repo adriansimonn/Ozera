@@ -3,13 +3,14 @@
  * Provides UI for loading SAEs from HuggingFace, Gemma Scope, and user uploads.
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   Download,
   Upload,
   Search,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   Check,
   Trash2,
   Database,
@@ -67,9 +68,22 @@ export function ExternalSAELoader({
   const [uploadName, setUploadName] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [existingUpload, setExistingUpload] = useState<{ name: string; sae_id: string } | null>(null)
+  const [showReplaceWarning, setShowReplaceWarning] = useState(false)
 
   // Delete state
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // Check if user already has an uploaded SAE
+  useEffect(() => {
+    saeClient.hasUploadedSAE().then(result => {
+      if (result.has_upload && result.upload_name && result.upload_sae_id) {
+        setExistingUpload({ name: result.upload_name, sae_id: result.upload_sae_id })
+      } else {
+        setExistingUpload(null)
+      }
+    }).catch(() => {})
+  }, [loadedSAEs]) // Re-check when SAE list changes
 
   const handleBrowseRepo = useCallback(async () => {
     if (!repoId.trim()) return
@@ -145,11 +159,12 @@ export function ExternalSAELoader({
     }
   }, [])
 
-  const handleUpload = useCallback(async () => {
+  const doUpload = useCallback(async () => {
     if (!uploadFile || !uploadName.trim()) return
 
     setUploading(true)
     setUploadError(null)
+    setShowReplaceWarning(false)
 
     try {
       // Read file as base64
@@ -171,6 +186,7 @@ export function ExternalSAELoader({
       } else {
         setUploadFile(null)
         setUploadName('')
+        setExistingUpload(null)
         onSAELoaded()
       }
     } catch (err) {
@@ -179,6 +195,16 @@ export function ExternalSAELoader({
       setUploading(false)
     }
   }, [uploadFile, uploadName, onSAELoaded])
+
+  const handleUpload = useCallback(() => {
+    if (!uploadFile || !uploadName.trim()) return
+
+    if (existingUpload) {
+      setShowReplaceWarning(true)
+    } else {
+      doUpload()
+    }
+  }, [uploadFile, uploadName, existingUpload, doUpload])
 
   const handleDelete = useCallback(async (saeId: string) => {
     setDeletingId(saeId)
@@ -210,7 +236,7 @@ export function ExternalSAELoader({
           className={`loader-tab ${tab === 'huggingface' ? 'active' : ''}`}
         >
           <Download size={14} />
-          HuggingFace / Gemma Scope
+          Repository
         </button>
         <button
           onClick={() => setTab('upload')}
@@ -394,7 +420,16 @@ export function ExternalSAELoader({
           <p className="text-gray-500 text-xs mb-3">
             Upload a .safetensors file containing SAE weights. Supports Ozera native format,
             EleutherAI/sparsify format, and Gemma Scope format.
+            Limited to 1 uploaded SAE per account.
           </p>
+
+          {existingUpload && (
+            <div className="flex items-center gap-2 text-yellow-400/80 text-xs bg-yellow-400/10 border border-yellow-400/20 px-3 py-2 mb-3">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+              You already have an uploaded SAE: <span className="font-medium">{existingUpload.name}</span>.
+              Uploading a new one will replace it.
+            </div>
+          )}
 
           <div className="space-y-3">
             <div>
@@ -437,41 +472,69 @@ export function ExternalSAELoader({
               </label>
             </div>
 
-            <button
-              onClick={handleUpload}
-              disabled={uploading || !uploadFile || !uploadName.trim()}
-              style={{
-                background: (uploading || !uploadFile || !uploadName.trim()) ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.1)',
-                border: `1px solid ${(uploading || !uploadFile || !uploadName.trim()) ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.25)'}`,
-                color: (uploading || !uploadFile || !uploadName.trim()) ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.95)',
-                cursor: (uploading || !uploadFile || !uploadName.trim()) ? 'not-allowed' : 'pointer',
-              }}
-              className="w-full px-4 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2"
-              onMouseEnter={(e) => {
-                if (!uploading && uploadFile && uploadName.trim()) {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!uploading && uploadFile && uploadName.trim()) {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'
-                }
-              }}
-            >
-              {uploading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4" />
-                  Upload SAE
-                </>
-              )}
-            </button>
+            {/* Replace confirmation warning */}
+            {showReplaceWarning && existingUpload && (
+              <div className="bg-yellow-400/10 border border-yellow-400/20 px-3 py-3">
+                <div className="flex items-start gap-2 text-yellow-400 text-sm mb-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>
+                    This will replace your existing upload <span className="font-medium">"{existingUpload.name}"</span>. Continue?
+                  </span>
+                </div>
+                <div className="flex gap-2 ml-6">
+                  <button
+                    onClick={doUpload}
+                    className="px-3 py-1.5 text-xs font-medium bg-yellow-400/20 border border-yellow-400/30 text-yellow-300 hover:bg-yellow-400/30 transition-colors"
+                  >
+                    Replace & Upload
+                  </button>
+                  <button
+                    onClick={() => setShowReplaceWarning(false)}
+                    className="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!showReplaceWarning && (
+              <button
+                onClick={handleUpload}
+                disabled={uploading || !uploadFile || !uploadName.trim()}
+                style={{
+                  background: (uploading || !uploadFile || !uploadName.trim()) ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.1)',
+                  border: `1px solid ${(uploading || !uploadFile || !uploadName.trim()) ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.25)'}`,
+                  color: (uploading || !uploadFile || !uploadName.trim()) ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.95)',
+                  cursor: (uploading || !uploadFile || !uploadName.trim()) ? 'not-allowed' : 'pointer',
+                }}
+                className="w-full px-4 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                onMouseEnter={(e) => {
+                  if (!uploading && uploadFile && uploadName.trim()) {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!uploading && uploadFile && uploadName.trim()) {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'
+                  }
+                }}
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    {existingUpload ? 'Replace & Upload SAE' : 'Upload SAE'}
+                  </>
+                )}
+              </button>
+            )}
 
             {uploadError && (
               <div className="flex items-center gap-2 text-red-400 text-sm">

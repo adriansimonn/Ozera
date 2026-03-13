@@ -55,6 +55,9 @@ class User(Base):
     uploaded_models = relationship(
         "UploadedModel", back_populates="user", cascade="all, delete-orphan"
     )
+    external_saes = relationship(
+        "UserExternalSAE", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
@@ -241,3 +244,36 @@ class UploadedModel(Base):
 
     def __repr__(self):
         return f"<UploadedModel(model_id={self.model_id}, user_id={self.user_id}, name={self.name})>"
+
+
+class UserExternalSAE(Base):
+    """Tracks which external SAEs a user has added to their workspace.
+
+    SAE weights are stored in a shared Modal volume (/saes/external/{sae_id}/).
+    This table maps users to the SAEs they've loaded, avoiding duplication of
+    weights while giving each user their own SAE list.
+
+    Users are limited to 1 uploaded (safetensors) SAE. HuggingFace/Gemma Scope
+    SAEs are unlimited since they use shared storage.
+    """
+
+    __tablename__ = "user_external_saes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    sae_id = Column(String(500), nullable=False)  # Maps to folder name in Modal volume
+    source = Column(String(50), nullable=False)  # 'huggingface', 'gemma_scope', 'user_upload'
+    source_id = Column(String(500), nullable=True)  # e.g. repo_id for HF
+    display_name = Column(String(500), nullable=False)
+    base_model = Column(String(255), nullable=True)
+    hookpoint = Column(String(255), nullable=True)
+    activation_type = Column(String(50), nullable=True)
+    d_input = Column(Integer, nullable=True)
+    d_hidden = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # Relationships
+    user = relationship("User", back_populates="external_saes")
+
+    def __repr__(self):
+        return f"<UserExternalSAE(id={self.id}, user_id={self.user_id}, sae_id={self.sae_id})>"

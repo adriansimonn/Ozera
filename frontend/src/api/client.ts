@@ -2076,13 +2076,36 @@ class SAEAPIClient {
   }
 
   /**
-   * List all loaded external SAEs.
+   * List loaded external SAEs for the current user.
+   * Requires authentication.
    */
   async listLoadedExternalSAEs(): Promise<{ external_saes: ExternalSAEInfo[]; count: number }> {
-    const response = await fetch(`${this.baseUrl}/sae/external/list-loaded`)
+    const response = await fetch(`${this.baseUrl}/sae/external/list-loaded`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to list loaded external SAEs: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Check if the current user already has an uploaded SAE.
+   * Requires authentication.
+   */
+  async hasUploadedSAE(): Promise<{ has_upload: boolean; upload_name: string | null; upload_sae_id: string | null }> {
+    const response = await fetch(`${this.baseUrl}/sae/external/has-upload`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to check upload status: ${response.statusText}`)
     }
 
     return response.json()
