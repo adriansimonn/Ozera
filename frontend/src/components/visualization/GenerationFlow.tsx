@@ -24,7 +24,6 @@ export const GenerationFlow = memo(function GenerationFlow({
   const [showLabels, setShowLabels] = useState(true)
   const progressRef = useRef(0)
   const [currentOutputTokens, setCurrentOutputTokens] = useState<string[]>([])
-  const [hoveredToken, setHoveredToken] = useState<{idx: number, x: number, y: number} | null>(null)
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const [, setHoveredTopToken] = useState<{token: string, probability: number} | null>(null)
   const [topTokenChoices, setTopTokenChoices] = useState<Array<{token: string, tokenId: number, probability: number, isSelected: boolean}>>([])
@@ -426,10 +425,10 @@ export const GenerationFlow = memo(function GenerationFlow({
         const hasProcessed = layerActivationProgress > 1
 
         layer.nodes.forEach((node, nodeIdx) => {
-          // Get actual activation intensity from data
+          // Only show real activation data once the animation pass has reached this layer
           let baseIntensity = 0.15
 
-          if (tokensInCurrentStep > 0 && flowingTokenIdx < totalTokens) {
+          if (tokensInCurrentStep > 0 && flowingTokenIdx < totalTokens && (isProcessing || hasProcessed)) {
             if (layerIdx === 0 || layerIdx === 1) {
               // Input or Embedding layer
               baseIntensity = getEmbeddingActivation(flowingTokenIdx, nodeIdx)
@@ -665,83 +664,6 @@ export const GenerationFlow = memo(function GenerationFlow({
     progressRef.current = newProgress
   }
 
-  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const rect = canvas.getBoundingClientRect()
-    const mouseX = e.clientX - rect.left
-    const mouseY = e.clientY - rect.top
-
-    // Check if hovering over any network node
-    const progress = progressRef.current
-    const totalSteps = generatedTokens + 1
-    const currentStep = Math.floor(progress * totalSteps)
-    const tokensInCurrentStep = Math.min(promptTokens + currentStep, totalTokens)
-
-    if (tokensInCurrentStep === 0) {
-      setHoveredToken(null)
-      return
-    }
-
-    const currentTokenIdx = tokensInCurrentStep - 1
-
-    // Network layout parameters (must match the animation)
-    const layerSpacing = (width - 200) / (numLayers + 2)
-    const networkTop = 100
-    const networkHeight = 380
-    const nodesPerLayer = 10
-    const nodeSpacing = networkHeight / (nodesPerLayer + 1)
-    const nodeRadius = 6
-
-    // Create layers
-    const layers = [
-      { x: 100, label: 'Input' },
-      { x: 100 + layerSpacing, label: 'Embed' },
-      ...Array(numLayers).fill(0).map((_, i) => ({
-        x: 100 + layerSpacing * (i + 2),
-        label: `L${i}`
-      })),
-      { x: 100 + layerSpacing * (numLayers + 2), label: 'Output' }
-    ]
-
-    // Check each layer's nodes
-    let foundToken = null
-    for (let layerIdx = 0; layerIdx < layers.length; layerIdx++) {
-      const layer = layers[layerIdx]
-
-      for (let nodeIdx = 0; nodeIdx < nodesPerLayer; nodeIdx++) {
-        const nodeX = layer.x
-        const nodeY = networkTop + nodeSpacing * (nodeIdx + 1)
-
-        const distance = Math.sqrt(Math.pow(mouseX - nodeX, 2) + Math.pow(mouseY - nodeY, 2))
-
-        if (distance <= nodeRadius + 5) {
-          foundToken = { idx: currentTokenIdx, x: mouseX, y: mouseY }
-          break
-        }
-      }
-
-      if (foundToken) break
-    }
-
-    setHoveredToken(foundToken)
-  }
-
-  const handleCanvasMouseLeave = () => {
-    setHoveredToken(null)
-  }
-
-  // Get embedding vector for hovered token
-  const getTokenEmbedding = (tokenIdx: number): number[] | null => {
-    const embeddings = activationData.activations.combined_embeddings || activationData.activations.token_embeddings
-    if (!embeddings) return null
-
-    const values = embeddings.values as number[][][]
-    if (!values || !values[0] || !values[0][tokenIdx]) return null
-
-    return values[0][tokenIdx]
-  }
 
   return (
     <div className={`generation-flow ${className}`}>
@@ -791,42 +713,7 @@ export const GenerationFlow = memo(function GenerationFlow({
             <canvas
               ref={canvasRef}
               className="flow-canvas"
-              onMouseMove={handleCanvasMouseMove}
-              onMouseLeave={handleCanvasMouseLeave}
             />
-            {hoveredToken && (
-              <div
-                className="embedding-tooltip"
-                style={{
-                  left: `${hoveredToken.x + 15}px`,
-                  top: `${hoveredToken.y + 15}px`
-                }}
-              >
-                <div className="tooltip-header">
-                  Token: <strong>{getDecodedToken(hoveredToken.idx)}</strong>
-                </div>
-                <div className="tooltip-content">
-                  <div className="tooltip-label">Embedding Vector (first 10 dims):</div>
-                  {(() => {
-                    const embedding = getTokenEmbedding(hoveredToken.idx)
-                    if (!embedding) return <div className="tooltip-error">No embedding available</div>
-                    return (
-                      <div className="embedding-values">
-                        {embedding.slice(0, 10).map((val, i) => (
-                          <div key={i} className="embedding-value">
-                            <span className="dim-label">[{i}]</span>
-                            <span className="dim-value">{val.toFixed(4)}</span>
-                          </div>
-                        ))}
-                        {embedding.length > 10 && (
-                          <div className="embedding-more">... and {embedding.length - 10} more dimensions</div>
-                        )}
-                      </div>
-                    )
-                  })()}
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="top-tokens-panel" style={{ maxHeight: `${canvasDimensions.height}px` }}>
@@ -1091,7 +978,7 @@ export const GenerationFlow = memo(function GenerationFlow({
           margin-bottom: 0.4rem;
           background: rgba(255, 255, 255, 0.03);
           border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 6px;
+          border-radius: 0;
           transition: all 0.2s ease;
           cursor: pointer;
           font-family: 'Monaco', 'Courier New', monospace;
@@ -1168,82 +1055,6 @@ export const GenerationFlow = memo(function GenerationFlow({
 
         .top-tokens-list::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.25);
-        }
-
-        .embedding-tooltip {
-          position: absolute;
-          background: rgba(15, 23, 42, 0.98);
-          border: 1px solid rgba(255, 255, 255, 0.3);
-          padding: 0.75rem;
-          pointer-events: none;
-          z-index: 1000;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 255, 255, 0.15);
-          max-width: 300px;
-          font-family: 'Monaco', 'Courier New', monospace;
-          font-size: 0.75rem;
-        }
-
-        .tooltip-header {
-          color: #ffffff;
-          font-weight: 600;
-          margin-bottom: 0.5rem;
-          padding-bottom: 0.5rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .tooltip-header strong {
-          color: #fff;
-        }
-
-        .tooltip-content {
-          color: #94a3b8;
-        }
-
-        .tooltip-label {
-          font-size: 0.7rem;
-          color: #64748b;
-          margin-bottom: 0.25rem;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .embedding-values {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 0.25rem;
-          margin-top: 0.25rem;
-        }
-
-        .embedding-value {
-          display: flex;
-          justify-content: space-between;
-          padding: 0.15rem 0.25rem;
-          background: rgba(255, 255, 255, 0.05);
-        }
-
-        .dim-label {
-          color: #64748b;
-          font-size: 0.7rem;
-        }
-
-        .dim-value {
-          color: #ffffff;
-          font-weight: 600;
-        }
-
-        .embedding-more {
-          grid-column: 1 / -1;
-          text-align: center;
-          color: #64748b;
-          font-size: 0.7rem;
-          font-style: italic;
-          margin-top: 0.25rem;
-        }
-
-        .tooltip-error {
-          color: #f87171;
-          font-size: 0.7rem;
-          font-style: italic;
         }
 
         .output-panel {
@@ -1530,29 +1341,6 @@ export const GenerationFlow = memo(function GenerationFlow({
 
         [data-bg="light"] .top-tokens-list::-webkit-scrollbar-thumb:hover {
           background: rgba(0, 0, 0, 0.2);
-        }
-
-        [data-bg="light"] .embedding-tooltip {
-          background: rgba(255, 255, 255, 0.98);
-          border: 1px solid rgba(0, 0, 0, 0.2);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 20px rgba(0, 0, 0, 0.06);
-        }
-
-        [data-bg="light"] .tooltip-header {
-          color: #1d1d1f;
-          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .tooltip-header strong {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .embedding-value {
-          background: rgba(0, 0, 0, 0.04);
-        }
-
-        [data-bg="light"] .dim-value {
-          color: #1d1d1f;
         }
 
         [data-bg="light"] .output-panel {
