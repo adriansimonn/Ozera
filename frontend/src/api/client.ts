@@ -649,11 +649,24 @@ class OzeraAPIClient {
     return response.json()
   }
 
-  // listDatasets, getDataset, and deleteDataset removed - datasets are now session-only
+  /**
+   * Get the user's currently uploaded dataset, if any.
+   */
+  async getCurrentDataset(): Promise<DatasetMetadata | null> {
+    const response = await fetch(`${this.baseUrl}/datasets/current`, {
+      headers: getAuthHeaders(),
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const data = await response.json()
+    return data?.dataset || null
+  }
 
   /**
    * List generic datasets available for training.
-   * These are pre-uploaded datasets available to all users.
    */
   async listGenericDatasets(): Promise<GenericDatasetInfo[]> {
     const response = await fetch(`${this.baseUrl}/datasets/generic/list`)

@@ -59,9 +59,15 @@ export const DatasetUpload: React.FC<DatasetUploadProps> = ({
 
     try {
       const metadata = await onUpload(file)
-      setUploadedFile(metadata)
+      if (metadata) {
+        setUploadedFile(metadata)
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed')
+      const msg = err instanceof Error ? err.message : 'Upload failed'
+      // Don't show error for user-cancelled uploads
+      if (msg !== 'Upload cancelled') {
+        setError(msg)
+      }
     } finally {
       setUploading(false)
     }

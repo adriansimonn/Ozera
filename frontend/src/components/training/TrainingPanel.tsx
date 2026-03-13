@@ -12,8 +12,8 @@ import { useAuthStore } from '../../stores/authStore'
 import { useThemeColors } from '../../hooks/useTheme'
 import { Dropdown } from '../common/Dropdown'
 
-// Dataset sources - "uploaded" is user's uploaded dataset, others are generic datasets from Modal volume
-type DatasetSource = 'uploaded' | string
+// Dataset sources - "uploaded" is user's uploaded dataset, "upload-new" shows upload UI, others are generic datasets
+type DatasetSource = 'uploaded' | 'upload-new' | string
 
 interface TrainingPanelProps {
   onStartTraining: (
@@ -43,15 +43,26 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
   const [datasetSource, setDatasetSource] = useState<DatasetSource>('uploaded')
   const [uploadedDataset, setUploadedDataset] = useState<DatasetMetadata | null>(null)
   const [genericDatasets, setGenericDatasets] = useState<GenericDatasetInfo[]>([])
+  const [showDatasetOverwriteWarning, setShowDatasetOverwriteWarning] = useState(false)
+  const [pendingUploadFile, setPendingUploadFile] = useState<File | null>(null)
 
-  // Fetch generic datasets on mount
+  // Fetch user's current dataset and generic datasets on mount
   useEffect(() => {
+    if (isAuthenticated) {
+      apiClient.getCurrentDataset()
+        .then((dataset) => {
+          if (dataset) {
+            setUploadedDataset(dataset)
+            setDatasetSource('uploaded')
+          }
+        })
+        .catch(() => {})
+    }
+
     apiClient.listGenericDatasets()
       .then(setGenericDatasets)
-      .catch(() => {
-        // Silently fail - generic datasets are optional
-      })
-  }, [])
+      .catch(() => {})
+  }, [isAuthenticated])
 
   // GPU pricing
   const { pricing: gpuPricing, defaultGpu } = useGpuPricing()
@@ -88,7 +99,9 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
   // Get the current dataset ID based on source
   const currentDatasetId = datasetSource === 'uploaded'
     ? uploadedDataset?.dataset_id
-    : datasetSource
+    : datasetSource === 'upload-new'
+      ? undefined
+      : datasetSource
 
   // Fetch estimate when config changes
   useEffect(() => {
@@ -99,16 +112,53 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
     }
   }, [currentDatasetId, modelConfig, epochs, batchSize, seqLen, gpuType, getEstimate, clearEstimate])
 
+  // Ref to hold the resolve/reject for the pending overwrite confirmation
+  const overwriteResolveRef = React.useRef<{ resolve: (v: any) => void; reject: (e: any) => void } | null>(null)
+
+  const doUpload = useCallback(async (file: File) => {
+    const metadata = await apiClient.uploadDataset(file)
+    setUploadedDataset(metadata)
+    setDatasetSource('uploaded')
+    return metadata
+  }, [])
+
   const handleUpload = useCallback(async (file: File) => {
     if (!isAuthenticated) {
       onShowLogin?.()
       return undefined as any
     }
-    const metadata = await apiClient.uploadDataset(file)
-    setUploadedDataset(metadata)
-    setDatasetSource('uploaded')
-    return metadata
-  }, [isAuthenticated, onShowLogin])
+    // If user already has a dataset, show overwrite warning and wait for confirmation
+    if (uploadedDataset) {
+      setPendingUploadFile(file)
+      setShowDatasetOverwriteWarning(true)
+      return new Promise<DatasetMetadata>((resolve, reject) => {
+        overwriteResolveRef.current = { resolve, reject }
+      })
+    }
+    return doUpload(file)
+  }, [isAuthenticated, onShowLogin, uploadedDataset, doUpload])
+
+  const handleConfirmOverwrite = useCallback(async () => {
+    setShowDatasetOverwriteWarning(false)
+    if (pendingUploadFile) {
+      const file = pendingUploadFile
+      setPendingUploadFile(null)
+      try {
+        const metadata = await doUpload(file)
+        overwriteResolveRef.current?.resolve(metadata)
+      } catch (err) {
+        overwriteResolveRef.current?.reject(err)
+      }
+      overwriteResolveRef.current = null
+    }
+  }, [pendingUploadFile, doUpload])
+
+  const handleCancelOverwrite = useCallback(() => {
+    setShowDatasetOverwriteWarning(false)
+    setPendingUploadFile(null)
+    overwriteResolveRef.current?.reject(new Error('Upload cancelled'))
+    overwriteResolveRef.current = null
+  }, [])
 
   const handleStartTraining = async () => {
     if (!currentDatasetId || !modelName.trim()) {
@@ -168,14 +218,20 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
   const RESERVED_MODEL_NAMES = ['ozera-nano', 'ozera-mini']
   const isReservedName = RESERVED_MODEL_NAMES.includes(modelName.trim().toLowerCase())
 
-  const hasDataset = datasetSource === 'uploaded' ? !!uploadedDataset : !!datasetSource
+  const hasDataset = datasetSource === 'uploaded' ? !!uploadedDataset : datasetSource !== 'upload-new'
   const isValid = hasDataset && modelName.trim().length > 0 && !isReservedName
 
   // Build dataset options for dropdown
-  const datasetOptions = [
-    { id: 'uploaded', name: 'Uploaded Dataset', tokens: uploadedDataset?.num_tokens },
-    ...genericDatasets.map(d => ({ id: d.id, name: d.name, tokens: undefined })),
-  ]
+  const datasetOptions = uploadedDataset
+    ? [
+        { id: 'uploaded', name: uploadedDataset.name.replace(/\.txt$/, ''), tokens: uploadedDataset.num_tokens },
+        { id: 'upload-new', name: 'Upload Dataset', tokens: undefined },
+        ...genericDatasets.map(d => ({ id: d.id, name: d.name, tokens: undefined, description: d.description })),
+      ]
+    : [
+        { id: 'uploaded', name: 'Upload Dataset', tokens: undefined },
+        ...genericDatasets.map(d => ({ id: d.id, name: d.name, tokens: undefined, description: d.description })),
+      ]
 
   return (
     <div
@@ -218,10 +274,10 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
           />
         </div>
 
-        {/* Show upload component when "Uploaded Dataset" is selected */}
-        {datasetSource === 'uploaded' && (
+        {/* Show upload component when upload-related source is selected */}
+        {(datasetSource === 'uploaded' || datasetSource === 'upload-new') && (
           <>
-            {uploadedDataset ? (
+            {datasetSource === 'uploaded' && uploadedDataset ? (
               <div
                 style={{
                   background: 'rgba(34, 197, 94, 0.1)',
@@ -238,11 +294,11 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
                   {formatTokens(uploadedDataset.num_tokens)} tokens • {(uploadedDataset.size_bytes / 1024).toFixed(1)} KB
                 </div>
               </div>
-            ) : (
+            ) : datasetSource === 'uploaded' && !uploadedDataset ? (
               <div style={{ color: tc.textMuted, fontSize: '12px', marginBottom: '12px' }}>
                 No dataset uploaded yet
               </div>
-            )}
+            ) : null}
             <DatasetUpload onUpload={handleUpload} disabled={disabled || starting} />
           </>
         )}
@@ -589,6 +645,75 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
           to { transform: rotate(360deg); }
         }
       `}</style>
+
+      {/* Dataset Overwrite Warning Modal */}
+      {showDatasetOverwriteWarning && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={handleCancelOverwrite}
+        >
+          <div
+            style={{
+              background: '#1a1a1a',
+              border: `1px solid ${tc.borderStrong}`,
+              padding: '24px',
+              maxWidth: '400px',
+              width: '90%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ color: tc.text, fontSize: '16px', fontWeight: 600, margin: '0 0 12px 0' }}>
+              Replace Existing Dataset?
+            </h3>
+            <p style={{ color: tc.textSub, fontSize: '13px', margin: '0 0 8px 0', lineHeight: 1.5 }}>
+              You already have a dataset uploaded: <strong style={{ color: tc.text }}>{uploadedDataset?.name}</strong>
+            </p>
+            <p style={{ color: tc.textSub, fontSize: '13px', margin: '0 0 20px 0', lineHeight: 1.5 }}>
+              Uploading a new dataset will permanently replace your current one.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleCancelOverwrite}
+                style={{
+                  padding: '10px 16px',
+                  background: 'transparent',
+                  border: `1px solid ${tc.borderHover}`,
+                  color: tc.textMid,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmOverwrite}
+                style={{
+                  padding: '10px 16px',
+                  background: 'rgba(239, 68, 68, 0.2)',
+                  border: '1px solid rgba(239, 68, 68, 0.5)',
+                  color: '#ef4444',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Replace Dataset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Overwrite Confirmation Modal */}
       {showOverwriteModal && (

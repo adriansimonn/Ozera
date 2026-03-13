@@ -183,6 +183,47 @@ def read_dataset_metadata_from_volume(user_id: int, dataset_id: str) -> Optional
         return None
 
 
+def list_user_datasets(user_id: int) -> list[dict]:
+    """
+    List all datasets uploaded by a user.
+
+    Returns:
+        List of metadata dicts for each dataset, or empty list.
+    """
+    import json
+    datasets = []
+    try:
+        for entry in datasets_volume.listdir(f"/{user_id}"):
+            dataset_id = entry.path.strip("/").split("/")[-1]
+            try:
+                meta_content = b""
+                for chunk in datasets_volume.read_file(f"/{user_id}/{dataset_id}/metadata.json"):
+                    meta_content += chunk
+                metadata = json.loads(meta_content.decode("utf-8"))
+                datasets.append(metadata)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return datasets
+
+
+async def delete_user_datasets(user_id: int) -> bool:
+    """
+    Delete all datasets for a user (to make room for a new upload).
+    """
+    try:
+        for entry in datasets_volume.listdir(f"/{user_id}"):
+            dataset_id = entry.path.strip("/").split("/")[-1]
+            try:
+                datasets_volume.remove_file(f"/{user_id}/{dataset_id}", recursive=True)
+            except Exception:
+                pass
+        return True
+    except Exception:
+        return False
+
+
 async def check_dataset_exists(user_id: int, dataset_id: str) -> bool:
     """
     Check if a dataset exists in the Modal volume.

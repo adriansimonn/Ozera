@@ -249,7 +249,6 @@ export default function DefaultTrainingPage() {
               <div className="dt-section-card" style={{ background: c.panelBg, borderColor: c.panelBorder }}>
                 <div className="dt-section-header">
                   <h3 style={{ color: c.text }}>Custom Models</h3>
-                  <span className="dt-count" style={{ color: c.textSub }}>{allCustomModels.length}</span>
                 </div>
 
                 {allCustomModels.length === 0 ? (
@@ -339,7 +338,6 @@ export default function DefaultTrainingPage() {
                 <div className="dt-section-card" style={{ background: c.panelBg, borderColor: c.panelBorder }}>
                   <div className="dt-section-header">
                     <h3 style={{ color: c.text }}>Recent Jobs</h3>
-                    <span className="dt-count" style={{ color: c.textSub }}>{jobs.length}</span>
                   </div>
 
                   {jobs.length === 0 ? (
