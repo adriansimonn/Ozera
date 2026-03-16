@@ -168,9 +168,16 @@ async def capture_activations(
         )
 
         # Reconstruct activations locally for caching
+        import base64
+        import numpy as np
+
         reconstructed_activations = {}
         for key, value in result['activations'].items():
-            if isinstance(value, list):
+            if isinstance(value, dict) and value.get('encoding') == 'base64_float32':
+                raw = base64.b64decode(value['values'])
+                arr = np.frombuffer(raw, dtype=np.float32).reshape(value['shape'])
+                reconstructed_activations[key] = torch.tensor(arr)
+            elif isinstance(value, list):
                 reconstructed_activations[key] = torch.tensor(value)
             else:
                 reconstructed_activations[key] = value

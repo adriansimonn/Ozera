@@ -992,9 +992,16 @@ class InferenceWorkerT4:
         engine = get_patching_engine()
 
         # Reconstruct activations from serialized data
+        import base64
+        import numpy as np
+
         reconstructed_activations = {}
         for key, value in source_activations['activations'].items():
-            if isinstance(value, list):
+            if isinstance(value, dict) and value.get('encoding') == 'base64_float32':
+                raw = base64.b64decode(value['values'])
+                arr = np.frombuffer(raw, dtype=np.float32).reshape(value['shape'])
+                reconstructed_activations[key] = torch.tensor(arr)
+            elif isinstance(value, list):
                 reconstructed_activations[key] = torch.tensor(value)
             else:
                 reconstructed_activations[key] = value
@@ -1585,9 +1592,16 @@ class InferenceWorkerA10G:
         engine = get_patching_engine()
 
         # Reconstruct activations from serialized data
+        import base64
+        import numpy as np
+
         reconstructed_activations = {}
         for key, value in source_activations['activations'].items():
-            if isinstance(value, list):
+            if isinstance(value, dict) and value.get('encoding') == 'base64_float32':
+                raw = base64.b64decode(value['values'])
+                arr = np.frombuffer(raw, dtype=np.float32).reshape(value['shape'])
+                reconstructed_activations[key] = torch.tensor(arr)
+            elif isinstance(value, list):
                 reconstructed_activations[key] = torch.tensor(value)
             else:
                 reconstructed_activations[key] = value
