@@ -151,7 +151,7 @@ export const TransformationFlow = memo(function TransformationFlow({
     }
 
     // Draw each stage
-    stages.forEach((stage, idx) => {
+    stages.forEach((stage, _idx) => {
       const x = width / 2
       const y = stage.y
 

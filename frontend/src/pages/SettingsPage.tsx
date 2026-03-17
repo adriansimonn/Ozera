@@ -25,7 +25,7 @@ type SettingsTab = 'account' | 'credits' | 'ui'
 
 export default function SettingsPage() {
   const { user, isAuthenticated, refreshUser } = useAuthStore()
-  const { settings, fetchSettings, updateSettings } = useSettingsStore()
+  const { settings, updateSettings } = useSettingsStore()
   const { showPurchaseCredits } = usePurchaseCredits()
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('account')
