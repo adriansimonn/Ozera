@@ -57,7 +57,7 @@ _app_env = os.getenv("APP_ENV", "development")
 
 # Validate critical environment variables in production
 if _app_env == "production":
-    _required_env_vars = ["MODAL_WEBHOOK_SECRET", "STRIPE_SECRET_KEY", "SUPABASE_JWT_SECRET"]
+    _required_env_vars = ["MODAL_WEBHOOK_SECRET", "STRIPE_SECRET_KEY", "SUPABASE_URL"]
     _missing = [v for v in _required_env_vars if not os.getenv(v)]
     if _missing:
         raise RuntimeError(f"Missing required environment variables for production: {', '.join(_missing)}")
