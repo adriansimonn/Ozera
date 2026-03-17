@@ -135,7 +135,6 @@ export function NetworkFlow({
       const transformerLayer: Node[] = []
 
       // Get activation values for this layer
-      const _postAttn = layer.post_attn?.values as number[][][] | undefined
       const postFF = layer.post_ff?.values as number[][][] | undefined
 
       for (let i = 0; i < nodesPerLayer; i++) {
