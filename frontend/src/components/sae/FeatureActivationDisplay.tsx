@@ -55,7 +55,7 @@ interface HoveredCell {
 
 export function FeatureActivationDisplay({
   activations,
-  selectedFeatures,
+  selectedFeatures: _selectedFeatures,
   onFeatureSelect,
   showTopK = 50,
   className = '',
@@ -194,7 +194,7 @@ export function FeatureActivationDisplay({
           })
 
         // Attach click handler
-        rect.on('click', function(event) {
+        rect.on('click', function(_event) {
           setSelectedCell({ featureIdx: featIdx, position: posIdx })
           if (onFeatureSelect) {
             onFeatureSelect(featIdx)

@@ -111,7 +111,7 @@ export const AttentionHeatmap = memo(function AttentionHeatmap({
       .text(`Layer ${layerIndex} - Head ${headIndex}`)
 
     // Create heatmap cells
-    const cells = g.selectAll('rect')
+    g.selectAll('rect')
       .data(matrix.flatMap((row, i) => row.map((value, j) => ({ i, j, value }))))
       .enter()
       .append('rect')

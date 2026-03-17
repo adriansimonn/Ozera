@@ -340,17 +340,17 @@ export const GenerationFlow = memo(function GenerationFlow({
     const drawNetwork = (
       ctx: CanvasRenderingContext2D,
       layers: Array<{ x: number; label: string; nodes: Array<{x: number, y: number, active: number}> }>,
-      progress: number,
+      _progress: number,
       tokensInCurrentStep: number,
       stepProgress: number,
       flowingTokenIdx: number,
-      isPrompt: boolean
+      _isPrompt: boolean
     ) => {
 
       // Calculate layer progress for connections
       const layerProgress = stepProgress * layers.length
       const activeLayerIdx = Math.floor(layerProgress)
-      const layerStepProgress = layerProgress - activeLayerIdx
+      void (layerProgress - activeLayerIdx)
 
       // Draw all connections between layers based on actual activation patterns
       for (let i = 0; i < layers.length - 1; i++) {
@@ -532,7 +532,7 @@ export const GenerationFlow = memo(function GenerationFlow({
     const drawGenerationProcess = (
       ctx: CanvasRenderingContext2D,
       layers: Array<{ x: number; label: string; nodes: Array<{x: number, y: number, active: number}> }>,
-      progress: number,
+      _progress: number,
       tokenHeight: number,
       maxVisibleTokens: number,
       stepProgress: number,

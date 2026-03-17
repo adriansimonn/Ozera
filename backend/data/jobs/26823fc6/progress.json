@@ -1,0 +1,16 @@
+{
+  "job_id": "26823fc6",
+  "status": "cancelled",
+  "current_epoch": 0,
+  "total_epochs": 5,
+  "current_step": 0,
+  "total_steps": 220,
+  "train_loss": null,
+  "val_loss": null,
+  "train_ppl": null,
+  "val_ppl": null,
+  "elapsed_seconds": 0,
+  "estimated_remaining_seconds": 42,
+  "last_update": "2026-01-20T13:48:23.505507",
+  "error_message": null
+}
