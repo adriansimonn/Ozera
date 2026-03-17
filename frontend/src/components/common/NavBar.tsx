@@ -40,7 +40,7 @@ export function NavBar({
       <div className="navbar-content">
         <div className="navbar-left">
           <Link to="/" className="navbar-logo">
-            <img src="/src/assets/logos/LogoTransparentWhiteText.png" alt="Ozera" />
+            <img src="/LogoTransparentWhiteText.png" alt="Ozera" />
           </Link>
 
           <div className="navbar-links">

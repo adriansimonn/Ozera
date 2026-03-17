@@ -281,7 +281,7 @@ export default function AuthPage() {
         }}>
           {/* Logo */}
           <img
-            src="/src/assets/logos/LogoTransparentWhiteText.png"
+            src="/LogoTransparentWhiteText.png"
             alt="Ozera"
             style={{ height: '38px', width: 'auto', marginBottom: '2rem', alignSelf: 'flex-start' }}
           />
