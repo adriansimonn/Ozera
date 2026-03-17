@@ -435,17 +435,29 @@ async def generate_stream(
             detail="Insufficient credits. Please add more credits to continue."
         )
 
+    # Charge upfront based on estimated cost before streaming begins
+    prompt_token_estimate = len(body.prompt.split()) * 2
+    try:
+        charge_inference(
+            db=db,
+            user_id=current_user.id,
+            prompt_tokens=prompt_token_estimate,
+            generated_tokens=body.max_tokens,
+            model_name=body.model,
+        )
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
+    except Exception:
+        logger.exception("Failed to charge credits before streaming")
+        raise HTTPException(status_code=500, detail="Failed to reserve credits for generation")
+
     async def event_stream():
         token_count = 0
-        prompt_token_estimate = len(body.prompt.split()) * 2
-        charge_error_msg = None
 
         try:
-            # Send start event
             data = json.dumps({'type': 'start', 'prompt': body.prompt}, ensure_ascii=False)
             yield f"data: {data}\n\n".encode('utf-8')
 
-            # Get worker and stream tokens
             worker = _get_inference_worker(body.model)
 
             for token in worker().generate_stream.remote(
@@ -460,26 +472,11 @@ async def generate_stream(
                 data = json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)
                 yield f"data: {data}\n\n".encode('utf-8')
 
-            # Charge user — report error in stream if fails
-            try:
-                charge_inference(
-                    db=db,
-                    user_id=current_user.id,
-                    prompt_tokens=prompt_token_estimate,
-                    generated_tokens=token_count,
-                    model_name=body.model,
-                )
-            except Exception as charge_error:
-                charge_error_msg = str(charge_error)
-
-            # Send done event
             done_payload = {
                 'type': 'done',
                 'token_count': token_count,
-                'charged': charge_error_msg is None,
+                'charged': True,
             }
-            if charge_error_msg:
-                done_payload['charge_error'] = charge_error_msg
             data = json.dumps(done_payload, ensure_ascii=False)
             yield f"data: {data}\n\n".encode('utf-8')
 

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
 
 from db import get_db
+from api.error_utils import safe_detail
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import limiter
 from models.database import User
@@ -61,7 +62,7 @@ async def create_intent(
             credits_usd=result["credits_usd"],
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=safe_detail(e, "Payment processing error"))
     except Exception as e:
         logger.error(f"Failed to create payment intent: {e}")
         raise HTTPException(

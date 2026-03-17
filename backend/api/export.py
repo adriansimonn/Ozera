@@ -5,6 +5,8 @@ Provides endpoints for exporting attention heatmaps, activation histograms,
 and patching results in publication-quality formats (PNG, PDF, SVG).
 """
 
+import re
+
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
@@ -503,13 +505,14 @@ async def export_activation_histogram(
         "svg": "image/svg+xml",
     }
 
-    filename = f"histogram_{'L' + str(request.layer) if request.layer is not None else 'all'}_{request.activation_type}.{request.config.format}"
+    safe_type = re.sub(r"[^a-zA-Z0-9_.-]", "_", request.activation_type)
+    filename = f"histogram_{'L' + str(request.layer) if request.layer is not None else 'all'}_{safe_type}.{request.config.format}"
 
     return Response(
         content=image_bytes,
         media_type=media_types[request.config.format],
         headers={
-            "Content-Disposition": f"attachment; filename={filename}"
+            "Content-Disposition": f'attachment; filename="{filename}"'
         }
     )
 

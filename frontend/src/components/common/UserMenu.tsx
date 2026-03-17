@@ -5,12 +5,14 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, LogOut, Wallet, Plus, Settings } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
+import { usePurchaseCredits } from '../../contexts/PurchaseCreditsContext';
 
 export function UserMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const { showPurchaseCredits } = usePurchaseCredits();
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -33,10 +35,7 @@ export function UserMenu() {
 
   const handleAddCredits = () => {
     setIsOpen(false);
-    // Use globally available modal trigger
-    if ((window as any).showPurchaseCreditsModal) {
-      (window as any).showPurchaseCreditsModal();
-    }
+    showPurchaseCredits();
   };
 
   return (

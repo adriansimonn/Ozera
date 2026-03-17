@@ -2,73 +2,64 @@
 # Essential dependencies for building transformers from scratch
 
 # Core math (pure implementation)
-numpy>=1.24.0
-scipy>=1.10.0
+numpy==2.4.1
+scipy~=1.10.0
 
 # Data handling
-pandas>=2.0.0
+pandas~=2.0.0
 
 # Tokenization
-tokenizers>=0.15.0
-tiktoken>=0.5.0
+tokenizers~=0.15.0
+tiktoken==0.12.0
 
 # PyTorch (for GPU training and inference)
-torch>=2.0.0
+torch==2.9.1
 
 # Testing
-pytest>=7.4.0
-pytest-cov>=4.1.0
+pytest~=7.4.0
+pytest-cov~=4.1.0
 
 # Code quality
-black>=23.0.0
-isort>=5.12.0
-flake8>=6.1.0
-mypy>=1.5.0
+black~=23.0.0
+isort~=5.12.0
+flake8~=6.1.0
+mypy~=1.5.0
 
 # Utilities
-tqdm>=4.65.0  # Progress bars for training
+tqdm~=4.65.0  # Progress bars for training
 
-# Phase 2+ Dependencies (commented out for now)
-# Uncomment when needed for API/database/deployment
-
+# Phase 2+ Dependencies
 # API framework
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-pydantic>=2.0.0
-python-multipart>=0.0.6
-httpx>=0.25.0  # HTTP client for async requests
+fastapi==0.128.0
+uvicorn[standard]==0.40.0
+pydantic==2.12.5
+python-multipart==0.0.21
+httpx==0.28.1
 
 # Database
-sqlalchemy>=2.0.0
-alembic>=1.12.0
-psycopg2-binary>=2.9.9  # PostgreSQL adapter
-
-# # Job queue
-# redis>=5.0.0
-# celery>=5.3.0
+sqlalchemy==2.0.45
+alembic==1.18.1
+psycopg2-binary==2.9.11  # PostgreSQL adapter
 
 # File formats
-h5py>=3.9.0  # HDF5 for large activation storage (SAE training)
-safetensors>=0.4.0
+h5py~=3.9.0  # HDF5 for large activation storage (SAE training)
+safetensors~=0.4.0
 
 # Data sources
-datasets>=2.14.0  # HuggingFace datasets (for The Pile)
-
-# # Logging
-# structlog>=23.2.0
+datasets~=2.14.0  # HuggingFace datasets (for The Pile)
 
 # Environment
-python-dotenv>=1.0.0
+python-dotenv==1.2.1
 
 # Authentication & Security
-python-jose[cryptography]>=3.3.0  # JWT verification (Supabase tokens)
-slowapi>=0.1.9  # Rate limiting
+python-jose[cryptography]==3.5.0  # JWT verification (Supabase tokens)
+slowapi==0.1.9  # Rate limiting
 
-# Payments (Phase 2)
-stripe>=7.0.0  # Stripe payment processing
+# Payments
+stripe==14.2.0  # Stripe payment processing
 
-# Cloud GPU Training (Phase 3)
-modal>=0.55.0  # Modal for cloud GPU execution
+# Cloud GPU Training
+modal==1.3.0.post1  # Modal for cloud GPU execution
 
-# Paper-ready figure export (Phase 2)
-matplotlib>=3.8.0  # Server-side figure generation
+# Paper-ready figure export
+matplotlib==3.10.8  # Server-side figure generation

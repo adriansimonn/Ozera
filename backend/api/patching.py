@@ -8,6 +8,7 @@ Provides endpoints for:
 """
 
 from fastapi import APIRouter, HTTPException, Depends
+from api.error_utils import safe_detail
 from sqlalchemy.orm import Session
 from typing import Optional
 import os
@@ -399,7 +400,7 @@ async def run_patching_experiment(
     except InsufficientBalanceError:
         raise HTTPException(status_code=402, detail="Insufficient credits.")
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid patching request"))
     except HTTPException:
         raise
     except Exception:
@@ -520,7 +521,7 @@ async def run_patching_with_captured(
     except InsufficientBalanceError:
         raise HTTPException(status_code=402, detail="Insufficient credits.")
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid patching request"))
     except HTTPException:
         raise
     except Exception:

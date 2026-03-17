@@ -288,8 +288,12 @@ def validate_purchase_amount(amount_usd: float) -> bool:
 
 
 def check_sufficient_balance(db: Session, user_id: int, required_amount: float) -> bool:
-    """Check if user has sufficient available balance."""
-    credit_balance = get_credit_balance(db, user_id)
+    """Check if user has sufficient available balance.
+
+    Uses FOR UPDATE row lock to prevent TOCTOU races when called
+    within the same session/transaction that will later charge.
+    """
+    credit_balance = get_credit_balance_for_update(db, user_id)
     if not credit_balance:
         return False
     return credit_balance.available_balance >= required_amount

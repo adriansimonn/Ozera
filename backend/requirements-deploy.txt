@@ -1,0 +1,36 @@
+# Ozera production deployment requirements (Railway)
+# Excludes packages only used in Modal workers or dev tooling
+
+# API framework
+fastapi==0.128.0
+uvicorn[standard]==0.40.0
+pydantic==2.12.5
+python-multipart==0.0.21
+httpx==0.28.1
+
+# Database
+sqlalchemy==2.0.45
+alembic==1.18.1
+psycopg2-binary==2.9.11
+
+# Environment
+python-dotenv==1.2.1
+
+# Authentication & Security
+python-jose[cryptography]==3.5.0
+slowapi==0.1.9
+
+# Payments
+stripe==14.2.0
+
+# Cloud GPU (remote calls only, no local execution)
+modal==1.3.0.post1
+
+# ML - CPU-only torch for activation patching endpoint
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.9.1+cpu
+
+# ML - export/figure generation
+numpy==2.4.1
+matplotlib==3.10.8
+tiktoken==0.12.0

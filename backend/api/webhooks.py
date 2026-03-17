@@ -1,6 +1,7 @@
 """
 Webhook endpoints for receiving updates from Modal training jobs.
 """
+import hmac
 import os
 from datetime import datetime
 from typing import Optional
@@ -52,7 +53,7 @@ def verify_modal_secret(x_modal_secret: Optional[str] = Header(None)) -> bool:
             detail="Webhook secret not configured"
         )
 
-    if not x_modal_secret or x_modal_secret != MODAL_WEBHOOK_SECRET:
+    if not x_modal_secret or not hmac.compare_digest(x_modal_secret, MODAL_WEBHOOK_SECRET):
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
 
     return True

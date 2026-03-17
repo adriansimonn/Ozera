@@ -18,6 +18,7 @@ import {
   Lock,
   Plus,
 } from 'lucide-react'
+import { usePurchaseCredits } from '../contexts/PurchaseCreditsContext'
 import { Dropdown } from '../components/common/Dropdown'
 
 type SettingsTab = 'account' | 'credits' | 'ui'
@@ -25,6 +26,7 @@ type SettingsTab = 'account' | 'credits' | 'ui'
 export default function SettingsPage() {
   const { user, isAuthenticated, refreshUser } = useAuthStore()
   const { settings, fetchSettings, updateSettings } = useSettingsStore()
+  const { showPurchaseCredits } = usePurchaseCredits()
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('account')
 
@@ -147,9 +149,7 @@ export default function SettingsPage() {
   }
 
   const handleAddCredits = () => {
-    if ((window as any).showPurchaseCreditsModal) {
-      (window as any).showPurchaseCreditsModal()
-    }
+    showPurchaseCredits()
   }
 
   // Setting change handlers — immediate for discrete inputs, debounced for continuous

@@ -319,6 +319,27 @@ export interface StreamToken {
   message?: string
 }
 
+const DEFAULT_TIMEOUT_MS = 30_000
+
+async function fetchWithTimeout(
+  input: string,
+  init?: RequestInit,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController()
+  const id = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeoutMs}ms`)
+    }
+    throw err
+  } finally {
+    clearTimeout(id)
+  }
+}
+
 class OzeraAPIClient {
   private baseUrl: string
 
@@ -330,7 +351,7 @@ class OzeraAPIClient {
    * Check API health and get available models.
    */
   async health(): Promise<HealthResponse> {
-    const response = await fetch(`${this.baseUrl}/health`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/health`)
 
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.statusText}`)
@@ -343,7 +364,7 @@ class OzeraAPIClient {
    * List available models.
    */
   async listModels(): Promise<string[]> {
-    const response = await fetch(`${this.baseUrl}/models`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/models`)
 
     if (!response.ok) {
       throw new Error(`Failed to list models: ${response.statusText}`)
@@ -356,7 +377,7 @@ class OzeraAPIClient {
    * Get information about a specific model.
    */
   async getModelInfo(modelName: string): Promise<ModelInfo> {
-    const response = await fetch(`${this.baseUrl}/models/${modelName}`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/models/${modelName}`)
 
     if (!response.ok) {
       throw new Error(`Failed to get model info: ${response.statusText}`)
@@ -370,7 +391,7 @@ class OzeraAPIClient {
    * For custom models, this triggers download from Modal volume if needed.
    */
   async prepareModel(modelName: string): Promise<{ status: string; model: string; parameters: number; layers: number }> {
-    const response = await fetch(`${this.baseUrl}/models/${modelName}/prepare`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/models/${modelName}/prepare`, {
       method: 'POST',
     })
 
@@ -386,7 +407,7 @@ class OzeraAPIClient {
    * Generate text from a prompt.
    */
   async generate(request: GenerateRequest): Promise<GenerateResponse> {
-    const response = await fetch(`${this.baseUrl}/generate`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -509,7 +530,7 @@ class OzeraAPIClient {
    * Generate text with activation capture for visualization.
    */
   async generateWithActivations(request: GenerateRequest): Promise<GenerateWithActivationsResponse> {
-    const response = await fetch(`${this.baseUrl}/generate/with-activations`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/generate/with-activations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -535,7 +556,7 @@ class OzeraAPIClient {
    * Get activation data by ID.
    */
   async getActivations(activationId: string): Promise<ActivationData> {
-    const response = await fetch(`${this.baseUrl}/activations/${activationId}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/activations/${activationId}`, {
       headers: getAuthHeaders(),
     })
 
@@ -552,7 +573,7 @@ class OzeraAPIClient {
    * Enhanced with layer info and tensor info for lazy loading.
    */
   async getActivationSummary(activationId: string): Promise<ActivationSummaryWithInfo> {
-    const response = await fetch(`${this.baseUrl}/activations/${activationId}/summary`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/activations/${activationId}/summary`, {
       headers: getAuthHeaders(),
     })
 
@@ -568,7 +589,7 @@ class OzeraAPIClient {
    * Use this to load individual layers on-demand instead of loading all at once.
    */
   async getLayerActivations(activationId: string, layerIdx: number): Promise<{ layer_idx: number; activations: Record<string, any> }> {
-    const response = await fetch(`${this.baseUrl}/activations/${activationId}/layer/${layerIdx}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/activations/${activationId}/layer/${layerIdx}`, {
       headers: getAuthHeaders(),
     })
 
@@ -585,7 +606,7 @@ class OzeraAPIClient {
    * Valid tensor names: token_embeddings, positional_embeddings, combined_embeddings, final_layer_norm, logits
    */
   async getTensorActivation(activationId: string, tensorName: string): Promise<{ tensor_name: string; data: TensorData | TopKLogits }> {
-    const response = await fetch(`${this.baseUrl}/activations/${activationId}/tensor/${tensorName}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/activations/${activationId}/tensor/${tensorName}`, {
       headers: getAuthHeaders(),
     })
 
@@ -601,7 +622,7 @@ class OzeraAPIClient {
    * List all stored activations.
    */
   async listActivations(): Promise<ActivationSummary[]> {
-    const response = await fetch(`${this.baseUrl}/activations`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/activations`, {
       headers: getAuthHeaders(),
     })
 
@@ -616,7 +637,7 @@ class OzeraAPIClient {
    * Delete activation data.
    */
   async deleteActivations(activationId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/activations/${activationId}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/activations/${activationId}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     })
@@ -635,7 +656,7 @@ class OzeraAPIClient {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await fetch(`${this.baseUrl}/datasets/upload`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/datasets/upload`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: formData,
@@ -653,7 +674,7 @@ class OzeraAPIClient {
    * Get the user's currently uploaded dataset, if any.
    */
   async getCurrentDataset(): Promise<DatasetMetadata | null> {
-    const response = await fetch(`${this.baseUrl}/datasets/current`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/datasets/current`, {
       headers: getAuthHeaders(),
     })
 
@@ -669,7 +690,7 @@ class OzeraAPIClient {
    * List generic datasets available for training.
    */
   async listGenericDatasets(): Promise<GenericDatasetInfo[]> {
-    const response = await fetch(`${this.baseUrl}/datasets/generic/list`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/datasets/generic/list`)
 
     if (!response.ok) {
       throw new Error(`Failed to list generic datasets: ${response.statusText}`)
@@ -685,7 +706,7 @@ class OzeraAPIClient {
    * Get GPU pricing information.
    */
   async getGpuPricing(): Promise<{ pricing: GpuPricingInfo[]; default_gpu: GpuType }> {
-    const response = await fetch(`${this.baseUrl}/training/gpu-pricing`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/training/gpu-pricing`)
 
     if (!response.ok) {
       throw new Error(`Failed to get GPU pricing: ${response.statusText}`)
@@ -705,7 +726,7 @@ class OzeraAPIClient {
     seqLen: number,
     gpuType: GpuType = 'a10g'
   ): Promise<TrainingEstimate> {
-    const response = await fetch(`${this.baseUrl}/training/estimate`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/training/estimate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -730,7 +751,7 @@ class OzeraAPIClient {
    * Start a training job.
    */
   async startTrainingJob(request: TrainingJobRequest): Promise<TrainingJobResponse> {
-    const response = await fetch(`${this.baseUrl}/training/jobs`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/training/jobs`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -751,7 +772,7 @@ class OzeraAPIClient {
    * List training jobs for the current user.
    */
   async listTrainingJobs(): Promise<TrainingJobListItem[]> {
-    const response = await fetch(`${this.baseUrl}/training/jobs`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/training/jobs`, {
       headers: {
         ...getAuthHeaders(),
       },
@@ -769,7 +790,7 @@ class OzeraAPIClient {
    * Get training job status.
    */
   async getTrainingJobStatus(jobId: string): Promise<TrainingProgress> {
-    const response = await fetch(`${this.baseUrl}/training/jobs/${jobId}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/training/jobs/${jobId}`, {
       headers: getAuthHeaders(),
     })
 
@@ -853,7 +874,7 @@ class OzeraAPIClient {
    * Cancel a training job.
    */
   async cancelTrainingJob(jobId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/training/jobs/${jobId}/cancel`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/training/jobs/${jobId}/cancel`, {
       method: 'POST',
       headers: getAuthHeaders(),
     })
@@ -870,7 +891,7 @@ class OzeraAPIClient {
    * Get count of custom models for current user.
    */
   async getCustomModelCount(): Promise<CustomModelCount> {
-    const response = await fetch(`${this.baseUrl}/training/models/count`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/training/models/count`, {
       headers: {
         ...getAuthHeaders(),
       },
@@ -887,7 +908,7 @@ class OzeraAPIClient {
    * List custom trained models.
    */
   async listCustomModels(): Promise<CustomModelInfo[]> {
-    const response = await fetch(`${this.baseUrl}/training/models`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/training/models`, {
       headers: {
         ...getAuthHeaders(),
       },
@@ -904,7 +925,7 @@ class OzeraAPIClient {
    * Delete a custom model.
    */
   async deleteCustomModel(modelId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/training/models/${modelId}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/training/models/${modelId}`, {
       method: 'DELETE',
       headers: {
         ...getAuthHeaders(),
@@ -920,7 +941,7 @@ class OzeraAPIClient {
    * Download a custom model as a zip file.
    */
   async downloadCustomModel(modelId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/training/models/${modelId}/download`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/training/models/${modelId}/download`, {
       headers: {
         ...getAuthHeaders(),
       },
@@ -958,7 +979,7 @@ class OzeraAPIClient {
     formData.append('model_name', modelName)
     formData.append('overwrite_existing', String(overwriteExisting))
 
-    const response = await fetch(`${this.baseUrl}/training/models/upload`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/training/models/upload`, {
       method: 'POST',
       headers: {
         ...getAuthHeaders(),
@@ -978,7 +999,7 @@ class OzeraAPIClient {
    * List uploaded models for the current user.
    */
   async listUploadedModels(): Promise<UploadedModelInfo[]> {
-    const response = await fetch(`${this.baseUrl}/training/models/uploaded`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/training/models/uploaded`, {
       headers: {
         ...getAuthHeaders(),
       },
@@ -995,7 +1016,7 @@ class OzeraAPIClient {
    * Delete an uploaded model.
    */
   async deleteUploadedModel(modelId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/training/models/uploaded/${modelId}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/training/models/uploaded/${modelId}`, {
       method: 'DELETE',
       headers: {
         ...getAuthHeaders(),
@@ -1013,7 +1034,7 @@ class OzeraAPIClient {
    * List all available open-source models.
    */
   async listOpenSourceModels(): Promise<OpenSourceModelInfo[]> {
-    const response = await fetch(`${this.baseUrl}/open-source/models`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/open-source/models`)
 
     if (!response.ok) {
       throw new Error(`Failed to list open-source models: ${response.statusText}`)
@@ -1026,7 +1047,7 @@ class OzeraAPIClient {
    * Get info for a specific open-source model.
    */
   async getOpenSourceModelInfo(modelId: string): Promise<OpenSourceModelInfo> {
-    const response = await fetch(`${this.baseUrl}/open-source/models/${modelId}`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/open-source/models/${modelId}`)
 
     if (!response.ok) {
       throw new Error(`Failed to get open-source model info: ${response.statusText}`)
@@ -1039,7 +1060,7 @@ class OzeraAPIClient {
    * List open-source models grouped by family.
    */
   async listOpenSourceFamilies(): Promise<ModelFamilyInfo[]> {
-    const response = await fetch(`${this.baseUrl}/open-source/families`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/open-source/families`)
 
     if (!response.ok) {
       throw new Error(`Failed to list model families: ${response.statusText}`)
@@ -1052,7 +1073,7 @@ class OzeraAPIClient {
    * Check cache status for an open-source model.
    */
   async getOpenSourceCacheStatus(modelId: string): Promise<ModelCacheStatus> {
-    const response = await fetch(`${this.baseUrl}/open-source/cache/${modelId}/status`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/open-source/cache/${modelId}/status`, {
       headers: getAuthHeaders(),
     })
 
@@ -1067,7 +1088,7 @@ class OzeraAPIClient {
    * Trigger download of an open-source model to Modal cache.
    */
   async downloadOpenSourceModel(modelId: string, force: boolean = false): Promise<ModelDownloadResponse> {
-    const response = await fetch(`${this.baseUrl}/open-source/cache/${modelId}/download?force=${force}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/open-source/cache/${modelId}/download?force=${force}`, {
       method: 'POST',
       headers: getAuthHeaders(),
     })
@@ -1083,7 +1104,7 @@ class OzeraAPIClient {
    * Delete cached open-source model.
    */
   async deleteOpenSourceCache(modelId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/open-source/cache/${modelId}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/open-source/cache/${modelId}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     })
@@ -1097,7 +1118,7 @@ class OzeraAPIClient {
    * Warmup an open-source model (pre-load into GPU memory).
    */
   async warmupOpenSourceModel(modelId: string): Promise<{ status: string; model: string; display_name: string; parameters: number; gpu_tier: string }> {
-    const response = await fetch(`${this.baseUrl}/open-source/models/${modelId}/warmup`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/open-source/models/${modelId}/warmup`, {
       method: 'POST',
       headers: getAuthHeaders(),
     })
@@ -1114,7 +1135,7 @@ class OzeraAPIClient {
    * Generate text using an open-source model.
    */
   async generateOpenSource(request: GenerateRequest): Promise<GenerateResponse> {
-    const response = await fetch(`${this.baseUrl}/open-source/generate`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/open-source/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1228,7 +1249,7 @@ class OzeraAPIClient {
    * Generate text with activations using an open-source model.
    */
   async generateOpenSourceWithActivations(request: GenerateRequest): Promise<GenerateWithActivationsResponse> {
-    const response = await fetch(`${this.baseUrl}/open-source/generate/with-activations`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/open-source/generate/with-activations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1255,7 +1276,7 @@ class OzeraAPIClient {
    * Capture source activations for patching.
    */
   async captureActivations(request: CaptureActivationsRequest): Promise<CaptureActivationsResponse> {
-    const response = await fetch(`${this.baseUrl}/patching/capture`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/patching/capture`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1279,7 +1300,7 @@ class OzeraAPIClient {
    * List all captured activations.
    */
   async listCapturedActivations(): Promise<CapturedActivationSummary[]> {
-    const response = await fetch(`${this.baseUrl}/patching/activations`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/patching/activations`, {
       headers: getAuthHeaders(),
     })
 
@@ -1294,7 +1315,7 @@ class OzeraAPIClient {
    * Get detailed info for a captured activation.
    */
   async getCapturedActivation(activationId: string): Promise<CapturedActivationDetail> {
-    const response = await fetch(`${this.baseUrl}/patching/activations/${activationId}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/patching/activations/${activationId}`, {
       headers: getAuthHeaders(),
     })
 
@@ -1310,7 +1331,7 @@ class OzeraAPIClient {
    * Delete a specific captured activation.
    */
   async deleteCapturedActivation(activationId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/patching/activations/${activationId}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/patching/activations/${activationId}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     })
@@ -1324,7 +1345,7 @@ class OzeraAPIClient {
    * Clear all captured activations.
    */
   async clearCapturedActivations(): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/patching/activations`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/patching/activations`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     })
@@ -1338,7 +1359,7 @@ class OzeraAPIClient {
    * Run a full patching experiment (captures source, then runs patching).
    */
   async runPatchingExperiment(request: RunPatchingRequest): Promise<PatchingResult> {
-    const response = await fetch(`${this.baseUrl}/patching/run`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/patching/run`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1363,7 +1384,7 @@ class OzeraAPIClient {
    * Run patching with pre-captured activations.
    */
   async runPatchingWithCaptured(request: RunPatchingWithCapturedRequest): Promise<PatchingResult> {
-    const response = await fetch(`${this.baseUrl}/patching/run-with-captured`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/patching/run-with-captured`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1388,7 +1409,7 @@ class OzeraAPIClient {
    * Get list of available models for patching.
    */
   async getPatchingModels(): Promise<PatchingModelInfo[]> {
-    const response = await fetch(`${this.baseUrl}/patching/models`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/patching/models`, {
       headers: {
         ...getAuthHeaders(),
       },
@@ -1405,7 +1426,7 @@ class OzeraAPIClient {
    * Get layer info for a specific model (for patch configuration).
    */
   async getModelLayerInfo(modelId: string): Promise<ModelLayerInfo> {
-    const response = await fetch(`${this.baseUrl}/patching/models/${modelId}/layers`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/patching/models/${modelId}/layers`, {
       headers: getAuthHeaders(),
     })
 
@@ -1424,7 +1445,7 @@ class OzeraAPIClient {
    * Requires authentication and charges credits.
    */
   async classifyHeads(request: ClassifyHeadsRequest): Promise<ClassifyHeadsResponse> {
-    const response = await fetch(`${this.baseUrl}/analysis/attention/classify-heads`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/analysis/attention/classify-heads`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1450,7 +1471,7 @@ class OzeraAPIClient {
    * Requires authentication and charges credits.
    */
   async compareAttention(request: CompareAttentionRequest): Promise<CompareAttentionResponse> {
-    const response = await fetch(`${this.baseUrl}/analysis/attention/compare`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/analysis/attention/compare`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1476,7 +1497,7 @@ class OzeraAPIClient {
    * Requires authentication and charges credits.
    */
   async minePatterns(request: MinePatternRequest): Promise<MinePatternResponse> {
-    const response = await fetch(`${this.baseUrl}/analysis/attention/mine-patterns`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/analysis/attention/mine-patterns`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1502,7 +1523,7 @@ class OzeraAPIClient {
    * Requires authentication and charges credits.
    */
   async getHeadImportance(request: HeadImportanceRequest): Promise<HeadImportanceResponse> {
-    const response = await fetch(`${this.baseUrl}/analysis/attention/head-importance`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/analysis/attention/head-importance`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1529,7 +1550,7 @@ class OzeraAPIClient {
    * Get available publication presets.
    */
   async getExportPresets(): Promise<Record<string, PresetInfo>> {
-    const response = await fetch(`${this.baseUrl}/export/presets`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/export/presets`)
 
     if (!response.ok) {
       throw new Error(`Failed to get export presets: ${response.statusText}`)
@@ -1543,7 +1564,7 @@ class OzeraAPIClient {
    * Returns the file as a Blob for download.
    */
   async exportAttentionHeatmap(request: AttentionHeatmapExportRequest): Promise<Blob> {
-    const response = await fetch(`${this.baseUrl}/export/attention-heatmap`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/export/attention-heatmap`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1565,7 +1586,7 @@ class OzeraAPIClient {
    * Returns the file as a Blob for download.
    */
   async exportMultiHeadHeatmap(request: MultiHeadHeatmapExportRequest): Promise<Blob> {
-    const response = await fetch(`${this.baseUrl}/export/attention-heatmap/multi-head`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/export/attention-heatmap/multi-head`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1587,7 +1608,7 @@ class OzeraAPIClient {
    * Returns the file as a Blob for download.
    */
   async exportActivationHistogram(request: ActivationHistogramExportRequest): Promise<Blob> {
-    const response = await fetch(`${this.baseUrl}/export/activation-histogram`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/export/activation-histogram`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1609,7 +1630,7 @@ class OzeraAPIClient {
    * Returns the file as a Blob for download.
    */
   async exportPatchingComparison(request: PatchingComparisonExportRequest): Promise<Blob> {
-    const response = await fetch(`${this.baseUrl}/export/patching-comparison`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/export/patching-comparison`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1631,7 +1652,7 @@ class OzeraAPIClient {
    * Returns the ZIP file as a Blob for download.
    */
   async exportBatch(request: BatchExportRequest): Promise<Blob> {
-    const response = await fetch(`${this.baseUrl}/export/batch`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/export/batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1855,7 +1876,7 @@ class SAEAPIClient {
    * Public endpoint (no auth required).
    */
   async listSAEs(): Promise<SAEListResponse> {
-    const response = await fetch(`${this.baseUrl}/sae/list`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/list`)
 
     if (!response.ok) {
       throw new Error(`Failed to list SAEs: ${response.statusText}`)
@@ -1869,7 +1890,7 @@ class SAEAPIClient {
    * Requires authentication and charges credits.
    */
   async analyzeText(request: SAEAnalyzeRequest): Promise<SAEAnalyzeResponse> {
-    const response = await fetch(`${this.baseUrl}/sae/analyze`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/analyze`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1897,7 +1918,7 @@ class SAEAPIClient {
    * Requires authentication and charges credits.
    */
   async analyzeExternalSAE(request: ExternalSAEAnalyzeRequest): Promise<SAEAnalyzeResponse> {
-    const response = await fetch(`${this.baseUrl}/sae/external/analyze`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/external/analyze`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1935,7 +1956,7 @@ class SAEAPIClient {
       feature_id: featureId.toString(),
     })
 
-    const response = await fetch(`${this.baseUrl}/sae/feature?${params}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/feature?${params}`, {
       headers: {
         ...getAuthHeaders(),
       },
@@ -1958,7 +1979,7 @@ class SAEAPIClient {
    * Requires authentication and charges credits.
    */
   async analyzeBatch(request: SAEAnalyzeBatchRequest): Promise<SAEAnalyzeBatchResponse> {
-    const response = await fetch(`${this.baseUrl}/sae/analyze-batch`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/analyze-batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1984,7 +2005,7 @@ class SAEAPIClient {
    * Requires authentication and charges credits.
    */
   async compareSAEs(request: SAECompareRequest): Promise<SAECompareResponse> {
-    const response = await fetch(`${this.baseUrl}/sae/compare`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/compare`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2010,7 +2031,7 @@ class SAEAPIClient {
    * Requires authentication and charges credits.
    */
   async compareLayers(request: SAECompareLayersRequest): Promise<SAECompareLayersResponse> {
-    const response = await fetch(`${this.baseUrl}/sae/compare-layers`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/compare-layers`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2035,7 +2056,7 @@ class SAEAPIClient {
    * Health check endpoint.
    */
   async health(): Promise<{ status: string; cuda_available: boolean; cuda_device: string | null }> {
-    const response = await fetch(`${this.baseUrl}/sae/health`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/health`)
 
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.statusText}`)
@@ -2051,7 +2072,7 @@ class SAEAPIClient {
    * Requires authentication.
    */
   async loadExternalSAE(request: ExternalSAELoadRequest): Promise<ExternalSAELoadResponse> {
-    const response = await fetch(`${this.baseUrl}/sae/external/load`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/external/load`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2072,7 +2093,7 @@ class SAEAPIClient {
    * List available hookpoints in an external SAE repository.
    */
   async listExternalSAESources(repoId: string): Promise<ExternalSAESourcesResponse> {
-    const response = await fetch(`${this.baseUrl}/sae/external/list-sources`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/external/list-sources`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2093,7 +2114,7 @@ class SAEAPIClient {
    * Requires authentication.
    */
   async listLoadedExternalSAEs(): Promise<{ external_saes: ExternalSAEInfo[]; count: number }> {
-    const response = await fetch(`${this.baseUrl}/sae/external/list-loaded`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/external/list-loaded`, {
       headers: {
         ...getAuthHeaders(),
       },
@@ -2111,7 +2132,7 @@ class SAEAPIClient {
    * Requires authentication.
    */
   async hasUploadedSAE(): Promise<{ has_upload: boolean; upload_name: string | null; upload_sae_id: string | null }> {
-    const response = await fetch(`${this.baseUrl}/sae/external/has-upload`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/external/has-upload`, {
       headers: {
         ...getAuthHeaders(),
       },
@@ -2130,7 +2151,7 @@ class SAEAPIClient {
    */
   async deleteExternalSAE(saeId: string): Promise<{ status?: string; error?: string }> {
     const params = new URLSearchParams({ sae_id: saeId })
-    const response = await fetch(`${this.baseUrl}/sae/external/delete?${params}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/external/delete?${params}`, {
       method: 'DELETE',
       headers: {
         ...getAuthHeaders(),
@@ -2158,7 +2179,7 @@ class SAEAPIClient {
       feature_id: featureId.toString(),
     })
 
-    const response = await fetch(`${this.baseUrl}/sae/external/feature?${params}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/external/feature?${params}`, {
       headers: {
         ...getAuthHeaders(),
       },
@@ -2180,7 +2201,7 @@ class SAEAPIClient {
    * Requires authentication.
    */
   async uploadSAE(request: ExternalSAEUploadRequest): Promise<ExternalSAELoadResponse> {
-    const response = await fetch(`${this.baseUrl}/sae/upload`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/upload`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

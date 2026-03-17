@@ -16,7 +16,11 @@ load_dotenv()
 # Get database connection config from environment.
 # Supabase pooler usernames contain dots (e.g. postgres.projectid) which
 # break SQLAlchemy's URL parser, so we support separate env vars.
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/ozera")
+_app_env = os.getenv("APP_ENV", "development")
+DATABASE_URL = os.getenv("DATABASE_URL", "" if _app_env == "production" else "postgresql://postgres:postgres@localhost:5432/ozera")
+
+if _app_env == "production" and not DATABASE_URL and not os.getenv("DATABASE_HOST"):
+    raise RuntimeError("DATABASE_URL or DATABASE_HOST must be set in production")
 DATABASE_USER = os.getenv("DATABASE_USER")
 DATABASE_HOST = os.getenv("DATABASE_HOST")
 

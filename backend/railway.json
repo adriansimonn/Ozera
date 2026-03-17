@@ -1,0 +1,14 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "nixpacksPlan": {
+      "providers": ["python"],
+      "phases": {
+        "install": {
+          "cmds": ["pip install -r requirements-deploy.txt"]
+        }
+      }
+    }
+  }
+}

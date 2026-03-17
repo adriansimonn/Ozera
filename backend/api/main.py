@@ -50,7 +50,17 @@ from api.settings import router as settings_router
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from models.database import User
-from db import get_db
+from db import get_db, SessionLocal
+from api.error_utils import safe_detail
+
+_app_env = os.getenv("APP_ENV", "development")
+
+# Validate critical environment variables in production
+if _app_env == "production":
+    _required_env_vars = ["MODAL_WEBHOOK_SECRET", "STRIPE_SECRET_KEY", "SUPABASE_JWT_SECRET"]
+    _missing = [v for v in _required_env_vars if not os.getenv(v)]
+    if _missing:
+        raise RuntimeError(f"Missing required environment variables for production: {', '.join(_missing)}")
 
 app = FastAPI(
     title="Ozera API",
@@ -63,7 +73,6 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # CORS middleware for frontend
-_app_env = os.getenv("APP_ENV", "development")
 _cors_origins = [
     "http://localhost:3000",
     "http://localhost:5173",
@@ -78,8 +87,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
 )
 
 # Global model loader - use absolute path relative to backend directory
@@ -153,7 +162,18 @@ async def root():
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
-    # Health check endpoint.
+    # Health check endpoint — verifies DB connectivity.
+    from sqlalchemy import text
+    try:
+        db = SessionLocal()
+        try:
+            db.execute(text("SELECT 1"))
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("Health check: database unreachable")
+        raise HTTPException(status_code=503, detail="Database unreachable")
+
     return {
         "status": "healthy",
         "available_models": model_loader.list_available_models()
@@ -242,9 +262,9 @@ async def generate(
     except InsufficientBalanceError:
         raise HTTPException(status_code=402, detail="Insufficient credits.")
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid request"))
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=safe_detail(e, "Resource not found"))
     except HTTPException:
         raise
     except Exception:
@@ -284,9 +304,9 @@ async def get_model_info(model_name: str):
         )
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid request"))
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=safe_detail(e, "Resource not found"))
     except Exception:
         logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -327,9 +347,9 @@ async def prepare_model(model_name: str):
         }
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid request"))
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=safe_detail(e, "Resource not found"))
     except Exception:
         logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Failed to prepare model")
@@ -361,18 +381,29 @@ async def generate_stream(
             detail="Insufficient credits. Please add more credits to continue."
         )
 
+    # Charge upfront based on estimated cost before streaming begins
+    prompt_token_estimate = len(body.prompt.split()) * 2
     try:
-        # Create streaming generator function
+        charge_inference(
+            db=db,
+            user_id=current_user.id,
+            prompt_tokens=prompt_token_estimate,
+            generated_tokens=body.max_tokens,
+            model_name=body.model,
+        )
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
+    except Exception:
+        logger.exception("Failed to charge credits before streaming")
+        raise HTTPException(status_code=500, detail="Failed to reserve credits for generation")
+
+    try:
         async def event_stream():
             token_count = 0
-            prompt_token_estimate = len(body.prompt.split()) * 2  # Rough estimate
-            charge_error_msg = None
             try:
-                # Send initial metadata
                 data = json.dumps({'type': 'start', 'prompt': body.prompt}, ensure_ascii=False)
                 yield f"data: {data}\n\n".encode('utf-8')
 
-                # Stream tokens using the inference router
                 async for token in inference_router.generate_stream(
                     model_id=body.model,
                     prompt=body.prompt,
@@ -385,26 +416,11 @@ async def generate_stream(
                     data = json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)
                     yield f"data: {data}\n\n".encode('utf-8')
 
-                # Charge user after successful generation — report error in stream if fails
-                try:
-                    charge_inference(
-                        db=db,
-                        user_id=current_user.id,
-                        prompt_tokens=prompt_token_estimate,
-                        generated_tokens=token_count,
-                        model_name=body.model,
-                    )
-                except Exception as charge_error:
-                    charge_error_msg = str(charge_error)
-
-                # Send completion with token count
                 done_payload = {
                     'type': 'done',
                     'token_count': token_count,
-                    'charged': charge_error_msg is None,
+                    'charged': True,
                 }
-                if charge_error_msg:
-                    done_payload['charge_error'] = charge_error_msg
                 data = json.dumps(done_payload, ensure_ascii=False)
                 yield f"data: {data}\n\n".encode('utf-8')
 
@@ -424,9 +440,9 @@ async def generate_stream(
         )
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid request"))
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=safe_detail(e, "Resource not found"))
     except Exception:
         logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -506,9 +522,9 @@ async def generate_with_activations(
     except InsufficientBalanceError:
         raise HTTPException(status_code=402, detail="Insufficient credits.")
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid request"))
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=safe_detail(e, "Resource not found"))
     except HTTPException:
         raise
     except Exception:
