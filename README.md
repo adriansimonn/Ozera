@@ -16,16 +16,19 @@ Ozera lets you run inference on language models and visualize their internals, a
 - **Activation Patching:** Interactive playground for swapping activations between prompts and observing the effects in real time.
 - **SAE Tools:** Train sparse autoencoders on any supported model, browse learned features, view top-activating tokens, and compare feature representations across models.
 - **Custom Training:** Upload datasets and train custom instances of the Ozera architecture with cost estimation upfront.
-- **Export:** Publication-ready figure export (PNG, PDF, SVG) with customizable styling.
+- **Credit System:** Stripe-powered credit billing for compute access across inference, training, and experiments.
+- **Export:** Publication-ready figure export (PNG, PDF, SVG) with conference presets (NeurIPS, ICLR, ICML) and batch ZIP export.
 
 ## Models
 
-### Ozera Models (trained from scratch on OpenWebText)
+### Ozera Models (built from scratch, trained on OpenWebText)
 
 | Model | Parameters | Layers | Heads | Hidden Dim |
 |-------|-----------|--------|-------|------------|
 | Ozera-Nano | 12.4M | 6 | 6 | 192 |
 | Ozera-Mini | 51.2M | 8 | 8 | 512 |
+
+Each model has a corresponding sparse autoencoder trained on its activations for feature-level interpretability.
 
 ### Open-Source Models
 
@@ -48,8 +51,8 @@ ozera/
 ├── backend/
 │   ├── api/              # FastAPI routes (auth, generation, patching, SAE, etc.)
 │   ├── core/
-│   │   ├── transformer/  # Ozera model architecture (pure math implementation)
-│   │   ├── math_primitives/  # Attention, activations, positional encoding
+│   │   ├── transformer/  # Ozera model architecture (PyTorch)
+│   │   ├── math_primitives/  # Pure math implementations of attention, activations, positional encoding
 │   │   ├── open_source/  # SmolLM, Gemma, Qwen loaders
 │   │   ├── sae/          # Sparse autoencoder training + analysis
 │   │   ├── analysis/     # Head classification, pattern mining
@@ -58,9 +61,9 @@ ozera/
 │   │   ├── tokenizer/    # BPE tokenizer
 │   │   └── export/       # Figure generation
 │   ├── inference/        # Model loading, activation store, text generation
-│   ├── services/         # Modal workers, Stripe, credit system, job orchestration
-│   ├── middleware/       # Auth, rate limiting
-│   ├── models/           # Ozera-nano and Ozera-mini checkpoints
+│   ├── services/         # Modal workers, Stripe, Supabase, credit system, job orchestration
+│   ├── middleware/       # Supabase auth, rate limiting
+│   ├── models/           # SQLAlchemy ORM models (DB schema)
 │   └── alembic/          # Database migrations
 ├── frontend/
     └── src/
@@ -70,3 +73,11 @@ ozera/
         ├── stores/       # Auth and settings (Zustand)
         └── api/          # Axios client
 ```
+
+## Deployment
+
+- **Frontend**: Vercel
+- **Backend**: Railway (Dockerized FastAPI)
+- **Database**: Supabase (PostgreSQL + auth)
+- **GPU Compute**: Modal (serverless T4 and A10G workers)
+- **Model Storage**: Modal Volumes (weights, SAE checkpoints, datasets)
