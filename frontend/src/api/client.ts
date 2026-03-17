@@ -320,6 +320,7 @@ export interface StreamToken {
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000
+const GENERATION_TIMEOUT_MS = 180_000
 
 async function fetchWithTimeout(
   input: string,
@@ -414,7 +415,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, GENERATION_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -537,7 +538,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, GENERATION_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1142,7 +1143,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, GENERATION_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1256,7 +1257,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, GENERATION_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()

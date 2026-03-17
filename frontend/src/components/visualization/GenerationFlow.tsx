@@ -78,9 +78,10 @@ export const GenerationFlow = memo(function GenerationFlow({
       // Use the open-source endpoint for non-Ozera models (they have different tokenizers)
       const modelFamily = activationData.metadata?.model_family
       const isOpenSourceModel = modelFamily && modelFamily !== 'ozera'
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8000'
       const endpoint = isOpenSourceModel
-        ? 'http://localhost:8000/open-source/decode-tokens'
-        : 'http://localhost:8000/decode-tokens'
+        ? `${apiBase}/open-source/decode-tokens`
+        : `${apiBase}/decode-tokens`
 
       const response = await fetch(endpoint, {
         method: 'POST',
