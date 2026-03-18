@@ -47,7 +47,7 @@ import type {
   BatchExportRequest,
 } from '../types/export'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.VITE_APP_ENV === 'production' ? 'https://api.ozera.app' : 'http://localhost:8000')
 
 /**
  * Get auth headers if token is available.
