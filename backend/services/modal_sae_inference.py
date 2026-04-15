@@ -16,11 +16,13 @@ Usage:
 
 import os
 import json
+import hmac
 from pathlib import Path
 from typing import Optional
 import modal
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 # Modal app definition
@@ -40,6 +42,21 @@ web_app.add_middleware(
 
 # HuggingFace token secret for gated models
 hf_secret = modal.Secret.from_name("huggingface-secret", required_keys=["HF_TOKEN"])
+
+# Shared secret for backend → Modal auth (set via: modal secret create ozera-sae-secret SAE_API_SECRET=<random>)
+sae_api_secret = modal.Secret.from_name("ozera-sae-secret", required_keys=["SAE_API_SECRET"])
+
+
+@web_app.middleware("http")
+async def verify_api_secret(request: Request, call_next):
+    """Reject any request without a valid X-API-Secret header."""
+    expected = os.environ.get("SAE_API_SECRET", "")
+    if not expected:
+        return JSONResponse(status_code=503, content={"error": "Service auth not configured"})
+    provided = request.headers.get("X-API-Secret", "")
+    if not provided or not hmac.compare_digest(provided, expected):
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    return await call_next(request)
 
 # Volume references
 MODELS_VOLUME_NAME = "ozera-models"
@@ -1814,7 +1831,7 @@ def upload_sae(request: UploadSAERequest) -> dict:
         "/models": models_volume,
         "/saes": saes_volume,
     },
-    secrets=[hf_secret],
+    secrets=[hf_secret, sae_api_secret],
     gpu="L4",
     timeout=600,
     memory=16384,

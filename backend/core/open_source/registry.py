@@ -4,7 +4,7 @@ Registry of supported open-source models with metadata.
 
 from enum import Enum
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from .base import OpenSourceModelLoader
@@ -34,6 +34,7 @@ class OpenSourceModelConfig:
     max_seq_len: int
     gpu_tier: str           # "t4" or "a10g"
     requires_auth: bool = False  # If HF token needed
+    hf_revision: Optional[str] = None  # Pinned HF commit SHA (required for trust_remote_code models)
 
 
 # SmolLM models - uses standard Llama architecture
@@ -120,6 +121,7 @@ QWEN_0_5B = OpenSourceModelConfig(
     vocab_size=151936,
     max_seq_len=32768,
     gpu_tier="t4",
+    hf_revision="060db6499f32faf8b98477b0a26969ef7d8b9987",
 )
 
 QWEN_1_5B = OpenSourceModelConfig(
@@ -136,6 +138,7 @@ QWEN_1_5B = OpenSourceModelConfig(
     vocab_size=151936,
     max_seq_len=32768,
     gpu_tier="t4",
+    hf_revision="8faed761d45a263340a0528343f099c05c9a4323",
 )
 
 QWEN_3B = OpenSourceModelConfig(
@@ -152,6 +155,7 @@ QWEN_3B = OpenSourceModelConfig(
     vocab_size=151936,
     max_seq_len=32768,
     gpu_tier="a10g",
+    hf_revision="3aab1f1954e9cc14eb9509a215f9e5ca08227a9b",
 )
 
 

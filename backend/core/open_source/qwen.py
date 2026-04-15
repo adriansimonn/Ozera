@@ -48,6 +48,7 @@ class QwenLoader(OpenSourceModelLoader):
             self.config.hf_id,
             cache_dir=cache_dir,
             trust_remote_code=True,  # Qwen requires trust_remote_code
+            revision=self.config.hf_revision,  # Pin to known SHA so a compromised HF account can't swap code
             token=hf_token,
         )
 
@@ -65,6 +66,7 @@ class QwenLoader(OpenSourceModelLoader):
             torch_dtype=dtype,
             device_map=self.device,
             trust_remote_code=True,  # Qwen requires trust_remote_code
+            revision=self.config.hf_revision,
             attn_implementation="eager",  # Required for output_attentions=True
             token=hf_token,
         )

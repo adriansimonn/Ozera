@@ -15,8 +15,21 @@ from middleware.auth_middleware import get_current_user
 from models.database import User, UserExternalSAE
 from services.credit_service import charge_sae, check_sufficient_balance, estimate_sae_cost
 
-# Get SAE API URL from environment
-SAE_API_URL = os.getenv("SAE_API_URL", "https://adriansimon477--ozera-sae-inference-serve.modal.run")
+# Get SAE API URL and shared secret from environment (both required in production)
+SAE_API_URL = os.getenv("SAE_API_URL", "")
+SAE_API_SECRET = os.getenv("SAE_API_SECRET", "")
+if os.getenv("APP_ENV", "development") == "production":
+    if not SAE_API_URL:
+        raise RuntimeError("SAE_API_URL must be set in production")
+    if not SAE_API_SECRET:
+        raise RuntimeError("SAE_API_SECRET must be set in production")
+
+
+def _sae_client(timeout: float, follow_redirects: bool = False) -> httpx.AsyncClient:
+    """Build an httpx client pre-configured with the shared-secret auth header."""
+    headers = {"X-API-Secret": SAE_API_SECRET} if SAE_API_SECRET else {}
+    return httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects, headers=headers)
+
 
 router = APIRouter(prefix="/sae", tags=["sae"])
 
@@ -68,7 +81,7 @@ async def list_saes():
 
     This endpoint is public (no auth required).
     """
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with _sae_client(timeout=30.0) as client:
         response = await client.get(f"{SAE_API_URL}/sae/list")
         response.raise_for_status()
         return response.json()
@@ -100,7 +113,7 @@ async def analyze_text(
         )
 
     # Forward request to Modal SAE service
-    async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
+    async with _sae_client(timeout=600.0, follow_redirects=True) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/analyze",
@@ -169,7 +182,7 @@ async def get_feature_info(
         )
 
     # Forward request to Modal SAE service
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with _sae_client(timeout=30.0) as client:
         try:
             response = await client.get(
                 f"{SAE_API_URL}/sae/feature",
@@ -233,7 +246,7 @@ async def analyze_batch(
         )
 
     # Forward request
-    async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
+    async with _sae_client(timeout=600.0, follow_redirects=True) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/analyze-batch",
@@ -305,7 +318,7 @@ async def compare_saes(
 
     # Forward request (longer timeout for external SAEs that need to load HF models)
     # follow_redirects=True handles Modal's 303 redirect for long-running requests (>150s)
-    async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
+    async with _sae_client(timeout=600.0, follow_redirects=True) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/compare",
@@ -378,7 +391,7 @@ async def compare_layers(
         )
 
     # Forward request
-    async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
+    async with _sae_client(timeout=600.0, follow_redirects=True) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/compare-layers",
@@ -429,7 +442,7 @@ async def health():
 
     Public endpoint (no auth).
     """
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with _sae_client(timeout=10.0) as client:
         try:
             response = await client.get(f"{SAE_API_URL}/health")
             response.raise_for_status()
@@ -492,7 +505,7 @@ async def analyze_external_sae(
             detail="INSUFFICIENT_CREDITS",
         )
 
-    async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
+    async with _sae_client(timeout=600.0, follow_redirects=True) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/external/analyze",
@@ -548,7 +561,7 @@ async def load_external_sae(
     then creates a per-user reference in the database.
     """
     # Forward to Modal to download/store the SAE weights
-    async with httpx.AsyncClient(timeout=600.0, follow_redirects=True) as client:
+    async with _sae_client(timeout=600.0, follow_redirects=True) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/external/load",
@@ -599,7 +612,7 @@ async def list_external_sae_sources(
     user: User = Depends(get_current_user),
 ):
     """List available hookpoints in an external SAE repository."""
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with _sae_client(timeout=60.0) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/external/list-sources",
@@ -684,7 +697,7 @@ async def get_external_feature_info(
             detail="INSUFFICIENT_CREDITS",
         )
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with _sae_client(timeout=30.0) as client:
         try:
             response = await client.get(
                 f"{SAE_API_URL}/sae/external/feature",
@@ -739,7 +752,7 @@ async def upload_sae(
         db.flush()
 
     # Forward to Modal to store the weights
-    async with httpx.AsyncClient(timeout=300.0) as client:
+    async with _sae_client(timeout=300.0) as client:
         try:
             response = await client.post(
                 f"{SAE_API_URL}/sae/upload",
