@@ -41,13 +41,17 @@ export function useTheme() {
 export function useThemeColors() {
   const { isLight } = useTheme()
 
+  // All readable text tiers share one full-contrast color; hierarchy comes from size/weight.
+  const text = isLight ? '#1d1d1f' : '#ffffff'
+
   return {
-    text: isLight ? '#1d1d1f' : '#fff',
-    textStrong: isLight ? '#1d1d1f' : 'rgba(255,255,255,0.95)',
-    textMid: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)',
-    textSub: isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.5)',
-    textMuted: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)',
-    textFaint: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.35)',
+    text,
+    textStrong: text,
+    textMid: text,
+    textSub: text,
+    textMuted: text,
+    textFaint: text,
+    textDisabled: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)',
     border: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
     borderStrong: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)',
     borderHover: isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.25)',

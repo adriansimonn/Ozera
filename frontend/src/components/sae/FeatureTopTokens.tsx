@@ -101,7 +101,7 @@ export function FeatureTopTokens({
       .attr('y', ([t]) => (yScale(t) || 0) + yScale.bandwidth() / 2)
       .attr('text-anchor', 'end')
       .attr('dominant-baseline', 'middle')
-      .attr('fill', '#e5e7eb')
+      .attr('fill', tc.text)
       .attr('font-size', '11px')
       .attr('font-family', 'monospace')
       .text(([t]) => t.length > 10 ? t.slice(0, 10) + '...' : t)
@@ -115,11 +115,11 @@ export function FeatureTopTokens({
       .attr('x', ([, f]) => xScale(f) + 5)
       .attr('y', ([t]) => (yScale(t) || 0) + yScale.bandwidth() / 2)
       .attr('dominant-baseline', 'middle')
-      .attr('fill', '#9ca3af')
+      .attr('fill', tc.text)
       .attr('font-size', '10px')
       .text(([, f]) => `${(f * 100).toFixed(1)}%`)
 
-  }, [topTokens])
+  }, [topTokens, tc.text])
 
   const { activation_statistics: stats } = interpretation
 
@@ -129,16 +129,16 @@ export function FeatureTopTokens({
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-2">
           <Hash className="w-4 h-4 text-purple-400" />
-          <span className="text-lg font-semibold text-gray-200">
+          <span className="text-lg font-semibold text-white">
             Feature {interpretation.feature_idx}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <Tag className="w-3 h-3 text-gray-500" />
-          <span className="text-sm text-gray-400">
+          <Tag className="w-3 h-3 text-white" />
+          <span className="text-sm text-white">
             {interpretation.suggested_label}
           </span>
-          <span className="text-xs text-gray-600">
+          <span className="text-xs text-white">
             ({(interpretation.confidence * 100).toFixed(0)}% confidence)
           </span>
         </div>
@@ -147,19 +147,19 @@ export function FeatureTopTokens({
       {/* Statistics */}
       <div className="grid grid-cols-4 gap-px bg-gray-800">
         <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Activations</div>
+          <div className="text-xs text-white uppercase tracking-wide">Activations</div>
           <div className="text-lg font-mono text-white">{stats.total_activations.toLocaleString()}</div>
         </div>
         <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Mean</div>
+          <div className="text-xs text-white uppercase tracking-wide">Mean</div>
           <div className="text-lg font-mono text-purple-300">{stats.mean_activation.toFixed(3)}</div>
         </div>
         <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Max</div>
+          <div className="text-xs text-white uppercase tracking-wide">Max</div>
           <div className="text-lg font-mono text-purple-200">{stats.max_activation.toFixed(3)}</div>
         </div>
         <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Unique Tokens</div>
+          <div className="text-xs text-white uppercase tracking-wide">Unique Tokens</div>
           <div className="text-lg font-mono text-white">{stats.unique_tokens}</div>
         </div>
       </div>
@@ -167,7 +167,7 @@ export function FeatureTopTokens({
       <div className="grid grid-cols-2 gap-px bg-gray-800">
         {/* Token frequency chart */}
         <div className="bg-black/40 p-4">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-3">
+          <div className="text-xs text-white uppercase tracking-wide mb-3">
             Token Distribution
           </div>
           <svg ref={chartRef} width="100%" height={Math.min(300, topTokens.length * 24 + 20)} />
@@ -175,7 +175,7 @@ export function FeatureTopTokens({
 
         {/* Top activating examples */}
         <div className="bg-black/40 p-4">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+          <div className="text-xs text-white uppercase tracking-wide mb-3 flex items-center gap-2">
             <TrendingUp className="w-3 h-3" />
             Top Activating Examples
           </div>
@@ -199,9 +199,9 @@ export function FeatureTopTokens({
                   </span>
                 </div>
                 {selectedExample === example && (
-                  <div className="mt-2 text-xs text-gray-500">
+                  <div className="mt-2 text-xs text-white">
                     <div className="mb-1">Context:</div>
-                    <div className="font-mono text-gray-400 bg-black/40 p-2 rounded">
+                    <div className="font-mono text-white bg-black/40 p-2 rounded">
                       {example.context.map((t, i) => (
                         <span
                           key={i}
@@ -222,7 +222,7 @@ export function FeatureTopTokens({
       {/* Polysemanticity indicator */}
       <div className="p-4 border-t border-gray-800">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-500 uppercase tracking-wide">
+          <span className="text-xs text-white uppercase tracking-wide">
             Polysemanticity Score
           </span>
           <span className={`text-sm font-mono ${
@@ -241,7 +241,7 @@ export function FeatureTopTokens({
             style={{ width: `${stats.polysemanticity * 100}%` }}
           />
         </div>
-        <div className="flex justify-between mt-1 text-xs text-gray-600">
+        <div className="flex justify-between mt-1 text-xs text-white">
           <span>Monosemantic</span>
           <span>Polysemantic</span>
         </div>
@@ -263,13 +263,9 @@ export function FeatureTopTokens({
         .feature-top-tokens .bg-yellow-500 { background: rgba(234,179,8,0.9); }
         .feature-top-tokens .bg-red-500 { background: rgba(239,68,68,0.9); }
         .feature-top-tokens .text-white { color: #fff; }
-        .feature-top-tokens .text-gray-200 { color: rgba(255,255,255,0.95); }
-        .feature-top-tokens .text-gray-400 { color: rgba(255,255,255,0.4); }
-        .feature-top-tokens .text-gray-500 { color: rgba(255,255,255,0.5); }
-        .feature-top-tokens .text-gray-600 { color: rgba(255,255,255,0.2); }
-        .feature-top-tokens .text-purple-200 { color: rgba(255,255,255,0.7); }
-        .feature-top-tokens .text-purple-300 { color: rgba(255,255,255,0.8); }
-        .feature-top-tokens .text-purple-400 { color: rgba(255,255,255,0.6); }
+        .feature-top-tokens .text-purple-200 { color: #ffffff; }
+        .feature-top-tokens .text-purple-300 { color: #ffffff; }
+        .feature-top-tokens .text-purple-400 { color: #ffffff; }
         .feature-top-tokens .text-green-400 { color: rgba(34,197,94,0.9); }
         .feature-top-tokens .text-yellow-400 { color: rgba(234,179,8,0.9); }
         .feature-top-tokens .text-red-400 { color: rgba(239,68,68,0.9); }
@@ -284,13 +280,9 @@ export function FeatureTopTokens({
         [data-bg="light"] .feature-top-tokens .bg-gray-800 { background: rgba(0,0,0,0.08); }
         [data-bg="light"] .feature-top-tokens .bg-purple-500\\/10 { background: rgba(0,0,0,0.06); }
         [data-bg="light"] .feature-top-tokens .text-white { color: #1d1d1f; }
-        [data-bg="light"] .feature-top-tokens .text-gray-200 { color: rgba(0,0,0,0.9); }
-        [data-bg="light"] .feature-top-tokens .text-gray-400 { color: rgba(0,0,0,0.55); }
-        [data-bg="light"] .feature-top-tokens .text-gray-500 { color: rgba(0,0,0,0.5); }
-        [data-bg="light"] .feature-top-tokens .text-gray-600 { color: rgba(0,0,0,0.4); }
-        [data-bg="light"] .feature-top-tokens .text-purple-200 { color: rgba(0,0,0,0.6); }
-        [data-bg="light"] .feature-top-tokens .text-purple-300 { color: rgba(0,0,0,0.7); }
-        [data-bg="light"] .feature-top-tokens .text-purple-400 { color: rgba(0,0,0,0.55); }
+        [data-bg="light"] .feature-top-tokens .text-purple-200 { color: #1d1d1f; }
+        [data-bg="light"] .feature-top-tokens .text-purple-300 { color: #1d1d1f; }
+        [data-bg="light"] .feature-top-tokens .text-purple-400 { color: #1d1d1f; }
         [data-bg="light"] .feature-top-tokens button:hover .border-gray-700 { border-color: rgba(0,0,0,0.2); }
       `}</style>
     </div>

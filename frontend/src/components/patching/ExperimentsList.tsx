@@ -369,7 +369,7 @@ export function ExperimentsList({
           padding: 0.5rem 0.75rem;
           background: rgba(0, 0, 0, 0.4);
           border: 1px solid rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-size: 0.85rem;
         }
 
@@ -405,7 +405,7 @@ export function ExperimentsList({
         .exp-cancel-btn {
           background: transparent;
           border-color: rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
         }
 
         .exp-cancel-btn:hover {
@@ -458,7 +458,7 @@ export function ExperimentsList({
           padding: 0.5rem 0.75rem;
           background: transparent;
           border: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           font-size: 0.75rem;
           font-weight: 500;
           cursor: pointer;
@@ -468,7 +468,7 @@ export function ExperimentsList({
         .exp-action-btn:hover:not(:disabled) {
           background: rgba(255, 255, 255, 0.05);
           border-color: rgba(255, 255, 255, 0.2);
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
         }
 
         .exp-action-btn:disabled {
@@ -489,13 +489,13 @@ export function ExperimentsList({
         .exp-empty p {
           margin: 0;
           font-size: 0.85rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .exp-empty-hint {
           margin-top: 0.25rem !important;
           font-size: 0.75rem !important;
-          color: rgba(255, 255, 255, 0.35) !important;
+          color: #ffffff !important;
         }
 
         .exp-grid {
@@ -525,7 +525,7 @@ export function ExperimentsList({
         .exp-name {
           font-size: 0.9rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
         }
 
         .exp-card-actions {
@@ -538,12 +538,12 @@ export function ExperimentsList({
           background: transparent;
           border: none;
           cursor: pointer;
-          color: rgba(255, 255, 255, 0.3);
+          color: #ffffff;
           transition: color 0.2s;
         }
 
         .exp-card-action-btn:hover {
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
         }
 
         .exp-card-action-btn.exp-delete:hover {
@@ -591,7 +591,7 @@ export function ExperimentsList({
         .exp-prompt-label {
           display: block;
           font-size: 0.65rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.05em;
           margin-bottom: 0.125rem;
@@ -600,7 +600,7 @@ export function ExperimentsList({
         .exp-prompt-text {
           display: block;
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -613,7 +613,7 @@ export function ExperimentsList({
         .exp-arrow-icon {
           width: 14px;
           height: 14px;
-          color: rgba(255, 255, 255, 0.3);
+          color: #ffffff;
         }
 
         .exp-card-meta {
@@ -628,12 +628,12 @@ export function ExperimentsList({
         }
 
         .exp-meta-label {
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           margin-right: 0.25rem;
         }
 
         .exp-meta-value {
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           font-weight: 500;
         }
 
@@ -654,7 +654,7 @@ export function ExperimentsList({
           align-items: center;
           gap: 0.375rem;
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
         }
 
         .exp-time-icon {
@@ -685,24 +685,24 @@ export function ExperimentsList({
 
         /* Light mode */
         [data-bg="light"] .exp-save-form input { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .exp-cancel-btn { border-color: rgba(0,0,0,0.12); color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .exp-cancel-btn { border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
         [data-bg="light"] .exp-cancel-btn:hover { background: rgba(0,0,0,0.05); }
-        [data-bg="light"] .exp-action-btn { border-color: rgba(0,0,0,0.12); color: rgba(0,0,0,0.5); }
-        [data-bg="light"] .exp-action-btn:hover:not(:disabled) { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.2); color: rgba(0,0,0,0.7); }
-        [data-bg="light"] .exp-empty p { color: rgba(0,0,0,0.5); }
-        [data-bg="light"] .exp-empty-hint { color: rgba(0,0,0,0.35) !important; }
+        [data-bg="light"] .exp-action-btn { border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
+        [data-bg="light"] .exp-action-btn:hover:not(:disabled) { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.2); color: #1d1d1f; }
+        [data-bg="light"] .exp-empty p { color: #1d1d1f; }
+        [data-bg="light"] .exp-empty-hint { color: #1d1d1f !important; }
         [data-bg="light"] .exp-card { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
         [data-bg="light"] .exp-card:hover { border-color: rgba(0,0,0,0.15); }
         [data-bg="light"] .exp-name { color: #1d1d1f; }
-        [data-bg="light"] .exp-card-action-btn { color: rgba(0,0,0,0.3); }
-        [data-bg="light"] .exp-card-action-btn:hover { color: rgba(0,0,0,0.7); }
-        [data-bg="light"] .exp-prompt-label { color: rgba(0,0,0,0.4); }
-        [data-bg="light"] .exp-prompt-text { color: rgba(0,0,0,0.6); }
-        [data-bg="light"] .exp-arrow-icon { color: rgba(0,0,0,0.3); }
-        [data-bg="light"] .exp-meta-label { color: rgba(0,0,0,0.4); }
-        [data-bg="light"] .exp-meta-value { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .exp-card-action-btn { color: #1d1d1f; }
+        [data-bg="light"] .exp-card-action-btn:hover { color: #1d1d1f; }
+        [data-bg="light"] .exp-prompt-label { color: #1d1d1f; }
+        [data-bg="light"] .exp-prompt-text { color: #1d1d1f; }
+        [data-bg="light"] .exp-arrow-icon { color: #1d1d1f; }
+        [data-bg="light"] .exp-meta-label { color: #1d1d1f; }
+        [data-bg="light"] .exp-meta-value { color: #1d1d1f; }
         [data-bg="light"] .exp-card-footer { border-top-color: rgba(0,0,0,0.06); }
-        [data-bg="light"] .exp-timestamp { color: rgba(0,0,0,0.4); }
+        [data-bg="light"] .exp-timestamp { color: #1d1d1f; }
       `}</style>
     </>
   )

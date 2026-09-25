@@ -7,6 +7,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { LayerActivations } from '../../types/model'
 import { ExportButton } from '../export'
+import { useThemeColors } from '../../hooks/useTheme'
 
 interface LayerActivationDisplayProps {
   layerActivations: LayerActivations
@@ -21,6 +22,7 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
   className = '',
   activationId,
 }: LayerActivationDisplayProps) {
+  const tc = useThemeColors()
   const attnChartRef = useRef<SVGSVGElement>(null)
   const ffChartRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -56,7 +58,8 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
         'Attention Output',
         '#9ca3af', // gray-400
         dimensions.width,
-        dimensions.height
+        dimensions.height,
+        tc.text
       )
     }
 
@@ -67,10 +70,11 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
         'Feed-Forward Output',
         '#d8b4fe', // purple-300
         dimensions.width,
-        dimensions.height
+        dimensions.height,
+        tc.text
       )
     }
-  }, [layerActivations, dimensions])
+  }, [layerActivations, dimensions, tc.text])
 
   function renderDistribution(
     svgElement: SVGSVGElement,
@@ -78,7 +82,8 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
     title: string,
     color: string,
     width: number,
-    height: number
+    height: number,
+    textColor: string
   ) {
     d3.select(svgElement).selectAll('*').remove()
 
@@ -115,7 +120,7 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
       .attr('y', 20)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-sm font-semibold')
-      .attr('fill', '#e5e7eb')
+      .attr('fill', textColor)
       .text(title)
 
     // Draw bars
@@ -139,13 +144,13 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
       .call(xAxis)
       .attr('class', 'text-xs')
       .selectAll('text')
-      .attr('fill', '#9ca3af')
+      .attr('fill', textColor)
 
     g.append('g')
       .call(yAxis)
       .attr('class', 'text-xs')
       .selectAll('text')
-      .attr('fill', '#9ca3af')
+      .attr('fill', textColor)
 
     // Axis labels
     svg.append('text')
@@ -153,7 +158,7 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
       .attr('y', height - 5)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-xs')
-      .attr('fill', '#d1d5db')
+      .attr('fill', textColor)
       .text('Activation Value')
 
     svg.append('text')
@@ -162,14 +167,14 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
       .attr('y', 15)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-xs')
-      .attr('fill', '#d1d5db')
+      .attr('fill', textColor)
       .text('Frequency')
   }
 
   return (
     <div className={`bg-black/40 border border-gray-800 p-6 ${className}`} ref={containerRef}>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-200 tracking-tight">Layer {layerIndex} Activations</h3>
+        <h3 className="text-lg font-semibold text-white tracking-tight">Layer {layerIndex} Activations</h3>
         {activationId && (
           <ExportButton
             exportType="activation-histogram"
@@ -185,14 +190,14 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
           <StatCard
             label="Attn Mean"
             value={layerActivations.attn_output.mean}
-            color="text-gray-300"
+            color="text-white"
           />
         )}
         {layerActivations.attn_output && (
           <StatCard
             label="Attn Std"
             value={layerActivations.attn_output.std}
-            color="text-gray-300"
+            color="text-white"
           />
         )}
         {layerActivations.ff_output && (
@@ -234,8 +239,8 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
       {/* Attention Weights Info */}
       {layerActivations.attn_weights && (
         <div className="mt-4 p-3 bg-black/30 border border-gray-800">
-          <div className="text-sm text-gray-300">
-            <span className="text-gray-500 uppercase tracking-wide text-xs">Attention Weights Shape:</span>{' '}
+          <div className="text-sm text-white">
+            <span className="text-white uppercase tracking-wide text-xs">Attention Weights Shape:</span>{' '}
             <span className="font-mono text-white">
               {layerActivations.attn_weights.shape.join(' × ')}
             </span>
@@ -255,7 +260,7 @@ interface StatCardProps {
 function StatCard({ label, value, color }: StatCardProps) {
   return (
     <div className="bg-black/30 border border-gray-800 p-3">
-      <div className="text-xs text-gray-500 mb-1 uppercase tracking-wide">{label}</div>
+      <div className="text-xs text-white mb-1 uppercase tracking-wide">{label}</div>
       <div className={`text-lg font-mono font-semibold ${color}`}>
         {value.toFixed(4)}
       </div>

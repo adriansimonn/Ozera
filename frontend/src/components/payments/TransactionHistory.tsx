@@ -35,7 +35,7 @@ function getTransactionIcon(type: Transaction['transaction_type']) {
     case 'analysis_charge':
       return <Search size={16} className="text-cyan-400" />;
     default:
-      return <ArrowUpRight size={16} className="text-gray-400" />;
+      return <ArrowUpRight size={16} className="text-white" />;
   }
 }
 
@@ -88,7 +88,7 @@ function TransactionRow({ transaction }: TransactionRowProps) {
           <div className="text-sm font-medium text-white">
             {getTransactionLabel(transaction.transaction_type)}
           </div>
-          <div className="text-xs text-gray-400">
+          <div className="text-xs text-white">
             {transaction.description || formatDate(transaction.created_at)}
           </div>
         </div>
@@ -131,14 +131,14 @@ export function TransactionHistory({ compact = false, maxItems }: TransactionHis
   if (loading && transactions.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 size={24} className="animate-spin text-gray-400" />
+        <Loader2 size={24} className="animate-spin text-white" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center py-8 text-gray-400">
+      <div className="text-center py-8 text-white">
         <p>Failed to load transactions</p>
         <button
           onClick={() => fetchTransactions()}
@@ -152,7 +152,7 @@ export function TransactionHistory({ compact = false, maxItems }: TransactionHis
 
   if (transactions.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-400">
+      <div className="text-center py-8 text-white">
         <p>No transactions yet</p>
         <p className="text-sm mt-1">Purchase credits to get started!</p>
       </div>
@@ -172,7 +172,7 @@ export function TransactionHistory({ compact = false, maxItems }: TransactionHis
   return (
     <div className="bg-[#1a1a1a] border border-gray-700 rounded-lg">
       <div className="p-4 border-b border-gray-700">
-        <h3 className="text-sm font-medium text-gray-300">Transaction History</h3>
+        <h3 className="text-sm font-medium text-white">Transaction History</h3>
       </div>
 
       <div className="p-4">
@@ -184,7 +184,7 @@ export function TransactionHistory({ compact = false, maxItems }: TransactionHis
       {/* Pagination */}
       {!maxItems && totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-700">
-          <span className="text-sm text-gray-400">
+          <span className="text-sm text-white">
             Page {page + 1} of {totalPages}
           </span>
           <div className="flex items-center gap-2">
@@ -193,14 +193,14 @@ export function TransactionHistory({ compact = false, maxItems }: TransactionHis
               disabled={page === 0 || loading}
               className="p-1 rounded hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronLeft size={18} className="text-gray-400" />
+              <ChevronLeft size={18} className="text-white" />
             </button>
             <button
               onClick={handleNextPage}
               disabled={page >= totalPages - 1 || loading}
               className="p-1 rounded hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronRight size={18} className="text-gray-400" />
+              <ChevronRight size={18} className="text-white" />
             </button>
           </div>
         </div>

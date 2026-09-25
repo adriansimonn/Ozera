@@ -150,14 +150,14 @@ export function PromptComparer({
           margin: 0;
           font-size: 0.9rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           letter-spacing: 0.025em;
         }
 
         .header-icon {
           width: 16px;
           height: 16px;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .diff-badge {
@@ -217,14 +217,14 @@ export function PromptComparer({
         .column-label {
           font-size: 0.8rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
 
         .token-count {
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
         }
 
         .output-content {
@@ -233,7 +233,7 @@ export function PromptComparer({
 
         .output-text {
           font-size: 0.9rem;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           line-height: 1.6;
           margin-bottom: 1rem;
           padding-bottom: 0.75rem;
@@ -254,7 +254,7 @@ export function PromptComparer({
           padding: 0.125rem 0.375rem;
           background: rgba(255, 255, 255, 0.05);
           border: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           white-space: nowrap;
         }
 
@@ -273,7 +273,7 @@ export function PromptComparer({
         .detail-header {
           font-size: 0.8rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.05em;
           margin-bottom: 0.75rem;
@@ -287,11 +287,11 @@ export function PromptComparer({
         }
 
         .detail-label {
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .detail-value {
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-family: monospace;
         }
 
@@ -317,7 +317,7 @@ export function PromptComparer({
         }
 
         .change-position {
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           font-size: 0.7rem;
         }
 
@@ -326,7 +326,7 @@ export function PromptComparer({
         }
 
         .change-arrow {
-          color: rgba(255, 255, 255, 0.3);
+          color: #ffffff;
         }
 
         .change-to {
@@ -335,7 +335,7 @@ export function PromptComparer({
 
         .more-changes {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           font-style: italic;
           padding-left: 0.5rem;
         }
@@ -345,6 +345,26 @@ export function PromptComparer({
             grid-template-columns: 1fr;
           }
         }
+
+        /* Light mode */
+        [data-bg="light"] .prompt-comparer { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .prompt-comparer .comparer-header,
+        [data-bg="light"] .prompt-comparer .column-header { border-bottom-color: rgba(0,0,0,0.08); }
+        [data-bg="light"] .prompt-comparer .output-column { background: rgba(0,0,0,0.02); }
+        [data-bg="light"] .prompt-comparer .output-text { border-bottom-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .prompt-comparer .token:not(.different) { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .prompt-comparer .effect-details { border-top-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .prompt-comparer .token-change { background: rgba(0,0,0,0.03); }
+        [data-bg="light"] .prompt-comparer .comparer-header h3,
+        [data-bg="light"] .prompt-comparer .header-icon,
+        [data-bg="light"] .prompt-comparer .column-label,
+        [data-bg="light"] .prompt-comparer .token-count,
+        [data-bg="light"] .prompt-comparer .output-text,
+        [data-bg="light"] .prompt-comparer .token:not(.different),
+        [data-bg="light"] .prompt-comparer .detail-header,
+        [data-bg="light"] .prompt-comparer .change-position,
+        [data-bg="light"] .prompt-comparer .change-arrow,
+        [data-bg="light"] .prompt-comparer .more-changes { color: #1d1d1f; }
       `}</style>
     </div>
   )

@@ -143,9 +143,7 @@ export function PatchSelector({
       ? `rgba(0, 0, 0, ${hovered ? 0.35 : 0.15})`
       : `rgba(255, 255, 255, ${hovered ? 0.5 : 0.2})`
     const borderInactive = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.1)'
-    const textPrimary = (opacity: number) => isLight
-      ? `rgba(0, 0, 0, ${opacity})`
-      : `rgba(255, 255, 255, ${opacity})`
+    const textPrimary = isLight ? '#1d1d1f' : '#ffffff'
 
     // Clear canvas
     ctx.fillStyle = bgColor
@@ -295,10 +293,10 @@ export function PatchSelector({
 
       // Draw label below node
       ctx.fillStyle = isHovered
-        ? textPrimary(0.95)
+        ? textPrimary
         : hasPatch && firstPatchColors
           ? `rgba(${firstPatchColors.secondary}, 0.9)`
-          : textPrimary(0.6)
+          : textPrimary
       ctx.font = `${isHovered ? '600' : '500'} 11px Inter, system-ui, sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'top'
@@ -306,7 +304,7 @@ export function PatchSelector({
 
       // Draw clickable indicator for transformer layers
       if (isClickable && isHovered && !hasPatch) {
-        ctx.fillStyle = textPrimary(0.7)
+        ctx.fillStyle = textPrimary
         ctx.font = 'bold 16px Inter, system-ui, sans-serif'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
@@ -315,7 +313,7 @@ export function PatchSelector({
     })
 
     // Draw title
-    ctx.fillStyle = textPrimary(0.7)
+    ctx.fillStyle = textPrimary
     ctx.font = '500 12px Inter, system-ui, sans-serif'
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
@@ -325,7 +323,7 @@ export function PatchSelector({
     const legendX = width - padding.right
     const legendY = 12
     ctx.textAlign = 'right'
-    ctx.fillStyle = textPrimary(0.4)
+    ctx.fillStyle = textPrimary
     ctx.font = '400 10px Inter, system-ui, sans-serif'
     ctx.fillText('Hover for details', legendX, legendY)
 
@@ -592,14 +590,14 @@ export function PatchSelector({
           margin: 0;
           font-size: 0.85rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           letter-spacing: 0.025em;
         }
 
         .header-icon {
           width: 16px;
           height: 16px;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .canvas-container {
@@ -635,12 +633,12 @@ export function PatchSelector({
         .tooltip-layer {
           font-weight: 600;
           font-size: 0.9rem;
-          color: rgba(255, 255, 255, 0.95);
+          color: #ffffff;
         }
 
         .tooltip-heads {
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
         }
 
         .tooltip-patches {
@@ -658,7 +656,7 @@ export function PatchSelector({
 
         .tooltip-hint {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .menu-backdrop {
@@ -687,7 +685,7 @@ export function PatchSelector({
           border-bottom: 1px solid rgba(255, 255, 255, 0.1);
           font-size: 0.8rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
         }
 
         .menu-icon {
@@ -711,7 +709,7 @@ export function PatchSelector({
           padding: 0.5rem 0.75rem 0.25rem;
           font-size: 0.65rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
@@ -735,14 +733,14 @@ export function PatchSelector({
           border: none;
           cursor: pointer;
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
           text-align: left;
           transition: all 0.15s;
         }
 
         .menu-item:hover {
           background: rgba(255, 255, 255, 0.05);
-          color: rgba(255, 255, 255, 1);
+          color: #ffffff;
         }
 
         .item-dot {
@@ -759,7 +757,7 @@ export function PatchSelector({
 
         .item-hint {
           font-size: 0.65rem;
-          color: rgba(255, 255, 255, 0.35);
+          color: #ffffff;
           margin-left: auto;
         }
 
@@ -775,12 +773,12 @@ export function PatchSelector({
         .legend-icon {
           width: 14px;
           height: 14px;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
         }
 
         .legend-label {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           margin-right: 0.25rem;
         }
 
@@ -801,19 +799,20 @@ export function PatchSelector({
         [data-bg="light"] .patch-selector { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
         [data-bg="light"] .selector-header { border-bottom-color: rgba(0,0,0,0.08); }
         [data-bg="light"] .selector-header h3 { color: #1d1d1f; }
-        [data-bg="light"] .header-icon { color: rgba(0,0,0,0.45); }
+        [data-bg="light"] .header-icon { color: #1d1d1f; }
         [data-bg="light"] .layer-tooltip { background: rgba(255,255,255,0.97); border-color: rgba(0,0,0,0.12); box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
         [data-bg="light"] .tooltip-layer { color: #1d1d1f; }
-        [data-bg="light"] .tooltip-heads { color: rgba(0,0,0,0.45); }
-        [data-bg="light"] .tooltip-hint { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .tooltip-heads { color: #1d1d1f; }
+        [data-bg="light"] .tooltip-hint { color: #1d1d1f; }
         [data-bg="light"] .patch-menu { background: rgba(255,255,255,0.98); border-color: rgba(0,0,0,0.12); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
         [data-bg="light"] .menu-header { color: #1d1d1f; border-bottom-color: rgba(0,0,0,0.08); }
         [data-bg="light"] .menu-section { border-top-color: rgba(0,0,0,0.06); }
-        [data-bg="light"] .section-label { color: rgba(0,0,0,0.45); }
-        [data-bg="light"] .menu-item { color: rgba(0,0,0,0.7); }
+        [data-bg="light"] .section-label { color: #1d1d1f; }
+        [data-bg="light"] .menu-item { color: #1d1d1f; }
         [data-bg="light"] .menu-item:hover { background: rgba(0,0,0,0.04); color: #1d1d1f; }
-        [data-bg="light"] .legend-icon { color: rgba(0,0,0,0.45); }
-        [data-bg="light"] .legend-label { color: rgba(0,0,0,0.55); }
+        [data-bg="light"] .item-hint { color: #1d1d1f; }
+        [data-bg="light"] .legend-icon { color: #1d1d1f; }
+        [data-bg="light"] .legend-label { color: #1d1d1f; }
         [data-bg="light"] .patches-legend { border-top-color: rgba(0,0,0,0.08); }
       `}</style>
     </div>

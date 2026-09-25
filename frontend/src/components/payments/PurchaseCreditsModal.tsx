@@ -37,7 +37,7 @@ function AmountInput({
     <div className="space-y-3">
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-          <DollarSign size={20} className="text-gray-400" />
+          <DollarSign size={20} className="text-white" />
         </div>
         <input
           type="number"
@@ -51,7 +51,7 @@ function AmountInput({
         />
       </div>
 
-      <div className="flex justify-between text-sm text-gray-400">
+      <div className="flex justify-between text-sm text-white">
         <span>Min: ${minAmount}</span>
         <span>Max: ${maxAmount}</span>
       </div>
@@ -79,7 +79,7 @@ function AmountInput({
             className={`px-4 py-2 border transition-all ${
               parseFloat(amount) === quickAmount
                 ? 'border-blue-500 bg-blue-500/10 text-blue-400'
-                : 'border-white/10 hover:border-white/20 bg-black text-gray-300'
+                : 'border-white/10 hover:border-white/20 bg-black text-white'
             }`}
           >
             ${quickAmount}
@@ -156,7 +156,7 @@ function CheckoutForm({
           <Check size={32} className="text-green-400" />
         </div>
         <h3 className="text-xl font-bold text-white mb-2">Payment Successful!</h3>
-        <p className="text-gray-400">
+        <p className="text-white">
           ${amount.toFixed(2)} credits have been added to your account.
         </p>
       </div>
@@ -167,11 +167,11 @@ function CheckoutForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="bg-black border border-white/10 p-4 mb-4">
         <div className="flex justify-between items-center">
-          <span className="text-gray-300">Payment Amount</span>
+          <span className="text-white">Payment Amount</span>
           <span className="text-xl font-bold text-white">${amount.toFixed(2)}</span>
         </div>
         <div className="flex justify-between items-center mt-1">
-          <span className="text-gray-400 text-sm">Credits Received</span>
+          <span className="text-white text-sm">Credits Received</span>
           <span className="text-green-400 font-medium">${amount.toFixed(2)}</span>
         </div>
       </div>
@@ -282,7 +282,7 @@ export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalPr
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
         <div className="bg-black border border-white/10 p-6 w-full max-w-md">
-          <p className="text-center text-gray-300">Please log in to purchase credits.</p>
+          <p className="text-center text-white">Please log in to purchase credits.</p>
           <button
             onClick={onClose}
             className="w-full mt-4 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors"
@@ -302,7 +302,7 @@ export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalPr
             <AlertCircle size={20} />
             <span className="font-medium">Payment Not Available</span>
           </div>
-          <p className="text-gray-300 text-sm">
+          <p className="text-white text-sm">
             Payment processing is not configured. Please contact support.
           </p>
           <button
@@ -328,7 +328,7 @@ export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalPr
             onClick={onClose}
             className="p-1 hover:bg-white/5 transition-colors"
           >
-            <X size={20} className="text-gray-400" />
+            <X size={20} className="text-white" />
           </button>
         </div>
 
@@ -338,11 +338,11 @@ export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalPr
             <>
               {pricingLoading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 size={24} className="animate-spin text-gray-400" />
+                  <Loader2 size={24} className="animate-spin text-white" />
                 </div>
               ) : (
                 <>
-                  <p className="text-sm text-gray-400 mb-4">
+                  <p className="text-sm text-white mb-4">
                     Enter the amount you'd like to add. You'll receive exactly what you pay.
                   </p>
 

@@ -544,7 +544,7 @@ export function ModelComparisonDashboard({
           </button>
         </div>
 
-        <p className="text-xs text-gray-500 mb-3">
+        <p className="text-xs text-white mb-3">
           {compareMode === 'features'
             ? 'Run shared text through both SAEs and align features by activation overlap or decoder similarity.'
             : hasExternalSelection
@@ -574,7 +574,7 @@ export function ModelComparisonDashboard({
             style={{
               background: (comparing || !selectionA || !selectionB || !compareText.trim()) ? tc.surface : tc.surfaceActive,
               border: `1px solid ${(comparing || !selectionA || !selectionB || !compareText.trim()) ? tc.border : tc.borderHover}`,
-              color: (comparing || !selectionA || !selectionB || !compareText.trim()) ? tc.textMuted : tc.textStrong,
+              color: (comparing || !selectionA || !selectionB || !compareText.trim()) ? tc.textDisabled : tc.textStrong,
               cursor: (comparing || !selectionA || !selectionB || !compareText.trim()) ? 'not-allowed' : 'pointer',
             }}
             className="px-5 py-2 font-medium text-sm transition-colors flex items-center gap-2 self-stretch"
@@ -622,7 +622,7 @@ export function ModelComparisonDashboard({
       {comparing && (
         <div className="flex flex-col items-center justify-center p-12 bg-black/20 border border-dashed border-gray-800">
           <Loader2 className="w-8 h-8 animate-spin" style={{ color: tc.textMuted }} />
-          <p className="mt-4 text-gray-400">
+          <p className="mt-4 text-white">
             {compareMode === 'features'
               ? 'Running SAE comparison on GPU...'
               : 'Computing CKA across all layers...'}
@@ -637,7 +637,7 @@ export function ModelComparisonDashboard({
           <div className="bg-black/40 border border-gray-800 p-4">
             <div className="grid grid-cols-5 gap-4 text-center">
               <div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                <div className="text-xs text-white uppercase tracking-wide mb-1">
                   CKA Score
                 </div>
                 <div className="text-2xl font-mono" style={{ color: tc.textStrong }}>
@@ -645,7 +645,7 @@ export function ModelComparisonDashboard({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                <div className="text-xs text-white uppercase tracking-wide mb-1">
                   Overall Similarity
                 </div>
                 <div className="text-2xl font-mono text-white">
@@ -653,7 +653,7 @@ export function ModelComparisonDashboard({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                <div className="text-xs text-white uppercase tracking-wide mb-1">
                   Matched Features
                 </div>
                 <div className="text-2xl font-mono text-green-400">
@@ -661,7 +661,7 @@ export function ModelComparisonDashboard({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                <div className="text-xs text-white uppercase tracking-wide mb-1">
                   Unique to A
                 </div>
                 <div className="text-2xl font-mono" style={{ color: tc.textMid }}>
@@ -669,7 +669,7 @@ export function ModelComparisonDashboard({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                <div className="text-xs text-white uppercase tracking-wide mb-1">
                   Unique to B
                 </div>
                 <div className="text-2xl font-mono" style={{ color: tc.textMid }}>
@@ -727,10 +727,10 @@ export function ModelComparisonDashboard({
 
           {/* Research insights */}
           <div className="bg-black/40 border border-gray-800 p-4">
-            <h3 className="text-sm font-semibold text-gray-300 mb-2">
+            <h3 className="text-sm font-semibold text-white mb-2">
               Research Insights
             </h3>
-            <div className="space-y-2 text-xs text-gray-400">
+            <div className="space-y-2 text-xs text-white">
               {featureResult.cka_score > 0.7 && (
                 <p>
                   High CKA ({featureResult.cka_score.toFixed(3)}) indicates
@@ -784,7 +784,7 @@ export function ModelComparisonDashboard({
           <div className="bg-black/40 border border-gray-800 p-4">
             <div className="grid grid-cols-4 gap-4 text-center">
               <div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                <div className="text-xs text-white uppercase tracking-wide mb-1">
                   {layerResult.model_a} Layers
                 </div>
                 <div className="text-xl font-mono" style={{ color: tc.textMid }}>
@@ -792,7 +792,7 @@ export function ModelComparisonDashboard({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                <div className="text-xs text-white uppercase tracking-wide mb-1">
                   {layerResult.model_b} Layers
                 </div>
                 <div className="text-xl font-mono" style={{ color: tc.textMid }}>
@@ -800,7 +800,7 @@ export function ModelComparisonDashboard({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                <div className="text-xs text-white uppercase tracking-wide mb-1">
                   Mean CKA
                 </div>
                 <div className="text-xl font-mono text-white">
@@ -811,10 +811,10 @@ export function ModelComparisonDashboard({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                <div className="text-xs text-white uppercase tracking-wide mb-1">
                   Tokens
                 </div>
-                <div className="text-xl font-mono text-gray-300">
+                <div className="text-xl font-mono text-white">
                   {layerResult.num_tokens}
                 </div>
               </div>
@@ -834,10 +834,10 @@ export function ModelComparisonDashboard({
 
           {/* Layer-wise insights */}
           <div className="bg-black/40 border border-gray-800 p-4">
-            <h3 className="text-sm font-semibold text-gray-300 mb-2">
+            <h3 className="text-sm font-semibold text-white mb-2">
               Research Insights
             </h3>
-            <div className="space-y-2 text-xs text-gray-400">
+            <div className="space-y-2 text-xs text-white">
               {layerResult.model_a === layerResult.model_b && (
                 <p>
                   Self-comparison: the diagonal shows how each layer's SAE features
@@ -894,10 +894,10 @@ export function ModelComparisonDashboard({
       {!comparing && !featureResult && !layerResult && !error && (
         <div className="flex flex-col items-center justify-center p-12 bg-black/20 border border-dashed border-gray-800 text-center">
           <GitCompare className="w-12 h-12 text-gray-700 mb-4" />
-          <h3 className="text-gray-500 font-medium mb-1">
+          <h3 className="text-white font-medium mb-1">
             Select SAEs and Run Comparison
           </h3>
-          <p className="text-gray-600 text-sm max-w-md">
+          <p className="text-white text-sm max-w-md">
             Choose two SAEs to compare, enter shared text, and click Compare to
             analyze feature alignment and representation similarity.
           </p>

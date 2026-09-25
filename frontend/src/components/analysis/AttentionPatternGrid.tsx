@@ -293,7 +293,7 @@ export function AttentionPatternGrid({
 
         .legend-label {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           font-weight: 500;
         }
 
@@ -302,7 +302,7 @@ export function AttentionPatternGrid({
           align-items: center;
           gap: 0.375rem;
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .legend-dot {
@@ -326,7 +326,7 @@ export function AttentionPatternGrid({
 
         .gradient-label {
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .grid-container {
@@ -367,7 +367,7 @@ export function AttentionPatternGrid({
           display: flex;
           align-items: center;
           justify-content: center;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           flex-shrink: 0;
         }
 
@@ -376,7 +376,7 @@ export function AttentionPatternGrid({
           display: flex;
           align-items: center;
           justify-content: center;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           font-family: monospace;
           flex-shrink: 0;
         }
@@ -385,7 +385,7 @@ export function AttentionPatternGrid({
           display: flex;
           align-items: center;
           justify-content: center;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           font-family: monospace;
           flex-shrink: 0;
         }
@@ -443,7 +443,7 @@ export function AttentionPatternGrid({
         }
 
         .tooltip-position {
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           margin-bottom: 0.25rem;
           font-family: monospace;
         }
@@ -453,11 +453,11 @@ export function AttentionPatternGrid({
         }
 
         .tooltip-detail {
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .tooltip-metric {
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-weight: 500;
         }
 
@@ -466,11 +466,11 @@ export function AttentionPatternGrid({
           align-items: center;
           gap: 0.5rem;
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .view-mode-label {
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .view-mode-buttons {
@@ -487,18 +487,33 @@ export function AttentionPatternGrid({
           transition: all 0.2s;
           background: transparent;
           border: none;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           cursor: pointer;
         }
 
         .view-mode-btn:hover {
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
         }
 
         .view-mode-btn.active {
           background: rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.95);
+          color: #ffffff;
         }
+
+        /* Light mode (cell tooltips stay dark in both themes) */
+        [data-bg="light"] .attention-pattern-grid .legend { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .attention-pattern-grid .legend-label,
+        [data-bg="light"] .attention-pattern-grid .legend-item,
+        [data-bg="light"] .attention-pattern-grid .gradient-label,
+        [data-bg="light"] .attention-pattern-grid .grid-corner,
+        [data-bg="light"] .attention-pattern-grid .grid-header-cell,
+        [data-bg="light"] .attention-pattern-grid .grid-row-label,
+        [data-bg="light"] .attention-pattern-grid .view-mode,
+        [data-bg="light"] .attention-pattern-grid .view-mode-label,
+        [data-bg="light"] .attention-pattern-grid .view-mode-btn { color: #1d1d1f; }
+        [data-bg="light"] .attention-pattern-grid .view-mode-buttons { background: rgba(0,0,0,0.05); }
+        [data-bg="light"] .attention-pattern-grid .view-mode-btn.active { background: rgba(0,0,0,0.12); }
+        [data-bg="light"] .attention-pattern-grid .grid-cell.selected { box-shadow: 0 0 0 2px rgba(0,0,0,0.8); }
       `}</style>
     </div>
   )

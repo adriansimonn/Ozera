@@ -7,6 +7,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { ActivationData } from '../../types/model'
 import { ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { useThemeColors } from '../../hooks/useTheme'
 
 interface EmbeddingJourneyProps {
   activationData: ActivationData
@@ -208,13 +209,13 @@ export const EmbeddingJourney = memo(function EmbeddingJourney({
         .journey-title {
           font-size: 1rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           margin: 0;
         }
 
         .journey-subtitle {
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           margin: 0.375rem 0 0 0;
         }
 
@@ -225,7 +226,7 @@ export const EmbeddingJourney = memo(function EmbeddingJourney({
           padding: 0.5rem 0.75rem;
           background: rgba(0, 0, 0, 0.3);
           border: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           font-size: 0.75rem;
           font-weight: 500;
           cursor: pointer;
@@ -236,7 +237,7 @@ export const EmbeddingJourney = memo(function EmbeddingJourney({
         .expand-collapse-btn:hover {
           background: rgba(255, 255, 255, 0.05);
           border-color: rgba(255, 255, 255, 0.2);
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
         }
 
         .expand-collapse-icon {
@@ -276,7 +277,7 @@ export const EmbeddingJourney = memo(function EmbeddingJourney({
 
         .stage-title {
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-size: 0.875rem;
           margin-bottom: 0.375rem;
         }
@@ -288,19 +289,19 @@ export const EmbeddingJourney = memo(function EmbeddingJourney({
 
         .stat {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
         }
 
         .stat-value {
           font-family: monospace;
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
           font-weight: 600;
         }
 
         .expand-icon {
           width: 18px;
           height: 18px;
-          color: rgba(255, 255, 255, 0.3);
+          color: #ffffff;
           transition: transform 0.2s;
         }
 
@@ -341,7 +342,7 @@ export const EmbeddingJourney = memo(function EmbeddingJourney({
         }
 
         .arrow-head {
-          color: rgba(255, 255, 255, 0.25);
+          color: #ffffff;
           font-size: 0.75rem;
           line-height: 1;
         }
@@ -356,18 +357,18 @@ export const EmbeddingJourney = memo(function EmbeddingJourney({
         }
 
         [data-bg="light"] .journey-subtitle {
-          color: rgba(0, 0, 0, 0.4);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .expand-collapse-btn {
           border: 1px solid rgba(0, 0, 0, 0.1);
-          color: rgba(0, 0, 0, 0.55);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .expand-collapse-btn:hover {
           background: rgba(0, 0, 0, 0.04);
           border-color: rgba(0, 0, 0, 0.2);
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .stage-header {
@@ -384,15 +385,15 @@ export const EmbeddingJourney = memo(function EmbeddingJourney({
         }
 
         [data-bg="light"] .stat {
-          color: rgba(0, 0, 0, 0.4);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .stat-value {
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .expand-icon {
-          color: rgba(0, 0, 0, 0.3);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .stage-visualization {
@@ -404,7 +405,7 @@ export const EmbeddingJourney = memo(function EmbeddingJourney({
         }
 
         [data-bg="light"] .arrow-head {
-          color: rgba(0, 0, 0, 0.25);
+          color: #1d1d1f;
         }
       `}</style>
     </div>
@@ -417,6 +418,7 @@ interface EmbeddingVectorDisplayProps {
 }
 
 function EmbeddingVectorDisplay({ values, stage }: EmbeddingVectorDisplayProps) {
+  const tc = useThemeColors()
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 100 })
@@ -500,10 +502,10 @@ function EmbeddingVectorDisplay({ values, stage }: EmbeddingVectorDisplayProps) 
       .attr('y', height - 5)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-xs')
-      .attr('fill', 'rgba(255, 255, 255, 0.4)')
+      .attr('fill', tc.text)
       .text(`Showing ${displayValues.length} / ${values.length} dimensions`)
 
-  }, [values, stage, dimensions])
+  }, [values, stage, dimensions, tc.text])
 
   return (
     <div className="vector-display" ref={containerRef}>

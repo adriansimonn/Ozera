@@ -128,10 +128,10 @@ export function FeatureBrowser({
       {/* Header */}
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-200 tracking-tight">
+          <h3 className="text-lg font-semibold text-white tracking-tight">
             Feature Browser
           </h3>
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-white">
             {filteredFeatures.length} / {catalog.num_features} features
           </div>
         </div>
@@ -139,7 +139,7 @@ export function FeatureBrowser({
         {/* Search and filter */}
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white" />
             <input
               type="text"
               placeholder="Search by index or label..."
@@ -150,7 +150,7 @@ export function FeatureBrowser({
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`px-3 py-2 border ${showFilters ? 'border-purple-500 text-purple-400' : 'border-gray-700 text-gray-400'} hover:border-purple-500 transition-colors`}
+            className={`px-3 py-2 border ${showFilters ? 'border-purple-500 text-purple-400' : 'border-gray-700 text-white'} hover:border-purple-500 transition-colors`}
           >
             <Filter className="w-4 h-4" />
           </button>
@@ -166,7 +166,7 @@ export function FeatureBrowser({
                 className={`px-3 py-1 text-xs uppercase tracking-wide border transition-colors ${
                   filterType === type
                     ? 'border-purple-500 text-purple-400 bg-purple-500/10'
-                    : 'border-gray-700 text-gray-500 hover:border-gray-600'
+                    : 'border-gray-700 text-white hover:border-gray-600'
                 }`}
               >
                 {type}
@@ -179,46 +179,46 @@ export function FeatureBrowser({
       {/* Summary stats */}
       <div className="grid grid-cols-4 gap-px bg-gray-800 border-b border-gray-800">
         <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Total</div>
+          <div className="text-xs text-white uppercase tracking-wide">Total</div>
           <div className="text-lg font-mono text-white">{catalog.num_features}</div>
         </div>
         <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Dead</div>
+          <div className="text-xs text-white uppercase tracking-wide">Dead</div>
           <div className="text-lg font-mono text-red-400">{catalog.dead_features.length}</div>
         </div>
         <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Mono</div>
+          <div className="text-xs text-white uppercase tracking-wide">Mono</div>
           <div className="text-lg font-mono text-green-400">{catalog.monosemantic_features.length}</div>
         </div>
         <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Poly</div>
+          <div className="text-xs text-white uppercase tracking-wide">Poly</div>
           <div className="text-lg font-mono text-yellow-400">{catalog.polysemantic_features.length}</div>
         </div>
       </div>
 
       {/* Table header */}
-      <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-black/60 border-b border-gray-800 text-xs text-gray-500 uppercase tracking-wide">
+      <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-black/60 border-b border-gray-800 text-xs text-white uppercase tracking-wide">
         <button
-          className="col-span-2 flex items-center gap-1 hover:text-gray-300"
+          className="col-span-2 flex items-center gap-1 hover:text-white"
           onClick={() => handleSort('feature_idx')}
         >
           Index <SortIcon field="feature_idx" />
         </button>
         <div className="col-span-3">Label</div>
         <button
-          className="col-span-2 flex items-center gap-1 hover:text-gray-300"
+          className="col-span-2 flex items-center gap-1 hover:text-white"
           onClick={() => handleSort('activation_frequency')}
         >
           Freq <SortIcon field="activation_frequency" />
         </button>
         <button
-          className="col-span-2 flex items-center gap-1 hover:text-gray-300"
+          className="col-span-2 flex items-center gap-1 hover:text-white"
           onClick={() => handleSort('mean_activation')}
         >
           Mean <SortIcon field="mean_activation" />
         </button>
         <button
-          className="col-span-2 flex items-center gap-1 hover:text-gray-300"
+          className="col-span-2 flex items-center gap-1 hover:text-white"
           onClick={() => handleSort('polysemanticity')}
         >
           Type <SortIcon field="polysemanticity" />
@@ -229,7 +229,7 @@ export function FeatureBrowser({
       {/* Feature list */}
       <div className="max-h-[400px] overflow-y-auto">
         {filteredFeatures.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-white">
             No features match your criteria
           </div>
         ) : (
@@ -251,13 +251,13 @@ export function FeatureBrowser({
                 <div className="col-span-2 font-mono text-purple-300">
                   F{feature.feature_idx}
                 </div>
-                <div className="col-span-3 text-sm text-gray-300 truncate" title={feature.suggested_label}>
+                <div className="col-span-3 text-sm text-white truncate" title={feature.suggested_label}>
                   {feature.suggested_label}
                 </div>
                 <div className="col-span-2 font-mono text-sm" style={{ color: getFrequencyColor(feature.activation_frequency) }}>
                   {(feature.activation_frequency * 100).toFixed(1)}%
                 </div>
-                <div className="col-span-2 font-mono text-sm text-gray-400">
+                <div className="col-span-2 font-mono text-sm text-white">
                   {feature.mean_activation.toFixed(3)}
                 </div>
                 <div className={`col-span-2 text-xs ${polySem.color}`}>
@@ -275,7 +275,7 @@ export function FeatureBrowser({
 
       {/* Footer with pagination hint */}
       {filteredFeatures.length > 50 && (
-        <div className="p-3 text-center text-xs text-gray-500 border-t border-gray-800">
+        <div className="p-3 text-center text-xs text-white border-t border-gray-800">
           Scroll to see more features
         </div>
       )}
@@ -304,20 +304,14 @@ export function FeatureBrowser({
         .feature-browser .border-purple-500 { border-color: rgba(255,255,255,0.4); }
         .feature-browser .border-l-purple-500 { border-left-color: rgba(255,255,255,0.4); }
         .feature-browser .text-white { color: #fff; }
-        .feature-browser .text-gray-200 { color: rgba(255,255,255,0.95); }
-        .feature-browser .text-gray-300 { color: rgba(255,255,255,0.7); }
-        .feature-browser .text-gray-400 { color: rgba(255,255,255,0.4); }
-        .feature-browser .text-gray-500 { color: rgba(255,255,255,0.5); }
-        .feature-browser .text-gray-600 { color: rgba(255,255,255,0.2); }
-        .feature-browser .text-purple-300 { color: rgba(255,255,255,0.7); }
-        .feature-browser .text-purple-400 { color: rgba(255,255,255,0.6); }
+        .feature-browser .text-purple-300 { color: #ffffff; }
+        .feature-browser .text-purple-400 { color: #ffffff; }
         .feature-browser .text-red-400 { color: rgba(239,68,68,0.9); }
         .feature-browser .text-red-500 { color: rgba(239,68,68,0.9); }
         .feature-browser .text-green-400 { color: rgba(34,197,94,0.9); }
         .feature-browser .text-yellow-400 { color: rgba(234,179,8,0.9); }
         .feature-browser .text-yellow-500 { color: rgba(234,179,8,0.9); }
         .feature-browser input:focus { border-color: rgba(255,255,255,0.25); }
-        .feature-browser button:hover .text-gray-300 { color: rgba(255,255,255,0.7); }
         .feature-browser button:hover.border-gray-700 { border-color: rgba(255,255,255,0.2); }
         .feature-browser button:hover.border-gray-600 { border-color: rgba(255,255,255,0.2); }
         .feature-browser button:hover.border-purple-500 { border-color: rgba(255,255,255,0.5); }
@@ -337,15 +331,9 @@ export function FeatureBrowser({
         [data-bg="light"] .feature-browser .border-purple-500 { border-color: rgba(0,0,0,0.3); }
         [data-bg="light"] .feature-browser .border-l-purple-500 { border-left-color: rgba(0,0,0,0.3); }
         [data-bg="light"] .feature-browser .text-white { color: #1d1d1f; }
-        [data-bg="light"] .feature-browser .text-gray-200 { color: rgba(0,0,0,0.85); }
-        [data-bg="light"] .feature-browser .text-gray-300 { color: rgba(0,0,0,0.6); }
-        [data-bg="light"] .feature-browser .text-gray-400 { color: rgba(0,0,0,0.4); }
-        [data-bg="light"] .feature-browser .text-gray-500 { color: rgba(0,0,0,0.55); }
-        [data-bg="light"] .feature-browser .text-gray-600 { color: rgba(0,0,0,0.3); }
-        [data-bg="light"] .feature-browser .text-purple-300 { color: rgba(0,0,0,0.6); }
-        [data-bg="light"] .feature-browser .text-purple-400 { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .feature-browser .text-purple-300 { color: #1d1d1f; }
+        [data-bg="light"] .feature-browser .text-purple-400 { color: #1d1d1f; }
         [data-bg="light"] .feature-browser input:focus { border-color: rgba(0,0,0,0.25); }
-        [data-bg="light"] .feature-browser button:hover .text-gray-300 { color: rgba(0,0,0,0.7); }
         [data-bg="light"] .feature-browser button:hover.border-gray-700 { border-color: rgba(0,0,0,0.2); }
         [data-bg="light"] .feature-browser button:hover.border-gray-600 { border-color: rgba(0,0,0,0.2); }
         [data-bg="light"] .feature-browser button:hover.border-purple-500 { border-color: rgba(0,0,0,0.4); }

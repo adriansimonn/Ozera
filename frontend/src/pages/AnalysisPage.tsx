@@ -677,14 +677,14 @@ export default function AnalysisPage({
           margin: 0;
           font-size: 1.75rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.95);
+          color: #ffffff;
           letter-spacing: -0.02em;
         }
 
         .header-description {
           margin: 0.5rem 0 0 0;
           font-size: 0.9rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .mode-tabs {
@@ -700,7 +700,7 @@ export default function AnalysisPage({
           padding: 0.625rem 1rem;
           background: rgba(0, 0, 0, 0.3);
           border: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           font-size: 0.875rem;
           cursor: pointer;
           transition: all 0.2s;
@@ -709,13 +709,13 @@ export default function AnalysisPage({
         .mode-tab:hover {
           background: rgba(255, 255, 255, 0.05);
           border-color: rgba(255, 255, 255, 0.2);
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
         }
 
         .mode-tab.active {
           background: rgba(255, 255, 255, 0.1);
           border-color: rgba(255, 255, 255, 0.4);
-          color: rgba(255, 255, 255, 0.95);
+          color: #ffffff;
         }
 
         .error-banner {
@@ -774,7 +774,7 @@ export default function AnalysisPage({
           margin: 0 0 0.75rem 0;
           font-size: 0.8rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
@@ -784,7 +784,7 @@ export default function AnalysisPage({
           padding: 0.625rem 0.75rem;
           background: rgba(0, 0, 0, 0.4);
           border: 1px solid rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-size: 0.875rem;
           cursor: pointer;
         }
@@ -805,7 +805,7 @@ export default function AnalysisPage({
           padding: 0.625rem 0.75rem;
           background: rgba(0, 0, 0, 0.4);
           border: 1px solid rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-size: 0.875rem;
           font-family: inherit;
           resize: vertical;
@@ -813,7 +813,7 @@ export default function AnalysisPage({
         }
 
         .capture-textarea::placeholder {
-          color: rgba(255, 255, 255, 0.35);
+          color: rgba(255, 255, 255, 0.5);
         }
 
         .capture-textarea:focus {
@@ -829,7 +829,7 @@ export default function AnalysisPage({
           padding: 0.625rem 1rem;
           background: rgba(255, 255, 255, 0.08);
           border: 1px solid rgba(255, 255, 255, 0.2);
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-size: 0.875rem;
           font-weight: 500;
           cursor: pointer;
@@ -863,7 +863,7 @@ export default function AnalysisPage({
           background: transparent;
           border: none;
           cursor: pointer;
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
         }
 
         .section-toggle h2 {
@@ -882,7 +882,7 @@ export default function AnalysisPage({
         .empty-state {
           padding: 1.5rem;
           text-align: center;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           font-size: 0.8rem;
           background: rgba(0, 0, 0, 0.2);
           border: 1px dashed rgba(255, 255, 255, 0.1);
@@ -914,7 +914,7 @@ export default function AnalysisPage({
 
         .activation-prompt {
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -922,7 +922,7 @@ export default function AnalysisPage({
 
         .activation-meta {
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           margin-top: 0.25rem;
         }
 
@@ -953,7 +953,7 @@ export default function AnalysisPage({
           padding: 0.875rem 1.5rem;
           background: rgba(255, 255, 255, 0.1);
           border: 1px solid rgba(255, 255, 255, 0.25);
-          color: rgba(255, 255, 255, 0.95);
+          color: #ffffff;
           font-size: 0.9rem;
           font-weight: 600;
           cursor: pointer;
@@ -991,17 +991,17 @@ export default function AnalysisPage({
           margin: 0;
           font-size: 0.875rem;
           font-weight: 500;
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
         }
 
         .prompt-text {
           font-family: monospace;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
         }
 
         .result-meta {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           margin-top: 0.375rem;
         }
 
@@ -1019,7 +1019,7 @@ export default function AnalysisPage({
           margin: 0 0 1rem 0;
           font-size: 0.8rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
@@ -1049,14 +1049,14 @@ export default function AnalysisPage({
 
         .head-label-compact {
           font-size: 0.6rem;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           font-family: monospace;
         }
 
         .head-importance-compact {
           font-size: 0.75rem;
           font-weight: 700;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           margin-top: 0.125rem;
         }
 
@@ -1073,7 +1073,7 @@ export default function AnalysisPage({
           padding: 0.5rem 0.75rem;
           border: 1px solid;
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
         }
 
         .type-dot {
@@ -1111,7 +1111,7 @@ export default function AnalysisPage({
         .pattern-type {
           font-size: 0.875rem;
           font-weight: 500;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           text-transform: capitalize;
         }
 
@@ -1125,13 +1125,13 @@ export default function AnalysisPage({
         .pattern-confidence,
         .circuit-confidence {
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
         }
 
         .pattern-description,
         .circuit-description {
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
         }
 
         .pattern-heads {
@@ -1145,11 +1145,11 @@ export default function AnalysisPage({
           font-size: 0.7rem;
           padding: 0.25rem 0.5rem;
           background: rgba(255, 255, 255, 0.08);
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
         }
 
         .more-btn {
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           cursor: pointer;
           border: 1px solid rgba(255, 255, 255, 0.15);
           transition: all 0.2s;
@@ -1157,7 +1157,7 @@ export default function AnalysisPage({
 
         .more-btn:hover {
           background: rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
           border-color: rgba(255, 255, 255, 0.3);
         }
 
@@ -1174,7 +1174,7 @@ export default function AnalysisPage({
           justify-content: space-between;
           margin-bottom: 0.625rem;
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
         }
 
         .expanded-heads-actions {
@@ -1190,7 +1190,7 @@ export default function AnalysisPage({
           padding: 0.25rem 0.5rem;
           background: rgba(255, 255, 255, 0.08);
           border: 1px solid rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           font-size: 0.7rem;
           cursor: pointer;
           transition: all 0.2s;
@@ -1208,13 +1208,13 @@ export default function AnalysisPage({
           padding: 0.25rem;
           background: transparent;
           border: none;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           cursor: pointer;
           transition: color 0.2s;
         }
 
         .close-popup-btn:hover {
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
         }
 
         .expanded-heads-list {
@@ -1236,7 +1236,7 @@ export default function AnalysisPage({
 
         .placeholder-content {
           text-align: center;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           max-width: 400px;
         }
 
@@ -1251,7 +1251,7 @@ export default function AnalysisPage({
           margin: 0 0 0.5rem 0;
           font-size: 1rem;
           font-weight: 500;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .placeholder-content p {
@@ -1277,56 +1277,58 @@ export default function AnalysisPage({
 
         /* Light mode */
         [data-bg="light"] .analysis-header h1 { color: #1d1d1f; }
-        [data-bg="light"] .header-description { color: rgba(0,0,0,0.5); }
-        [data-bg="light"] .mode-tab { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); color: rgba(0,0,0,0.5); }
-        [data-bg="light"] .mode-tab:hover { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: rgba(0,0,0,0.7); }
+        [data-bg="light"] .header-description { color: #1d1d1f; }
+        [data-bg="light"] .mode-tab { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); color: #1d1d1f; }
+        [data-bg="light"] .mode-tab:hover { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
         [data-bg="light"] .mode-tab.active { background: rgba(0,0,0,0.08); border-color: rgba(0,0,0,0.25); color: #1d1d1f; }
         [data-bg="light"] .section { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .section h2 { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .section h2 { color: #1d1d1f; }
         [data-bg="light"] .model-select { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
         [data-bg="light"] .model-select:focus { border-color: rgba(0,0,0,0.3); }
         [data-bg="light"] .capture-textarea { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .capture-textarea::placeholder { color: rgba(0,0,0,0.3); }
+        [data-bg="light"] .capture-textarea::placeholder { color: rgba(0, 0, 0, 0.5); }
         [data-bg="light"] .capture-textarea:focus { border-color: rgba(0,0,0,0.3); }
         [data-bg="light"] .capture-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
         [data-bg="light"] .capture-btn:hover:not(:disabled) { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
-        [data-bg="light"] .section-toggle { color: rgba(0,0,0,0.6); }
-        [data-bg="light"] .empty-state { color: rgba(0,0,0,0.4); background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
+        [data-bg="light"] .section-toggle { color: #1d1d1f; }
+        [data-bg="light"] .empty-state { color: #1d1d1f; background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
         [data-bg="light"] .activation-item { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
         [data-bg="light"] .activation-item:hover { border-color: rgba(0,0,0,0.2); }
         [data-bg="light"] .activation-item.selected-primary,
         [data-bg="light"] .activation-item.selected-secondary { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.3); }
-        [data-bg="light"] .activation-prompt { color: rgba(0,0,0,0.7); }
-        [data-bg="light"] .activation-meta { color: rgba(0,0,0,0.4); }
+        [data-bg="light"] .activation-prompt { color: #1d1d1f; }
+        [data-bg="light"] .activation-meta { color: #1d1d1f; }
         [data-bg="light"] .run-analysis-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
         [data-bg="light"] .run-analysis-btn:hover:not(:disabled) { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
         [data-bg="light"] .result-header { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .result-header h3 { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .result-header h3 { color: #1d1d1f; }
         [data-bg="light"] .prompt-text { color: #1d1d1f; }
-        [data-bg="light"] .result-meta { color: rgba(0,0,0,0.4); }
+        [data-bg="light"] .result-meta { color: #1d1d1f; }
         [data-bg="light"] .result-section { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .result-section h3 { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .result-section h3 { color: #1d1d1f; }
         [data-bg="light"] .top-head-item-compact { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); }
         [data-bg="light"] .top-head-item-compact:hover { background: rgba(0,0,0,0.06); }
-        [data-bg="light"] .head-label-compact { color: rgba(0,0,0,0.55); }
+        [data-bg="light"] .head-label-compact { color: #1d1d1f; }
         [data-bg="light"] .head-importance-compact { color: #1d1d1f; }
-        [data-bg="light"] .type-badge { color: rgba(0,0,0,0.7); }
+        [data-bg="light"] .type-badge { color: #1d1d1f; }
         [data-bg="light"] .pattern-item { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
         [data-bg="light"] .pattern-type { color: #1d1d1f; }
-        [data-bg="light"] .pattern-confidence { color: rgba(0,0,0,0.4); }
-        [data-bg="light"] .pattern-description { color: rgba(0,0,0,0.55); }
-        [data-bg="light"] .head-tag { background: rgba(0,0,0,0.06); color: rgba(0,0,0,0.6); }
-        [data-bg="light"] .more-btn { color: rgba(0,0,0,0.5); border-color: rgba(0,0,0,0.12); }
+        [data-bg="light"] .pattern-confidence,
+        [data-bg="light"] .circuit-confidence { color: #1d1d1f; }
+        [data-bg="light"] .pattern-description,
+        [data-bg="light"] .circuit-description { color: #1d1d1f; }
+        [data-bg="light"] .head-tag { background: rgba(0,0,0,0.06); color: #1d1d1f; }
+        [data-bg="light"] .more-btn { color: #1d1d1f; border-color: rgba(0,0,0,0.12); }
         [data-bg="light"] .more-btn:hover { background: rgba(0,0,0,0.08); color: #1d1d1f; border-color: rgba(0,0,0,0.2); }
         [data-bg="light"] .expanded-heads-popup { background: rgba(255,255,255,0.95); border-color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .expanded-heads-header { color: rgba(0,0,0,0.55); }
-        [data-bg="light"] .copy-heads-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.12); color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .expanded-heads-header { color: #1d1d1f; }
+        [data-bg="light"] .copy-heads-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
         [data-bg="light"] .copy-heads-btn:hover { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.2); }
-        [data-bg="light"] .close-popup-btn { color: rgba(0,0,0,0.4); }
+        [data-bg="light"] .close-popup-btn { color: #1d1d1f; }
         [data-bg="light"] .close-popup-btn:hover { color: #1d1d1f; }
         [data-bg="light"] .results-placeholder { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .placeholder-content { color: rgba(0,0,0,0.4); }
-        [data-bg="light"] .placeholder-content h3 { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .placeholder-content { color: #1d1d1f; }
+        [data-bg="light"] .placeholder-content h3 { color: #1d1d1f; }
       `}</style>
     </div>
   )

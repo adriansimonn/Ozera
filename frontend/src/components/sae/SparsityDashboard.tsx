@@ -106,7 +106,7 @@ export function SparsityDashboard({
       .attr('x', width / 2)
       .attr('y', 15)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#e5e7eb')
+      .attr('fill', tc.text)
       .attr('font-size', '12px')
       .text('Feature Activation Frequency Distribution')
 
@@ -127,13 +127,13 @@ export function SparsityDashboard({
       .attr('transform', `translate(0,${innerHeight})`)
       .call(d3.axisBottom(xScale).ticks(5).tickFormat(d => `${(d as number * 100).toFixed(0)}%`))
       .selectAll('text')
-      .attr('fill', '#9ca3af')
+      .attr('fill', tc.text)
       .attr('font-size', '10px')
 
     g.append('g')
       .call(d3.axisLeft(yScale).ticks(5))
       .selectAll('text')
-      .attr('fill', '#9ca3af')
+      .attr('fill', tc.text)
       .attr('font-size', '10px')
 
     // Axis labels
@@ -141,7 +141,7 @@ export function SparsityDashboard({
       .attr('x', width / 2)
       .attr('y', height - 5)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#9ca3af')
+      .attr('fill', tc.text)
       .attr('font-size', '10px')
       .text('Activation Frequency')
 
@@ -150,11 +150,11 @@ export function SparsityDashboard({
       .attr('x', -height / 2)
       .attr('y', 15)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#9ca3af')
+      .attr('fill', tc.text)
       .attr('font-size', '10px')
       .text('Feature Count')
 
-  }, [metrics.feature_health.feature_frequency_distribution])
+  }, [metrics.feature_health.feature_frequency_distribution, tc.text])
 
   // Render training loss chart
   useEffect(() => {
@@ -185,7 +185,7 @@ export function SparsityDashboard({
       .attr('x', width / 2)
       .attr('y', 15)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#e5e7eb')
+      .attr('fill', tc.text)
       .attr('font-size', '12px')
       .text('Training Loss Over Time')
 
@@ -219,13 +219,13 @@ export function SparsityDashboard({
       .attr('transform', `translate(0,${innerHeight})`)
       .call(d3.axisBottom(xScale).ticks(5))
       .selectAll('text')
-      .attr('fill', '#9ca3af')
+      .attr('fill', tc.text)
       .attr('font-size', '10px')
 
     g.append('g')
       .call(d3.axisLeft(yScale).ticks(5))
       .selectAll('text')
-      .attr('fill', '#9ca3af')
+      .attr('fill', tc.text)
       .attr('font-size', '10px')
 
     // Legend
@@ -239,7 +239,7 @@ export function SparsityDashboard({
 
     legend.append('text')
       .attr('x', 25).attr('y', 4)
-      .attr('fill', '#9ca3af').attr('font-size', '10px')
+      .attr('fill', tc.text).attr('font-size', '10px')
       .text('Total Loss')
 
     legend.append('line')
@@ -250,10 +250,10 @@ export function SparsityDashboard({
 
     legend.append('text')
       .attr('x', 25).attr('y', 19)
-      .attr('fill', '#9ca3af').attr('font-size', '10px')
+      .attr('fill', tc.text).attr('font-size', '10px')
       .text('Recon Loss')
 
-  }, [trainingProgress])
+  }, [trainingProgress, tc.text])
 
   const { sparsity, feature_health, reconstruction } = metrics
 

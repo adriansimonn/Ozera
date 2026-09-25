@@ -44,7 +44,7 @@ export default function AuthPage() {
         padding: '0.2rem',
         display: 'flex',
         alignItems: 'center',
-        color: 'rgba(255,255,255,0.35)',
+        color: '#ffffff',
       }}
     >
       {visible ? (
@@ -296,7 +296,7 @@ export default function AuthPage() {
           </h1>
           <p style={{
             fontSize: '1rem',
-            color: 'rgba(255,255,255,0.4)',
+            color: '#ffffff',
             marginBottom: '2.1rem',
           }}>
             {mode === 'login' ? 'Sign in to your account' : 'Get started with Ozera'}
@@ -379,7 +379,7 @@ export default function AuthPage() {
             <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '1.3rem', flex: 1 }}>
               <div>
                 <label style={labelStyle}>
-                  Full Name <span style={{ color: 'rgba(255, 255, 255, 0.25)' }}>(optional)</span>
+                  Full Name <span style={{ color: '#ffffff' }}>(optional)</span>
                 </label>
                 <input
                   type="text"
@@ -417,7 +417,7 @@ export default function AuthPage() {
                   />
                   <EyeToggle visible={showPassword} onToggle={() => setShowPassword(!showPassword)} />
                 </div>
-                <p style={{ marginTop: '0.4rem', fontSize: '0.84rem', color: 'rgba(255, 255, 255, 0.25)' }}>
+                <p style={{ marginTop: '0.4rem', fontSize: '0.84rem', color: '#ffffff' }}>
                   Minimum 8 characters
                 </p>
               </div>
@@ -484,7 +484,7 @@ const labelStyle: React.CSSProperties = {
   display: 'block',
   fontSize: '0.84rem',
   fontWeight: 500,
-  color: 'rgba(255, 255, 255, 0.45)',
+  color: '#ffffff',
   marginBottom: '0.5rem',
   textTransform: 'uppercase',
   letterSpacing: '0.06em',
@@ -519,13 +519,13 @@ const submitStyle: React.CSSProperties = {
 const switchTextStyle: React.CSSProperties = {
   textAlign: 'center',
   fontSize: '1rem',
-  color: 'rgba(255, 255, 255, 0.35)',
+  color: '#ffffff',
 }
 
 const switchBtnStyle: React.CSSProperties = {
   background: 'none',
   border: 'none',
-  color: 'rgba(255, 255, 255, 0.65)',
+  color: '#ffffff',
   fontWeight: 500,
   cursor: 'pointer',
   transition: 'color 0.2s',

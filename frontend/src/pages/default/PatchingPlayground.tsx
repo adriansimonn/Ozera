@@ -196,8 +196,8 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
     panelBg: isLight ? '#ffffff' : '#111111',
     divider: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
     text: isLight ? '#1d1d1f' : '#ffffff',
-    textMid: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)',
-    textSub: isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)',
+    textMid: isLight ? '#1d1d1f' : '#ffffff',
+    textSub: isLight ? '#1d1d1f' : '#ffffff',
     controlBg: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)',
     controlBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
     controlHover: isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.08)',
@@ -883,11 +883,11 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
           background: transparent;
           border: none;
           cursor: pointer;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
         }
 
         [data-interface="default"][data-bg="light"] .section-toggle {
-          color: rgba(0, 0, 0, 0.6);
+          color: #1d1d1f;
         }
 
         [data-interface="default"] .section-toggle h2 {
@@ -1113,11 +1113,11 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
 
         [data-interface="default"][data-bg="light"] .selector-header h3,
         [data-interface="default"][data-bg="light"] .patch-config-panel .panel-header h3 {
-          color: rgba(0, 0, 0, 0.55);
+          color: #1d1d1f;
         }
 
         [data-interface="default"][data-bg="light"] .patch-config-panel .form-group label {
-          color: rgba(0, 0, 0, 0.5);
+          color: #1d1d1f;
         }
 
         [data-interface="default"][data-bg="light"] .exp-card {

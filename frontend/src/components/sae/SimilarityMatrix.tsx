@@ -103,7 +103,7 @@ export function SimilarityMatrix({
             .attr('y', i * cellSize + cellSize / 2)
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'middle')
-            .attr('fill', value > 0.5 ? '#111' : '#9ca3af')
+            .attr('fill', (tc.isLight ? value <= 0.5 : value > 0.5) ? '#111' : '#ffffff')
             .attr('font-size', '9px')
             .attr('font-family', 'monospace')
             .attr('pointer-events', 'none')
@@ -119,7 +119,7 @@ export function SimilarityMatrix({
         .attr('y', i * cellSize + cellSize / 2)
         .attr('text-anchor', 'end')
         .attr('dominant-baseline', 'middle')
-        .attr('fill', '#9ca3af')
+        .attr('fill', tc.text)
         .attr('font-size', '10px')
         .attr('font-family', 'monospace')
         .text(`${labelPrefix}${layer}`)
@@ -132,7 +132,7 @@ export function SimilarityMatrix({
         .attr('y', -8)
         .attr('text-anchor', 'start')
         .attr('dominant-baseline', 'middle')
-        .attr('fill', '#9ca3af')
+        .attr('fill', tc.text)
         .attr('font-size', '10px')
         .attr('font-family', 'monospace')
         .attr('transform', `rotate(-90, ${j * cellSize + cellSize / 2}, -8)`)
@@ -196,7 +196,7 @@ export function SimilarityMatrix({
       .append('text')
       .attr('x', legendX)
       .attr('y', legendY + legendHeight + 12)
-      .attr('fill', '#6b7280')
+      .attr('fill', tc.text)
       .attr('font-size', '8px')
       .text('0.0')
 
@@ -205,7 +205,7 @@ export function SimilarityMatrix({
       .attr('x', legendX + legendWidth)
       .attr('y', legendY + legendHeight + 12)
       .attr('text-anchor', 'end')
-      .attr('fill', '#6b7280')
+      .attr('fill', tc.text)
       .attr('font-size', '8px')
       .text('1.0')
 
@@ -214,7 +214,7 @@ export function SimilarityMatrix({
       .attr('x', legendX + legendWidth / 2)
       .attr('y', legendY - 4)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#6b7280')
+      .attr('fill', tc.text)
       .attr('font-size', '8px')
       .text('CKA Similarity')
   }, [ckaMatrix, layersA, layersB, modelA, modelB, activationTypeA, activationTypeB, labelPrefix, tc])
@@ -227,11 +227,11 @@ export function SimilarityMatrix({
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-1">
           <Grid3x3 className="w-5 h-5" style={{ color: tc.textMid }} />
-          <h3 className="text-lg font-semibold text-gray-200 tracking-tight">
+          <h3 className="text-lg font-semibold text-white tracking-tight">
             {title || 'Layer Similarity Matrix'}
           </h3>
         </div>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-white">
           {subtitle || (isSameModel
             ? `CKA similarity across layers of ${modelA}`
             : `CKA similarity: ${modelA} vs ${modelB}`)}
@@ -246,8 +246,8 @@ export function SimilarityMatrix({
       {/* Hover info */}
       {hoveredCell && (
         <div className="px-4 pb-3 flex items-center gap-2 text-sm">
-          <Info className="w-3.5 h-3.5 text-gray-500" />
-          <span className="text-gray-400">
+          <Info className="w-3.5 h-3.5 text-white" />
+          <span className="text-white">
             <span style={{ color: tc.textStrong }}>{modelA} {labelPrefix}{hoveredCell.layerA}</span>
             {' vs '}
             <span style={{ color: tc.textStrong }}>{modelB} {labelPrefix}{hoveredCell.layerB}</span>
@@ -259,7 +259,7 @@ export function SimilarityMatrix({
 
       {/* Interpretation guide */}
       <div className="px-4 pb-4">
-        <div className="text-xs text-gray-600 space-y-1">
+        <div className="text-xs text-white space-y-1">
           <p>
             {isSameModel
               ? 'Diagonal values show self-similarity (always 1.0). Off-diagonal shows how similar representations are across layers.'

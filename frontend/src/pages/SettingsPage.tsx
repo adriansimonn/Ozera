@@ -171,7 +171,7 @@ export default function SettingsPage() {
         <NavBar />
         <div className="max-w-3xl mx-auto px-8 pt-28">
           <div className="bg-white/[0.03] border border-white/10 p-10 text-center">
-            <p className="text-base text-gray-300">Please log in to access settings.</p>
+            <p className="text-base text-white">Please log in to access settings.</p>
           </div>
         </div>
       </div>
@@ -200,7 +200,7 @@ export default function SettingsPage() {
               className={`px-5 py-3 text-base font-medium transition-colors border-b-2 -mb-px ${
                 activeTab === tab.key
                   ? 'border-white text-white'
-                  : 'border-transparent text-gray-400 hover:text-gray-200'
+                  : 'border-transparent text-white hover:text-white'
               }`}
             >
               {tab.label}
@@ -213,7 +213,7 @@ export default function SettingsPage() {
           <div className="bg-white/[0.03] border border-white/10 p-7 space-y-6">
             {/* Display Name */}
             <div>
-              <label className="block text-base text-gray-300 mb-2">Display Name</label>
+              <label className="block text-base text-white mb-2">Display Name</label>
               <div className="flex items-center gap-3">
                 <input
                   type="text"
@@ -222,7 +222,7 @@ export default function SettingsPage() {
                   className="flex-1 bg-white/5 border border-white/10 px-4 py-3 text-base text-white placeholder-gray-400 focus:outline-none focus:border-white/30"
                   placeholder="Your name"
                 />
-                {nameSaveStatus === 'saving' && <Loader2 size={18} className="text-gray-300 animate-spin" />}
+                {nameSaveStatus === 'saving' && <Loader2 size={18} className="text-white animate-spin" />}
                 {nameSaveStatus === 'saved' && <Check size={18} className="text-green-400" />}
                 {nameSaveStatus === 'error' && <AlertCircle size={18} className="text-red-400" />}
               </div>
@@ -230,20 +230,20 @@ export default function SettingsPage() {
 
             {/* Email (read-only) */}
             <div>
-              <label className="block text-base text-gray-300 mb-2">Email</label>
+              <label className="block text-base text-white mb-2">Email</label>
               <input
                 type="email"
                 value={user.email}
                 disabled
-                className="w-full bg-white/5 border border-white/10 px-4 py-3 text-base text-gray-500 cursor-not-allowed"
+                className="w-full bg-white/5 border border-white/10 px-4 py-3 text-base text-white cursor-not-allowed"
               />
             </div>
 
             {/* Change Password */}
             <div className="pt-3 border-t border-white/5">
               <div className="flex items-center gap-2 mb-4">
-                <Lock size={18} className="text-gray-300" />
-                <span className="text-base font-medium text-gray-200">Change Password</span>
+                <Lock size={18} className="text-white" />
+                <span className="text-base font-medium text-white">Change Password</span>
               </div>
               <div className="space-y-4">
                 <div className="relative">
@@ -257,7 +257,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-white"
                   >
                     {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -273,7 +273,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-white"
                   >
                     {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -291,7 +291,7 @@ export default function SettingsPage() {
                 <button
                   onClick={handlePasswordChange}
                   disabled={!currentPassword || !newPassword || !confirmPassword || passwordStatus === 'saving'}
-                  className="flex items-center gap-2 px-5 py-3 text-base text-gray-300 hover:text-white border border-white/10 hover:border-white/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-5 py-3 text-base text-white hover:text-white border border-white/10 hover:border-white/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {passwordStatus === 'saving' && <Loader2 size={18} className="animate-spin" />}
                   {passwordStatus === 'saved' && <Check size={18} className="text-green-400" />}
@@ -307,7 +307,7 @@ export default function SettingsPage() {
           <div className="bg-white/[0.03] border border-white/10 p-7 space-y-6">
             {/* Low Balance Alert */}
             <div>
-              <label className="block text-base text-gray-300 mb-2">Low Balance Alert Threshold ($)</label>
+              <label className="block text-base text-white mb-2">Low Balance Alert Threshold ($)</label>
               <input
                 type="number"
                 min={0}
@@ -320,14 +320,14 @@ export default function SettingsPage() {
                 }}
                 className="w-40 bg-white/5 border border-white/10 px-4 py-3 text-base text-white focus:outline-none focus:border-white/30"
               />
-              <p className="text-sm text-gray-400 mt-2">Warn when balance drops below this amount</p>
+              <p className="text-sm text-white mt-2">Warn when balance drops below this amount</p>
             </div>
 
             {/* Show Balance in Navbar */}
             <div className="flex items-center justify-between">
               <div>
-                <label className="text-base text-gray-200">Show balance in navbar</label>
-                <p className="text-sm text-gray-400">Display credit balance next to your profile</p>
+                <label className="text-base text-white">Show balance in navbar</label>
+                <p className="text-sm text-white">Display credit balance next to your profile</p>
               </div>
               <button
                 onClick={() => handleCreditsSetting('show_balance_in_navbar', !(settings?.credits.show_balance_in_navbar ?? true))}
@@ -347,7 +347,7 @@ export default function SettingsPage() {
             <div>
               <button
                 onClick={handleAddCredits}
-                className="flex items-center gap-2 px-5 py-3 text-base text-gray-300 hover:text-white border border-white/10 hover:border-white/20 transition-colors"
+                className="flex items-center gap-2 px-5 py-3 text-base text-white hover:text-white border border-white/10 hover:border-white/20 transition-colors"
               >
                 <Plus size={18} />
                 Add Credits
@@ -361,7 +361,7 @@ export default function SettingsPage() {
           <div className="bg-white/[0.03] border border-white/10 p-7 space-y-6">
             {/* Interface */}
             <div>
-              <label className="block text-base text-gray-300 mb-2">Interface</label>
+              <label className="block text-base text-white mb-2">Interface</label>
               <Dropdown
                 value={settings?.ui.interface ?? 'glass'}
                 onChange={(v) => {
@@ -380,7 +380,7 @@ export default function SettingsPage() {
 
             {/* Background */}
             <div>
-              <label className="block text-base text-gray-300 mb-2">Background</label>
+              <label className="block text-base text-white mb-2">Background</label>
               <Dropdown
                 value={settings?.ui.background ?? 'glow'}
                 onChange={(v) => handleUISetting('background', v)}
@@ -402,7 +402,7 @@ export default function SettingsPage() {
 
             {/* Default View Mode */}
             <div>
-              <label className="block text-base text-gray-300 mb-2">Default View Mode</label>
+              <label className="block text-base text-white mb-2">Default View Mode</label>
               <Dropdown
                 value={settings?.ui.default_view_mode ?? 'split'}
                 onChange={(v) => handleUISetting('default_view_mode', v)}
@@ -415,7 +415,7 @@ export default function SettingsPage() {
 
             {/* Default Landing Page */}
             <div>
-              <label className="block text-base text-gray-300 mb-2">Default Landing Page</label>
+              <label className="block text-base text-white mb-2">Default Landing Page</label>
               <Dropdown
                 value={settings?.ui.default_page ?? '/'}
                 onChange={(v) => handleUISetting('default_page', v)}

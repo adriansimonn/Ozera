@@ -71,7 +71,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
         {/* Close button */}
         <button
           onClick={handleClose}
-          className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors"
+          className="absolute top-6 right-6 text-white hover:text-white transition-colors"
           aria-label="Close"
         >
           <X size={20} />
@@ -97,22 +97,22 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label htmlFor="fullName" className="block text-sm font-medium text-gray-400 mb-2 uppercase tracking-wide text-xs">
-              Full Name <span className="text-gray-600">(optional)</span>
+            <label htmlFor="fullName" className="block text-sm font-medium text-white mb-2 uppercase tracking-wide text-xs">
+              Full Name <span className="text-white">(optional)</span>
             </label>
             <input
               type="text"
               id="fullName"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-gray-500 transition-colors"
+              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 transition-colors"
               placeholder="John Doe"
               disabled={isLoading}
             />
           </div>
 
           <div>
-            <label htmlFor="signup-email" className="block text-sm font-medium text-gray-400 mb-2 uppercase tracking-wide text-xs">
+            <label htmlFor="signup-email" className="block text-sm font-medium text-white mb-2 uppercase tracking-wide text-xs">
               Email
             </label>
             <input
@@ -121,14 +121,14 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-gray-500 transition-colors"
+              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 transition-colors"
               placeholder="you@example.com"
               disabled={isLoading}
             />
           </div>
 
           <div>
-            <label htmlFor="signup-password" className="block text-sm font-medium text-gray-400 mb-2 uppercase tracking-wide text-xs">
+            <label htmlFor="signup-password" className="block text-sm font-medium text-white mb-2 uppercase tracking-wide text-xs">
               Password
             </label>
             <input
@@ -138,15 +138,15 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-gray-500 transition-colors"
+              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 transition-colors"
               placeholder="••••••••"
               disabled={isLoading}
             />
-            <p className="mt-2 text-xs text-gray-600">Minimum 8 characters</p>
+            <p className="mt-2 text-xs text-white">Minimum 8 characters</p>
           </div>
 
           <div>
-            <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-400 mb-2 uppercase tracking-wide text-xs">
+            <label htmlFor="confirm-password" className="block text-sm font-medium text-white mb-2 uppercase tracking-wide text-xs">
               Confirm Password
             </label>
             <input
@@ -156,7 +156,7 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-gray-500 transition-colors"
+              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 transition-colors"
               placeholder="••••••••"
               disabled={isLoading}
             />
@@ -172,11 +172,11 @@ export function SignupModal({ isOpen, onClose, onSwitchToLogin }: SignupModalPro
         </form>
 
         {/* Switch to login */}
-        <div className="mt-6 text-center text-sm text-gray-500">
+        <div className="mt-6 text-center text-sm text-white">
           Already have an account?{' '}
           <button
             onClick={onSwitchToLogin}
-            className="text-gray-300 hover:text-white font-medium transition-colors"
+            className="text-white hover:text-white font-medium transition-colors"
           >
             Login
           </button>

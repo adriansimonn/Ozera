@@ -7,6 +7,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { TensorData } from '../../types/model'
 import { ExportButton } from '../export'
+import { useThemeColors } from '../../hooks/useTheme'
 
 interface AttentionHeatmapProps {
   attentionWeights: TensorData
@@ -35,6 +36,7 @@ export const AttentionHeatmap = memo(function AttentionHeatmap({
   className = '',
   activationId,
 }: AttentionHeatmapProps) {
+  const tc = useThemeColors()
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [hoveredCell, setHoveredCell] = useState<HoveredCell | null>(null)
@@ -107,7 +109,7 @@ export const AttentionHeatmap = memo(function AttentionHeatmap({
       .attr('y', 25)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-lg font-semibold')
-      .attr('fill', '#e5e7eb')
+      .attr('fill', tc.text)
       .text(`Layer ${layerIndex} - Head ${headIndex}`)
 
     // Create heatmap cells
@@ -180,7 +182,7 @@ export const AttentionHeatmap = memo(function AttentionHeatmap({
       .call(xAxis)
       .attr('class', 'text-xs')
       .selectAll('text')
-      .attr('fill', '#9ca3af')
+      .attr('fill', tc.text)
       .attr('transform', 'rotate(-45)')
       .style('text-anchor', 'end')
 
@@ -188,7 +190,7 @@ export const AttentionHeatmap = memo(function AttentionHeatmap({
       .call(yAxis)
       .attr('class', 'text-xs')
       .selectAll('text')
-      .attr('fill', '#9ca3af')
+      .attr('fill', tc.text)
 
     // Add axis labels
     svg.append('text')
@@ -196,7 +198,7 @@ export const AttentionHeatmap = memo(function AttentionHeatmap({
       .attr('y', height - 5)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-sm')
-      .attr('fill', '#d1d5db')
+      .attr('fill', tc.text)
       .text('To Token')
 
     svg.append('text')
@@ -205,7 +207,7 @@ export const AttentionHeatmap = memo(function AttentionHeatmap({
       .attr('y', 15)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-sm')
-      .attr('fill', '#d1d5db')
+      .attr('fill', tc.text)
       .text('From Token')
 
     // Add color legend
@@ -249,9 +251,9 @@ export const AttentionHeatmap = memo(function AttentionHeatmap({
       .call(legendAxis)
       .attr('class', 'text-xs')
       .selectAll('text')
-      .attr('fill', '#9ca3af')
+      .attr('fill', tc.text)
 
-  }, [attentionWeights, layerIndex, headIndex, tokens, showTextLabels, dimensions])
+  }, [attentionWeights, layerIndex, headIndex, tokens, showTextLabels, dimensions, tc.text])
 
   // Calculate tooltip position with boundary checks
   const getTooltipStyle = () => {
@@ -304,10 +306,10 @@ export const AttentionHeatmap = memo(function AttentionHeatmap({
           style={getTooltipStyle()}
         >
           <div className="text-white font-semibold mb-1 text-xs uppercase tracking-wide">Attention Weight</div>
-          <div className="text-gray-400 text-xs">
+          <div className="text-white text-xs">
             From token {hoveredCell.from}{tokens?.[hoveredCell.from] ? ` ("${tokens[hoveredCell.from]}")` : ''} → To token {hoveredCell.to}{tokens?.[hoveredCell.to] ? ` ("${tokens[hoveredCell.to]}")` : ''}
           </div>
-          <div className="text-gray-300 mt-1">
+          <div className="text-white mt-1">
             Weight: <span className="text-white font-mono">{hoveredCell.value.toFixed(4)}</span>
           </div>
         </div>

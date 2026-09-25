@@ -173,8 +173,8 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
     panelBorder: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.06)',
     divider: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
     text: isLight ? '#1d1d1f' : '#ffffff',
-    textMid: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)',
-    textSub: isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)',
+    textMid: isLight ? '#1d1d1f' : '#ffffff',
+    textSub: isLight ? '#1d1d1f' : '#ffffff',
     controlBg: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)',
     controlBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
     controlHover: isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.08)',
@@ -973,7 +973,6 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
         .df-switch-badge {
           font-size: 0.675rem;
           font-family: monospace;
-          opacity: 0.7;
         }
 
         .df-output-actions {

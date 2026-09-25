@@ -28,7 +28,7 @@ export function CreditBalance({ onAddCredits, showAddButton = true, compact = fa
   if (compact) {
     return (
       <div className="flex items-center gap-2">
-        <Wallet size={16} className="text-gray-400" />
+        <Wallet size={16} className="text-white" />
         <span className="text-sm font-medium text-white">
           ${displayBalance.available_balance.toFixed(2)}
         </span>
@@ -49,8 +49,8 @@ export function CreditBalance({ onAddCredits, showAddButton = true, compact = fa
     <div className="bg-[#1a1a1a] border border-gray-700 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Wallet size={18} className="text-gray-400" />
-          <span className="text-sm font-medium text-gray-300">Credit Balance</span>
+          <Wallet size={18} className="text-white" />
+          <span className="text-sm font-medium text-white">Credit Balance</span>
         </div>
         {showAddButton && onAddCredits && (
           <button
@@ -75,7 +75,7 @@ export function CreditBalance({ onAddCredits, showAddButton = true, compact = fa
           </div>
 
           {displayBalance.reserved_usd > 0 && (
-            <div className="text-xs text-gray-400 mb-1">
+            <div className="text-xs text-white mb-1">
               ${displayBalance.reserved_usd.toFixed(2)} reserved for running jobs
             </div>
           )}

@@ -527,14 +527,14 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           margin: 0;
           font-size: 1.75rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.95);
+          color: #ffffff;
           letter-spacing: -0.02em;
         }
 
         .header-description {
           margin: 0;
           font-size: 0.9rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           max-width: 700px;
           line-height: 1.5;
         }
@@ -595,7 +595,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           margin: 0 0 1rem 0;
           font-size: 0.9rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
@@ -605,7 +605,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           padding: 0.75rem 1rem;
           background: rgba(0, 0, 0, 0.4);
           border: 1px solid rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-size: 0.9rem;
           cursor: pointer;
         }
@@ -626,7 +626,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           padding: 0.25rem 0.5rem;
           background: rgba(255, 255, 255, 0.08);
           border: 1px solid rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           font-size: 0.7rem;
           font-weight: 500;
           text-transform: uppercase;
@@ -634,7 +634,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
 
         .info-text {
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .prompt-group {
@@ -651,12 +651,12 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
         .label-main {
           font-size: 0.85rem;
           font-weight: 500;
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
         }
 
         .label-hint {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
         }
 
         .prompt-group textarea {
@@ -664,7 +664,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           padding: 0.75rem;
           background: rgba(0, 0, 0, 0.4);
           border: 1px solid rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-size: 0.9rem;
           font-family: inherit;
           resize: vertical;
@@ -704,7 +704,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
         .setting-group label {
           display: block;
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           margin-bottom: 0.375rem;
         }
 
@@ -713,7 +713,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           padding: 0.625rem 0.75rem;
           background: rgba(0, 0, 0, 0.4);
           border: 1px solid rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-size: 0.9rem;
         }
 
@@ -728,7 +728,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           gap: 0.5rem;
           margin-top: 0.75rem;
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
         }
 
         .hint-icon {
@@ -745,7 +745,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           padding: 1rem 1.5rem;
           background: rgba(255, 255, 255, 0.1);
           border: 1px solid rgba(255, 255, 255, 0.25);
-          color: rgba(255, 255, 255, 0.95);
+          color: #ffffff;
           font-size: 0.95rem;
           font-weight: 600;
           cursor: pointer;
@@ -790,7 +790,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           background: transparent;
           border: none;
           cursor: pointer;
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
         }
 
         .section-toggle h2 {
@@ -804,7 +804,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
         .empty-state {
           padding: 1.5rem;
           text-align: center;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           font-size: 0.85rem;
           background: rgba(255, 255, 255, 0.03);
           border: 1px dashed rgba(255, 255, 255, 0.1);
@@ -852,7 +852,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
 
         .captured-prompt {
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -860,14 +860,14 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
 
         .captured-meta {
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
         }
 
         .delete-btn {
           padding: 0.375rem;
           background: transparent;
           border: none;
-          color: rgba(255, 255, 255, 0.3);
+          color: #ffffff;
           cursor: pointer;
           transition: color 0.2s;
         }
@@ -896,7 +896,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
 
         .placeholder-content {
           text-align: center;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
         }
 
         .placeholder-icon {
@@ -933,29 +933,29 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
 
         /* Light mode */
         [data-bg="light"] .header-title h1 { color: #1d1d1f; }
-        [data-bg="light"] .header-description { color: rgba(0,0,0,0.55); }
+        [data-bg="light"] .header-description { color: #1d1d1f; }
         [data-bg="light"] .section { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .section h2 { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .section h2 { color: #1d1d1f; }
         [data-bg="light"] .model-select { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .info-badge { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); color: rgba(0,0,0,0.55); }
-        [data-bg="light"] .info-text { color: rgba(0,0,0,0.5); }
-        [data-bg="light"] .label-main { color: rgba(0,0,0,0.7); }
-        [data-bg="light"] .label-hint { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .info-badge { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
+        [data-bg="light"] .info-text { color: #1d1d1f; }
+        [data-bg="light"] .label-main { color: #1d1d1f; }
+        [data-bg="light"] .label-hint { color: #1d1d1f; }
         [data-bg="light"] .prompt-group textarea { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .setting-group label { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .setting-group label { color: #1d1d1f; }
         [data-bg="light"] .setting-group input { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .settings-hint { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .settings-hint { color: #1d1d1f; }
         [data-bg="light"] .run-experiment-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
         [data-bg="light"] .run-experiment-btn:hover:not(:disabled) { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
         [data-bg="light"] .spinner { border-color: rgba(0,0,0,0.15); border-top-color: #1d1d1f; }
-        [data-bg="light"] .section-toggle { color: rgba(0,0,0,0.7); }
-        [data-bg="light"] .empty-state { color: rgba(0,0,0,0.5); background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
+        [data-bg="light"] .section-toggle { color: #1d1d1f; }
+        [data-bg="light"] .empty-state { color: #1d1d1f; background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
         [data-bg="light"] .captured-item { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.08); }
-        [data-bg="light"] .captured-prompt { color: rgba(0,0,0,0.6); }
-        [data-bg="light"] .captured-meta { color: rgba(0,0,0,0.5); }
-        [data-bg="light"] .delete-btn { color: rgba(0,0,0,0.4); }
+        [data-bg="light"] .captured-prompt { color: #1d1d1f; }
+        [data-bg="light"] .captured-meta { color: #1d1d1f; }
+        [data-bg="light"] .delete-btn { color: #1d1d1f; }
         [data-bg="light"] .results-placeholder { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .placeholder-content { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .placeholder-content { color: #1d1d1f; }
       `}</style>
     </div>
   )

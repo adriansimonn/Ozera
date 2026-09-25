@@ -177,7 +177,7 @@ export function HeadClassifier({
           margin: 0 0 0.75rem 0;
           font-size: 0.8rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
@@ -211,7 +211,7 @@ export function HeadClassifier({
           font-weight: 500;
           background: rgba(255, 255, 255, 0.1);
           border: 1px solid rgba(255, 255, 255, 0.2);
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           cursor: pointer;
           transition: all 0.2s;
         }
@@ -236,7 +236,7 @@ export function HeadClassifier({
           margin: 0 0 0.75rem 0;
           font-size: 0.8rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .layer-heads {
@@ -306,28 +306,28 @@ export function HeadClassifier({
 
         .hover-title {
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
         }
 
         .hover-type {
           font-size: 0.875rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           margin-bottom: 0.25rem;
         }
 
         .hover-confidence {
           font-size: 0.875rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           margin-bottom: 0.5rem;
         }
 
         .hover-confidence span {
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
         }
 
         .hover-summary {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           border-top: 1px solid rgba(255, 255, 255, 0.1);
           padding-top: 0.5rem;
           margin-top: 0.5rem;
@@ -348,7 +348,7 @@ export function HeadClassifier({
         }
 
         .score-label {
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           width: 6rem;
         }
 
@@ -365,10 +365,19 @@ export function HeadClassifier({
         }
 
         .score-value {
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           width: 2.5rem;
           text-align: right;
         }
+
+        /* Light mode (the .hover-detail panel stays dark in both themes) */
+        [data-bg="light"] .head-classifier .summary-section,
+        [data-bg="light"] .head-classifier .layer-section { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .head-classifier .summary-section h3,
+        [data-bg="light"] .head-classifier .layer-section h4 { color: #1d1d1f; }
+        [data-bg="light"] .head-classifier .show-all-btn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
+        [data-bg="light"] .head-classifier .show-all-btn:hover { background: rgba(0,0,0,0.08); }
+        [data-bg="light"] .head-classifier .head-btn.selected { box-shadow: 0 0 0 2px rgba(0,0,0,0.8); }
       `}</style>
     </div>
   )

@@ -43,7 +43,7 @@ export function ExportButton({
         <button
           onClick={handleClick}
           disabled={disabled}
-          className={`p-1.5 text-gray-400 hover:text-white hover:bg-white/10
+          className={`p-1.5 text-white hover:text-white hover:bg-white/10
             transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
           title="Export figure"
         >
@@ -69,7 +69,7 @@ export function ExportButton({
         onClick={handleClick}
         disabled={disabled}
         className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium
-          bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white
+          bg-white/5 text-white hover:bg-white/10 hover:text-white
           border border-gray-700 hover:border-gray-600 transition-all
           disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
       >
@@ -107,7 +107,7 @@ export function QuickExportButton({
       onClick={onClick}
       disabled={isExporting}
       className={`flex items-center gap-1.5 px-2 py-1 text-xs font-medium
-        bg-white/5 text-gray-400 hover:text-white hover:bg-white/10
+        bg-white/5 text-white hover:text-white hover:bg-white/10
         border border-gray-700 hover:border-gray-600 transition-all
         disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
     >

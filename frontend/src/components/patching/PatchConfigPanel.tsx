@@ -234,14 +234,14 @@ export function PatchConfigPanel({
           margin: 0;
           font-size: 0.9rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           letter-spacing: 0.025em;
         }
 
         .header-icon {
           width: 16px;
           height: 16px;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .config-form {
@@ -264,7 +264,7 @@ export function PatchConfigPanel({
 
         .form-group label {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           letter-spacing: 0.05em;
           text-transform: uppercase;
         }
@@ -273,7 +273,7 @@ export function PatchConfigPanel({
         .form-group input[type="text"] {
           background: rgba(0, 0, 0, 0.3);
           border: 1px solid rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           padding: 0.625rem 0.75rem;
           font-size: 0.875rem;
           transition: border-color 0.2s;
@@ -317,7 +317,7 @@ export function PatchConfigPanel({
           display: flex;
           justify-content: space-between;
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           margin-top: 0.25rem;
         }
 
@@ -329,7 +329,7 @@ export function PatchConfigPanel({
           padding: 0.75rem 1rem;
           background: rgba(255, 255, 255, 0.08);
           border: 1px solid rgba(255, 255, 255, 0.2);
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-size: 0.875rem;
           font-weight: 500;
           cursor: pointer;
@@ -363,7 +363,7 @@ export function PatchConfigPanel({
           gap: 0.5rem;
           margin-bottom: 0.75rem;
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
         }
 
         .clear-btn {
@@ -401,7 +401,7 @@ export function PatchConfigPanel({
 
         .intervention-hint {
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           margin-top: 0.25rem;
         }
 
@@ -440,12 +440,12 @@ export function PatchConfigPanel({
           background: rgba(255, 255, 255, 0.1);
           padding: 0.125rem 0.5rem;
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
         }
 
         .patch-detail {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           font-family: monospace;
         }
 
@@ -459,7 +459,7 @@ export function PatchConfigPanel({
           padding: 0.25rem;
           background: transparent;
           border: none;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           cursor: pointer;
           transition: color 0.2s;
         }
@@ -477,22 +477,22 @@ export function PatchConfigPanel({
         [data-bg="light"] .patch-config-panel { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
         [data-bg="light"] .panel-header { border-bottom-color: rgba(0,0,0,0.08); }
         [data-bg="light"] .panel-header h3 { color: #1d1d1f; }
-        [data-bg="light"] .header-icon { color: rgba(0,0,0,0.45); }
-        [data-bg="light"] .form-group label { color: rgba(0,0,0,0.55); }
+        [data-bg="light"] .header-icon { color: #1d1d1f; }
+        [data-bg="light"] .form-group label { color: #1d1d1f; }
         [data-bg="light"] .form-group select,
         [data-bg="light"] .form-group input[type="text"] { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .intervention-hint { color: rgba(0,0,0,0.45); }
-        [data-bg="light"] .blend-labels { color: rgba(0,0,0,0.45); }
+        [data-bg="light"] .intervention-hint { color: #1d1d1f; }
+        [data-bg="light"] .blend-labels { color: #1d1d1f; }
         [data-bg="light"] .blend-group input[type="range"] { background: rgba(0,0,0,0.1); }
         [data-bg="light"] .add-patch-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
         [data-bg="light"] .add-patch-btn:hover:not(:disabled) { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
         [data-bg="light"] .patches-list { border-top-color: rgba(0,0,0,0.08); }
-        [data-bg="light"] .list-header { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .list-header { color: #1d1d1f; }
         [data-bg="light"] .patch-item { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.08); }
-        [data-bg="light"] .patch-type { background: rgba(0,0,0,0.06); color: rgba(0,0,0,0.7); }
-        [data-bg="light"] .patch-detail { color: rgba(0,0,0,0.5); }
-        [data-bg="light"] .remove-patch-btn { color: rgba(0,0,0,0.3); }
-        [data-bg="light"] .menu-item { color: rgba(0,0,0,0.7); }
+        [data-bg="light"] .patch-type { background: rgba(0,0,0,0.06); color: #1d1d1f; }
+        [data-bg="light"] .patch-detail { color: #1d1d1f; }
+        [data-bg="light"] .remove-patch-btn { color: #1d1d1f; }
+        [data-bg="light"] .menu-item { color: #1d1d1f; }
       `}</style>
     </div>
   )

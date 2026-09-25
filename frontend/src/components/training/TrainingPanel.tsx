@@ -607,7 +607,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
             : tc.surfaceHover,
           border: `1px solid ${tc.borderHover}`,
           borderRadius: '0',
-          color: isValid && !disabled && !starting ? tc.text : tc.textMuted,
+          color: isValid && !disabled && !starting ? tc.text : tc.textDisabled,
           fontSize: '14px',
           fontWeight: 600,
           cursor: isValid && !disabled && !starting ? 'pointer' : 'not-allowed',

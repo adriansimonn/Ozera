@@ -179,7 +179,7 @@ export const TransformationFlow = memo(function TransformationFlow({
       ctx.strokeRect(embX, y - embHeight / 2, embWidth, embHeight)
 
       // Draw label
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+      ctx.fillStyle = '#ffffff'
       ctx.font = 'bold 14px Monaco, monospace'
       ctx.textAlign = 'left'
       ctx.fillText(stage.name, embX - 100, y + 5)
@@ -188,7 +188,7 @@ export const TransformationFlow = memo(function TransformationFlow({
       const norm = Math.sqrt(stage.embedding.reduce((sum, v) => sum + v * v, 0))
       const mean = stage.embedding.reduce((sum, v) => sum + v, 0) / stage.embedding.length
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'
+      ctx.fillStyle = '#ffffff'
       ctx.font = '11px Monaco, monospace'
       ctx.textAlign = 'right'
       ctx.fillText(`norm: ${norm.toFixed(2)}`, embX + embWidth + 80, y - 5)
@@ -196,7 +196,7 @@ export const TransformationFlow = memo(function TransformationFlow({
     })
 
     // Draw title
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+    ctx.fillStyle = '#ffffff'
     ctx.font = 'bold 16px sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText(`Token ${selectedTokenIndex} Transformation Flow`, width / 2, 25)
@@ -254,7 +254,7 @@ export const TransformationFlow = memo(function TransformationFlow({
 
         .legend-label {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
         }
 
         /* Light mode */
@@ -267,7 +267,7 @@ export const TransformationFlow = memo(function TransformationFlow({
         }
 
         [data-bg="light"] .legend-label {
-          color: rgba(0, 0, 0, 0.4);
+          color: #1d1d1f;
         }
       `}</style>
     </div>

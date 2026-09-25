@@ -52,7 +52,7 @@ export function UserMenu() {
           <div className="text-sm font-medium text-white">
             {user.full_name || user.email.split('@')[0]}
           </div>
-          <div className="text-xs text-gray-400">
+          <div className="text-xs text-white">
             ${user.available_balance.toFixed(2)} available
           </div>
         </div>
@@ -65,14 +65,14 @@ export function UserMenu() {
           <div className="px-4 py-3 border-b border-gray-700">
             <div className="text-sm font-medium text-white truncate">{user.email}</div>
             {user.full_name && (
-              <div className="text-xs text-gray-400 truncate">{user.full_name}</div>
+              <div className="text-xs text-white truncate">{user.full_name}</div>
             )}
           </div>
 
           {/* Credit balance */}
           <div className="px-4 py-3 border-b border-gray-700">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-300 flex items-center gap-2">
+              <span className="text-sm text-white flex items-center gap-2">
                 <Wallet size={14} />
                 Credit Balance
               </span>
@@ -88,7 +88,7 @@ export function UserMenu() {
               ${user.balance_usd.toFixed(2)}
             </div>
             {user.reserved_usd > 0 && (
-              <div className="text-xs text-gray-400">
+              <div className="text-xs text-white">
                 ${user.reserved_usd.toFixed(2)} reserved
               </div>
             )}
@@ -101,14 +101,14 @@ export function UserMenu() {
           <div className="py-1">
             <button
               onClick={() => { navigate('/settings'); setIsOpen(false); }}
-              className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#2a2a2a] flex items-center gap-2 transition-colors"
+              className="w-full px-4 py-2 text-left text-sm text-white hover:bg-[#2a2a2a] flex items-center gap-2 transition-colors"
             >
               <Settings size={14} />
               Settings
             </button>
             <button
               onClick={handleLogout}
-              className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#2a2a2a] flex items-center gap-2 transition-colors"
+              className="w-full px-4 py-2 text-left text-sm text-white hover:bg-[#2a2a2a] flex items-center gap-2 transition-colors"
             >
               <LogOut size={14} />
               Logout

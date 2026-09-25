@@ -463,8 +463,8 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
     panelBg: isLight ? '#ffffff' : '#111111',
     divider: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
     text: isLight ? '#1d1d1f' : '#ffffff',
-    textMid: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)',
-    textSub: isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)',
+    textMid: isLight ? '#1d1d1f' : '#ffffff',
+    textSub: isLight ? '#1d1d1f' : '#ffffff',
     controlBg: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)',
     controlBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
     inputBg: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(0,0,0,0.4)',
@@ -852,7 +852,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
         }
 
         .ds-textarea::placeholder {
-          color: ${isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)'};
+          color: ${isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)'};
         }
 
         .ds-run-btn {

@@ -665,7 +665,7 @@ export default function SAEPage({
             {analyzing && (
               <div className="loading-state">
                 <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
-                <p className="mt-4 text-gray-400">Running SAE analysis on GPU...</p>
+                <p className="mt-4 text-white">Running SAE analysis on GPU...</p>
               </div>
             )}
 
@@ -689,7 +689,7 @@ export default function SAEPage({
                   ) : loadingFeature ? (
                     <div className="loading-detail">
                       <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
-                      <p className="mt-2 text-gray-500 text-sm">Loading feature info...</p>
+                      <p className="mt-2 text-white text-sm">Loading feature info...</p>
                     </div>
                   ) : (
                     <div className="empty-detail">
@@ -721,7 +721,7 @@ export default function SAEPage({
                   ) : loadingFeature ? (
                     <div className="loading-detail">
                       <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
-                      <p className="mt-2 text-gray-500 text-sm">Loading feature info...</p>
+                      <p className="mt-2 text-white text-sm">Loading feature info...</p>
                     </div>
                   ) : (
                     <div className="empty-detail">
@@ -778,14 +778,14 @@ export default function SAEPage({
           margin: 0;
           font-size: 1.75rem;
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.95);
+          color: #ffffff;
           letter-spacing: -0.02em;
         }
 
         .header-description {
           margin: 0.5rem 0 0 0;
           font-size: 0.9rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         /* Input Section */
@@ -818,7 +818,7 @@ export default function SAEPage({
         }
 
         .sae-input::placeholder {
-          color: rgba(255, 255, 255, 0.35);
+          color: rgba(255, 255, 255, 0.5);
         }
 
         .analyze-button {
@@ -829,7 +829,7 @@ export default function SAEPage({
           padding: 0 1.5rem;
           background: rgba(255, 255, 255, 0.1);
           border: 1px solid rgba(255, 255, 255, 0.25);
-          color: rgba(255, 255, 255, 0.95);
+          color: #ffffff;
           font-weight: 500;
           font-size: 0.875rem;
           cursor: pointer;
@@ -862,7 +862,7 @@ export default function SAEPage({
           padding: 0.625rem 1rem;
           background: rgba(0, 0, 0, 0.3);
           border: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           font-size: 0.875rem;
           cursor: pointer;
           transition: all 0.2s;
@@ -871,13 +871,13 @@ export default function SAEPage({
         .mode-tab:hover {
           background: rgba(255, 255, 255, 0.05);
           border-color: rgba(255, 255, 255, 0.2);
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
         }
 
         .mode-tab.active {
           background: rgba(255, 255, 255, 0.1);
           border-color: rgba(255, 255, 255, 0.4);
-          color: rgba(255, 255, 255, 0.95);
+          color: #ffffff;
         }
 
         .compare-info-banner {
@@ -922,13 +922,13 @@ export default function SAEPage({
           margin: 0 0 0.5rem 0;
           font-size: 1.1rem;
           font-weight: 500;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .empty-state p {
           margin: 0;
           font-size: 0.9rem;
-          color: rgba(255, 255, 255, 0.35);
+          color: #ffffff;
         }
 
         /* Browse Layout */
@@ -1017,13 +1017,13 @@ export default function SAEPage({
           margin: 0 0 0.5rem 0;
           font-size: 1rem;
           font-weight: 500;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .empty-detail p {
           margin: 0;
           font-size: 0.85rem;
-          color: rgba(255, 255, 255, 0.35);
+          color: #ffffff;
         }
 
         @media (max-width: 1200px) {
@@ -1056,26 +1056,26 @@ export default function SAEPage({
 
         /* Light mode */
         [data-bg="light"] .sae-header h1 { color: #1d1d1f; }
-        [data-bg="light"] .header-description { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .header-description { color: #1d1d1f; }
         [data-bg="light"] .sae-input { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
         [data-bg="light"] .sae-input:focus { border-color: rgba(0,0,0,0.25); }
-        [data-bg="light"] .sae-input::placeholder { color: rgba(0,0,0,0.3); }
+        [data-bg="light"] .sae-input::placeholder { color: rgba(0, 0, 0, 0.5); }
         [data-bg="light"] .analyze-button { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
         [data-bg="light"] .analyze-button:hover:not(:disabled) { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
         [data-bg="light"] .analyze-button:disabled { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.08); color: rgba(0,0,0,0.35); }
-        [data-bg="light"] .mode-tab { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); color: rgba(0,0,0,0.5); }
-        [data-bg="light"] .mode-tab:hover { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: rgba(0,0,0,0.7); }
+        [data-bg="light"] .mode-tab { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); color: #1d1d1f; }
+        [data-bg="light"] .mode-tab:hover { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
         [data-bg="light"] .mode-tab.active { background: rgba(0,0,0,0.08); border-color: rgba(0,0,0,0.25); color: #1d1d1f; }
         [data-bg="light"] .empty-state,
         [data-bg="light"] .loading-state { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
         [data-bg="light"] .empty-state .empty-icon { color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .empty-state h3 { color: rgba(0,0,0,0.5); }
-        [data-bg="light"] .empty-state p { color: rgba(0,0,0,0.35); }
+        [data-bg="light"] .empty-state h3 { color: #1d1d1f; }
+        [data-bg="light"] .empty-state p { color: #1d1d1f; }
         [data-bg="light"] .empty-detail,
         [data-bg="light"] .loading-detail { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
         [data-bg="light"] .empty-icon { color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .empty-detail h3 { color: rgba(0,0,0,0.5); }
-        [data-bg="light"] .empty-detail p { color: rgba(0,0,0,0.35); }
+        [data-bg="light"] .empty-detail h3 { color: #1d1d1f; }
+        [data-bg="light"] .empty-detail p { color: #1d1d1f; }
       `}</style>
     </div>
   )

@@ -519,7 +519,7 @@ export const GenerationFlow = memo(function GenerationFlow({
             ctx.shadowColor = '#ffffff'
             ctx.shadowBlur = 10
           } else {
-            ctx.fillStyle = '#94a3b8'
+            ctx.fillStyle = '#ffffff'
             ctx.shadowBlur = 0
           }
 
@@ -622,7 +622,7 @@ export const GenerationFlow = memo(function GenerationFlow({
 
       // Progress percentage
       ctx.font = '11px Monaco'
-      ctx.fillStyle = '#94a3b8'
+      ctx.fillStyle = '#ffffff'
       ctx.textAlign = 'center'
       ctx.fillText(`${Math.floor(progress * 100)}%`, width / 2, barY + barHeight + 15)
     }
@@ -875,7 +875,7 @@ export const GenerationFlow = memo(function GenerationFlow({
 
         .control-group label {
           font-size: 0.75rem;
-          color: #94a3b8;
+          color: #ffffff;
           font-weight: 600;
         }
 
@@ -944,7 +944,7 @@ export const GenerationFlow = memo(function GenerationFlow({
 
         .top-tokens-title {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.1em;
           font-weight: 400;
@@ -952,7 +952,7 @@ export const GenerationFlow = memo(function GenerationFlow({
 
         .top-tokens-count {
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           font-weight: 400;
         }
 
@@ -963,7 +963,7 @@ export const GenerationFlow = memo(function GenerationFlow({
         }
 
         .top-tokens-placeholder {
-          color: #64748b;
+          color: #ffffff;
           font-size: 0.8rem;
           font-style: italic;
           text-align: center;
@@ -1005,24 +1005,24 @@ export const GenerationFlow = memo(function GenerationFlow({
         }
 
         .top-token-rank {
-          color: #64748b;
+          color: #ffffff;
           font-size: 0.7rem;
           font-weight: 600;
         }
 
         .top-token-item.selected .top-token-rank {
-          color: #94a3b8;
+          color: #ffffff;
         }
 
         .top-token-text {
-          color: #e2e8f0;
+          color: #ffffff;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
 
         .top-token-probability {
-          color: #94a3b8;
+          color: #ffffff;
           font-size: 0.7rem;
           text-align: right;
           font-weight: 600;
@@ -1078,7 +1078,7 @@ export const GenerationFlow = memo(function GenerationFlow({
 
         .output-title {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.1em;
           font-weight: 400;
@@ -1086,7 +1086,7 @@ export const GenerationFlow = memo(function GenerationFlow({
 
         .output-count {
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           font-weight: 400;
         }
 
@@ -1097,7 +1097,7 @@ export const GenerationFlow = memo(function GenerationFlow({
         }
 
         .output-placeholder {
-          color: #64748b;
+          color: #ffffff;
           font-size: 0.85rem;
           font-style: italic;
           text-align: center;
@@ -1108,7 +1108,7 @@ export const GenerationFlow = memo(function GenerationFlow({
           font-family: 'Monaco', 'Courier New', monospace;
           font-size: 0.9rem;
           line-height: 1.8;
-          color: #e2e8f0;
+          color: #ffffff;
           word-wrap: break-word;
         }
 
@@ -1169,7 +1169,7 @@ export const GenerationFlow = memo(function GenerationFlow({
 
         .prompt-tokens-title {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.1em;
           font-weight: 400;
@@ -1177,7 +1177,7 @@ export const GenerationFlow = memo(function GenerationFlow({
 
         .prompt-tokens-count {
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           font-weight: 400;
         }
 
@@ -1188,7 +1188,7 @@ export const GenerationFlow = memo(function GenerationFlow({
         }
 
         .prompt-tokens-placeholder {
-          color: #64748b;
+          color: #ffffff;
           font-size: 0.85rem;
           font-style: italic;
           text-align: center;
@@ -1221,7 +1221,7 @@ export const GenerationFlow = memo(function GenerationFlow({
         .prompt-token-index {
           padding: 0.3rem 0.5rem;
           background: rgba(255, 255, 255, 0.08);
-          color: #64748b;
+          color: #ffffff;
           font-size: 0.65rem;
           font-weight: 600;
           border-right: 1px solid rgba(255, 255, 255, 0.1);
@@ -1229,7 +1229,7 @@ export const GenerationFlow = memo(function GenerationFlow({
 
         .prompt-token-text {
           padding: 0.3rem 0.5rem;
-          color: #e2e8f0;
+          color: #ffffff;
         }
 
         .prompt-tokens-content::-webkit-scrollbar {
@@ -1293,11 +1293,11 @@ export const GenerationFlow = memo(function GenerationFlow({
         }
 
         [data-bg="light"] .top-tokens-title {
-          color: rgba(0, 0, 0, 0.45);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .top-tokens-count {
-          color: rgba(0, 0, 0, 0.45);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .top-token-item {
@@ -1321,7 +1321,7 @@ export const GenerationFlow = memo(function GenerationFlow({
         }
 
         [data-bg="light"] .top-token-text {
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .top-token-item.selected .top-token-probability {
@@ -1355,15 +1355,15 @@ export const GenerationFlow = memo(function GenerationFlow({
         }
 
         [data-bg="light"] .output-title {
-          color: rgba(0, 0, 0, 0.45);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .output-count {
-          color: rgba(0, 0, 0, 0.45);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .output-text {
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .output-token {
@@ -1393,11 +1393,11 @@ export const GenerationFlow = memo(function GenerationFlow({
         }
 
         [data-bg="light"] .prompt-tokens-title {
-          color: rgba(0, 0, 0, 0.45);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .prompt-tokens-count {
-          color: rgba(0, 0, 0, 0.45);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .prompt-token {
@@ -1416,7 +1416,16 @@ export const GenerationFlow = memo(function GenerationFlow({
         }
 
         [data-bg="light"] .prompt-token-text {
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .top-tokens-placeholder,
+        [data-bg="light"] .output-placeholder,
+        [data-bg="light"] .prompt-tokens-placeholder,
+        [data-bg="light"] .top-token-rank,
+        [data-bg="light"] .top-token-item.selected .top-token-rank,
+        [data-bg="light"] .prompt-token-index {
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .prompt-tokens-content::-webkit-scrollbar-track {

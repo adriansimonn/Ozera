@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState, useMemo } from 'react'
 import * as d3 from 'd3'
+import { useThemeColors } from '../../hooks/useTheme'
 interface FeatureActivation {
   feature_idx: number
   activation_value: number
@@ -60,6 +61,7 @@ export function FeatureActivationDisplay({
   showTopK = 50,
   className = '',
 }: FeatureActivationDisplayProps) {
+  const tc = useThemeColors()
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [hoveredCell, setHoveredCell] = useState<HoveredCell | null>(null)
@@ -140,7 +142,7 @@ export function FeatureActivationDisplay({
       .attr('y', 25)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-lg font-semibold')
-      .attr('fill', '#e5e7eb')
+      .attr('fill', tc.text)
       .text('Feature Activations')
 
     // Create heatmap cells
@@ -214,7 +216,7 @@ export function FeatureActivationDisplay({
       .call(xAxis)
       .attr('class', 'text-xs')
       .selectAll('text')
-      .attr('fill', '#9ca3af')
+      .attr('fill', tc.text)
       .attr('transform', 'rotate(-45)')
       .style('text-anchor', 'end')
 
@@ -225,7 +227,7 @@ export function FeatureActivationDisplay({
       .call(yAxis)
       .attr('class', 'text-xs')
       .selectAll('text')
-      .attr('fill', '#9ca3af')
+      .attr('fill', tc.text)
 
     // Axis labels
     svg.append('text')
@@ -233,7 +235,7 @@ export function FeatureActivationDisplay({
       .attr('y', dimensions.height - 5)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-sm')
-      .attr('fill', '#d1d5db')
+      .attr('fill', tc.text)
       .text('Token Position')
 
     svg.append('text')
@@ -242,7 +244,7 @@ export function FeatureActivationDisplay({
       .attr('y', 20)
       .attr('text-anchor', 'middle')
       .attr('class', 'text-sm')
-      .attr('fill', '#d1d5db')
+      .attr('fill', tc.text)
       .text('Feature Index')
 
     // Add color legend
@@ -286,9 +288,9 @@ export function FeatureActivationDisplay({
       .call(legendAxis)
       .attr('class', 'text-xs')
       .selectAll('text')
-      .attr('fill', '#9ca3af')
+      .attr('fill', tc.text)
 
-  }, [activations, featuresToShow, selectedCell, dimensions])
+  }, [activations, featuresToShow, selectedCell, dimensions, tc.text])
 
   // Tooltip positioning
   const getTooltipStyle = () => {
@@ -316,15 +318,15 @@ export function FeatureActivationDisplay({
       {/* Summary stats */}
       <div className="flex gap-4 mb-4 text-sm">
         <div className="bg-black/30 border border-gray-800 px-3 py-2">
-          <span className="text-gray-500 uppercase text-xs tracking-wide">Tokens</span>
+          <span className="text-white uppercase text-xs tracking-wide">Tokens</span>
           <div className="text-white font-mono">{activations.tokens.length}</div>
         </div>
         <div className="bg-black/30 border border-gray-800 px-3 py-2">
-          <span className="text-gray-500 uppercase text-xs tracking-wide">Features Shown</span>
+          <span className="text-white uppercase text-xs tracking-wide">Features Shown</span>
           <div className="text-white font-mono">{featuresToShow.length}</div>
         </div>
         <div className="bg-black/30 border border-gray-800 px-3 py-2">
-          <span className="text-gray-500 uppercase text-xs tracking-wide">Avg L0</span>
+          <span className="text-white uppercase text-xs tracking-wide">Avg L0</span>
           <div className="text-white font-mono">
             {(activations.active_features_per_position.reduce((a, b) => a + b, 0) /
               activations.active_features_per_position.length).toFixed(1)}
@@ -348,16 +350,16 @@ export function FeatureActivationDisplay({
             Feature Activation
           </div>
           <div className="space-y-1 text-xs">
-            <div className="text-gray-400">
+            <div className="text-white">
               Token: <span className="text-white font-mono">"{hoveredCell.token}"</span>
             </div>
-            <div className="text-gray-400">
+            <div className="text-white">
               Feature: <span className="text-purple-300 font-mono">F{hoveredCell.featureIdx}</span>
             </div>
-            <div className="text-gray-400">
+            <div className="text-white">
               Value: <span className="text-white font-mono">{hoveredCell.value.toFixed(4)}</span>
             </div>
-            <div className="text-gray-400">
+            <div className="text-white">
               Position: <span className="text-white font-mono">{hoveredCell.position}</span>
             </div>
           </div>
@@ -375,8 +377,6 @@ export function FeatureActivationDisplay({
         .feature-activation-display .border-gray-700 { border-color: rgba(255,255,255,0.1); }
         .feature-activation-display .border-gray-800 { border-color: rgba(255,255,255,0.1); }
         .feature-activation-display .text-white { color: #fff; }
-        .feature-activation-display .text-gray-400 { color: rgba(255,255,255,0.4); }
-        .feature-activation-display .text-gray-500 { color: rgba(255,255,255,0.5); }
         .feature-activation-display .text-purple-300 { color: rgba(168,85,247,0.9); }
 
         [data-bg="light"] .feature-activation-display .bg-black\\/30 { background: rgba(0,0,0,0.03); }
@@ -385,8 +385,6 @@ export function FeatureActivationDisplay({
         [data-bg="light"] .feature-activation-display .border-gray-700 { border-color: rgba(0,0,0,0.1); }
         [data-bg="light"] .feature-activation-display .border-gray-800 { border-color: rgba(0,0,0,0.1); }
         [data-bg="light"] .feature-activation-display .text-white { color: #1d1d1f; }
-        [data-bg="light"] .feature-activation-display .text-gray-400 { color: rgba(0,0,0,0.4); }
-        [data-bg="light"] .feature-activation-display .text-gray-500 { color: rgba(0,0,0,0.55); }
       `}</style>
     </div>
   )

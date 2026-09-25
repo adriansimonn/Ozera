@@ -35,7 +35,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
       >
         <button
           onClick={onCancel}
-          className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
+          className="absolute top-4 right-4 text-white hover:text-white transition-colors"
           aria-label="Close"
         >
           <X size={18} />
@@ -45,7 +45,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           {title}
         </h2>
 
-        <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+        <p className="text-sm text-white mb-6 leading-relaxed">
           {message}
         </p>
 

@@ -175,12 +175,12 @@ export function ExportModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div className="flex items-center gap-3">
-            <FileImage className="w-5 h-5 text-gray-400" />
+            <FileImage className="w-5 h-5 text-white" />
             <h2 className="text-lg font-semibold text-white tracking-tight">{getTitle()}</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1 text-gray-500 hover:text-white transition-colors"
+            className="p-1 text-white hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -190,7 +190,7 @@ export function ExportModal({
         <div className="px-6 py-4 space-y-5 max-h-[70vh] overflow-y-auto">
           {/* Format Selection */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
+            <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
               Output Format
             </label>
             <div className="flex gap-2">
@@ -201,7 +201,7 @@ export function ExportModal({
                   className={`px-4 py-2 text-sm font-medium transition-all border ${
                     format === f
                       ? 'bg-white/10 text-white border-gray-600'
-                      : 'bg-white/5 text-gray-400 border-gray-700 hover:text-white hover:bg-white/8 hover:border-gray-600'
+                      : 'bg-white/5 text-white border-gray-700 hover:text-white hover:bg-white/8 hover:border-gray-600'
                   }`}
                 >
                   {f.toUpperCase()}
@@ -212,7 +212,7 @@ export function ExportModal({
 
           {/* Preset Selection */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
+            <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
               Publication Preset
             </label>
             <Dropdown
@@ -230,7 +230,7 @@ export function ExportModal({
             <>
               {/* Colormap */}
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
+                <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
                   Colormap
                 </label>
                 <Dropdown
@@ -244,7 +244,7 @@ export function ExportModal({
               {exportType === 'attention-heatmap' && (
                 <>
                   <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
+                    <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
                       Labels
                     </label>
                     <Dropdown
@@ -256,7 +256,7 @@ export function ExportModal({
                       ]}
                     />
                   </div>
-                  <label className="flex items-center gap-3 text-sm text-gray-300 cursor-pointer">
+                  <label className="flex items-center gap-3 text-sm text-white cursor-pointer">
                     <input
                       type="checkbox"
                       checked={showColorbar}
@@ -271,7 +271,7 @@ export function ExportModal({
               {/* Multi-head columns */}
               {exportType === 'multi-head-heatmap' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
+                  <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
                     Columns: {cols}
                   </label>
                   <input
@@ -291,7 +291,7 @@ export function ExportModal({
             <>
               {/* Activation type */}
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
+                <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
                   Activation Type
                 </label>
                 <Dropdown
@@ -307,7 +307,7 @@ export function ExportModal({
 
               {/* Bins */}
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
+                <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
                   Bins: {bins}
                 </label>
                 <input
@@ -323,7 +323,7 @@ export function ExportModal({
 
               {/* Histogram options */}
               <div className="flex gap-6">
-                <label className="flex items-center gap-3 text-sm text-gray-300 cursor-pointer">
+                <label className="flex items-center gap-3 text-sm text-white cursor-pointer">
                   <input
                     type="checkbox"
                     checked={showStats}
@@ -332,7 +332,7 @@ export function ExportModal({
                   />
                   Show statistics
                 </label>
-                <label className="flex items-center gap-3 text-sm text-gray-300 cursor-pointer">
+                <label className="flex items-center gap-3 text-sm text-white cursor-pointer">
                   <input
                     type="checkbox"
                     checked={logScale}
@@ -347,7 +347,7 @@ export function ExportModal({
 
           {/* Custom title */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide">
+            <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
               Custom Title (optional)
             </label>
             <input
@@ -359,14 +359,14 @@ export function ExportModal({
                   ? `Layer ${layer}, Head ${head}`
                   : 'Activation Distribution'
               }
-              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-gray-200 placeholder-gray-600 focus:border-gray-500 focus:outline-none transition-colors"
+              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-500 focus:border-gray-500 focus:outline-none transition-colors"
             />
           </div>
 
           {/* Advanced options toggle */}
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+            className="flex items-center gap-2 text-sm text-white hover:text-white transition-colors"
           >
             <Settings className="w-4 h-4" />
             {showAdvanced ? 'Hide' : 'Show'} Advanced Options
@@ -377,7 +377,7 @@ export function ExportModal({
             <div className="space-y-4 pt-4 border-t border-gray-800">
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">
+                  <label className="block text-xs text-white mb-1 uppercase tracking-wide">
                     Width (inches)
                   </label>
                   <input
@@ -386,11 +386,11 @@ export function ExportModal({
                     value={customWidth}
                     onChange={(e) => setCustomWidth(e.target.value)}
                     placeholder="Auto"
-                    className="w-full px-3 py-2 bg-black/40 border border-gray-700 text-sm text-gray-200 placeholder-gray-600 focus:border-gray-500 focus:outline-none transition-colors"
+                    className="w-full px-3 py-2 bg-black/40 border border-gray-700 text-sm text-white placeholder-gray-500 focus:border-gray-500 focus:outline-none transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">
+                  <label className="block text-xs text-white mb-1 uppercase tracking-wide">
                     Height (inches)
                   </label>
                   <input
@@ -399,11 +399,11 @@ export function ExportModal({
                     value={customHeight}
                     onChange={(e) => setCustomHeight(e.target.value)}
                     placeholder="Auto"
-                    className="w-full px-3 py-2 bg-black/40 border border-gray-700 text-sm text-gray-200 placeholder-gray-600 focus:border-gray-500 focus:outline-none transition-colors"
+                    className="w-full px-3 py-2 bg-black/40 border border-gray-700 text-sm text-white placeholder-gray-500 focus:border-gray-500 focus:outline-none transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">
+                  <label className="block text-xs text-white mb-1 uppercase tracking-wide">
                     DPI
                   </label>
                   <input
@@ -412,12 +412,12 @@ export function ExportModal({
                     value={customDpi}
                     onChange={(e) => setCustomDpi(e.target.value)}
                     placeholder="Auto"
-                    className="w-full px-3 py-2 bg-black/40 border border-gray-700 text-sm text-gray-200 placeholder-gray-600 focus:border-gray-500 focus:outline-none transition-colors"
+                    className="w-full px-3 py-2 bg-black/40 border border-gray-700 text-sm text-white placeholder-gray-500 focus:border-gray-500 focus:outline-none transition-colors"
                   />
                 </div>
               </div>
 
-              <label className="flex items-center gap-3 text-sm text-gray-300 cursor-pointer">
+              <label className="flex items-center gap-3 text-sm text-white cursor-pointer">
                 <input
                   type="checkbox"
                   checked={transparent}
@@ -441,7 +441,7 @@ export function ExportModal({
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 border border-gray-700 hover:border-gray-600 transition-all"
+            className="px-4 py-2 text-sm font-medium text-white hover:text-white bg-white/5 hover:bg-white/10 border border-gray-700 hover:border-gray-600 transition-all"
           >
             Cancel
           </button>

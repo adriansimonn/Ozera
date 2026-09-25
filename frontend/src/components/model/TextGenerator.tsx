@@ -500,7 +500,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         .status {
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           font-size: 0.85rem;
           font-weight: 400;
         }
@@ -521,7 +521,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         .control-group label {
           font-weight: 500;
           font-size: 0.85rem;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           letter-spacing: 0.05em;
           text-transform: uppercase;
         }
@@ -611,7 +611,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           display: block;
           margin-bottom: 1rem;
           font-weight: 500;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           font-size: 0.85rem;
           letter-spacing: 0.05em;
           text-transform: uppercase;
@@ -651,7 +651,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         .prompt-area textarea::placeholder {
-          color: rgba(255, 255, 255, 0.3);
+          color: rgba(255, 255, 255, 0.5);
         }
 
         .actions {
@@ -693,7 +693,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           background: rgba(255, 255, 255, 0.1);
           border: 1px solid rgba(255, 255, 255, 0.15);
           border-left: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           cursor: pointer;
           transition: all 0.2s;
           display: flex;
@@ -736,7 +736,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           padding: 0.875rem 1rem;
           background: transparent;
           border: none;
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
           font-size: 0.85rem;
           font-weight: 500;
           text-align: left;
@@ -759,7 +759,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         .dropdown-item-desc {
           font-size: 0.75rem;
           font-weight: 400;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           text-transform: none;
           letter-spacing: normal;
         }
@@ -771,7 +771,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         .btn-secondary {
           padding: 1rem 2rem;
           background: rgba(255, 255, 255, 0.02);
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           border: 1px solid rgba(255, 255, 255, 0.1);
           font-size: 0.9rem;
           font-weight: 500;
@@ -799,7 +799,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           padding: 1rem 1.25rem;
           background: rgba(255, 255, 255, 0.05);
           border: 1px solid rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
           margin-bottom: 1.5rem;
           font-size: 0.9rem;
           animation: fadeIn 0.3s ease-in-out;
@@ -830,7 +830,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           padding: 1rem 1.25rem;
           background: rgba(255, 255, 255, 0.03);
           border: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
           margin-bottom: 2rem;
           font-size: 0.9rem;
         }
@@ -855,7 +855,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         .insufficient-credits-content p {
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           font-size: 0.9rem;
           margin: 0;
         }
@@ -903,13 +903,13 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           margin: 0;
           font-size: 0.85rem;
           font-weight: 500;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           letter-spacing: 0.05em;
           text-transform: uppercase;
         }
 
         .streaming-indicator {
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
           font-size: 1.2rem;
           animation: pulse 1s infinite;
         }
@@ -929,7 +929,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         .cursor {
-          color: rgba(255, 255, 255, 0.8);
+          color: #ffffff;
           animation: blink 0.8s infinite;
           margin-left: 2px;
           font-weight: normal;
@@ -950,11 +950,11 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         [data-bg="light"] .status {
-          color: rgba(0, 0, 0, 0.55);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .control-group label {
-          color: rgba(0, 0, 0, 0.55);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .control-group input[type="range"] {
@@ -976,7 +976,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         [data-bg="light"] .prompt-area label {
-          color: rgba(0, 0, 0, 0.55);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .prompt-area textarea {
@@ -1003,7 +1003,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         [data-bg="light"] .prompt-area textarea::placeholder {
-          color: rgba(0, 0, 0, 0.3);
+          color: rgba(0, 0, 0, 0.5);
         }
 
         [data-bg="light"] .btn-generate-main {
@@ -1020,7 +1020,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           background: rgba(0, 0, 0, 0.06);
           border-color: rgba(0, 0, 0, 0.12);
           border-left-color: rgba(0, 0, 0, 0.1);
-          color: rgba(0, 0, 0, 0.6);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .btn-generate-toggle:hover:not(:disabled) {
@@ -1034,7 +1034,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         [data-bg="light"] .dropdown-item {
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .dropdown-item:hover {
@@ -1047,7 +1047,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         [data-bg="light"] .dropdown-item-desc {
-          color: rgba(0, 0, 0, 0.4);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .dropdown-item + .dropdown-item {
@@ -1056,7 +1056,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
 
         [data-bg="light"] .btn-secondary {
           background: rgba(0, 0, 0, 0.03);
-          color: rgba(0, 0, 0, 0.6);
+          color: #1d1d1f;
           border-color: rgba(0, 0, 0, 0.1);
         }
 
@@ -1069,7 +1069,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         [data-bg="light"] .warmup-message {
           background: rgba(0, 0, 0, 0.04);
           border-color: rgba(0, 0, 0, 0.12);
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .warmup-spinner {
@@ -1080,11 +1080,11 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         [data-bg="light"] .error-message {
           background: rgba(0, 0, 0, 0.03);
           border-color: rgba(0, 0, 0, 0.1);
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .insufficient-credits-content p {
-          color: rgba(0, 0, 0, 0.6);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .output-area {
@@ -1100,11 +1100,11 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         [data-bg="light"] .output-header h3 {
-          color: rgba(0, 0, 0, 0.55);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .streaming-indicator {
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .output-content {
@@ -1112,7 +1112,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         }
 
         [data-bg="light"] .cursor {
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .control-number-input {

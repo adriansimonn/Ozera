@@ -208,7 +208,7 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
         .header-icon {
           width: 20px;
           height: 20px;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
         }
 
         .model-info-header h3 {
@@ -229,7 +229,7 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
         .model-selector label {
           font-weight: 500;
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           letter-spacing: 0.05em;
           text-transform: uppercase;
         }
@@ -240,13 +240,13 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
 
         .model-description {
           margin: 0 0 1.25rem 0;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           font-size: 0.9rem;
           line-height: 1.5;
         }
 
         .model-description.loading {
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           font-style: italic;
         }
 
@@ -307,7 +307,7 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
         .info-icon {
           width: 16px;
           height: 16px;
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
         }
 
         .info-details {
@@ -319,7 +319,7 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
 
         .info-label {
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.05em;
           font-weight: 500;
@@ -338,7 +338,7 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
         }
 
         [data-bg="light"] .header-icon {
-          color: rgba(0, 0, 0, 0.55);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .model-info-header h3 {
@@ -346,15 +346,15 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
         }
 
         [data-bg="light"] .model-selector label {
-          color: rgba(0, 0, 0, 0.55);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .model-description {
-          color: rgba(0, 0, 0, 0.55);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .model-description.loading {
-          color: rgba(0, 0, 0, 0.4);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .info-card {
@@ -373,11 +373,11 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
         }
 
         [data-bg="light"] .info-icon {
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .info-label {
-          color: rgba(0, 0, 0, 0.5);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .info-value {

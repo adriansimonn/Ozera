@@ -83,7 +83,7 @@ export function FeatureComparison({
       .attr('x', width / 2)
       .attr('y', 20)
       .attr('text-anchor', 'middle')
-      .attr('fill', tc.isLight ? '#374151' : '#e5e7eb')
+      .attr('fill', tc.text)
       .attr('font-size', '14px')
       .attr('font-weight', 'bold')
       .text('Feature Alignment')
@@ -177,7 +177,7 @@ export function FeatureComparison({
         .attr('y', y1)
         .attr('text-anchor', 'end')
         .attr('dominant-baseline', 'middle')
-        .attr('fill', tc.isLight ? '#6b7280' : '#9ca3af')
+        .attr('fill', tc.text)
         .attr('font-size', '10px')
         .attr('font-family', 'monospace')
         .text(`F${match.feature_a}`)
@@ -188,7 +188,7 @@ export function FeatureComparison({
         .attr('y', y2)
         .attr('text-anchor', 'start')
         .attr('dominant-baseline', 'middle')
-        .attr('fill', tc.isLight ? '#6b7280' : '#9ca3af')
+        .attr('fill', tc.text)
         .attr('font-size', '10px')
         .attr('font-family', 'monospace')
         .text(`F${match.feature_b}`)
@@ -198,7 +198,7 @@ export function FeatureComparison({
         .attr('x', innerWidth / 2)
         .attr('y', (y1 + y2) / 2 - 5)
         .attr('text-anchor', 'middle')
-        .attr('fill', '#6b7280')
+        .attr('fill', tc.text)
         .attr('font-size', '9px')
         .text(`${(match.similarity * 100).toFixed(0)}%`)
     })
@@ -231,14 +231,14 @@ export function FeatureComparison({
     svg.append('text')
       .attr('x', legendX)
       .attr('y', legendY - 5)
-      .attr('fill', '#6b7280')
+      .attr('fill', tc.text)
       .attr('font-size', '9px')
       .text('Similarity')
 
     svg.append('text')
       .attr('x', legendX)
       .attr('y', legendY + 18)
-      .attr('fill', '#6b7280')
+      .attr('fill', tc.text)
       .attr('font-size', '8px')
       .text('0%')
 
@@ -246,7 +246,7 @@ export function FeatureComparison({
       .attr('x', legendX + legendWidth)
       .attr('y', legendY + 18)
       .attr('text-anchor', 'end')
-      .attr('fill', '#6b7280')
+      .attr('fill', tc.text)
       .attr('font-size', '8px')
       .text('100%')
 
@@ -258,11 +258,11 @@ export function FeatureComparison({
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-2">
           <GitCompare className="w-5 h-5" style={{ color: tc.textMid }} />
-          <h3 className="text-lg font-semibold text-gray-200 tracking-tight">
+          <h3 className="text-lg font-semibold text-white tracking-tight">
             Feature Comparison
           </h3>
         </div>
-        <div className="flex items-center gap-3 text-sm text-gray-400">
+        <div className="flex items-center gap-3 text-sm text-white">
           <span style={{ color: tc.textMid }}>{saeA.name}</span>
           <ArrowRight className="w-4 h-4" />
           <span style={{ color: tc.textMid }}>{saeB.name}</span>
@@ -272,19 +272,19 @@ export function FeatureComparison({
       {/* Summary metrics */}
       <div className="grid grid-cols-4 gap-px bg-gray-800">
         <div className="bg-black/40 p-4 text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Overall Similarity</div>
+          <div className="text-xs text-white uppercase tracking-wide mb-1">Overall Similarity</div>
           <div className="text-2xl font-mono text-white">
             {(comparison.overall_similarity * 100).toFixed(1)}%
           </div>
         </div>
         <div className="bg-black/40 p-4 text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Matched Features</div>
+          <div className="text-xs text-white uppercase tracking-wide mb-1">Matched Features</div>
           <div className="text-2xl font-mono text-green-400">
             {comparison.matched_features}
           </div>
         </div>
         <div className="bg-black/40 p-4 text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+          <div className="text-xs text-white uppercase tracking-wide mb-1">
             Unique to {saeA.name}
           </div>
           <div className="text-2xl font-mono" style={{ color: tc.textMid }}>
@@ -292,7 +292,7 @@ export function FeatureComparison({
           </div>
         </div>
         <div className="bg-black/40 p-4 text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+          <div className="text-xs text-white uppercase tracking-wide mb-1">
             Unique to {saeB.name}
           </div>
           <div className="text-2xl font-mono" style={{ color: tc.textMid }}>
@@ -309,10 +309,10 @@ export function FeatureComparison({
       ) : (
         <div className="p-4 border-t border-gray-800 flex flex-col items-center justify-center" style={{ minHeight: 120 }}>
           <GitCompare className="w-8 h-8 text-gray-700 mb-2" />
-          <p className="text-gray-500 text-sm">
+          <p className="text-white text-sm">
             No feature matches found above the similarity threshold.
           </p>
-          <p className="text-gray-600 text-xs mt-1">
+          <p className="text-white text-xs mt-1">
             These SAEs may capture very different feature representations.
           </p>
         </div>
@@ -323,11 +323,11 @@ export function FeatureComparison({
         <div className="p-4 border-t border-gray-800" style={{ background: tc.surface }}>
           <div className="flex items-center gap-2 mb-3">
             <Zap className="w-4 h-4" style={{ color: tc.textMid }} />
-            <span className="text-sm text-gray-300 font-semibold">Match Details</span>
+            <span className="text-sm text-white font-semibold">Match Details</span>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+              <div className="text-xs text-white uppercase tracking-wide mb-1">
                 {saeA.name} - Feature {selectedMatch.feature_a}
               </div>
               <div className="text-sm" style={{ color: tc.textStrong }}>
@@ -335,7 +335,7 @@ export function FeatureComparison({
               </div>
             </div>
             <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+              <div className="text-xs text-white uppercase tracking-wide mb-1">
                 {saeB.name} - Feature {selectedMatch.feature_b}
               </div>
               <div className="text-sm" style={{ color: tc.textStrong }}>
@@ -345,20 +345,20 @@ export function FeatureComparison({
           </div>
           {selectedMatch.shared_tokens.length > 0 && (
             <div className="mt-3">
-              <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
+              <div className="text-xs text-white uppercase tracking-wide mb-2">
                 Shared Activating Tokens
               </div>
               <div className="flex flex-wrap gap-1">
                 {selectedMatch.shared_tokens.slice(0, 20).map((token, idx) => (
                   <span
                     key={idx}
-                    className="px-2 py-0.5 text-xs font-mono bg-gray-800 text-gray-300 rounded"
+                    className="px-2 py-0.5 text-xs font-mono bg-gray-800 text-white rounded"
                   >
                     {token}
                   </span>
                 ))}
                 {selectedMatch.shared_tokens.length > 20 && (
-                  <span className="px-2 py-0.5 text-xs text-gray-500">
+                  <span className="px-2 py-0.5 text-xs text-white">
                     +{selectedMatch.shared_tokens.length - 20} more
                   </span>
                 )}
@@ -393,23 +393,23 @@ export function FeatureComparison({
         <div className="bg-black/40 p-3">
           <div className="flex items-center gap-2 mb-2">
             <Layers className="w-4 h-4" style={{ color: tc.textMid }} />
-            <span className="text-xs text-gray-500 uppercase tracking-wide">{saeA.name}</span>
+            <span className="text-xs text-white uppercase tracking-wide">{saeA.name}</span>
           </div>
-          <div className="space-y-1 text-xs text-gray-400">
-            <div>Model: <span className="text-gray-300">{saeA.model}</span></div>
-            <div>Layer: <span className="text-gray-300">{saeA.layer}</span></div>
-            <div>Features: <span className="text-gray-300">{saeA.num_features.toLocaleString()}</span></div>
+          <div className="space-y-1 text-xs text-white">
+            <div>Model: <span className="text-white">{saeA.model}</span></div>
+            <div>Layer: <span className="text-white">{saeA.layer}</span></div>
+            <div>Features: <span className="text-white">{saeA.num_features.toLocaleString()}</span></div>
           </div>
         </div>
         <div className="bg-black/40 p-3">
           <div className="flex items-center gap-2 mb-2">
             <Layers className="w-4 h-4" style={{ color: tc.textMid }} />
-            <span className="text-xs text-gray-500 uppercase tracking-wide">{saeB.name}</span>
+            <span className="text-xs text-white uppercase tracking-wide">{saeB.name}</span>
           </div>
-          <div className="space-y-1 text-xs text-gray-400">
-            <div>Model: <span className="text-gray-300">{saeB.model}</span></div>
-            <div>Layer: <span className="text-gray-300">{saeB.layer}</span></div>
-            <div>Features: <span className="text-gray-300">{saeB.num_features.toLocaleString()}</span></div>
+          <div className="space-y-1 text-xs text-white">
+            <div>Model: <span className="text-white">{saeB.model}</span></div>
+            <div>Layer: <span className="text-white">{saeB.layer}</span></div>
+            <div>Features: <span className="text-white">{saeB.num_features.toLocaleString()}</span></div>
           </div>
         </div>
       </div>

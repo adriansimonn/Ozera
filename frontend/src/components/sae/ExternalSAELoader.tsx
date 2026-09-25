@@ -21,6 +21,7 @@ import {
   type ExternalSAEInfo,
   type ExternalSAESourcesResponse,
 } from '../../api/client'
+import { useThemeColors } from '../../hooks/useTheme'
 
 interface ExternalSAELoaderProps {
   loadedSAEs: ExternalSAEInfo[]
@@ -51,6 +52,7 @@ export function ExternalSAELoader({
   onSAELoaded,
   onSAEDeleted,
 }: ExternalSAELoaderProps) {
+  const tc = useThemeColors()
   const [tab, setTab] = useState<LoaderTab>('huggingface')
 
   // HuggingFace loading state
@@ -259,7 +261,7 @@ export function ExternalSAELoader({
         <div className="tab-content">
           {/* Suggested Repos */}
           <div className="suggested-repos">
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Quick Load</div>
+            <div className="text-xs text-white uppercase tracking-wide mb-2">Quick Load</div>
             <div className="flex flex-wrap gap-2">
               {SUGGESTED_REPOS.map(repo => (
                 <button
@@ -269,7 +271,7 @@ export function ExternalSAELoader({
                   title={repo.description}
                 >
                   <span className="text-white text-xs">{repo.label}</span>
-                  <span className="text-gray-500 text-[10px]">{repo.activation}</span>
+                  <span className="text-white text-[10px]">{repo.activation}</span>
                 </button>
               ))}
             </div>
@@ -277,7 +279,7 @@ export function ExternalSAELoader({
 
           {/* Repo Input */}
           <div className="repo-input-section mt-3">
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
+            <div className="text-xs text-white uppercase tracking-wide mb-2">
               Or enter repository ID
             </div>
             <div className="flex gap-2">
@@ -299,7 +301,7 @@ export function ExternalSAELoader({
                 style={{
                   background: (browsing || loading || !repoId.trim()) ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.1)',
                   border: `1px solid ${(browsing || loading || !repoId.trim()) ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.25)'}`,
-                  color: (browsing || loading || !repoId.trim()) ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.95)',
+                  color: (browsing || loading || !repoId.trim()) ? tc.textDisabled : tc.text,
                   cursor: (browsing || loading || !repoId.trim()) ? 'not-allowed' : 'pointer',
                 }}
                 className="px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2"
@@ -348,7 +350,7 @@ export function ExternalSAELoader({
                 </div>
               ) : (
                 <>
-                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
+                  <div className="text-xs text-white uppercase tracking-wide mb-2">
                     Available SAEs ({browseResult.count})
                   </div>
                   <div className="hookpoint-list">
@@ -358,7 +360,7 @@ export function ExternalSAELoader({
                           <span className="text-white text-sm font-mono">
                             {item.hookpoint || 'root'}
                           </span>
-                          <div className="hookpoint-meta text-gray-500 text-xs">
+                          <div className="hookpoint-meta text-white text-xs">
                             {item.d_in && <span>d_in: {item.d_in}</span>}
                             {item.num_latents && <span>features: {item.num_latents.toLocaleString()}</span>}
                             {item.k && <span>k: {item.k}</span>}
@@ -389,7 +391,7 @@ export function ExternalSAELoader({
           )}
 
           {browseResult && browseResult.available.length === 0 && (
-            <div className="mt-3 text-gray-500 text-sm">
+            <div className="mt-3 text-white text-sm">
               No SAE hookpoints found in this repository.
             </div>
           )}
@@ -414,10 +416,10 @@ export function ExternalSAELoader({
       {/* Upload Tab */}
       {tab === 'upload' && (
         <div className="tab-content">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
+          <div className="text-xs text-white uppercase tracking-wide mb-2">
             Upload SAE Weights
           </div>
-          <p className="text-gray-500 text-xs mb-3">
+          <p className="text-white text-xs mb-3">
             Upload a .safetensors file containing SAE weights. Supports Ozera native format,
             EleutherAI/sparsify format, and Gemma Scope format.
             Limited to 1 uploaded SAE per account.
@@ -433,7 +435,7 @@ export function ExternalSAELoader({
 
           <div className="space-y-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Display Name</label>
+              <label className="block text-xs text-white mb-1">Display Name</label>
               <input
                 type="text"
                 value={uploadName}
@@ -448,7 +450,7 @@ export function ExternalSAELoader({
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Safetensors File</label>
+              <label className="block text-xs text-white mb-1">Safetensors File</label>
               <label className="upload-zone">
                 <input
                   type="file"
@@ -460,12 +462,12 @@ export function ExternalSAELoader({
                 {uploadFile ? (
                   <div className="text-sm">
                     <span className="text-white">{uploadFile.name}</span>
-                    <span className="text-gray-500 ml-2">
+                    <span className="text-white ml-2">
                       ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
                     </span>
                   </div>
                 ) : (
-                  <div className="text-gray-500 text-sm">
+                  <div className="text-white text-sm">
                     Click to select .safetensors file (max 500MB)
                   </div>
                 )}
@@ -490,7 +492,7 @@ export function ExternalSAELoader({
                   </button>
                   <button
                     onClick={() => setShowReplaceWarning(false)}
-                    className="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 transition-colors"
+                    className="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors"
                   >
                     Cancel
                   </button>
@@ -505,7 +507,7 @@ export function ExternalSAELoader({
                 style={{
                   background: (uploading || !uploadFile || !uploadName.trim()) ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.1)',
                   border: `1px solid ${(uploading || !uploadFile || !uploadName.trim()) ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.25)'}`,
-                  color: (uploading || !uploadFile || !uploadName.trim()) ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.95)',
+                  color: (uploading || !uploadFile || !uploadName.trim()) ? tc.textDisabled : tc.text,
                   cursor: (uploading || !uploadFile || !uploadName.trim()) ? 'not-allowed' : 'pointer',
                 }}
                 className="w-full px-4 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2"
@@ -552,8 +554,8 @@ export function ExternalSAELoader({
           {loadedSAEs.length === 0 ? (
             <div className="text-center py-8">
               <Database className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-              <p className="text-gray-500 text-sm">No external SAEs loaded yet</p>
-              <p className="text-gray-600 text-xs mt-1">
+              <p className="text-white text-sm">No external SAEs loaded yet</p>
+              <p className="text-white text-xs mt-1">
                 Use the HuggingFace tab to load SAEs from popular repositories
               </p>
             </div>
@@ -565,12 +567,12 @@ export function ExternalSAELoader({
                     <div className="text-white text-sm font-medium">
                       {sae.display_name || sae.id}
                     </div>
-                    <div className="loaded-sae-meta text-gray-500 text-xs">
+                    <div className="loaded-sae-meta text-white text-xs">
                       {sae.source && <span className="capitalize">{sae.source}</span>}
                       {sae.base_model && <span>{sae.base_model}</span>}
                       {sae.hookpoint && <span className="font-mono">{sae.hookpoint}</span>}
                     </div>
-                    <div className="loaded-sae-dims text-gray-500 text-xs">
+                    <div className="loaded-sae-dims text-white text-xs">
                       {sae.d_input && <span>d_in: {sae.d_input}</span>}
                       {sae.d_hidden && <span>features: {sae.d_hidden.toLocaleString()}</span>}
                       {sae.activation_type && <span>{sae.activation_type}</span>}
@@ -615,19 +617,19 @@ export function ExternalSAELoader({
           padding: 0.75rem 1rem;
           background: transparent;
           border: none;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           font-size: 0.8rem;
           cursor: pointer;
           transition: all 0.2s;
         }
 
         .loader-tab:hover {
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           background: rgba(255, 255, 255, 0.03);
         }
 
         .loader-tab.active {
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           background: rgba(255, 255, 255, 0.1);
           border-bottom: 2px solid rgba(255, 255, 255, 0.4);
         }
@@ -693,7 +695,7 @@ export function ExternalSAELoader({
           padding: 0.375rem 0.75rem;
           background: rgba(255, 255, 255, 0.08);
           border: 1px solid rgba(255, 255, 255, 0.2);
-          color: rgba(255, 255, 255, 0.95);
+          color: #ffffff;
           font-size: 0.75rem;
           cursor: pointer;
           transition: all 0.2s;
@@ -760,7 +762,7 @@ export function ExternalSAELoader({
           height: 28px;
           background: transparent;
           border: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           cursor: pointer;
           transition: all 0.2s;
         }
@@ -775,6 +777,25 @@ export function ExternalSAELoader({
           opacity: 0.5;
           cursor: not-allowed;
         }
+
+        /* Light mode */
+        [data-bg="light"] .external-sae-loader { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .external-sae-loader .loader-tabs { border-bottom-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .external-sae-loader .loader-tab { color: #1d1d1f; }
+        [data-bg="light"] .external-sae-loader .loader-tab:hover { background: rgba(0,0,0,0.04); }
+        [data-bg="light"] .external-sae-loader .loader-tab.active { background: rgba(0,0,0,0.07); border-bottom-color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .external-sae-loader .suggested-repo-btn { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .external-sae-loader .suggested-repo-btn:hover { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.2); }
+        [data-bg="light"] .external-sae-loader .hookpoint-list,
+        [data-bg="light"] .external-sae-loader .loaded-sae-list { background: rgba(0,0,0,0.08); border-color: rgba(0,0,0,0.1); }
+        [data-bg="light"] .external-sae-loader .hookpoint-item,
+        [data-bg="light"] .external-sae-loader .loaded-sae-item { background: #ffffff; }
+        [data-bg="light"] .external-sae-loader .hookpoint-item:hover { background: #f0f0f2; }
+        [data-bg="light"] .external-sae-loader .load-btn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
+        [data-bg="light"] .external-sae-loader .load-btn:hover:not(:disabled) { background: rgba(0,0,0,0.08); border-color: rgba(0,0,0,0.25); }
+        [data-bg="light"] .external-sae-loader .upload-zone { border-color: rgba(0,0,0,0.2); }
+        [data-bg="light"] .external-sae-loader .upload-zone:hover { border-color: rgba(0,0,0,0.3); background: rgba(0,0,0,0.03); }
+        [data-bg="light"] .external-sae-loader .delete-btn:not(:hover) { border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
       `}</style>
     </div>
   )

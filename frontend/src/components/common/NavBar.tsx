@@ -204,7 +204,7 @@ export function NavBar({
           align-items: center;
           gap: 0.5rem;
           padding: 0.625rem 1rem;
-          color: rgba(255, 255, 255, 0.85);
+          color: #ffffff;
           text-decoration: none;
           font-size: 0.875rem;
           font-weight: 500;
@@ -225,11 +225,11 @@ export function NavBar({
         }
 
         [data-bg="light"] .nav-link {
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .nav-link:hover {
-          color: rgba(0, 0, 0, 0.95);
+          color: #1d1d1f;
           background: rgba(0, 0, 0, 0.05);
         }
 
@@ -270,7 +270,7 @@ export function NavBar({
           padding: 0.5rem 1rem;
           background: rgba(255, 255, 255, 0.03);
           border: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.85);
+          color: #ffffff;
           font-size: 0.8rem;
           font-weight: 500;
           cursor: pointer;
@@ -294,7 +294,7 @@ export function NavBar({
         [data-bg="light"] .mode-btn {
           background: rgba(0, 0, 0, 0.03);
           border-color: rgba(0, 0, 0, 0.1);
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .mode-btn:hover {
@@ -332,7 +332,7 @@ export function NavBar({
 
         .login-btn {
           background: transparent;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
         }
 
         .login-btn:hover {
@@ -358,7 +358,7 @@ export function NavBar({
         }
 
         [data-bg="light"] .login-btn {
-          color: rgba(0, 0, 0, 0.7);
+          color: #1d1d1f;
         }
 
         [data-bg="light"] .login-btn:hover {

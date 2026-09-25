@@ -609,7 +609,7 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
           padding: 0.625rem 1rem;
           background: rgba(0, 0, 0, 0.3);
           border: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           font-size: 0.875rem;
           cursor: pointer;
           transition: all 0.2s;
@@ -618,13 +618,13 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
         .view-selector-btn:hover {
           background: rgba(255, 255, 255, 0.05);
           border-color: rgba(255, 255, 255, 0.2);
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
         }
 
         .view-selector-btn.active {
           background: rgba(255, 255, 255, 0.1);
           border-color: rgba(255, 255, 255, 0.4);
-          color: rgba(255, 255, 255, 0.95);
+          color: #ffffff;
         }
 
         .page-content.split-view {
@@ -687,7 +687,7 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
         .visualization-dropdown label {
           font-weight: 600;
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           letter-spacing: 0.05em;
           text-transform: uppercase;
           white-space: nowrap;
@@ -698,7 +698,7 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
           padding: 0.625rem 0.75rem;
           background: rgba(0, 0, 0, 0.4);
           border: 1px solid rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-size: 0.875rem;
           cursor: pointer;
           transition: all 0.2s;
@@ -729,12 +729,12 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
         .control-icon {
           width: 16px;
           height: 16px;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
         }
 
         .control-label {
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           font-weight: 500;
         }
 
@@ -742,7 +742,7 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
           padding: 0.375rem;
           background: rgba(0, 0, 0, 0.3);
           border: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           cursor: pointer;
           transition: all 0.2s;
           display: flex;
@@ -769,7 +769,7 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
           padding: 0.375rem 0.75rem;
           background: rgba(0, 0, 0, 0.3);
           border: 1px solid rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-family: monospace;
           font-size: 0.8rem;
           min-width: 40px;
@@ -796,7 +796,7 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
         .labels-dropdown label {
           font-weight: 600;
           font-size: 0.8rem;
-          color: rgba(255, 255, 255, 0.7);
+          color: #ffffff;
           letter-spacing: 0.05em;
           text-transform: uppercase;
           white-space: nowrap;
@@ -806,7 +806,7 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
           padding: 0.625rem 0.75rem;
           background: rgba(0, 0, 0, 0.4);
           border: 1px solid rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-size: 0.875rem;
           min-width: 150px;
           cursor: pointer;
@@ -830,7 +830,7 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
 
         .token-reference-header {
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.05em;
           font-weight: 600;
@@ -860,13 +860,13 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
 
         .token-idx {
           font-size: 10px;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           font-family: monospace;
         }
 
         .token-text {
           font-size: 12px;
-          color: rgba(255, 255, 255, 0.75);
+          color: #ffffff;
           font-family: monospace;
         }
 
@@ -887,7 +887,7 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
 
         .placeholder-content {
           text-align: center;
-          color: rgba(255, 255, 255, 0.4);
+          color: #ffffff;
           max-width: 400px;
         }
 
@@ -904,7 +904,7 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
         }
 
         .placeholder-error {
-          color: rgba(255, 255, 255, 0.6);
+          color: #ffffff;
           font-size: 0.875rem;
         }
 
@@ -939,7 +939,7 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
 
         .metadata-label {
           font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.5);
+          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.05em;
           font-weight: 600;
@@ -947,44 +947,44 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
 
         .metadata-value {
           font-size: 0.875rem;
-          color: rgba(255, 255, 255, 0.9);
+          color: #ffffff;
           font-family: monospace;
           font-weight: 500;
         }
 
         /* Light mode */
-        [data-bg="light"] .view-selector-btn { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); color: rgba(0,0,0,0.5); }
-        [data-bg="light"] .view-selector-btn:hover { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: rgba(0,0,0,0.7); }
+        [data-bg="light"] .view-selector-btn { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); color: #1d1d1f; }
+        [data-bg="light"] .view-selector-btn:hover { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
         [data-bg="light"] .view-selector-btn.active { background: rgba(0,0,0,0.08); border-color: rgba(0,0,0,0.25); color: #1d1d1f; }
         [data-bg="light"] .generator-section > :first-child { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
         [data-bg="light"] .model-info-section { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
         [data-bg="light"] .visualization-header { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .visualization-dropdown label { color: rgba(0,0,0,0.55); }
+        [data-bg="light"] .visualization-dropdown label { color: #1d1d1f; }
         [data-bg="light"] .visualization-select { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
         [data-bg="light"] .visualization-select:hover { border-color: rgba(0,0,0,0.2); }
         [data-bg="light"] .visualization-select:focus { border-color: rgba(0,0,0,0.3); }
-        [data-bg="light"] .control-icon { color: rgba(0,0,0,0.45); }
-        [data-bg="light"] .control-label { color: rgba(0,0,0,0.55); }
-        [data-bg="light"] .control-btn { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .control-icon { color: #1d1d1f; }
+        [data-bg="light"] .control-label { color: #1d1d1f; }
+        [data-bg="light"] .control-btn { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); color: #1d1d1f; }
         [data-bg="light"] .control-btn:hover:not(:disabled) { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); }
         [data-bg="light"] .control-value { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); color: #1d1d1f; }
         [data-bg="light"] .control-input:focus { border-color: rgba(0,0,0,0.2); background: rgba(0,0,0,0.06); }
-        [data-bg="light"] .labels-dropdown label { color: rgba(0,0,0,0.55); }
+        [data-bg="light"] .labels-dropdown label { color: #1d1d1f; }
         [data-bg="light"] .labels-select { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
         [data-bg="light"] .labels-select:hover { border-color: rgba(0,0,0,0.2); }
         [data-bg="light"] .labels-select:focus { border-color: rgba(0,0,0,0.3); }
         [data-bg="light"] .token-reference-box { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .token-reference-header { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .token-reference-header { color: #1d1d1f; }
         [data-bg="light"] .token-chip { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }
         [data-bg="light"] .token-chip:hover { background: rgba(0,0,0,0.08); }
-        [data-bg="light"] .token-idx { color: rgba(0,0,0,0.4); }
-        [data-bg="light"] .token-text { color: rgba(0,0,0,0.65); }
+        [data-bg="light"] .token-idx { color: #1d1d1f; }
+        [data-bg="light"] .token-text { color: #1d1d1f; }
         [data-bg="light"] .visualization-content { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .placeholder-content { color: rgba(0,0,0,0.4); }
-        [data-bg="light"] .placeholder-error { color: rgba(0,0,0,0.6); }
+        [data-bg="light"] .placeholder-content { color: #1d1d1f; }
+        [data-bg="light"] .placeholder-error { color: #1d1d1f; }
         [data-bg="light"] .spinner { border-color: rgba(0,0,0,0.15); border-top-color: #1d1d1f; }
         [data-bg="light"] .metadata-card { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .metadata-label { color: rgba(0,0,0,0.5); }
+        [data-bg="light"] .metadata-label { color: #1d1d1f; }
         [data-bg="light"] .metadata-value { color: #1d1d1f; }
       `}</style>
     </div>
