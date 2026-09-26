@@ -79,7 +79,7 @@ sae_inference_image = (
         "pydantic>=2.0.0",
         "fastapi",  # Required for web endpoints
         "huggingface-hub>=0.20.0",  # For external SAE loading
-        "transformers>=4.40.0",  # For loading HF base models (external SAE analysis)
+        "transformers>=4.53.0",  # For loading HF base models (external SAE analysis)
         "accelerate>=0.25.0",  # For efficient model loading
         "sentencepiece>=0.1.99",  # For tokenizers (Gemma, etc.)
         "protobuf>=3.20.0",  # For tokenizers
@@ -222,9 +222,11 @@ class SAEInferenceService:
 
             hf_token = os.environ.get("HF_TOKEN")
             tokenizer = AutoTokenizer.from_pretrained(model_name, token=hf_token)
+            # bfloat16 where supported: Gemma activations overflow float16
+            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
-                torch_dtype=torch.float16,
+                torch_dtype=dtype,
                 device_map=device,
                 token=hf_token,
             )

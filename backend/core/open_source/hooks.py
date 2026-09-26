@@ -62,20 +62,22 @@ def normalize_gqa_attention(
     num_kv_heads: int
 ) -> torch.Tensor:
     """
-    Expand GQA (Grouped Query Attention) weights to full head count for visualization.
+    Ensure GQA (Grouped Query Attention) weights have one entry per query head.
 
-    In GQA, multiple query heads share the same key-value heads. This function
-    repeats the attention weights so each query head has its own visualization.
+    HuggingFace eager attention applies repeat_kv to the keys before computing
+    softmax(QK^T), so weights normally already arrive as [batch, num_heads, seq, seq]
+    and are returned unchanged. Only weights that are genuinely per-KV-head
+    ([batch, kv_heads, seq, seq]) are expanded.
 
     Args:
-        weights: Attention weights tensor [batch, kv_heads, seq, seq]
+        weights: Attention weights tensor [batch, heads, seq, seq]
         num_heads: Total number of query heads
         num_kv_heads: Number of key-value heads
 
     Returns:
-        Expanded weights [batch, num_heads, seq, seq]
+        Weights [batch, num_heads, seq, seq]
     """
-    if num_heads == num_kv_heads:
+    if num_heads == num_kv_heads or weights.shape[1] != num_kv_heads:
         return weights
 
     repeat_factor = num_heads // num_kv_heads

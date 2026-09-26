@@ -1,8 +1,9 @@
 """
 SmolLM model loader with activation capture hooks.
 
-SmolLM uses the standard Llama architecture (LlamaForCausalLM), making it
-a good reference implementation for the loader pattern.
+SmolLM2 uses the standard Llama architecture (LlamaForCausalLM), making it
+a good reference implementation for the loader pattern. SmolLM3
+(SmolLM3ForCausalLM) keeps the same module layout, so the same hooks apply.
 """
 
 import torch
@@ -17,11 +18,11 @@ class SmolLMLoader(OpenSourceModelLoader):
     """
     Loader for SmolLM model family with full activation capture.
 
-    SmolLM models use the LlamaForCausalLM architecture with:
+    SmolLM models use the LlamaForCausalLM / SmolLM3ForCausalLM architecture with:
     - RMSNorm for layer normalization
     - SiLU (Swish) activation in FFN
-    - Grouped Query Attention (GQA) for smaller models
-    - RoPE positional embeddings
+    - Grouped Query Attention (GQA)
+    - RoPE positional embeddings (SmolLM3 skips RoPE on every 4th layer)
     """
 
     family = ModelFamily.SMOLLM

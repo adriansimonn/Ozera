@@ -91,6 +91,36 @@ class OpenSourceModelLoader(ABC):
         # Subclasses override this for GQA normalization
         return attn_weights
 
+    def encode_prompt(self, prompt: str):
+        """
+        Tokenize a prompt for this model.
+
+        Instruct models get the prompt as a user message wrapped in the tokenizer's
+        chat template (with the generation prompt appended); base models get raw text.
+
+        Args:
+            prompt: Input text
+
+        Returns:
+            BatchEncoding with input_ids and attention_mask on the model device
+        """
+        if not self.config.is_instruct:
+            return self.tokenizer(prompt, return_tensors="pt").to(self.device)
+
+        messages = [{"role": "user", "content": prompt}]
+        if self.config.system_prompt:
+            messages.insert(0, {"role": "system", "content": self.config.system_prompt})
+
+        # Tokenizing via the template avoids a duplicate BOS (Gemma's template includes it)
+        return self.tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            enable_thinking=False,  # Qwen3 / SmolLM3 reasoning mode; ignored by other templates
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+        ).to(self.device)
+
     def _remove_hooks(self) -> None:
         """Remove all registered hooks."""
         for hook in self._hooks:
@@ -123,7 +153,7 @@ class OpenSourceModelLoader(ABC):
         if self.model is None or self.tokenizer is None:
             raise RuntimeError("Model not loaded. Call load() first.")
 
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+        inputs = self.encode_prompt(prompt)
 
         # Handle temperature edge cases
         # Temperature <= 0 or very close to 0 should use greedy decoding
@@ -194,7 +224,7 @@ class OpenSourceModelLoader(ABC):
         if self.model is None or self.tokenizer is None:
             raise RuntimeError("Model not loaded. Call load() first.")
 
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+        inputs = self.encode_prompt(prompt)
         prompt_tokens = inputs.input_ids.shape[1]
 
         # Handle temperature edge cases
@@ -444,7 +474,7 @@ class OpenSourceModelLoader(ABC):
                     handle = module.register_forward_hook(hook_fn)
                     intervention_handles.append(handle)
 
-            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+            inputs = self.encode_prompt(prompt)
             prompt_tokens = inputs.input_ids.shape[1]
 
             # Handle temperature edge cases

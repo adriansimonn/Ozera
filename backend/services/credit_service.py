@@ -313,16 +313,25 @@ MODEL_SIZE_MULTIPLIERS = {
     # Ozera models (small, run on T4)
     "nano": 1.0,
     "mini": 1.5,
-    # SmolLM family (T4)
-    "smollm-135m": 1.0,      # 135M params, baseline
-    "smollm-360m": 2.0,      # 360M params, ~2.7x compute
-    "smollm-1.7b": 5.0,      # 1.7B params, ~12x compute
+    # SmolLM family (instruct variants share the base model's compute)
+    "smollm-135m": 1.0,      # 135M params, baseline (T4)
+    "smollm-135m-it": 1.0,
+    "smollm-360m": 2.0,      # 360M params, ~2.7x compute (T4)
+    "smollm-360m-it": 2.0,
+    "smollm3-3b": 12.0,      # 3B params (A10G, 2x GPU cost)
+    "smollm3-3b-it": 12.0,
     # Qwen family
-    "qwen-0.5b": 2.5,        # 500M params (T4)
-    "qwen-1.5b": 5.0,        # 1.5B params (T4)
-    "qwen-3b": 12.0,         # 3B params (A10G, 2x GPU cost)
+    "qwen3-0.6b": 3.0,       # 600M params (T4)
+    "qwen3-0.6b-it": 3.0,
+    "qwen3-1.7b": 5.0,       # 1.7B params (T4)
+    "qwen3-1.7b-it": 5.0,
+    "qwen3-4b": 16.0,        # 4B params (A10G, 2x GPU cost)
+    "qwen3-4b-it": 16.0,
     # Gemma family
-    "gemma-2-2b": 10.0,      # 2.6B params (A10G, 2x GPU cost)
+    "gemma-3-270m": 1.5,     # 270M params, 262K vocab (T4)
+    "gemma-3-270m-it": 1.5,
+    "gemma-3-1b": 4.0,       # 1B params, 262K vocab (T4)
+    "gemma-3-1b-it": 4.0,
 }
 
 # Default multiplier for unknown models

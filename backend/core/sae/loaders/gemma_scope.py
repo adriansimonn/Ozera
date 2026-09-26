@@ -74,12 +74,11 @@ class GemmaScopeLoader(SAELoader):
         # Try v2 format (safetensors) first, then fall back to v1 (npz)
         try:
             # Try v2 format
-            weights_path = hf_hub_download(
+            hf_hub_download(
                 repo_id=identifier,
                 filename=f"{hookpoint}/params.safetensors",
                 cache_dir=cache_dir,
             )
-            return self._load_v2(identifier, hookpoint, device, cache_dir)
         except Exception:
             # Fall back to v1 format
             try:
@@ -94,6 +93,9 @@ class GemmaScopeLoader(SAELoader):
                     f"Could not load SAE from {identifier}/{hookpoint}. "
                     f"Expected params.safetensors or params.npz. Error: {str(e)}"
                 )
+
+        # v2 weights exist, so load errors surface as-is instead of as a v1 404
+        return self._load_v2(identifier, hookpoint, device, cache_dir)
 
     def list_available(self, identifier: str) -> list[Dict[str, Any]]:
         """List available SAEs in a Gemma Scope repository."""
@@ -324,6 +326,11 @@ class GemmaScopeLoader(SAELoader):
             cache_dir=cache_dir,
         )
         weights = load_file(weights_path, device="cpu")
+
+        # Gemma Scope 2 stores encoder/decoder as lowercase w_enc / w_dec
+        for key in ("W_enc", "W_dec"):
+            if key not in weights and key.lower() in weights:
+                weights[key] = weights.pop(key.lower())
 
         d_input = weights["W_enc"].shape[0]
         d_hidden = weights["W_enc"].shape[1]

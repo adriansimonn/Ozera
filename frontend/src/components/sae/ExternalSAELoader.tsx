@@ -40,9 +40,15 @@ const SUGGESTED_REPOS = [
     activation: 'TopK',
   },
   {
-    repo_id: 'google/gemma-scope-2b-pt-res',
-    label: 'Gemma Scope 2B (Res)',
-    description: 'JumpReLU SAEs for Gemma-2 2B residual stream',
+    repo_id: 'google/gemma-scope-2-1b-pt',
+    label: 'Gemma Scope 2 1B',
+    description: 'JumpReLU SAEs for Gemma 3 1B (residual, MLP, attention)',
+    activation: 'JumpReLU',
+  },
+  {
+    repo_id: 'google/gemma-scope-2-1b-it',
+    label: 'Gemma Scope 2 1B Instruct',
+    description: 'JumpReLU SAEs for Gemma 3 1B Instruct (residual, MLP, attention)',
     activation: 'JumpReLU',
   },
 ]

@@ -1,12 +1,12 @@
 """
 Qwen model loader with activation capture hooks.
 
-Qwen 2.5 uses a transformer architecture with:
-- Grouped Query Attention (GQA) with very few KV heads
+Qwen3 uses a transformer architecture with:
+- Grouped Query Attention (GQA)
+- RMSNorm on queries and keys (QK-norm) inside attention
 - SiLU activation in FFN
 - RMSNorm for layer normalization
 - RoPE positional embeddings
-- Optional sliding window attention
 """
 
 import torch
@@ -21,10 +21,11 @@ class QwenLoader(OpenSourceModelLoader):
     """
     Loader for Qwen model family with full activation capture.
 
-    Qwen 2.5 models use Qwen2ForCausalLM architecture with:
-    - RMSNorm for layer normalization
+    Qwen3 models use Qwen3ForCausalLM architecture with:
+    - RMSNorm for layer normalization, plus QK-norm in attention
     - SiLU (Swish) activation in FFN
-    - Aggressive GQA (e.g., 14 query heads with 2 KV heads)
+    - GQA (e.g., 16 query heads with 8 KV heads)
+    - head_dim fixed at 128 (not hidden_dim / num_heads)
     - RoPE positional embeddings with high theta
     - Tied word embeddings
     """
@@ -47,8 +48,7 @@ class QwenLoader(OpenSourceModelLoader):
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.config.hf_id,
             cache_dir=cache_dir,
-            trust_remote_code=True,  # Qwen requires trust_remote_code
-            revision=self.config.hf_revision,  # Pin to known SHA so a compromised HF account can't swap code
+            trust_remote_code=False,
             token=hf_token,
         )
 
@@ -65,8 +65,7 @@ class QwenLoader(OpenSourceModelLoader):
             cache_dir=cache_dir,
             torch_dtype=dtype,
             device_map=self.device,
-            trust_remote_code=True,  # Qwen requires trust_remote_code
-            revision=self.config.hf_revision,
+            trust_remote_code=False,
             attn_implementation="eager",  # Required for output_attentions=True
             token=hf_token,
         )
@@ -78,7 +77,7 @@ class QwenLoader(OpenSourceModelLoader):
         """
         Register forward hooks for activation capture at all key points.
 
-        Qwen 2 layer structure (similar to Llama):
+        Qwen3 layer structure (similar to Llama):
         - model.embed_tokens: Token embeddings
         - model.layers[i].input_layernorm: Pre-attention norm
         - model.layers[i].self_attn: Attention
@@ -136,7 +135,7 @@ class QwenLoader(OpenSourceModelLoader):
         """
         Create attention hook that captures output and normalizes GQA weights.
 
-        Qwen uses aggressive GQA with very few KV heads, so normalization
+        Qwen uses GQA with fewer KV heads than query heads, so normalization
         is important for visualization.
 
         Args:
@@ -154,7 +153,6 @@ class QwenLoader(OpenSourceModelLoader):
                 if len(output) > 1 and output[1] is not None:
                     attn_weights = output[1].detach()
                     # Normalize GQA weights to full head count
-                    # Qwen uses very aggressive GQA (e.g., 14 heads with 2 KV heads)
                     if self.config.num_kv_heads != self.config.num_heads:
                         attn_weights = normalize_gqa_attention(
                             attn_weights,
@@ -190,7 +188,7 @@ class QwenLoader(OpenSourceModelLoader):
         """
         Normalize attention weights for GQA models.
 
-        Qwen uses aggressive Grouped Query Attention (e.g., 14 query heads with 2 KV heads).
+        Qwen uses Grouped Query Attention (e.g., 16 query heads with 8 KV heads).
         This expands the attention weights to full head count for visualization.
         """
         if self.config.num_kv_heads != self.config.num_heads:

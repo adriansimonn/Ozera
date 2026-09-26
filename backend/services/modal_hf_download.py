@@ -24,7 +24,7 @@ hf_secret = modal.Secret.from_name("huggingface-secret", required_keys=["HF_TOKE
 download_image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
-        "transformers>=4.40.0",
+        "transformers>=4.53.0",
         "torch>=2.0.0",
         "huggingface_hub>=0.20.0",
         "accelerate>=0.26.0",
@@ -76,9 +76,6 @@ def download_model(hf_model_id: str, force: bool = False) -> dict:
     # Get HF token if available (for gated models)
     token = os.environ.get("HUGGINGFACE_TOKEN") or os.environ.get("HF_TOKEN")
 
-    # Determine if model needs trust_remote_code
-    needs_trust = "qwen" in hf_model_id.lower()
-
     try:
         # Download tokenizer
         print(f"Downloading tokenizer for {hf_model_id}...")
@@ -86,7 +83,7 @@ def download_model(hf_model_id: str, force: bool = False) -> dict:
             hf_model_id,
             cache_dir=cache_path,
             token=token,
-            trust_remote_code=needs_trust,
+            trust_remote_code=False,
         )
 
         # Download model
@@ -95,7 +92,7 @@ def download_model(hf_model_id: str, force: bool = False) -> dict:
             hf_model_id,
             cache_dir=cache_path,
             token=token,
-            trust_remote_code=needs_trust,
+            trust_remote_code=False,
             torch_dtype="auto",  # Let it choose optimal dtype
         )
 

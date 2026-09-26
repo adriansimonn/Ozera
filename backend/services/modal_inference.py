@@ -37,7 +37,7 @@ inference_image = (
         "tiktoken>=0.5.0",
         "safetensors>=0.4.0",
         "packaging>=21.0",
-        "transformers>=4.40.0",
+        "transformers>=4.53.0",
         "accelerate>=0.26.0",
         "huggingface_hub>=0.20.0",
     )
@@ -410,7 +410,7 @@ class InferenceWorkerT4:
             from transformers import TextIteratorStreamer
             from threading import Thread
 
-            inputs = loader.tokenizer(prompt, return_tensors="pt").to(loader.device)
+            inputs = loader.encode_prompt(prompt)
             streamer = TextIteratorStreamer(
                 loader.tokenizer,
                 skip_prompt=True,

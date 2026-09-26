@@ -36,11 +36,14 @@ Each model has a corresponding sparse autoencoder trained on its activations for
 |-------|-----------|--------|
 | SmolLM2 135M | 135M | SmolLM |
 | SmolLM2 360M | 360M | SmolLM |
-| SmolLM2 1.7B | 1.7B | SmolLM |
-| Gemma 2 2B | 2.6B | Gemma |
-| Qwen 2.5 0.5B | 500M | Qwen |
-| Qwen 2.5 1.5B | 1.5B | Qwen |
-| Qwen 2.5 3B | 3B | Qwen |
+| SmolLM3 3B | 3B | SmolLM |
+| Gemma 3 270M | 270M | Gemma |
+| Gemma 3 1B | 1B | Gemma |
+| Qwen3 0.6B | 600M | Qwen |
+| Qwen3 1.7B | 1.7B | Qwen |
+| Qwen3 4B | 4B | Qwen |
+
+Each open-source model is also available as an instruction-tuned variant; prompts to those are wrapped in the model's chat template.
 
 Users can also upload their own model weights, or train Ozera models on their own data.
 

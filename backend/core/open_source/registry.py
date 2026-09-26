@@ -3,7 +3,7 @@ Registry of supported open-source models with metadata.
 """
 
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -34,10 +34,11 @@ class OpenSourceModelConfig:
     max_seq_len: int
     gpu_tier: str           # "t4" or "a10g"
     requires_auth: bool = False  # If HF token needed
-    hf_revision: Optional[str] = None  # Pinned HF commit SHA (required for trust_remote_code models)
+    is_instruct: bool = False  # Prompts are wrapped in the tokenizer's chat template
+    system_prompt: Optional[str] = None  # System message for the chat template (None = template default)
 
 
-# SmolLM models - uses standard Llama architecture
+# SmolLM2 models - uses standard Llama architecture
 # Reference: https://huggingface.co/HuggingFaceTB/SmolLM2-135M
 SMOLLM_135M = OpenSourceModelConfig(
     model_id="smollm-135m",
@@ -71,102 +72,159 @@ SMOLLM_360M = OpenSourceModelConfig(
     gpu_tier="t4",
 )
 
-SMOLLM_1_7B = OpenSourceModelConfig(
-    model_id="smollm-1.7b",
-    hf_id="HuggingFaceTB/SmolLM2-1.7B",
+# SmolLM3 - Llama-style layout with NoPE (no rotary embedding) on every 4th layer
+# Reference: https://huggingface.co/HuggingFaceTB/SmolLM3-3B-Base
+SMOLLM3_3B = OpenSourceModelConfig(
+    model_id="smollm3-3b",
+    hf_id="HuggingFaceTB/SmolLM3-3B-Base",
     family=ModelFamily.SMOLLM,
-    display_name="SmolLM2 1.7B",
-    parameters=1_700_000_000,
-    num_layers=24,
-    num_heads=32,
-    num_kv_heads=32,  # No GQA
-    hidden_dim=2048,
-    intermediate_dim=8192,
-    vocab_size=49152,
-    max_seq_len=2048,
-    gpu_tier="t4",
-)
-
-# Gemma models - uses GQA and GeGLU
-# Reference: https://huggingface.co/google/gemma-2-2b
-GEMMA_2_2B = OpenSourceModelConfig(
-    model_id="gemma-2-2b",
-    hf_id="google/gemma-2-2b",
-    family=ModelFamily.GEMMA,
-    display_name="Gemma 2 2B",
-    parameters=2_600_000_000,
-    num_layers=26,
-    num_heads=8,
-    num_kv_heads=4,  # GQA
-    hidden_dim=2304,
-    intermediate_dim=9216,
-    vocab_size=256000,
-    max_seq_len=8192,
-    gpu_tier="a10g",
-)
-
-# Qwen models - uses GQA
-# Reference: https://huggingface.co/Qwen/Qwen2.5-0.5B
-QWEN_0_5B = OpenSourceModelConfig(
-    model_id="qwen-0.5b",
-    hf_id="Qwen/Qwen2.5-0.5B",
-    family=ModelFamily.QWEN,
-    display_name="Qwen 2.5 0.5B",
-    parameters=500_000_000,
-    num_layers=24,
-    num_heads=14,
-    num_kv_heads=2,  # GQA
-    hidden_dim=896,
-    intermediate_dim=4864,
-    vocab_size=151936,
-    max_seq_len=32768,
-    gpu_tier="t4",
-    hf_revision="060db6499f32faf8b98477b0a26969ef7d8b9987",
-)
-
-QWEN_1_5B = OpenSourceModelConfig(
-    model_id="qwen-1.5b",
-    hf_id="Qwen/Qwen2.5-1.5B",
-    family=ModelFamily.QWEN,
-    display_name="Qwen 2.5 1.5B",
-    parameters=1_500_000_000,
-    num_layers=28,
-    num_heads=12,
-    num_kv_heads=2,  # GQA
-    hidden_dim=1536,
-    intermediate_dim=8960,
-    vocab_size=151936,
-    max_seq_len=32768,
-    gpu_tier="t4",
-    hf_revision="8faed761d45a263340a0528343f099c05c9a4323",
-)
-
-QWEN_3B = OpenSourceModelConfig(
-    model_id="qwen-3b",
-    hf_id="Qwen/Qwen2.5-3B",
-    family=ModelFamily.QWEN,
-    display_name="Qwen 2.5 3B",
+    display_name="SmolLM3 3B",
     parameters=3_000_000_000,
     num_layers=36,
     num_heads=16,
-    num_kv_heads=2,  # GQA
+    num_kv_heads=4,  # GQA
     hidden_dim=2048,
     intermediate_dim=11008,
+    vocab_size=128256,
+    max_seq_len=65536,
+    gpu_tier="a10g",
+)
+
+# Gemma 3 models - GQA, GeGLU, 5:1 local (512-token sliding window) : global attention
+# Reference: https://huggingface.co/google/gemma-3-1b-pt
+GEMMA_3_270M = OpenSourceModelConfig(
+    model_id="gemma-3-270m",
+    hf_id="google/gemma-3-270m",
+    family=ModelFamily.GEMMA,
+    display_name="Gemma 3 270M",
+    parameters=270_000_000,
+    num_layers=18,
+    num_heads=4,
+    num_kv_heads=1,  # GQA
+    hidden_dim=640,
+    intermediate_dim=2048,
+    vocab_size=262144,
+    max_seq_len=32768,
+    gpu_tier="t4",
+    requires_auth=True,  # Gated: Gemma license must be accepted on HF
+)
+
+GEMMA_3_1B = OpenSourceModelConfig(
+    model_id="gemma-3-1b",
+    hf_id="google/gemma-3-1b-pt",
+    family=ModelFamily.GEMMA,
+    display_name="Gemma 3 1B",
+    parameters=1_000_000_000,
+    num_layers=26,
+    num_heads=4,
+    num_kv_heads=1,  # GQA
+    hidden_dim=1152,
+    intermediate_dim=6912,
+    vocab_size=262144,
+    max_seq_len=32768,
+    gpu_tier="t4",
+    requires_auth=True,  # Gated: Gemma license must be accepted on HF
+)
+
+# Qwen3 models - GQA with QK-norm, head_dim fixed at 128
+# Reference: https://huggingface.co/Qwen/Qwen3-0.6B-Base
+QWEN3_0_6B = OpenSourceModelConfig(
+    model_id="qwen3-0.6b",
+    hf_id="Qwen/Qwen3-0.6B-Base",
+    family=ModelFamily.QWEN,
+    display_name="Qwen3 0.6B",
+    parameters=600_000_000,
+    num_layers=28,
+    num_heads=16,
+    num_kv_heads=8,  # GQA
+    hidden_dim=1024,
+    intermediate_dim=3072,
+    vocab_size=151936,
+    max_seq_len=32768,
+    gpu_tier="t4",
+)
+
+QWEN3_1_7B = OpenSourceModelConfig(
+    model_id="qwen3-1.7b",
+    hf_id="Qwen/Qwen3-1.7B-Base",
+    family=ModelFamily.QWEN,
+    display_name="Qwen3 1.7B",
+    parameters=1_700_000_000,
+    num_layers=28,
+    num_heads=16,
+    num_kv_heads=8,  # GQA
+    hidden_dim=2048,
+    intermediate_dim=6144,
+    vocab_size=151936,
+    max_seq_len=32768,
+    gpu_tier="t4",
+)
+
+QWEN3_4B = OpenSourceModelConfig(
+    model_id="qwen3-4b",
+    hf_id="Qwen/Qwen3-4B-Base",
+    family=ModelFamily.QWEN,
+    display_name="Qwen3 4B",
+    parameters=4_000_000_000,
+    num_layers=36,
+    num_heads=32,
+    num_kv_heads=8,  # GQA
+    hidden_dim=2560,
+    intermediate_dim=9728,
     vocab_size=151936,
     max_seq_len=32768,
     gpu_tier="a10g",
-    hf_revision="3aab1f1954e9cc14eb9509a215f9e5ca08227a9b",
 )
 
 
+# Instruction-tuned variants - same architecture as their base models, so they reuse
+# the base config and loader; only the checkpoint, ID, and context length differ.
+def _instruct(
+    base: OpenSourceModelConfig,
+    hf_id: str,
+    max_seq_len: Optional[int] = None,
+    system_prompt: Optional[str] = None,
+) -> OpenSourceModelConfig:
+    return replace(
+        base,
+        model_id=f"{base.model_id}-it",
+        hf_id=hf_id,
+        display_name=f"{base.display_name} Instruct",
+        max_seq_len=max_seq_len or base.max_seq_len,
+        is_instruct=True,
+        system_prompt=system_prompt,
+    )
+
+
+SMOLLM_135M_IT = _instruct(SMOLLM_135M, "HuggingFaceTB/SmolLM2-135M-Instruct", max_seq_len=8192)
+SMOLLM_360M_IT = _instruct(SMOLLM_360M, "HuggingFaceTB/SmolLM2-360M-Instruct", max_seq_len=8192)
+# SmolLM3's default system prompt injects today's date; /system_override keeps the
+# default persona without it so the same prompt tokenizes identically every day.
+SMOLLM3_3B_IT = _instruct(
+    SMOLLM3_3B,
+    "HuggingFaceTB/SmolLM3-3B",
+    system_prompt="You are a helpful AI assistant named SmolLM, trained by Hugging Face. /system_override",
+)
+GEMMA_3_270M_IT = _instruct(GEMMA_3_270M, "google/gemma-3-270m-it")
+GEMMA_3_1B_IT = _instruct(GEMMA_3_1B, "google/gemma-3-1b-it")
+# Qwen3 post-trained checkpoints (hybrid thinking; thinking is disabled when templating)
+QWEN3_0_6B_IT = _instruct(QWEN3_0_6B, "Qwen/Qwen3-0.6B", max_seq_len=40960)
+QWEN3_1_7B_IT = _instruct(QWEN3_1_7B, "Qwen/Qwen3-1.7B", max_seq_len=40960)
+QWEN3_4B_IT = _instruct(QWEN3_4B, "Qwen/Qwen3-4B", max_seq_len=40960)
+
+
 OPEN_SOURCE_MODELS: dict[str, OpenSourceModelConfig] = {
-    "smollm-135m": SMOLLM_135M,
-    "smollm-360m": SMOLLM_360M,
-    "smollm-1.7b": SMOLLM_1_7B,
-    "gemma-2-2b": GEMMA_2_2B,
-    "qwen-0.5b": QWEN_0_5B,
-    "qwen-1.5b": QWEN_1_5B,
-    "qwen-3b": QWEN_3B,
+    cfg.model_id: cfg
+    for cfg in [
+        SMOLLM_135M, SMOLLM_135M_IT,
+        SMOLLM_360M, SMOLLM_360M_IT,
+        SMOLLM3_3B, SMOLLM3_3B_IT,
+        GEMMA_3_270M, GEMMA_3_270M_IT,
+        GEMMA_3_1B, GEMMA_3_1B_IT,
+        QWEN3_0_6B, QWEN3_0_6B_IT,
+        QWEN3_1_7B, QWEN3_1_7B_IT,
+        QWEN3_4B, QWEN3_4B_IT,
+    ]
 }
 
 

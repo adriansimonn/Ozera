@@ -148,7 +148,7 @@ async def get_model_info(model_id: str):
     Get detailed info for a specific open-source model.
 
     Args:
-        model_id: Internal model ID (e.g., "smollm-135m", "gemma-2-2b")
+        model_id: Internal model ID (e.g., "smollm-135m", "gemma-3-1b")
     """
     if model_id not in OPEN_SOURCE_MODELS:
         raise HTTPException(

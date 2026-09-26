@@ -1,11 +1,11 @@
 """
 Gemma model loader with activation capture hooks.
 
-Gemma 2 uses a modified transformer architecture with:
-- Grouped Query Attention (GQA)
+Gemma 3 uses a modified transformer architecture with:
+- Grouped Query Attention (GQA) with QK-norm
 - GeGLU activation in FFN
 - RMSNorm for layer normalization
-- Sliding window attention (optional)
+- Interleaved sliding window (local) and global attention layers
 - Pre and post attention/FFN layer norms
 """
 
@@ -21,12 +21,12 @@ class GemmaLoader(OpenSourceModelLoader):
     """
     Loader for Gemma model family with full activation capture.
 
-    Gemma 2 models use Gemma2ForCausalLM architecture with:
+    Gemma 3 text models (270M, 1B) use Gemma3ForCausalLM architecture with:
     - RMSNorm for layer normalization (pre and post for each sublayer)
     - GeGLU activation in FFN
-    - Grouped Query Attention (GQA)
+    - Grouped Query Attention (GQA) with QK-norm
     - RoPE positional embeddings
-    - Optional sliding window attention
+    - 5 local (512-token sliding window) layers per global attention layer
     """
 
     family = ModelFamily.GEMMA
@@ -76,7 +76,7 @@ class GemmaLoader(OpenSourceModelLoader):
         """
         Register forward hooks for activation capture at all key points.
 
-        Gemma 2 layer structure:
+        Gemma 3 layer structure:
         - model.embed_tokens: Token embeddings
         - model.layers[i].input_layernorm: Pre-attention norm
         - model.layers[i].self_attn: Attention
@@ -108,7 +108,7 @@ class GemmaLoader(OpenSourceModelLoader):
             )
             self._hooks.append(hook)
 
-            # Pre-FFN norm - Gemma 2 has separate pre_feedforward_layernorm
+            # Pre-FFN norm - Gemma 2/3 have a separate pre_feedforward_layernorm
             # Fall back to post_attention_layernorm if pre_feedforward doesn't exist
             if hasattr(layer, 'pre_feedforward_layernorm'):
                 hook = layer.pre_feedforward_layernorm.register_forward_hook(
