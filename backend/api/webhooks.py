@@ -76,14 +76,18 @@ async def receive_training_progress(
 
     Security: Protected by X-Modal-Secret header validation.
     """
-    # Get the job from database
-    job = db.query(TrainingJob).filter(TrainingJob.job_id == job_id).first()
+    # Get the job from database, locked so a concurrent cancel or submission can't change its
+    # status between this read and the commit below (their updates wait, then see this one).
+    # Nothing before the commit may suspend (settle_completed_job and handle_failed_job
+    # never do), or other requests would block on the lock with the event loop.
+    job = db.query(TrainingJob).filter(TrainingJob.job_id == job_id).with_for_update().first()
     if not job:
         raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
 
     # A finished job (completed, failed, or cancelled) is already settled; ignore late
     # updates so it can't be charged twice
     if job.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED):
+        db.rollback()
         return {"status": "ignored", "job_id": job_id}
 
     # Update progress fields

@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 from inference import ModelLoader
 from inference.activation_store import get_activation_store
 from services.inference_router import get_inference_router
+from services.custom_models import list_custom_model_names, resolve_model
 from core.open_source import OPEN_SOURCE_MODELS
 from services.credit_service import (
     calculate_inference_cost,
@@ -221,6 +222,8 @@ async def generate(
     Returns:
         Generated text and metadata
     """
+    model = resolve_model(db, current_user.id, body.model)
+
     # Check if user has sufficient balance
     estimated_cost = calculate_inference_cost(
         prompt_tokens=len(body.prompt.split()) * 2,
@@ -235,7 +238,7 @@ async def generate(
 
     try:
         result = await inference_router.generate(
-            model_id=body.model,
+            model=model,
             prompt=body.prompt,
             max_tokens=body.max_tokens,
             temperature=body.temperature,
@@ -278,9 +281,12 @@ async def generate(
 
 
 @app.get("/models", response_model=list[str])
-async def list_models():
-    # List available models (including custom models from database)
-    return model_loader.list_available_models(include_remote=True)
+async def list_models(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List the Ozera models the user can run: the base models and their own custom models."""
+    return model_loader.list_available_models() + list_custom_model_names(db, current_user.id)
 
 
 # Base models' specs from their trained checkpoints (mirrors STATIC_BASE_MODEL_INFO in the frontend)
@@ -383,10 +389,11 @@ async def get_model_info(
         info = _model_info_without_gpu(model_name, current_user.id, db)
 
         if info is None:
+            model = resolve_model(db, current_user.id, model_name)
             cost = min_gpu_request_charge(model_name)
             if not check_sufficient_balance(db, current_user.id, cost):
                 raise HTTPException(status_code=402, detail="Insufficient credits.")
-            info = await inference_router.get_model_info(model_name)
+            info = await inference_router.get_model_info(model)
             charge_flat(db, current_user.id, cost, TransactionType.INFERENCE_CHARGE,
                         f"Model inspection ({model_name})")
 
@@ -434,12 +441,13 @@ async def prepare_model(
         Status and model info
     """
     try:
+        model = resolve_model(db, current_user.id, model_name)
         cost = min_gpu_request_charge(model_name)
         if not check_sufficient_balance(db, current_user.id, cost):
             raise HTTPException(status_code=402, detail="Insufficient credits.")
 
         # Warmup using the inference router
-        success = await inference_router.warmup_model(model_name)
+        success = await inference_router.warmup_model(model)
 
         if not success:
             raise HTTPException(status_code=500, detail=f"Failed to prepare model: {model_name}")
@@ -450,7 +458,7 @@ async def prepare_model(
         # Get model info (the worker is warm now, so inspecting it adds no cold start)
         model_info = _model_info_without_gpu(model_name, current_user.id, db)
         if model_info is None:
-            model_info = await inference_router.get_model_info(model_name)
+            model_info = await inference_router.get_model_info(model)
 
         return {
             "status": "ready",
@@ -487,6 +495,8 @@ async def generate_stream(
     Routes to local or Modal inference based on INFERENCE_MODE env var.
     Requires authentication and charges user credits.
     """
+    model = resolve_model(db, current_user.id, body.model)
+
     # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
     estimated_cost = calculate_inference_cost(
         prompt_tokens=len(body.prompt.split()) * 2,  # Rough estimate
@@ -523,7 +533,7 @@ async def generate_stream(
                 yield f"data: {data}\n\n".encode('utf-8')
 
                 async for token in inference_router.generate_stream(
-                    model_id=body.model,
+                    model=model,
                     prompt=body.prompt,
                     max_tokens=body.max_tokens,
                     temperature=body.temperature,
@@ -581,6 +591,8 @@ async def generate_with_activations(
     an activation_id is returned for later retrieval.
     Requires authentication and charges user credits.
     """
+    model = resolve_model(db, current_user.id, body.model)
+
     # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
     estimated_cost = calculate_inference_cost(
         prompt_tokens=len(body.prompt.split()) * 2,  # Rough estimate
@@ -595,7 +607,7 @@ async def generate_with_activations(
 
     try:
         result = await inference_router.generate_with_activations(
-            model_id=body.model,
+            model=model,
             prompt=body.prompt,
             max_tokens=body.max_tokens,
             temperature=body.temperature,

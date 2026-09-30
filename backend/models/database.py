@@ -237,8 +237,9 @@ class UploadedModel(Base):
 
     __tablename__ = "uploaded_models"
 
+    # Keyed by (user_id, model_id): model_id is the model's name, and names are per user
     model_id = Column(String(100), primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     file_size_bytes = Column(Integer, nullable=False)
 

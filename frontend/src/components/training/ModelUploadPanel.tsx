@@ -7,6 +7,7 @@ import { Upload, X, Box, Check, AlertCircle, Loader2, Info } from 'lucide-react'
 import { useModelUpload, useCustomModelCount } from '../../hooks/useTraining'
 import { useAuthStore } from '../../stores/authStore'
 import { useThemeColors } from '../../hooks/useTheme'
+import { MODEL_NAME_MAX_LENGTH, isReservedModelName, sanitizeModelName } from '../../data/defaultModels'
 
 interface ModelUploadPanelProps {
   onUploadComplete?: () => void
@@ -73,7 +74,7 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
     // Auto-generate model name from file name
     if (!modelName) {
       const baseName = file.name.replace('.safetensors', '')
-      setModelName(baseName.slice(0, 64))
+      setModelName(sanitizeModelName(baseName))
     }
   }, [validateFile, modelName])
 
@@ -110,6 +111,11 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
     }
     if (!selectedFile || !modelName.trim()) {
       setLocalError('Please select a file and enter a model name')
+      return
+    }
+
+    if (isReservedModelName(modelName)) {
+      setLocalError('This name is reserved for a built-in model')
       return
     }
 
@@ -350,9 +356,9 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
               <input
                 type="text"
                 value={modelName}
-                onChange={(e) => setModelName(e.target.value)}
+                onChange={(e) => setModelName(sanitizeModelName(e.target.value))}
                 disabled={uploading}
-                maxLength={64}
+                maxLength={MODEL_NAME_MAX_LENGTH}
                 placeholder="e.g., my-custom-model"
                 style={{
                   width: '100%',

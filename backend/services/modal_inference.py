@@ -76,7 +76,7 @@ class _InferenceWorker:
     @modal.enter()
     def setup(self):
         """Initialize on container start."""
-        self._models = {}  # Ozera models cache
+        self._models = {}  # Ozera models cache, keyed by (model_id, owner_id, version)
         self._os_loaders = {}  # Open-source model loaders cache
         # Concurrent inputs on a cold container would otherwise each load the same model
         self._load_lock = threading.Lock()
@@ -122,33 +122,39 @@ class _InferenceWorker:
 
         return loader
 
-    def _get_model(self, model_id: str):
-        """Get or load a model (supports Ozera, safetensors, and open-source formats)."""
+    def _get_model(self, model_id: str, owner_id: Optional[int] = None, version: Optional[str] = None):
+        """
+        Get or load an Ozera model (base, or custom in .pt or safetensors format).
+
+        Custom models are named by their owner and version as well as their name: the
+        backend resolves which user's model a request may run, and the version changes
+        whenever the model is retrained or re-uploaded under the same name.
+        """
         # Check if it's an open-source model
         if self._is_open_source_model(model_id):
             # Return None for model/config - caller should use _get_open_source_loader
             raise ValueError(f"Use _get_open_source_loader for open-source model: {model_id}")
 
-        if model_id in self._models:
-            return self._models[model_id]
+        key = (model_id, owner_id, version)
+        if key in self._models:
+            return self._models[key]
 
         with self._load_lock:
-            if model_id in self._models:
-                return self._models[model_id]
-            return self._load_model(model_id)
+            if key in self._models:
+                return self._models[key]
+            return self._load_model(model_id, owner_id, version)
 
-    def _load_model(self, model_id: str):
+    def _load_model(self, model_id: str, owner_id: Optional[int], version: Optional[str]):
         """Load an Ozera model into the cache (caller holds _load_lock)."""
         import torch
 
         # Determine checkpoint path
-        if model_id in BASE_MODEL_PATHS:
+        if owner_id is None:
+            if model_id not in BASE_MODEL_PATHS:
+                raise ValueError(f"Model '{model_id}' not found")
             checkpoint_path = BASE_MODEL_PATHS[model_id]
         else:
-            # Custom model - try to find by scanning user directories
-            checkpoint_path = self._find_custom_model(model_id)
-            if not checkpoint_path:
-                raise ValueError(f"Model '{model_id}' not found")
+            checkpoint_path = self._custom_model_path(model_id, owner_id)
 
         if not os.path.exists(checkpoint_path):
             raise FileNotFoundError(f"Model checkpoint not found at {checkpoint_path}")
@@ -169,7 +175,10 @@ class _InferenceWorker:
 
         model.eval()
 
-        self._models[model_id] = (model, config)
+        # Drop older versions of the same model; requests still using one keep their reference
+        for key in [k for k in self._models if k[:2] == (model_id, owner_id)]:
+            del self._models[key]
+        self._models[(model_id, owner_id, version)] = (model, config)
         print(f"Model '{model_id}' loaded ({config.count_parameters():,} params)")
 
         return model, config
@@ -320,32 +329,22 @@ class _InferenceWorker:
 
         return mapped
 
-    def _find_custom_model(self, model_id: str) -> Optional[str]:
-        """Find a custom model in the volume (supports both .pt and .safetensors)."""
-        # Reload volume to ensure we see newly trained models
+    def _custom_model_path(self, model_id: str, owner_id: int) -> str:
+        """Checkpoint path of a user's custom model (.safetensors, or legacy .pt)."""
+        from core.model_names import model_folder
+
+        folder = os.path.join("/models", model_folder(owner_id, model_id))
+
+        # Reload volume to ensure we see newly trained or uploaded weights
         models_volume.reload()
 
         # Custom models are stored at /models/{user_id}/{model_name}/model.safetensors or model.pt
-        models_root = "/models"
+        for filename in ("model.safetensors", "model.pt"):
+            path = os.path.join(folder, filename)
+            if os.path.exists(path):
+                return path
 
-        for user_dir in os.listdir(models_root):
-            if user_dir == "base":
-                continue
-            user_path = os.path.join(models_root, user_dir)
-            if not os.path.isdir(user_path):
-                continue
-
-            # Check for .safetensors file first (preferred format for both trained and uploaded)
-            safetensors_path = os.path.join(user_path, model_id, "model.safetensors")
-            if os.path.exists(safetensors_path):
-                return safetensors_path
-
-            # Check for .pt file (legacy trained models)
-            pt_path = os.path.join(user_path, model_id, "model.pt")
-            if os.path.exists(pt_path):
-                return pt_path
-
-        return None
+        raise FileNotFoundError(f"Model '{model_id}' not found")
 
     @modal.method()
     def generate(
@@ -356,6 +355,8 @@ class _InferenceWorker:
         temperature: float = 0.8,
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
     ) -> dict:
         """Generate text from a model (Ozera or open-source)."""
         import torch
@@ -378,7 +379,7 @@ class _InferenceWorker:
             return result
 
         # Handle Ozera models
-        model, config = self._get_model(model_id)
+        model, config = self._get_model(model_id, owner_id, version)
 
         prompt_ids = self._tokenizer.encode(prompt)
         input_ids = torch.tensor([prompt_ids], dtype=torch.long).to("cuda")
@@ -424,6 +425,8 @@ class _InferenceWorker:
         temperature: float = 0.8,
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
     ) -> Iterator[str]:
         """Stream text generation token by token."""
         import torch
@@ -471,7 +474,7 @@ class _InferenceWorker:
             return
 
         # Handle Ozera models
-        model, config = self._get_model(model_id)
+        model, config = self._get_model(model_id, owner_id, version)
 
         prompt_ids = self._tokenizer.encode(prompt)
         input_ids = torch.tensor([prompt_ids], dtype=torch.long).to("cuda")
@@ -538,6 +541,8 @@ class _InferenceWorker:
         temperature: float = 0.8,
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
     ) -> dict:
         """Generate text and return activations for visualization (Ozera or open-source)."""
         import torch
@@ -560,7 +565,7 @@ class _InferenceWorker:
             return result
 
         # Handle Ozera models
-        model, config = self._get_model(model_id)
+        model, config = self._get_model(model_id, owner_id, version)
 
         prompt_ids = self._tokenizer.encode(prompt)
         input_ids = torch.tensor([prompt_ids], dtype=torch.long).to("cuda")
@@ -715,7 +720,12 @@ class _InferenceWorker:
         }
 
     @modal.method()
-    def get_model_info(self, model_id: str) -> dict:
+    def get_model_info(
+        self,
+        model_id: str,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
         """Get model configuration info (Ozera or open-source)."""
         # Handle open-source models
         if self._is_open_source_model(model_id):
@@ -735,7 +745,7 @@ class _InferenceWorker:
             }
 
         # Handle Ozera models
-        model, config = self._get_model(model_id)
+        model, config = self._get_model(model_id, owner_id, version)
 
         return {
             "name": model_id,
@@ -750,11 +760,12 @@ class _InferenceWorker:
 
     @modal.method()
     def list_models(self) -> list:
-        """List available models in the volume (includes open-source models)."""
-        if self.gpu_tier == "l4":
-            # Reload volume to ensure we see newly trained models
-            models_volume.reload()
+        """
+        List the shared models this worker serves (base and open-source).
 
+        Custom models aren't listed: they belong to individual users, and the backend lists
+        each user's own from the database.
+        """
         available = []
 
         # Add open-source models
@@ -779,35 +790,21 @@ class _InferenceWorker:
             if os.path.exists(path):
                 available.append({"id": model_id, "type": "base"})
 
-        # Check custom models (served by the L4 tier)
-        models_root = "/models"
-        if self.gpu_tier == "l4" and os.path.exists(models_root):
-            for user_dir in os.listdir(models_root):
-                if user_dir == "base":
-                    continue
-                user_path = os.path.join(models_root, user_dir)
-                if not os.path.isdir(user_path):
-                    continue
-                for model_name in os.listdir(user_path):
-                    model_path_safetensors = os.path.join(user_path, model_name, "model.safetensors")
-                    model_path_pt = os.path.join(user_path, model_name, "model.pt")
-                    if os.path.exists(model_path_safetensors) or os.path.exists(model_path_pt):
-                        available.append({
-                            "id": model_name,
-                            "type": "custom",
-                            "user_id": user_dir,
-                        })
-
         return available
 
     @modal.method()
-    def warmup(self, model_id: str) -> bool:
+    def warmup(
+        self,
+        model_id: str,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> bool:
         """Pre-load a model into memory (Ozera or open-source)."""
         try:
             if self._is_open_source_model(model_id):
                 self._get_open_source_loader(model_id)
             else:
-                self._get_model(model_id)
+                self._get_model(model_id, owner_id, version)
             return True
         except Exception as e:
             print(f"Warmup failed for {model_id}: {e}")
@@ -822,6 +819,8 @@ class _InferenceWorker:
         patches: list[dict],
         max_tokens: int = 50,
         temperature: float = 0.0,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
     ) -> dict:
         """
         Run a patching experiment (capture source activations, run baseline, run patched).
@@ -886,7 +885,7 @@ class _InferenceWorker:
                 )
         else:
             # Ozera model
-            model, config = self._get_model(model_id)
+            model, config = self._get_model(model_id, owner_id, version)
 
             # Only capture source activations if needed
             captured = None
@@ -929,6 +928,8 @@ class _InferenceWorker:
         self,
         model_id: str,
         prompt: str,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
     ) -> dict:
         """
         Capture activations from a forward pass.
@@ -956,7 +957,7 @@ class _InferenceWorker:
                 )
         else:
             # Ozera model
-            model, config = self._get_model(model_id)
+            model, config = self._get_model(model_id, owner_id, version)
             captured = engine.capture_source_activations(
                 prompt=prompt,
                 model_loader=model,
@@ -990,6 +991,8 @@ class _InferenceWorker:
         source_activations: dict,
         max_tokens: int = 50,
         temperature: float = 0.0,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
     ) -> dict:
         """
         Run patching experiment using provided source activations.
@@ -1064,7 +1067,7 @@ class _InferenceWorker:
                 )
         else:
             # Ozera model
-            model, config = self._get_model(model_id)
+            model, config = self._get_model(model_id, owner_id, version)
             result = engine.run_patched_generation(
                 target_prompt=target_prompt,
                 source_activation_id=captured.id,

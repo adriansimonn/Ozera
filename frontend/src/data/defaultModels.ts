@@ -285,3 +285,22 @@ export const STATIC_OPEN_SOURCE_MODEL_INFO: Record<string, ModelInfo> = Object.f
     },
   ])
 )
+
+/**
+ * Custom model names double as storage folder names, so the backend accepts only letters,
+ * digits, '_' and '-' (up to 64 characters), and not the ID of a built-in model.
+ */
+export const MODEL_NAME_MAX_LENGTH = 64
+
+export const RESERVED_MODEL_NAMES: string[] = [
+  'ozera-nano',
+  'ozera-mini',
+  ...STATIC_BASE_MODELS,
+  ...STATIC_OPEN_SOURCE_MODELS.map(m => m.id),
+]
+
+export const sanitizeModelName = (name: string): string =>
+  name.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, MODEL_NAME_MAX_LENGTH)
+
+export const isReservedModelName = (name: string): boolean =>
+  RESERVED_MODEL_NAMES.includes(name.trim().toLowerCase())

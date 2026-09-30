@@ -200,25 +200,44 @@ async def submit_training_job(
             gpu_type=gpu_type,
         )
 
-        # Store Modal call ID
-        job.modal_call_id = modal_call_id
-        job.status = JobStatus.RUNNING
-        job.started_at = datetime.utcnow()
+        # Record the Modal call, and mark the job RUNNING only if it's still QUEUED: a cancel
+        # during the spawn has already made it CANCELLED and released its reservation, and
+        # overwriting that would let the job train unbilled
+        job_rows = db.query(TrainingJob).filter(TrainingJob.job_id == job_id)
+        job_rows.update({TrainingJob.modal_call_id: modal_call_id}, synchronize_session=False)
+        started = job_rows.filter(TrainingJob.status == JobStatus.QUEUED).update(
+            {TrainingJob.status: JobStatus.RUNNING, TrainingJob.started_at: datetime.utcnow()},
+            synchronize_session=False,
+        )
         db.commit()
-
-        return job, None
 
     except Exception as e:
         db.rollback()
         if modal_call_id:
             # Spawned but not recorded as running: stop it rather than leave it running unbilled
             try:
-                import modal
-                await modal.FunctionCall.from_id(modal_call_id).cancel.aio(terminate_containers=True)
+                await _stop_modal_call(modal_call_id)
             except Exception:
                 pass
         _fail_job_submission(db, job_id, f"Job submission failed: {str(e)}")
         return None, f"Failed to submit job: {str(e)}"
+
+    if not started:
+        # Cancelled during the spawn: stop the call too (if this fails, the worker still sees
+        # the job is cancelled when it starts and stops itself)
+        try:
+            await _stop_modal_call(modal_call_id)
+        except Exception as e:
+            print(f"Failed to stop cancelled job {job_id} on Modal: {e}")
+
+    db.refresh(job)
+    return job, None
+
+
+async def _stop_modal_call(modal_call_id: str) -> None:
+    """Stop a spawned training call on Modal, terminating its container so it stops billing."""
+    import modal
+    await modal.FunctionCall.from_id(modal_call_id).cancel.aio(terminate_containers=True)
 
 
 def _fail_job_submission(db: Session, job_id: str, error_message: str) -> None:
@@ -226,13 +245,24 @@ def _fail_job_submission(db: Session, job_id: str, error_message: str) -> None:
     Mark a job whose submission failed as FAILED and release its reservation.
 
     Both are committed in one transaction, so the job can't be left QUEUED with its
-    reservation already released (cancelling it would then release it again).
+    reservation already released (cancelling it would then release it again). A job
+    cancelled in the meantime stays CANCELLED; its cancel already released the reservation.
     """
-    job = db.query(TrainingJob).filter(TrainingJob.job_id == job_id).first()
-    job.status = JobStatus.FAILED
-    job.error_message = error_message
-    job.completed_at = datetime.utcnow()
-    refund_credits(db, job.user_id, 0, job.reserved_credits_usd, job_id, error_message[:500])
+    failed = (
+        db.query(TrainingJob)
+        .filter(TrainingJob.job_id == job_id, TrainingJob.status == JobStatus.QUEUED)
+        .update(
+            {
+                TrainingJob.status: JobStatus.FAILED,
+                TrainingJob.error_message: error_message,
+                TrainingJob.completed_at: datetime.utcnow(),
+            },
+            synchronize_session=False,
+        )
+    )
+    if failed:
+        job = db.query(TrainingJob).filter(TrainingJob.job_id == job_id).first()
+        refund_credits(db, job.user_id, 0, job.reserved_credits_usd, job_id, error_message[:500])
     db.commit()
 
 
@@ -371,7 +401,13 @@ async def cancel_job(
     user_id: int,
 ) -> Tuple[bool, Optional[str]]:
     """
-    Cancel a running job.
+    Cancel a queued or running job.
+
+    The job can change status while this runs: its submission marks it RUNNING (with a
+    Modal call to stop) and its worker reports it finished. So the cancel only applies if
+    the job still has the status it was seen with, and otherwise looks again. Overwriting a
+    new status could leave a job running on Modal unbilled, or undo a finished job's
+    settlement. Statuses only move forward, so this ends after a few tries at most.
 
     Args:
         db: Database session
@@ -381,54 +417,64 @@ async def cancel_job(
     Returns:
         Tuple of (success, error_message)
     """
-    job = db.query(TrainingJob).filter(
-        TrainingJob.job_id == job_id,
-        TrainingJob.user_id == user_id,
-    ).first()
+    while True:
+        job = db.query(TrainingJob).filter(
+            TrainingJob.job_id == job_id,
+            TrainingJob.user_id == user_id,
+        ).first()
 
-    if not job:
-        return False, "Job not found"
+        if not job:
+            return False, "Job not found"
 
-    if job.status not in [JobStatus.PENDING, JobStatus.QUEUED, JobStatus.RUNNING]:
-        return False, f"Cannot cancel job with status: {job.status.value}"
+        seen_status = job.status
+        if seen_status not in [JobStatus.PENDING, JobStatus.QUEUED, JobStatus.RUNNING]:
+            return False, f"Cannot cancel job with status: {seen_status.value}"
 
-    # Stop the job on Modal; otherwise it keeps running (and billing) to completion
-    if job.modal_call_id and job.status == JobStatus.RUNNING:
-        try:
-            import modal
-            await modal.FunctionCall.from_id(job.modal_call_id).cancel.aio(terminate_containers=True)
-        except Exception:
-            return False, "Failed to stop the job on Modal, please try again"
+        # Stop the job on Modal; otherwise it keeps running (and billing) to completion. A
+        # QUEUED job's call is stopped by its submission, which sees the cancel.
+        if job.modal_call_id and seen_status == JobStatus.RUNNING:
+            try:
+                await _stop_modal_call(job.modal_call_id)
+            except Exception:
+                return False, "Failed to stop the job on Modal, please try again"
 
-    # Calculate time so far
-    if job.started_at:
-        elapsed = (datetime.utcnow() - job.started_at).total_seconds() / 60
-    else:
-        elapsed = 0
+        # Calculate time so far, and the partial cost. Elapsed time runs from when the job
+        # was spawned, so it already covers container startup.
+        now = datetime.utcnow()
+        elapsed = (now - job.started_at).total_seconds() / 60 if job.started_at else 0
+        gpu_rate = GPU_RATES.get(job.gpu_type, max(GPU_RATES.values()))
+        partial_cost = (elapsed / 60) * gpu_rate
 
-    # Update job status
-    job.status = JobStatus.CANCELLED
-    job.actual_minutes = elapsed
-    job.completed_at = datetime.utcnow()
+        cancelled = (
+            db.query(TrainingJob)
+            .filter(TrainingJob.job_id == job_id, TrainingJob.status == seen_status)
+            .update(
+                {
+                    TrainingJob.status: JobStatus.CANCELLED,
+                    TrainingJob.actual_minutes: elapsed,
+                    TrainingJob.actual_cost_usd: round(partial_cost, 2),
+                    TrainingJob.completed_at: now,
+                },
+                synchronize_session=False,
+            )
+        )
+        if not cancelled:
+            # The status changed since it was read; look again
+            db.rollback()
+            continue
 
-    # Calculate partial cost. Elapsed time runs from when the job was spawned, so it
-    # already covers container startup.
-    gpu_rate = GPU_RATES.get(job.gpu_type, max(GPU_RATES.values()))
-    partial_cost = (elapsed / 60) * gpu_rate
-    job.actual_cost_usd = round(partial_cost, 2)
+        # Refund credits (committed together with the cancel)
+        refund_credits(
+            db=db,
+            user_id=user_id,
+            amount_usd=partial_cost,
+            reserved_amount=job.reserved_credits_usd,
+            job_id=job_id,
+            description=f"Training job {job_id} cancelled"
+        )
 
-    # Refund credits
-    refund_credits(
-        db=db,
-        user_id=user_id,
-        amount_usd=partial_cost,
-        reserved_amount=job.reserved_credits_usd,
-        job_id=job_id,
-        description=f"Training job {job_id} cancelled"
-    )
-
-    db.commit()
-    return True, None
+        db.commit()
+        return True, None
 
 
 def get_user_jobs(

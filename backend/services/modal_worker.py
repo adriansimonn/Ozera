@@ -82,6 +82,30 @@ def send_progress_update(
         return False
 
 
+def job_should_continue(backend_url: str, webhook_secret: str, job_id: str) -> bool:
+    """
+    Whether the backend still wants the job to run (it is QUEUED or RUNNING).
+
+    A job cancelled while it was being submitted can still be spawned, and stopping it on
+    Modal can fail, so the job checks for itself. If the backend can't be reached the job
+    keeps going, so an outage doesn't kill running jobs.
+    """
+    import requests
+
+    try:
+        response = requests.get(
+            f"{backend_url}/webhooks/training/{job_id}/status",
+            headers={"X-Modal-Secret": webhook_secret},
+            timeout=10,
+        )
+        if response.status_code == 200:
+            return bool(response.json().get("should_continue", True))
+        print(f"Job status check returned {response.status_code}")
+    except Exception as e:
+        print(f"Failed to check job status: {e}")
+    return True
+
+
 @app.function(
     image=training_image,
     volumes={
@@ -241,34 +265,12 @@ def _run_training_impl(
     function_start = time.time()
     sys.path.insert(0, "/app/backend")
 
+    from core.model_names import model_folder
     from services.training_logic import TrainingConfig, TrainingProgress, run_training
 
     # Get environment variables
     backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
     webhook_secret = os.environ.get("MODAL_WEBHOOK_SECRET", "")
-
-    # Construct paths
-    # Handle generic datasets (prefixed with 'generic:') vs user-uploaded datasets
-    if dataset_id.startswith("generic:"):
-        actual_dataset_id = dataset_id[8:]  # Remove 'generic:' prefix
-        dataset_path = f"/datasets/generic/{actual_dataset_id}/raw.txt"
-    else:
-        dataset_path = f"/datasets/{user_id}/{dataset_id}/raw.txt"
-    model_output_path = f"/models/{user_id}/{model_name}"
-
-    config = TrainingConfig(
-        job_id=job_id,
-        user_id=user_id,
-        dataset_path=dataset_path,
-        model_output_path=model_output_path,
-        model_config=model_config,
-        model_name=model_name,
-        epochs=epochs,
-        batch_size=batch_size,
-        learning_rate=learning_rate,
-        seq_len=seq_len,
-        dataset_name=dataset_name,
-    )
 
     def progress_callback(progress: TrainingProgress):
         progress_data = {
@@ -284,24 +286,59 @@ def _run_training_impl(
         }
         send_progress_update(backend_url, webhook_secret, job_id, progress_data)
 
-    status, _, error_message = run_training(config, progress_callback)
+    def cancelled() -> bool:
+        return not job_should_continue(backend_url, webhook_secret, job_id)
 
-    # Commit model volume changes
-    models_volume.commit()
+    # Construct paths
+    # Handle generic datasets (prefixed with 'generic:') vs user-uploaded datasets
+    if dataset_id.startswith("generic:"):
+        actual_dataset_id = dataset_id[8:]  # Remove 'generic:' prefix
+        dataset_path = f"/datasets/generic/{actual_dataset_id}/raw.txt"
+    else:
+        dataset_path = f"/datasets/{user_id}/{dataset_id}/raw.txt"
+
+    try:
+        model_output_path = f"/models/{model_folder(user_id, model_name)}"
+    except ValueError as e:
+        # The API only accepts valid names; never write outside the user's folder
+        status, error_message = "failed", str(e)
+    else:
+        if cancelled():
+            # Cancelled before it started (e.g. while it was being submitted)
+            status, error_message = "cancelled", None
+        else:
+            config = TrainingConfig(
+                job_id=job_id,
+                user_id=user_id,
+                dataset_path=dataset_path,
+                model_output_path=model_output_path,
+                model_config=model_config,
+                model_name=model_name,
+                epochs=epochs,
+                batch_size=batch_size,
+                learning_rate=learning_rate,
+                seq_len=seq_len,
+                dataset_name=dataset_name,
+            )
+            status, _, error_message = run_training(config, progress_callback, should_stop=cancelled)
+
+            # Commit model volume changes
+            models_volume.commit()
 
     # Bill the container time from function start through saving the model, not just the
     # training loop
     actual_minutes = (time.time() - function_start) / 60
 
-    # Send final update
-    final_progress = {
-        "status": status,
-        "current_epoch": epochs if status == "completed" else 0,
-        "total_epochs": epochs,
-        "actual_minutes": actual_minutes,
-        "error_message": error_message,
-    }
-    send_progress_update(backend_url, webhook_secret, job_id, final_progress)
+    # Send final update (a cancelled job was already settled by the cancel)
+    if status != "cancelled":
+        final_progress = {
+            "status": status,
+            "current_epoch": epochs if status == "completed" else 0,
+            "total_epochs": epochs,
+            "actual_minutes": actual_minutes,
+            "error_message": error_message,
+        }
+        send_progress_update(backend_url, webhook_secret, job_id, final_progress)
 
     return {
         "status": status,

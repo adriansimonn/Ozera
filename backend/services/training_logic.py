@@ -165,6 +165,7 @@ def evaluate(
 def run_training(
     config: TrainingConfig,
     progress_callback: Optional[Callable[[TrainingProgress], None]] = None,
+    should_stop: Optional[Callable[[], bool]] = None,
 ) -> tuple[str, float, Optional[str]]:
     """
     Run the training job.
@@ -172,9 +173,11 @@ def run_training(
     Args:
         config: Training configuration
         progress_callback: Optional callback for progress updates
+        should_stop: Optional check, run after each epoch, for whether the job was cancelled
 
     Returns:
-        Tuple of (final_status, actual_minutes, error_message)
+        Tuple of (final_status, actual_minutes, error_message); final_status is
+        "completed", "failed", or "cancelled"
     """
     start_time = time.time()
 
@@ -287,6 +290,10 @@ def run_training(
             print(f"Epoch {epoch + 1}/{config.epochs} - "
                   f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, "
                   f"Train PPL: {train_ppl:.2f}, Val PPL: {val_ppl:.2f}")
+
+            if should_stop and should_stop():
+                print("Job was cancelled, stopping")
+                return "cancelled", (time.time() - start_time) / 60, None
 
             # Save best model
             if val_loss < best_val_loss:

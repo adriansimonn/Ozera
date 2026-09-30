@@ -11,6 +11,7 @@ import { apiClient } from '../../api/client'
 import { useAuthStore } from '../../stores/authStore'
 import { useThemeColors } from '../../hooks/useTheme'
 import { Dropdown } from '../common/Dropdown'
+import { isReservedModelName, sanitizeModelName } from '../../data/defaultModels'
 
 // Dataset sources - "uploaded" is user's uploaded dataset, "upload-new" shows upload UI, others are generic datasets
 type DatasetSource = 'uploaded' | 'upload-new' | string
@@ -214,9 +215,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
     return `${(tokens / 1000000).toFixed(1)}M`
   }
 
-  // Reserved model names that cannot be used
-  const RESERVED_MODEL_NAMES = ['ozera-nano', 'ozera-mini']
-  const isReservedName = RESERVED_MODEL_NAMES.includes(modelName.trim().toLowerCase())
+  const isReservedName = isReservedModelName(modelName)
 
   const hasDataset = datasetSource === 'uploaded' ? !!uploadedDataset : datasetSource !== 'upload-new'
   const isValid = hasDataset && modelName.trim().length > 0 && !isReservedName
@@ -336,7 +335,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
             <input
               type="text"
               value={modelName}
-              onChange={(e) => setModelName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ''))}
+              onChange={(e) => setModelName(sanitizeModelName(e.target.value))}
               placeholder="my-custom-model"
               disabled={disabled || starting}
               style={{
@@ -352,7 +351,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
             />
             {isReservedName && (
               <div style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px' }}>
-                This name is reserved for default Ozera models
+                This name is reserved for a built-in model
               </div>
             )}
           </div>

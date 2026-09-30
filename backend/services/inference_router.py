@@ -7,9 +7,12 @@ Routes inference requests based on INFERENCE_MODE environment variable:
 """
 
 import os
-from typing import AsyncIterator, Optional
+from typing import TYPE_CHECKING, AsyncIterator, Optional
 
 from core.open_source import get_gpu_tier
+
+if TYPE_CHECKING:
+    from services.custom_models import ModelRef
 
 # Inference mode configuration
 INFERENCE_MODE = os.environ.get("INFERENCE_MODE", "local")
@@ -54,21 +57,25 @@ class InferenceRouter:
             self._local_loader = ModelLoader(models_dir=self.models_dir)
         return self._local_loader
 
-    def _get_local_generator(self, model_id: str):
-        """Get or create local text generator for a model."""
-        if model_id not in self._local_generators:
+    def _get_local_generator(self, model: "ModelRef"):
+        """Get or create local text generator for a model (keyed by owner and version too)."""
+        key = (model.name, model.owner_id, model.version)
+        if key not in self._local_generators:
             from inference.text_generator import TextGenerator
 
             loader = self._get_local_loader()
-            model, config = loader.load_model(model_id)
+            lm, config = loader.load_model(model.name, owner_id=model.owner_id, version=model.version)
             device = "cuda" if self._is_cuda_available() else "cpu"
 
-            self._local_generators[model_id] = TextGenerator(
-                model=model,
+            # Drop generators for older versions of the same model
+            for old_key in [k for k in self._local_generators if k[:2] == key[:2]]:
+                del self._local_generators[old_key]
+            self._local_generators[key] = TextGenerator(
+                model=lm,
                 device=device,
-                model_name=model_id,
+                model_name=model.name,
             )
-        return self._local_generators[model_id]
+        return self._local_generators[key]
 
     def _is_cuda_available(self) -> bool:
         """Check if CUDA is available."""
@@ -94,7 +101,7 @@ class InferenceRouter:
 
     async def generate(
         self,
-        model_id: str,
+        model: "ModelRef",
         prompt: str,
         max_tokens: int = 200,
         temperature: float = 0.8,
@@ -105,7 +112,7 @@ class InferenceRouter:
         Generate text using the appropriate backend.
 
         Args:
-            model_id: Model to use
+            model: Model to use (resolved for the requesting user)
             prompt: Input prompt
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature
@@ -117,16 +124,16 @@ class InferenceRouter:
         """
         if self.is_modal_mode():
             return await self._generate_modal(
-                model_id, prompt, max_tokens, temperature, top_k, top_p
+                model, prompt, max_tokens, temperature, top_k, top_p
             )
         else:
             return self._generate_local(
-                model_id, prompt, max_tokens, temperature, top_k, top_p
+                model, prompt, max_tokens, temperature, top_k, top_p
             )
 
     def _generate_local(
         self,
-        model_id: str,
+        model: "ModelRef",
         prompt: str,
         max_tokens: int,
         temperature: float,
@@ -134,7 +141,7 @@ class InferenceRouter:
         top_p: Optional[float],
     ) -> dict:
         """Generate using local inference."""
-        generator = self._get_local_generator(model_id)
+        generator = self._get_local_generator(model)
         result = generator.generate(
             prompt=prompt,
             max_tokens=max_tokens,
@@ -143,12 +150,12 @@ class InferenceRouter:
             top_p=top_p,
             return_metadata=True,
         )
-        result["model"] = model_id
+        result["model"] = model.name
         return result
 
     async def _generate_modal(
         self,
-        model_id: str,
+        model: "ModelRef",
         prompt: str,
         max_tokens: int,
         temperature: float,
@@ -158,22 +165,23 @@ class InferenceRouter:
         """Generate using Modal inference."""
         from services.modal_inference import get_inference_worker
 
-        gpu_tier = self.get_gpu_tier(model_id)
+        gpu_tier = self.get_gpu_tier(model.name)
         worker = get_inference_worker(gpu_tier)
 
         result = await worker().generate.remote.aio(
-            model_id=model_id,
+            model_id=model.name,
             prompt=prompt,
             max_tokens=max_tokens,
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            **model.worker_kwargs(),
         )
         return result
 
     async def generate_stream(
         self,
-        model_id: str,
+        model: "ModelRef",
         prompt: str,
         max_tokens: int = 200,
         temperature: float = 0.8,
@@ -184,7 +192,7 @@ class InferenceRouter:
         Stream text generation.
 
         Args:
-            model_id: Model to use
+            model: Model to use (resolved for the requesting user)
             prompt: Input prompt
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature
@@ -196,18 +204,18 @@ class InferenceRouter:
         """
         if self.is_modal_mode():
             async for token in self._stream_modal(
-                model_id, prompt, max_tokens, temperature, top_k, top_p
+                model, prompt, max_tokens, temperature, top_k, top_p
             ):
                 yield token
         else:
             for token in self._stream_local(
-                model_id, prompt, max_tokens, temperature, top_k, top_p
+                model, prompt, max_tokens, temperature, top_k, top_p
             ):
                 yield token
 
     def _stream_local(
         self,
-        model_id: str,
+        model: "ModelRef",
         prompt: str,
         max_tokens: int,
         temperature: float,
@@ -215,7 +223,7 @@ class InferenceRouter:
         top_p: Optional[float],
     ):
         """Stream using local inference."""
-        generator = self._get_local_generator(model_id)
+        generator = self._get_local_generator(model)
         yield from generator.generate_stream(
             prompt=prompt,
             max_tokens=max_tokens,
@@ -226,7 +234,7 @@ class InferenceRouter:
 
     async def _stream_modal(
         self,
-        model_id: str,
+        model: "ModelRef",
         prompt: str,
         max_tokens: int,
         temperature: float,
@@ -236,22 +244,23 @@ class InferenceRouter:
         """Stream using Modal inference."""
         from services.modal_inference import get_inference_worker
 
-        gpu_tier = self.get_gpu_tier(model_id)
+        gpu_tier = self.get_gpu_tier(model.name)
         worker = get_inference_worker(gpu_tier)
 
         async for token in worker().generate_stream.remote_gen.aio(
-            model_id=model_id,
+            model_id=model.name,
             prompt=prompt,
             max_tokens=max_tokens,
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            **model.worker_kwargs(),
         ):
             yield token
 
     async def generate_with_activations(
         self,
-        model_id: str,
+        model: "ModelRef",
         prompt: str,
         max_tokens: int = 200,
         temperature: float = 0.8,
@@ -266,7 +275,7 @@ class InferenceRouter:
         stored in the activation store (since the store is per-process).
 
         Args:
-            model_id: Model to use
+            model: Model to use (resolved for the requesting user)
             prompt: Input prompt
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature
@@ -279,16 +288,16 @@ class InferenceRouter:
         """
         if self.is_modal_mode():
             return await self._generate_with_activations_modal(
-                model_id, prompt, max_tokens, temperature, top_k, top_p
+                model, prompt, max_tokens, temperature, top_k, top_p
             )
         else:
             return self._generate_with_activations_local(
-                model_id, prompt, max_tokens, temperature, top_k, top_p, user_id
+                model, prompt, max_tokens, temperature, top_k, top_p, user_id
             )
 
     def _generate_with_activations_local(
         self,
-        model_id: str,
+        model: "ModelRef",
         prompt: str,
         max_tokens: int,
         temperature: float,
@@ -297,7 +306,7 @@ class InferenceRouter:
         user_id: Optional[int],
     ) -> dict:
         """Generate with activations using local inference."""
-        generator = self._get_local_generator(model_id)
+        generator = self._get_local_generator(model)
         result = generator.generate_with_activations(
             prompt=prompt,
             max_tokens=max_tokens,
@@ -306,12 +315,12 @@ class InferenceRouter:
             top_p=top_p,
             user_id=user_id,
         )
-        result["model"] = model_id
+        result["model"] = model.name
         return result
 
     async def _generate_with_activations_modal(
         self,
-        model_id: str,
+        model: "ModelRef",
         prompt: str,
         max_tokens: int,
         temperature: float,
@@ -321,25 +330,26 @@ class InferenceRouter:
         """Generate with activations using Modal inference."""
         from services.modal_inference import get_inference_worker
 
-        gpu_tier = self.get_gpu_tier(model_id)
+        gpu_tier = self.get_gpu_tier(model.name)
         worker = get_inference_worker(gpu_tier)
 
         result = await worker().generate_with_activations.remote.aio(
-            model_id=model_id,
+            model_id=model.name,
             prompt=prompt,
             max_tokens=max_tokens,
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            **model.worker_kwargs(),
         )
         return result
 
-    async def get_model_info(self, model_id: str) -> dict:
+    async def get_model_info(self, model: "ModelRef") -> dict:
         """
         Get model information.
 
         Args:
-            model_id: Model identifier
+            model: Model to inspect (resolved for the requesting user)
 
         Returns:
             Model info dict
@@ -347,14 +357,14 @@ class InferenceRouter:
         if self.is_modal_mode():
             from services.modal_inference import get_inference_worker
 
-            gpu_tier = self.get_gpu_tier(model_id)
+            gpu_tier = self.get_gpu_tier(model.name)
             worker = get_inference_worker(gpu_tier)
-            return await worker().get_model_info.remote.aio(model_id)
+            return await worker().get_model_info.remote.aio(model.name, **model.worker_kwargs())
         else:
             loader = self._get_local_loader()
-            model, config = loader.load_model(model_id)
+            _, config = loader.load_model(model.name, owner_id=model.owner_id, version=model.version)
             return {
-                "name": model_id,
+                "name": model.name,
                 "parameters": config.count_parameters(),
                 "layers": config.num_layers,
                 "heads": config.num_heads,
@@ -365,7 +375,7 @@ class InferenceRouter:
 
     async def list_models(self) -> list:
         """
-        List available models.
+        List the shared models (custom models are listed per user, from the database).
 
         Returns:
             List of model info dicts
@@ -377,18 +387,14 @@ class InferenceRouter:
             return await worker().list_models.remote.aio()
         else:
             loader = self._get_local_loader()
-            model_names = loader.list_available_models(include_remote=True)
-            return [
-                {"id": name, "type": "base" if name in BASE_MODELS else "custom"}
-                for name in model_names
-            ]
+            return [{"id": name, "type": "base"} for name in loader.list_available_models()]
 
-    async def warmup_model(self, model_id: str) -> bool:
+    async def warmup_model(self, model: "ModelRef") -> bool:
         """
         Pre-load a model.
 
         Args:
-            model_id: Model to warm up
+            model: Model to warm up (resolved for the requesting user)
 
         Returns:
             True if successful
@@ -396,12 +402,12 @@ class InferenceRouter:
         if self.is_modal_mode():
             from services.modal_inference import get_inference_worker
 
-            gpu_tier = self.get_gpu_tier(model_id)
+            gpu_tier = self.get_gpu_tier(model.name)
             worker = get_inference_worker(gpu_tier)
-            return await worker().warmup.remote.aio(model_id)
+            return await worker().warmup.remote.aio(model.name, **model.worker_kwargs())
         else:
             try:
-                self._get_local_generator(model_id)
+                self._get_local_generator(model)
                 return True
             except Exception:
                 return False

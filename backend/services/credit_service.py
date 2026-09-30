@@ -410,6 +410,51 @@ def validate_purchase_amount(amount_usd: float) -> bool:
     return MIN_CREDIT_PURCHASE <= amount_usd <= MAX_CREDIT_PURCHASE
 
 
+def _deduct(
+    db: Session,
+    user_id: int,
+    cost: float,
+    transaction_type: TransactionType,
+    description: str,
+) -> Transaction:
+    """
+    Deduct a charge from the user's balance and record it, in one committed transaction.
+
+    Credits reserved for training jobs aren't spendable, so the charge must fit in the
+    available balance (balance minus reserved), the amount check_sufficient_balance checks.
+    Otherwise a job's reservation could be spent and its settlement drive the balance negative.
+
+    Raises:
+        InsufficientBalanceError: the available balance doesn't cover the charge (nothing
+            is deducted, and the balance row's lock is released)
+    """
+    cost_decimal = _to_decimal(cost)
+
+    # Lock the row to prevent concurrent read-modify-write races
+    credit_balance = get_credit_balance_for_update(db, user_id)
+    available = credit_balance.available_balance if credit_balance else 0
+    if available < cost_decimal:
+        db.rollback()
+        raise InsufficientBalanceError(required=cost, available=float(available))
+
+    # Deduct cost from balance
+    credit_balance.balance_usd -= cost_decimal
+    credit_balance.updated_at = datetime.utcnow()
+
+    # Create transaction record
+    transaction = Transaction(
+        user_id=user_id,
+        amount_usd=-cost_decimal,  # Negative for deduction
+        transaction_type=transaction_type,
+        description=description,
+    )
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+
+    return transaction
+
+
 def check_sufficient_balance(db: Session, user_id: int, required_amount: float) -> bool:
     """
     Check if user has sufficient available balance.
@@ -545,33 +590,10 @@ def charge_inference(
         Created transaction record
     """
     cost = calculate_inference_cost(prompt_tokens, generated_tokens, model_id=model_name)
-    cost_decimal = _to_decimal(cost)
-
-    # Lock the row to prevent concurrent read-modify-write races
-    credit_balance = get_credit_balance_for_update(db, user_id)
-    if not credit_balance:
-        raise InsufficientBalanceError(required=cost, available=0.0)
-
-    # Check sufficient balance before deducting
-    if credit_balance.balance_usd < cost_decimal:
-        raise InsufficientBalanceError(required=cost, available=float(credit_balance.balance_usd))
-
-    # Deduct cost from balance
-    credit_balance.balance_usd -= cost_decimal
-    credit_balance.updated_at = datetime.utcnow()
-
-    # Create transaction record
-    transaction = Transaction(
-        user_id=user_id,
-        amount_usd=-cost_decimal,  # Negative for deduction
-        transaction_type=TransactionType.INFERENCE_CHARGE,
-        description=description or f"Inference ({model_name}): {prompt_tokens} input + {generated_tokens} output tokens",
+    return _deduct(
+        db, user_id, cost, TransactionType.INFERENCE_CHARGE,
+        description or f"Inference ({model_name}): {prompt_tokens} input + {generated_tokens} output tokens",
     )
-    db.add(transaction)
-    db.commit()
-    db.refresh(transaction)
-
-    return transaction
 
 
 def charge_flat(
@@ -594,32 +616,7 @@ def charge_flat(
     Returns:
         Created transaction record
     """
-    cost_decimal = _to_decimal(amount_usd)
-
-    # Lock the row to prevent concurrent read-modify-write races
-    credit_balance = get_credit_balance_for_update(db, user_id)
-    if not credit_balance:
-        raise InsufficientBalanceError(required=amount_usd, available=0.0)
-
-    # Check sufficient balance before deducting
-    if credit_balance.balance_usd < cost_decimal:
-        raise InsufficientBalanceError(required=amount_usd, available=float(credit_balance.balance_usd))
-
-    # Deduct cost from balance
-    credit_balance.balance_usd -= cost_decimal
-    credit_balance.updated_at = datetime.utcnow()
-
-    transaction = Transaction(
-        user_id=user_id,
-        amount_usd=-cost_decimal,  # Negative for deduction
-        transaction_type=transaction_type,
-        description=description,
-    )
-    db.add(transaction)
-    db.commit()
-    db.refresh(transaction)
-
-    return transaction
+    return _deduct(db, user_id, amount_usd, transaction_type, description)
 
 
 # Patching experiment pricing
@@ -793,33 +790,10 @@ def charge_analysis(
         num_tokens=num_tokens,
         model_id=model_name,
     )
-    cost_decimal = _to_decimal(cost)
-
-    # Lock the row to prevent concurrent read-modify-write races
-    credit_balance = get_credit_balance_for_update(db, user_id)
-    if not credit_balance:
-        raise InsufficientBalanceError(required=cost, available=0.0)
-
-    # Check sufficient balance before deducting
-    if credit_balance.balance_usd < cost_decimal:
-        raise InsufficientBalanceError(required=cost, available=float(credit_balance.balance_usd))
-
-    # Deduct cost from balance
-    credit_balance.balance_usd -= cost_decimal
-    credit_balance.updated_at = datetime.utcnow()
-
-    # Create transaction record
-    transaction = Transaction(
-        user_id=user_id,
-        amount_usd=-cost_decimal,  # Negative for deduction
-        transaction_type=TransactionType.ANALYSIS_CHARGE,
-        description=description or f"Analysis ({analysis_type}, {model_name}): {num_tokens} tokens, {num_layers}L x {num_heads}H",
+    return _deduct(
+        db, user_id, cost, TransactionType.ANALYSIS_CHARGE,
+        description or f"Analysis ({analysis_type}, {model_name}): {num_tokens} tokens, {num_layers}L x {num_heads}H",
     )
-    db.add(transaction)
-    db.commit()
-    db.refresh(transaction)
-
-    return transaction
 
 
 def estimate_analysis_cost(
@@ -884,33 +858,10 @@ def charge_patching(
         model_id=model_name,
         num_patches=num_patches,
     )
-    cost_decimal = _to_decimal(cost)
-
-    # Lock the row to prevent concurrent read-modify-write races
-    credit_balance = get_credit_balance_for_update(db, user_id)
-    if not credit_balance:
-        raise InsufficientBalanceError(required=cost, available=0.0)
-
-    # Check sufficient balance before deducting
-    if credit_balance.balance_usd < cost_decimal:
-        raise InsufficientBalanceError(required=cost, available=float(credit_balance.balance_usd))
-
-    # Deduct cost from balance
-    credit_balance.balance_usd -= cost_decimal
-    credit_balance.updated_at = datetime.utcnow()
-
-    # Create transaction record
-    transaction = Transaction(
-        user_id=user_id,
-        amount_usd=-cost_decimal,  # Negative for deduction
-        transaction_type=TransactionType.PATCHING_CHARGE,
-        description=description or f"Patching ({model_name}): {num_patches} patches, {generated_tokens} tokens generated",
+    return _deduct(
+        db, user_id, cost, TransactionType.PATCHING_CHARGE,
+        description or f"Patching ({model_name}): {num_patches} patches, {generated_tokens} tokens generated",
     )
-    db.add(transaction)
-    db.commit()
-    db.refresh(transaction)
-
-    return transaction
 
 
 # SAE (Sparse Autoencoder) Analysis pricing
@@ -1003,33 +954,10 @@ def charge_sae(
         model_id=model_name,
         operation_type=operation_type,
     )
-    cost_decimal = _to_decimal(cost)
-
-    # Lock the row to prevent concurrent read-modify-write races
-    credit_balance = get_credit_balance_for_update(db, user_id)
-    if not credit_balance:
-        raise InsufficientBalanceError(required=cost, available=0.0)
-
-    # Check sufficient balance before deducting
-    if credit_balance.balance_usd < cost_decimal:
-        raise InsufficientBalanceError(required=cost, available=float(credit_balance.balance_usd))
-
-    # Deduct cost from balance
-    credit_balance.balance_usd -= cost_decimal
-    credit_balance.updated_at = datetime.utcnow()
-
-    # Create transaction record
-    transaction = Transaction(
-        user_id=user_id,
-        amount_usd=-cost_decimal,  # Negative for deduction
-        transaction_type=TransactionType.SAE_CHARGE,
-        description=description or f"SAE {operation_type} ({model_name}): {num_tokens} tokens",
+    return _deduct(
+        db, user_id, cost, TransactionType.SAE_CHARGE,
+        description or f"SAE {operation_type} ({model_name}): {num_tokens} tokens",
     )
-    db.add(transaction)
-    db.commit()
-    db.refresh(transaction)
-
-    return transaction
 
 
 def estimate_sae_cost(

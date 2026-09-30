@@ -7,6 +7,12 @@ from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, Field
 
+from core.model_names import MODEL_NAME_PATTERN
+
+# Dataset IDs are folder names on the datasets volume too: an uploaded dataset's generated
+# ID, or 'generic:' plus a generic dataset's folder
+DATASET_ID_PATTERN = r"^(generic:)?[A-Za-z0-9_-]{1,64}$"
+
 
 class JobStatus(str, Enum):
     """Training job status."""
@@ -43,9 +49,13 @@ class DatasetListResponse(BaseModel):
 
 class TrainingJobRequest(BaseModel):
     """Request to start a training job."""
-    dataset_id: str = Field(..., description="ID of the dataset to train on")
+    dataset_id: str = Field(..., pattern=DATASET_ID_PATTERN, description="ID of the dataset to train on")
     base_model: str = Field(..., pattern="^(nano|mini)$", description="Model architecture")
-    model_name: str = Field(..., min_length=1, max_length=64, description="Name for the trained model")
+    model_name: str = Field(
+        ...,
+        pattern=MODEL_NAME_PATTERN,
+        description="Name for the trained model (letters, digits, '_' and '-', up to 64 characters)",
+    )
     epochs: int = Field(default=20, ge=5, le=100, description="Number of training epochs")
     batch_size: int = Field(default=32, ge=8, le=128, description="Batch size")
     learning_rate: float = Field(default=3e-4, ge=1e-5, le=1e-2, description="Learning rate")
@@ -104,7 +114,7 @@ class TrainingJobListResponse(BaseModel):
 
 class TrainingEstimateRequest(BaseModel):
     """Request for training cost estimate."""
-    dataset_id: str
+    dataset_id: str = Field(..., pattern=DATASET_ID_PATTERN)
     base_model: str = Field(..., pattern="^(nano|mini)$")
     epochs: int = Field(default=20, ge=5, le=100)
     batch_size: int = Field(default=32, ge=8, le=128)

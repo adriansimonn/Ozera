@@ -11,7 +11,6 @@ from fastapi import APIRouter, HTTPException, Depends
 from api.error_utils import safe_detail
 from sqlalchemy.orm import Session
 from typing import Optional
-import os
 
 from core.open_source import OPEN_SOURCE_MODELS, OpenSourceModelLoader, get_gpu_tier, get_loader_for_model
 from core.patching import get_patching_engine, PatchConfig
@@ -30,6 +29,7 @@ from api.schemas.patching import (
 )
 from middleware.auth_middleware import get_optional_current_user, get_current_user
 from services.credit_service import InsufficientBalanceError
+from services.custom_models import resolve_model
 from models.database import User, TrainingJob, TransactionType, UploadedModel, JobStatus
 from db import get_db
 from services.credit_service import (
@@ -81,31 +81,6 @@ def _get_inference_worker(model_id: str):
     return get_inference_worker(get_gpu_tier(model_id))
 
 
-def _get_ozera_generator(model_id: str):
-    """Get or create an Ozera model text generator."""
-    cache_key = f"ozera_{model_id}"
-    if cache_key not in _model_loaders:
-        from inference.model_loader import ModelLoader
-        from inference.text_generator import TextGenerator
-
-        # Get models directory
-        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        models_dir = os.path.join(backend_dir, "models")
-
-        loader = ModelLoader(models_dir=models_dir)
-        model, config = loader.load_model(model_id)
-
-        import torch
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        _model_loaders[cache_key] = TextGenerator(
-            model=model,
-            device=device,
-            model_name=model_id,
-        )
-    return _model_loaders[cache_key]
-
-
 def _get_ozera_tokenizer():
     """Get the Ozera tokenizer."""
     from core.tokenizer import get_tokenizer
@@ -149,7 +124,7 @@ async def capture_activations(
     import torch
     from core.patching import CapturedActivations
 
-    model_type = _get_model_type(request.model)
+    model = resolve_model(db, current_user.id, request.model)
     engine = get_patching_engine()
 
     cost = min_gpu_request_charge(request.model)
@@ -164,6 +139,7 @@ async def capture_activations(
         result = await worker().capture_activations.remote.aio(
             model_id=request.model,
             prompt=request.prompt,
+            **model.worker_kwargs(),
         )
 
         # Reconstruct activations locally for caching
@@ -324,7 +300,7 @@ async def run_patching_experiment(
     Returns:
         Baseline and patched outputs with comparison metrics
     """
-    model_type = _get_model_type(request.model)
+    model = resolve_model(db, current_user.id, request.model)
 
     # Check if any patches require source activations (patch intervention type)
     requires_source = any(p.intervention_type == 'patch' for p in request.patches)
@@ -376,6 +352,7 @@ async def run_patching_experiment(
             patches=patches_dicts,
             max_tokens=request.max_tokens,
             temperature=request.temperature,
+            **model.worker_kwargs(),
         )
 
         # Charge user after successful experiment — fail if charge fails
@@ -445,7 +422,7 @@ async def run_patching_with_captured(
             detail=f"Model mismatch: activations are from '{captured.model_id}', but request specifies '{request.model}'"
         )
 
-    model_type = captured.model_type
+    model = resolve_model(db, current_user.id, request.model)
 
     # Check credits before running experiment
     estimated_cost = estimate_patching_cost(
@@ -502,6 +479,7 @@ async def run_patching_with_captured(
             source_activations=serialized_activations,
             max_tokens=request.max_tokens,
             temperature=request.temperature,
+            **model.worker_kwargs(),
         )
 
         # Charge user after successful experiment — fail if charge fails

@@ -10,6 +10,8 @@ from typing import Optional
 
 import modal
 
+from core.model_names import model_folder
+
 # Volume names
 DATASETS_VOLUME_NAME = "ozera-datasets"
 MODELS_VOLUME_NAME = "ozera-models"
@@ -94,7 +96,7 @@ def get_model_path(user_id: int, model_name: str) -> str:
     Returns:
         Path string: /models/{user_id}/{model_name}/
     """
-    return f"/models/{user_id}/{model_name}/"
+    return f"/models/{model_folder(user_id, model_name)}/"
 
 
 async def upload_dataset_to_volume(
@@ -370,7 +372,7 @@ def download_model_from_volume(
         True if successful
     """
     try:
-        remote_dir = f"/{user_id}/{model_name}"
+        remote_dir = f"/{model_folder(user_id, model_name)}"
         local_dir.mkdir(parents=True, exist_ok=True)
 
         # Download all files from the model directory
@@ -415,7 +417,7 @@ def get_uploaded_model_path(user_id: int, model_name: str) -> str:
     Returns:
         Path string: /models/{user_id}/{model_name}/model.safetensors
     """
-    return f"/{user_id}/{model_name}/model.safetensors"
+    return f"/{model_folder(user_id, model_name)}/model.safetensors"
 
 
 async def upload_model_to_volume(
@@ -435,7 +437,7 @@ async def upload_model_to_volume(
         True if successful
     """
     try:
-        remote_dir = f"/{user_id}/{model_name}"
+        remote_dir = f"/{model_folder(user_id, model_name)}"
 
         with models_volume.batch_upload() as batch:
             batch.put_file(str(local_path), f"{remote_dir}/model.safetensors")
@@ -458,7 +460,7 @@ async def delete_model_from_volume(user_id: int, model_name: str) -> bool:
         True if successful
     """
     try:
-        remote_dir = f"/{user_id}/{model_name}"
+        remote_dir = f"/{model_folder(user_id, model_name)}"
 
         # Delete the entire directory recursively
         models_volume.remove_file(remote_dir, recursive=True)
@@ -483,7 +485,7 @@ def check_model_exists_in_volume(user_id: int, model_name: str) -> bool:
         True if model exists
     """
     try:
-        remote_dir = f"/{user_id}/{model_name}"
+        remote_dir = f"/{model_folder(user_id, model_name)}"
         for entry in models_volume.listdir(remote_dir):
             if entry.path.endswith(".pt") or entry.path.endswith(".safetensors"):
                 return True

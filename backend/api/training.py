@@ -31,6 +31,9 @@ from api.schemas.training import (
     ModelUploadResponse,
     CustomModelCount,
 )
+from core.model_names import is_valid_model_name, model_folder
+from core.open_source import OPEN_SOURCE_MODELS
+from services.inference_router import BASE_MODELS
 from services.modal_volumes import read_dataset_metadata_from_volume
 from middleware.auth_middleware import get_current_user, get_optional_current_user
 from models.database import User, TrainingJob as TrainingJobModel, JobStatus as DBJobStatus, UploadedModel
@@ -109,6 +112,28 @@ async def get_training_estimate(
 RESERVED_MODEL_NAMES = ["ozera-nano", "ozera-mini"]
 
 
+def _validate_model_name(model_name: str) -> None:
+    """
+    Reject a custom model name that is malformed or reserved (400).
+
+    Names become folder names on the models volume (see core.model_names). Requests name
+    models by name, and the base and open-source models' IDs take precedence, so a custom
+    model can't use one of them.
+    """
+    if not is_valid_model_name(model_name):
+        raise HTTPException(
+            status_code=400,
+            detail="Model name must be 1-64 characters: letters, digits, '_' and '-'"
+        )
+
+    reserved = {name.lower() for name in [*RESERVED_MODEL_NAMES, *BASE_MODELS, *OPEN_SOURCE_MODELS]}
+    if model_name.lower() in reserved:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Model name '{model_name}' is reserved for a built-in model"
+        )
+
+
 @router.post("/jobs", response_model=TrainingJobResponse)
 async def start_training_job(
     request: TrainingJobRequest,
@@ -123,12 +148,7 @@ async def start_training_job(
     """
     from services.modal_volumes import parse_dataset_id, get_generic_dataset_metadata
 
-    # Validate model name is not reserved
-    if request.model_name.lower() in RESERVED_MODEL_NAMES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Model name '{request.model_name}' is reserved for default Ozera models"
-        )
+    _validate_model_name(request.model_name)
 
     # Validate dataset exists - handle both generic and user-uploaded datasets
     is_generic, actual_dataset_id = parse_dataset_id(request.dataset_id)
@@ -620,7 +640,7 @@ async def download_custom_model(
     try:
         # Create a zip file in memory
         zip_buffer = io.BytesIO()
-        remote_dir = f"/{current_user.id}/{model_id}"
+        remote_dir = f"/{model_folder(current_user.id, job.model_name)}"
 
         files_found = 0
 
@@ -684,18 +704,7 @@ async def upload_model(
             detail="Only .safetensors files are accepted"
         )
 
-    # Validate model name
-    if not model_name or len(model_name) < 1 or len(model_name) > 64:
-        raise HTTPException(
-            status_code=400,
-            detail="Model name must be between 1 and 64 characters"
-        )
-
-    if model_name.lower() in RESERVED_MODEL_NAMES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Model name '{model_name}' is reserved for default Ozera models"
-        )
+    _validate_model_name(model_name)
 
     # Check if user already has a custom model (limit to 1)
     total_models = get_total_custom_model_count(db, current_user.id)
