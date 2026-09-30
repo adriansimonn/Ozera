@@ -49,6 +49,13 @@ GPU_CONFIGS = {
     "a100": "A100-40GB",
 }
 
+# Modal kills a training container after this long, without it reporting back. Training
+# stops FINISH_SECONDS earlier so the job can save the model, commit the volume and send
+# its final update; the backend doesn't accept jobs estimated to need longer than
+# job_orchestrator.MAX_ESTIMATED_TRAINING_MINUTES.
+TRAINING_TIMEOUT_SECONDS = 7200
+FINISH_SECONDS = 600
+
 def send_progress_update(
     backend_url: str,
     webhook_secret: str,
@@ -113,7 +120,7 @@ def job_should_continue(backend_url: str, webhook_secret: str, job_id: str) -> b
         "/models": models_volume,
     },
     gpu="T4",  # Default, will be overridden by spawn() call
-    timeout=7200,  # 2 hour timeout
+    timeout=TRAINING_TIMEOUT_SECONDS,
     scaledown_window=2,  # One-off jobs: don't pay for an idle container afterwards
     secrets=[modal.Secret.from_name("ozera-secrets")],
 )
@@ -163,7 +170,7 @@ def run_training_on_modal(
         "/models": models_volume,
     },
     gpu="T4",
-    timeout=7200,
+    timeout=TRAINING_TIMEOUT_SECONDS,
     scaledown_window=2,  # One-off jobs: don't pay for an idle container afterwards
     secrets=[modal.Secret.from_name("ozera-secrets")],
 )
@@ -193,7 +200,7 @@ def run_training_t4(
         "/models": models_volume,
     },
     gpu="A10G",
-    timeout=7200,
+    timeout=TRAINING_TIMEOUT_SECONDS,
     scaledown_window=2,  # One-off jobs: don't pay for an idle container afterwards
     secrets=[modal.Secret.from_name("ozera-secrets")],
 )
@@ -223,7 +230,7 @@ def run_training_a10g(
         "/models": models_volume,
     },
     gpu="A100-40GB",
-    timeout=7200,
+    timeout=TRAINING_TIMEOUT_SECONDS,
     scaledown_window=2,  # One-off jobs: don't pay for an idle container afterwards
     secrets=[modal.Secret.from_name("ozera-secrets")],
 )
@@ -272,7 +279,13 @@ def _run_training_impl(
     backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
     webhook_secret = os.environ.get("MODAL_WEBHOOK_SECRET", "")
 
+    # Epochs finished so far (training can stop early to stay within the timeout)
+    epochs_trained = 0
+
     def progress_callback(progress: TrainingProgress):
+        nonlocal epochs_trained
+        if progress.status == "running":
+            epochs_trained = progress.current_epoch
         progress_data = {
             "status": progress.status,
             "current_epoch": progress.current_epoch,
@@ -320,7 +333,12 @@ def _run_training_impl(
                 seq_len=seq_len,
                 dataset_name=dataset_name,
             )
-            status, _, error_message = run_training(config, progress_callback, should_stop=cancelled)
+            status, _, error_message = run_training(
+                config,
+                progress_callback,
+                should_stop=cancelled,
+                deadline=function_start + TRAINING_TIMEOUT_SECONDS - FINISH_SECONDS,
+            )
 
             # Commit model volume changes
             models_volume.commit()
@@ -329,11 +347,12 @@ def _run_training_impl(
     # training loop
     actual_minutes = (time.time() - function_start) / 60
 
-    # Send final update (a cancelled job was already settled by the cancel)
+    # Send final update (a cancelled job was already settled by the cancel). If it's lost,
+    # the backend's reconciler settles the job from this function's return value.
     if status != "cancelled":
         final_progress = {
             "status": status,
-            "current_epoch": epochs if status == "completed" else 0,
+            "current_epoch": epochs_trained if status == "completed" else 0,
             "total_epochs": epochs,
             "actual_minutes": actual_minutes,
             "error_message": error_message,

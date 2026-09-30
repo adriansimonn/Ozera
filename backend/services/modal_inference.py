@@ -427,8 +427,15 @@ class _InferenceWorker:
         top_p: Optional[float] = None,
         owner_id: Optional[int] = None,
         version: Optional[str] = None,
-    ) -> Iterator[str]:
-        """Stream text generation token by token."""
+        report_usage: bool = False,
+    ) -> Iterator[str | dict]:
+        """
+        Stream text generation token by token.
+
+        Yields text chunks. With report_usage, the last item is instead a dict of the
+        request's real token counts ({"prompt_tokens", "generated_tokens"}), which the
+        backend bills by.
+        """
         import torch
 
         # Handle open-source models with HuggingFace streamer
@@ -458,9 +465,16 @@ class _InferenceWorker:
             if top_p is not None:
                 gen_kwargs["top_p"] = top_p
 
+            generation = {}
+
             def generate_locked():
-                with loader.lock:
-                    loader.model.generate(**gen_kwargs)
+                try:
+                    with loader.lock:
+                        generation["ids"] = loader.model.generate(**gen_kwargs)
+                except BaseException as e:
+                    # Stop the stream below (it would otherwise wait forever), then re-raise
+                    generation["error"] = e
+                    streamer.end()
 
             # Run generation in a thread so we can stream
             thread = Thread(target=generate_locked)
@@ -471,6 +485,15 @@ class _InferenceWorker:
                     yield text
 
             thread.join()
+            if "error" in generation:
+                raise generation["error"]
+
+            if report_usage:
+                prompt_tokens = inputs.input_ids.shape[1]
+                yield {
+                    "prompt_tokens": prompt_tokens,
+                    "generated_tokens": generation["ids"].shape[1] - prompt_tokens,
+                }
             return
 
         # Handle Ozera models
@@ -531,6 +554,12 @@ class _InferenceWorker:
             if new_text:
                 yield new_text
                 num_yielded_tokens = len(current_ids)
+
+        if report_usage:
+            yield {
+                "prompt_tokens": len(prompt_ids),
+                "generated_tokens": input_ids.size(1) - len(prompt_ids),
+            }
 
     @modal.method()
     def generate_with_activations(
@@ -857,20 +886,47 @@ class _InferenceWorker:
         # Check if any patches require source activations (patch intervention type)
         requires_source = any(p.get('intervention_type', 'patch') == 'patch' for p in patches)
 
-        if self._is_open_source_model(model_id):
-            loader = self._get_open_source_loader(model_id)
+        # The engine keeps captures (GPU tensors) until they're deleted, so each one is
+        # dropped once this request is done with it
+        captured = None
+        try:
+            if self._is_open_source_model(model_id):
+                loader = self._get_open_source_loader(model_id)
 
-            # Hold the model for the whole experiment: capture reads the loader's hook
-            # state, and patch hooks must not fire in other requests' generations
-            with loader.lock:
+                # Hold the model for the whole experiment: capture reads the loader's hook
+                # state, and patch hooks must not fire in other requests' generations
+                with loader.lock:
+                    # Only capture source activations if needed
+                    if source_prompt and requires_source:
+                        captured = engine.capture_source_activations(
+                            prompt=source_prompt,
+                            model_loader=loader,
+                            model_type="open_source",
+                            model_id=model_id,
+                        )
+
+                    # Run patched generation
+                    result = engine.run_patched_generation(
+                        target_prompt=target_prompt,
+                        source_activation_id=captured.id if captured else None,
+                        patches=patch_configs,
+                        model_loader=loader,
+                        model_type="open_source",
+                        max_new_tokens=max_tokens,
+                        temperature=temperature,
+                    )
+            else:
+                # Ozera model
+                model, config = self._get_model(model_id, owner_id, version)
+
                 # Only capture source activations if needed
-                captured = None
                 if source_prompt and requires_source:
                     captured = engine.capture_source_activations(
                         prompt=source_prompt,
-                        model_loader=loader,
-                        model_type="open_source",
+                        model_loader=model,
+                        model_type="ozera",
                         model_id=model_id,
+                        tokenizer=self._tokenizer,
                     )
 
                 # Run patched generation
@@ -878,37 +934,15 @@ class _InferenceWorker:
                     target_prompt=target_prompt,
                     source_activation_id=captured.id if captured else None,
                     patches=patch_configs,
-                    model_loader=loader,
-                    model_type="open_source",
+                    model_loader=model,
+                    model_type="ozera",
+                    tokenizer=self._tokenizer,
                     max_new_tokens=max_tokens,
                     temperature=temperature,
                 )
-        else:
-            # Ozera model
-            model, config = self._get_model(model_id, owner_id, version)
-
-            # Only capture source activations if needed
-            captured = None
-            if source_prompt and requires_source:
-                captured = engine.capture_source_activations(
-                    prompt=source_prompt,
-                    model_loader=model,
-                    model_type="ozera",
-                    model_id=model_id,
-                    tokenizer=self._tokenizer,
-                )
-
-            # Run patched generation
-            result = engine.run_patched_generation(
-                target_prompt=target_prompt,
-                source_activation_id=captured.id if captured else None,
-                patches=patch_configs,
-                model_loader=model,
-                model_type="ozera",
-                tokenizer=self._tokenizer,
-                max_new_tokens=max_tokens,
-                temperature=temperature,
-            )
+        finally:
+            if captured is not None:
+                engine.delete_captured_activations(captured.id)
 
         # Convert to serializable format
         return {
@@ -966,10 +1000,14 @@ class _InferenceWorker:
                 tokenizer=self._tokenizer,
             )
 
-        # Serialize activations for transfer (compact raw bytes)
-        serialized_activations = {}
-        for key, tensor in captured.activations.items():
-            serialized_activations[key] = self._serialize_value(tensor)
+        # The backend keeps the capture; drop the worker's copy (GPU tensors) once encoded
+        try:
+            # Serialize activations for transfer (compact raw bytes)
+            serialized_activations = {}
+            for key, tensor in captured.activations.items():
+                serialized_activations[key] = self._serialize_value(tensor)
+        finally:
+            engine.delete_captured_activations(captured.id)
 
         return {
             "id": captured.id,
@@ -1053,34 +1091,35 @@ class _InferenceWorker:
             for p in patches
         ]
 
-        if self._is_open_source_model(model_id):
-            loader = self._get_open_source_loader(model_id)
-            with loader.lock:
+        try:
+            if self._is_open_source_model(model_id):
+                loader = self._get_open_source_loader(model_id)
+                with loader.lock:
+                    result = engine.run_patched_generation(
+                        target_prompt=target_prompt,
+                        source_activation_id=captured.id,
+                        patches=patch_configs,
+                        model_loader=loader,
+                        model_type="open_source",
+                        max_new_tokens=max_tokens,
+                        temperature=temperature,
+                    )
+            else:
+                # Ozera model
+                model, config = self._get_model(model_id, owner_id, version)
                 result = engine.run_patched_generation(
                     target_prompt=target_prompt,
                     source_activation_id=captured.id,
                     patches=patch_configs,
-                    model_loader=loader,
-                    model_type="open_source",
+                    model_loader=model,
+                    model_type="ozera",
+                    tokenizer=self._tokenizer,
                     max_new_tokens=max_tokens,
                     temperature=temperature,
                 )
-        else:
-            # Ozera model
-            model, config = self._get_model(model_id, owner_id, version)
-            result = engine.run_patched_generation(
-                target_prompt=target_prompt,
-                source_activation_id=captured.id,
-                patches=patch_configs,
-                model_loader=model,
-                model_type="ozera",
-                tokenizer=self._tokenizer,
-                max_new_tokens=max_tokens,
-                temperature=temperature,
-            )
-
-        # Clean up cached activations
-        engine.delete_captured_activations(captured.id)
+        finally:
+            # Clean up cached activations, also when the experiment fails
+            engine.delete_captured_activations(captured.id)
 
         return {
             "baseline_output": result.baseline_output,

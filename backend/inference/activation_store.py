@@ -5,6 +5,7 @@ Stores intermediate activations from model forward passes for visualization
 and analysis purposes.
 """
 
+import os
 import torch
 import numpy as np
 from typing import Dict, Any, Optional, List
@@ -12,6 +13,21 @@ from datetime import datetime
 import uuid
 
 from core.tensor_codec import encode_tensor, is_tensor_entry, slice_last_dim, to_float32, to_wire
+
+# Memory the stored activations may take in all. A visualization of a large open-source
+# model takes up to core.activation_limits.MAX_CAPTURE_BYTES.
+DEFAULT_MAX_BYTES = int(os.getenv("ACTIVATION_STORE_MAX_MB", "2048")) * 1024 * 1024
+
+
+def _entry_bytes(value: Any) -> int:
+    """Bytes of tensor data in a stored value (encoded tensors, nested in dicts/lists)."""
+    if is_tensor_entry(value):
+        return len(value.get("data") or value.get("values") or b"")
+    if isinstance(value, dict):
+        return sum(_entry_bytes(v) for v in value.values())
+    if isinstance(value, list):
+        return sum(_entry_bytes(v) for v in value)
+    return 0
 
 
 class ActivationStore:
@@ -27,17 +43,21 @@ class ActivationStore:
     they don't exist.
     """
 
-    def __init__(self, max_entries: int = 100):
+    def __init__(self, max_entries: int = 100, max_bytes: int = DEFAULT_MAX_BYTES):
         """
         Initialize activation store.
 
         Args:
             max_entries: Maximum number of activation sets to store
+            max_bytes: Maximum tensor data to store in all; the least recently used
+                activation sets are dropped to stay within it
         """
         self.max_entries = max_entries
+        self.max_bytes = max_bytes
         self._store: Dict[str, Dict[str, Any]] = {}
         self._owners: Dict[str, Optional[int]] = {}
         self._access_times: Dict[str, datetime] = {}
+        self._sizes: Dict[str, int] = {}
 
     def store_activations(
         self,
@@ -65,12 +85,16 @@ class ActivationStore:
         # Generate unique ID
         activation_id = str(uuid.uuid4())
 
-        # Clean up old entries if needed
-        if len(self._store) >= self.max_entries:
-            self._cleanup_oldest()
-
         # Convert tensors to numpy for storage
         processed_activations = self._process_activations(activations)
+        size = _entry_bytes(processed_activations)
+
+        # Clean up old entries to make room (by count and by size)
+        while self._store and (
+            len(self._store) >= self.max_entries
+            or sum(self._sizes.values()) + size > self.max_bytes
+        ):
+            self._cleanup_oldest()
 
         # Store activation data
         self._store[activation_id] = {
@@ -83,6 +107,7 @@ class ActivationStore:
             'metadata': metadata or {}
         }
         self._owners[activation_id] = user_id
+        self._sizes[activation_id] = size
 
         self._access_times[activation_id] = datetime.now()
 
@@ -353,12 +378,14 @@ class ActivationStore:
         self._store.clear()
         self._owners.clear()
         self._access_times.clear()
+        self._sizes.clear()
 
     def _remove(self, activation_id: str):
         """Remove an entry."""
         del self._store[activation_id]
         del self._owners[activation_id]
         del self._access_times[activation_id]
+        del self._sizes[activation_id]
 
     def _process_activations(self, activations: Dict[str, Any]) -> Dict[str, Any]:
         """

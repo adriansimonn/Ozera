@@ -9,12 +9,62 @@ from typing import Callable, Optional, Literal
 import torch
 
 
+class PositionOffset:
+    """
+    Absolute position of the first token in the current forward pass.
+
+    With a KV cache, HuggingFace generate() runs the prompt once and then only the newest
+    token in each pass, so a module's output covers positions [start, start + n), not
+    [0, n). Attached to the model's decoder stack, this records `start` from the position
+    IDs of each pass, and the patch hooks below use it to address absolute positions.
+    """
+
+    def __init__(self):
+        self.start = 0
+
+    def _record(self, module, args, kwargs):
+        position_ids = kwargs.get("position_ids")
+        if position_ids is not None:
+            self.start = int(position_ids.reshape(-1)[0])
+        else:
+            cache = kwargs.get("past_key_values")
+            self.start = cache.get_seq_length() if cache is not None else 0
+
+    def attach(self, decoder: torch.nn.Module):
+        """Track the passes of a decoder stack (e.g. LlamaModel). Returns the hook handle."""
+        return decoder.register_forward_pre_hook(self._record, with_kwargs=True)
+
+
+def _in_chunk(
+    source: Optional[torch.Tensor],
+    positions: Optional[list[int]],
+    offset: Optional[PositionOffset],
+    seq_dim: int = 1,
+) -> tuple[Optional[torch.Tensor], Optional[list[int]]]:
+    """
+    The part of a patch that falls in the current forward pass's chunk of the sequence.
+
+    Returns the source from the chunk's first position on, and the positions to patch
+    relative to the chunk. Positions before the chunk were patched in earlier passes, and
+    their results are in the KV cache.
+    """
+    start = offset.start if offset is not None else 0
+    if start == 0:
+        return source, positions
+    if source is not None:
+        source = source[(slice(None),) * seq_dim + (slice(start, None),)]
+    if positions is not None:
+        positions = [pos - start for pos in positions if pos >= start]
+    return source, positions
+
+
 def create_replacement_hook(
     source_activation: torch.Tensor,
     positions: Optional[list[int]] = None,
     blend_factor: float = 1.0,
     storage: Optional[dict] = None,
     storage_key: Optional[str] = None,
+    offset: Optional[PositionOffset] = None,
 ) -> Callable:
     """
     Create a forward hook that replaces activations with source values.
@@ -32,6 +82,8 @@ def create_replacement_hook(
             1.0 = full replacement, 0.0 = no change, 0.5 = average.
         storage: Optional dict to store both original and patched values.
         storage_key: Key prefix for storage (e.g., "layer_0_attn_output").
+        offset: Where each forward pass starts in the sequence, when passes cover only
+            part of it (KV-cached generation). None means every pass starts at 0.
 
     Returns:
         Hook function compatible with register_forward_hook.
@@ -56,8 +108,10 @@ def create_replacement_hook(
         if source.dim() == tensor.dim() and source.shape[0] != tensor.shape[0]:
             source = source.expand(tensor.shape[0], -1, -1)
 
+        source, chunk_positions = _in_chunk(source, positions, offset)
+
         # Apply patch
-        if positions is None:
+        if chunk_positions is None:
             # Patch all positions
             # Handle case where source might have different sequence length
             min_seq_len = min(tensor.shape[1], source.shape[1])
@@ -72,7 +126,7 @@ def create_replacement_hook(
         else:
             # Patch specific positions
             patched = tensor.clone()
-            for pos in positions:
+            for pos in chunk_positions:
                 if pos < tensor.shape[1] and pos < source.shape[1]:
                     if blend_factor == 1.0:
                         patched[:, pos] = source[:, pos]
@@ -101,6 +155,7 @@ def create_attention_patch_hook(
     blend_factor: float = 1.0,
     storage: Optional[dict] = None,
     storage_key: Optional[str] = None,
+    offset: Optional[PositionOffset] = None,
 ) -> Callable:
     """
     Create a hook for patching attention outputs with head-level control.
@@ -116,6 +171,7 @@ def create_attention_patch_hook(
         blend_factor: Interpolation factor (1.0 = full replacement).
         storage: Optional dict to store original/patched values.
         storage_key: Key prefix for storage.
+        offset: Where each forward pass starts in the sequence (see create_replacement_hook).
 
     Returns:
         Hook function for attention module.
@@ -142,10 +198,11 @@ def create_attention_patch_hook(
         # If heads are specified and tensor is in per-head format
         if heads is not None and tensor.dim() == 4:
             # Shape: [batch, num_heads, seq_len, d_k]
+            source, chunk_positions = _in_chunk(source, positions, offset, seq_dim=2)
             patched = tensor.clone()
             for head_idx in heads:
                 if head_idx < tensor.shape[1]:
-                    if positions is None:
+                    if chunk_positions is None:
                         min_seq = min(tensor.shape[2], source.shape[2])
                         if blend_factor == 1.0:
                             patched[:, head_idx, :min_seq] = source[:, head_idx, :min_seq]
@@ -155,7 +212,7 @@ def create_attention_patch_hook(
                                 blend_factor * source[:, head_idx, :min_seq]
                             )
                     else:
-                        for pos in positions:
+                        for pos in chunk_positions:
                             if pos < tensor.shape[2] and pos < source.shape[2]:
                                 if blend_factor == 1.0:
                                     patched[:, head_idx, pos] = source[:, head_idx, pos]
@@ -166,10 +223,11 @@ def create_attention_patch_hook(
                                     )
         else:
             # Standard replacement without head-level control
+            source, chunk_positions = _in_chunk(source, positions, offset)
             patched = tensor.clone()
             min_seq = min(tensor.shape[1], source.shape[1])
 
-            if positions is None:
+            if chunk_positions is None:
                 if blend_factor == 1.0:
                     patched[:, :min_seq] = source[:, :min_seq]
                 else:
@@ -178,7 +236,7 @@ def create_attention_patch_hook(
                         blend_factor * source[:, :min_seq]
                     )
             else:
-                for pos in positions:
+                for pos in chunk_positions:
                     if pos < tensor.shape[1] and pos < source.shape[1]:
                         if blend_factor == 1.0:
                             patched[:, pos] = source[:, pos]
@@ -206,6 +264,7 @@ def create_mlp_patch_hook(
     blend_factor: float = 1.0,
     storage: Optional[dict] = None,
     storage_key: Optional[str] = None,
+    offset: Optional[PositionOffset] = None,
 ) -> Callable:
     """
     Create a hook for patching MLP (feed-forward) outputs.
@@ -222,6 +281,7 @@ def create_mlp_patch_hook(
         blend_factor: Interpolation factor (1.0 = full replacement).
         storage: Optional dict to store original/patched values.
         storage_key: Key prefix for storage.
+        offset: Where each forward pass starts in the sequence (see create_replacement_hook).
 
     Returns:
         Hook function for MLP module.
@@ -244,6 +304,7 @@ def create_mlp_patch_hook(
         if source.dim() == tensor.dim() and source.shape[0] != tensor.shape[0]:
             source = source.expand(tensor.shape[0], -1, -1)
 
+        source, chunk_positions = _in_chunk(source, positions, offset)
         patched = tensor.clone()
         min_seq = min(tensor.shape[1], source.shape[1])
 
@@ -251,7 +312,7 @@ def create_mlp_patch_hook(
             # Patch specific neurons
             for neuron_idx in neurons:
                 if neuron_idx < tensor.shape[-1]:
-                    if positions is None:
+                    if chunk_positions is None:
                         if blend_factor == 1.0:
                             patched[:, :min_seq, neuron_idx] = source[:, :min_seq, neuron_idx]
                         else:
@@ -260,7 +321,7 @@ def create_mlp_patch_hook(
                                 blend_factor * source[:, :min_seq, neuron_idx]
                             )
                     else:
-                        for pos in positions:
+                        for pos in chunk_positions:
                             if pos < tensor.shape[1] and pos < source.shape[1]:
                                 if blend_factor == 1.0:
                                     patched[:, pos, neuron_idx] = source[:, pos, neuron_idx]
@@ -271,7 +332,7 @@ def create_mlp_patch_hook(
                                     )
         else:
             # Patch all neurons
-            if positions is None:
+            if chunk_positions is None:
                 if blend_factor == 1.0:
                     patched[:, :min_seq] = source[:, :min_seq]
                 else:
@@ -280,7 +341,7 @@ def create_mlp_patch_hook(
                         blend_factor * source[:, :min_seq]
                     )
             else:
-                for pos in positions:
+                for pos in chunk_positions:
                     if pos < tensor.shape[1] and pos < source.shape[1]:
                         if blend_factor == 1.0:
                             patched[:, pos] = source[:, pos]
@@ -307,6 +368,7 @@ def create_residual_patch_hook(
     blend_factor: float = 1.0,
     storage: Optional[dict] = None,
     storage_key: Optional[str] = None,
+    offset: Optional[PositionOffset] = None,
 ) -> Callable:
     """
     Create a hook for patching residual stream (post-residual connection).
@@ -321,6 +383,7 @@ def create_residual_patch_hook(
         blend_factor: Interpolation factor (1.0 = full replacement).
         storage: Optional dict to store original/patched values.
         storage_key: Key prefix for storage.
+        offset: Where each forward pass starts in the sequence (see create_replacement_hook).
 
     Returns:
         Hook function for residual connection output.
@@ -332,6 +395,7 @@ def create_residual_patch_hook(
         blend_factor=blend_factor,
         storage=storage,
         storage_key=storage_key,
+        offset=offset,
     )
 
 
@@ -342,6 +406,7 @@ def create_zero_ablation_hook(
     ablation_type: Literal['zero_ablate', 'mean_ablate', 'noise_ablate'] = 'zero_ablate',
     storage: Optional[dict] = None,
     storage_key: Optional[str] = None,
+    offset: Optional[PositionOffset] = None,
 ) -> Callable:
     """
     Create a hook that ablates activations (zero, mean, or noise ablation).
@@ -358,6 +423,9 @@ def create_zero_ablation_hook(
             - 'noise_ablate': Replace with Gaussian noise matching activation statistics
         storage: Optional dict to store original values.
         storage_key: Key prefix for storage.
+        offset: Where each forward pass starts in the sequence (see create_replacement_hook).
+            Mean and noise ablation are computed from the pass's own tensor, so they need
+            passes that cover the whole sequence.
 
     Returns:
         Hook function for ablation.
@@ -373,6 +441,8 @@ def create_zero_ablation_hook(
         # Store original
         if storage is not None and storage_key is not None:
             storage[f"{storage_key}_original"] = tensor.detach().clone()
+
+        _, chunk_positions = _in_chunk(None, positions, offset)
 
         # Compute the ablation value based on type
         if ablation_type == 'zero_ablate':
@@ -391,7 +461,7 @@ def create_zero_ablation_hook(
 
         ablated = tensor.clone()
 
-        if positions is None and dimensions is None:
+        if chunk_positions is None and dimensions is None:
             # Ablate everything
             if blend_factor == 1.0:
                 ablated = ablation_value
@@ -401,13 +471,13 @@ def create_zero_ablation_hook(
             # Ablate specific dimensions
             for dim in dimensions:
                 if dim < tensor.shape[-1]:
-                    if positions is None:
+                    if chunk_positions is None:
                         if blend_factor == 1.0:
                             ablated[:, :, dim] = ablation_value[:, :, dim]
                         else:
                             ablated[:, :, dim] = (1 - blend_factor) * tensor[:, :, dim] + blend_factor * ablation_value[:, :, dim]
                     else:
-                        for pos in positions:
+                        for pos in chunk_positions:
                             if pos < tensor.shape[1]:
                                 if blend_factor == 1.0:
                                     ablated[:, pos, dim] = ablation_value[:, pos, dim]
@@ -415,7 +485,7 @@ def create_zero_ablation_hook(
                                     ablated[:, pos, dim] = (1 - blend_factor) * tensor[:, pos, dim] + blend_factor * ablation_value[:, pos, dim]
         else:
             # Ablate specific positions (all dimensions)
-            for pos in positions:
+            for pos in chunk_positions:
                 if pos < tensor.shape[1]:
                     if blend_factor == 1.0:
                         ablated[:, pos] = ablation_value[:, pos]

@@ -134,8 +134,9 @@ class TextGenerator:
         max_tokens: int = 200,
         temperature: float = 0.8,
         top_k: Optional[int] = 40,
-        top_p: Optional[float] = None
-    ) -> Iterator[str]:
+        top_p: Optional[float] = None,
+        report_usage: bool = False,
+    ) -> Iterator[str | Dict[str, int]]:
         """
         Generate text from a prompt with streaming (yields tokens as generated).
 
@@ -145,6 +146,8 @@ class TextGenerator:
             temperature: Sampling temperature
             top_k: Top-k sampling parameter
             top_p: Nucleus sampling parameter
+            report_usage: Finish with a dict of the real token counts
+                ({"prompt_tokens", "generated_tokens"}), which requests are billed by
 
         Yields:
             Generated text token by token
@@ -209,6 +212,12 @@ class TextGenerator:
             if new_text:
                 yield new_text
                 num_yielded_tokens = len(current_ids)
+
+        if report_usage:
+            yield {
+                'prompt_tokens': len(prompt_ids),
+                'generated_tokens': input_ids.size(1) - len(prompt_ids),
+            }
 
     def count_tokens(self, text: str) -> int:
         """

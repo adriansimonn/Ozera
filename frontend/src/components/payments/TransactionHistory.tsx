@@ -30,6 +30,8 @@ function getTransactionIcon(type: Transaction['transaction_type']) {
       return <ArrowUpRight size={16} className="text-purple-400" />;
     case 'inference_charge':
       return <MessageSquare size={16} className="text-yellow-400" />;
+    case 'inference_refund':
+      return <RefreshCcw size={16} className="text-blue-400" />;
     case 'patching_charge':
       return <Zap size={16} className="text-pink-400" />;
     case 'analysis_charge':
@@ -51,6 +53,8 @@ function getTransactionLabel(type: Transaction['transaction_type']) {
       return 'Adjustment';
     case 'inference_charge':
       return 'Inference';
+    case 'inference_refund':
+      return 'Inference Refund';
     case 'patching_charge':
       return 'Patching Experiment';
     case 'analysis_charge':

@@ -15,6 +15,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import Optional
 from slowapi.errors import RateLimitExceeded
+from contextlib import asynccontextmanager
+import asyncio
 import gzip
 import logging
 import sys
@@ -29,6 +31,8 @@ from inference import ModelLoader
 from inference.activation_store import get_activation_store
 from services.inference_router import get_inference_router
 from services.custom_models import list_custom_model_names, resolve_model
+from services.job_reconciler import run_training_job_reconciler
+from core.activation_limits import ActivationLimitError
 from core.open_source import OPEN_SOURCE_MODELS
 from services.credit_service import (
     calculate_inference_cost,
@@ -51,6 +55,7 @@ from api.analysis import router as analysis_router
 from api.export import router as export_router
 from api.sae import router as sae_router
 from api.settings import router as settings_router
+from api.streaming import SSE_HEADERS, billed_generation_stream
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from models.database import JobStatus, TrainingJob, TransactionType, UploadedModel, User
@@ -68,10 +73,21 @@ if _app_env == "production":
     if _missing:
         raise RuntimeError(f"Missing required environment variables for production: {', '.join(_missing)}")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Settle training jobs whose worker never reported back (e.g. killed at its timeout)
+    reconciler = asyncio.create_task(run_training_job_reconciler())
+    try:
+        yield
+    finally:
+        reconciler.cancel()
+
+
 app = FastAPI(
     title="Ozera API",
     description="Text generation API for Ozera language models",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Rate limiting
@@ -493,13 +509,15 @@ async def generate_stream(
     Generate text from a prompt with streaming (Server-Sent Events).
 
     Routes to local or Modal inference based on INFERENCE_MODE env var.
-    Requires authentication and charges user credits.
+    Requires authentication and charges user credits: max_tokens up front, settled to the
+    tokens actually used when the stream ends (see api/streaming.py).
     """
     model = resolve_model(db, current_user.id, body.model)
 
     # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
+    prompt_token_estimate = len(body.prompt.split()) * 2  # Rough estimate
     estimated_cost = calculate_inference_cost(
-        prompt_tokens=len(body.prompt.split()) * 2,  # Rough estimate
+        prompt_tokens=prompt_token_estimate,
         generated_tokens=body.max_tokens,
         model_id=body.model,
     )
@@ -510,9 +528,8 @@ async def generate_stream(
         )
 
     # Charge upfront based on estimated cost before streaming begins
-    prompt_token_estimate = len(body.prompt.split()) * 2
     try:
-        charge_inference(
+        transaction = charge_inference(
             db=db,
             user_id=current_user.id,
             prompt_tokens=prompt_token_estimate,
@@ -525,55 +542,21 @@ async def generate_stream(
         logger.exception("Failed to charge credits before streaming")
         raise HTTPException(status_code=500, detail="Failed to reserve credits for generation")
 
-    try:
-        async def event_stream():
-            token_count = 0
-            try:
-                data = json.dumps({'type': 'start', 'prompt': body.prompt}, ensure_ascii=False)
-                yield f"data: {data}\n\n".encode('utf-8')
-
-                async for token in inference_router.generate_stream(
-                    model=model,
-                    prompt=body.prompt,
-                    max_tokens=body.max_tokens,
-                    temperature=body.temperature,
-                    top_k=body.top_k,
-                    top_p=body.top_p,
-                ):
-                    token_count += 1
-                    data = json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)
-                    yield f"data: {data}\n\n".encode('utf-8')
-
-                done_payload = {
-                    'type': 'done',
-                    'token_count': token_count,
-                    'charged': True,
-                }
-                data = json.dumps(done_payload, ensure_ascii=False)
-                yield f"data: {data}\n\n".encode('utf-8')
-
-            except Exception as e:
-                data = json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)
-                yield f"data: {data}\n\n".encode('utf-8')
-
-        return StreamingResponse(
-            event_stream(),
-            media_type="text/event-stream; charset=utf-8",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-                "Content-Type": "text/event-stream; charset=utf-8"
-            }
-        )
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid request"))
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=safe_detail(e, "Resource not found"))
-    except Exception:
-        logger.exception("Unhandled error")
-        raise HTTPException(status_code=500, detail="Internal server error")
+    chunks = inference_router.generate_stream(
+        model=model,
+        prompt=body.prompt,
+        max_tokens=body.max_tokens,
+        temperature=body.temperature,
+        top_k=body.top_k,
+        top_p=body.top_p,
+    )
+    return StreamingResponse(
+        billed_generation_stream(
+            chunks, body.prompt, current_user.id, body.model, charged_usd=-float(transaction.amount_usd)
+        ),
+        media_type="text/event-stream; charset=utf-8",
+        headers=SSE_HEADERS,
+    )
 
 
 @app.post("/generate/with-activations")
@@ -653,6 +636,9 @@ async def generate_with_activations(
 
     except InsufficientBalanceError:
         raise HTTPException(status_code=402, detail="Insufficient credits.")
+    except ActivationLimitError as e:
+        # Too many tokens to visualize on this model; the message says how many fit
+        raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid request"))
     except FileNotFoundError as e:

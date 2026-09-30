@@ -596,6 +596,61 @@ def charge_inference(
     )
 
 
+def settle_inference_charge(
+    db: Session,
+    user_id: int,
+    charged_usd: float,
+    actual_usd: float,
+    description: str,
+) -> float:
+    """
+    Settle an inference request that was charged up front to what it actually cost.
+
+    Streaming is charged for max_tokens before it starts. If the request cost less (it
+    stopped early, or failed and is owed actual_usd=0, as failed requests aren't charged
+    elsewhere either), the difference is refunded. If it cost more (its prompt had more
+    tokens than estimated), the rest is charged, up to the available balance so the
+    balance never goes negative.
+
+    actual_usd should come from calculate_inference_cost, which keeps the per-request minimum.
+
+    Returns:
+        The amount refunded (negative if more was charged; 0 if nothing changed)
+    """
+    # The ledger stores 4 decimal places
+    delta = (_to_decimal(charged_usd) - _to_decimal(actual_usd)).quantize(Decimal("0.0001"))
+    if delta == 0:
+        return 0.0
+
+    # Lock the row to prevent concurrent read-modify-write races
+    credit_balance = get_credit_balance_for_update(db, user_id)
+    if credit_balance is None:
+        db.rollback()
+        return 0.0
+
+    if delta > 0:
+        amount = delta
+        transaction_type = TransactionType.INFERENCE_REFUND
+    else:
+        amount = -min(-delta, max(credit_balance.available_balance, Decimal(0)))
+        transaction_type = TransactionType.INFERENCE_CHARGE
+        if amount == 0:
+            db.rollback()
+            return 0.0
+
+    credit_balance.balance_usd += amount
+    credit_balance.updated_at = datetime.utcnow()
+    db.add(Transaction(
+        user_id=user_id,
+        amount_usd=amount,
+        transaction_type=transaction_type,
+        description=description,
+    ))
+    db.commit()
+
+    return float(amount)
+
+
 def charge_flat(
     db: Session,
     user_id: int,

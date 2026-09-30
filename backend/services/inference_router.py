@@ -187,7 +187,7 @@ class InferenceRouter:
         temperature: float = 0.8,
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[str | dict]:
         """
         Stream text generation.
 
@@ -200,7 +200,8 @@ class InferenceRouter:
             top_p: Nucleus sampling
 
         Yields:
-            Generated text tokens
+            Generated text tokens, then a dict of the request's real token counts
+            ({"prompt_tokens", "generated_tokens"})
         """
         if self.is_modal_mode():
             async for token in self._stream_modal(
@@ -230,6 +231,7 @@ class InferenceRouter:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            report_usage=True,
         )
 
     async def _stream_modal(
@@ -240,7 +242,7 @@ class InferenceRouter:
         temperature: float,
         top_k: Optional[int],
         top_p: Optional[float],
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[str | dict]:
         """Stream using Modal inference."""
         from services.modal_inference import get_inference_worker
 
@@ -254,6 +256,7 @@ class InferenceRouter:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            report_usage=True,
             **model.worker_kwargs(),
         ):
             yield token

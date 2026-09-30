@@ -101,6 +101,7 @@ class TransactionType(PyEnum):
     TRAINING_REFUND = "training_refund"
     ADMIN_ADJUSTMENT = "admin_adjustment"
     INFERENCE_CHARGE = "inference_charge"
+    INFERENCE_REFUND = "inference_refund"
     PATCHING_CHARGE = "patching_charge"
     ANALYSIS_CHARGE = "analysis_charge"
     SAE_CHARGE = "sae_charge"

@@ -12,9 +12,11 @@ from api.error_utils import safe_detail
 from sqlalchemy.orm import Session
 from typing import Optional
 
+from core.activation_limits import ActivationLimitError
 from core.open_source import OPEN_SOURCE_MODELS, OpenSourceModelLoader, get_gpu_tier, get_loader_for_model
 from core.patching import get_patching_engine, PatchConfig
-from core.tensor_codec import encode_tensor, is_tensor_entry, to_float32, to_wire
+from core.patching.engine import CaptureTooLargeError, patch_activation_key
+from core.tensor_codec import encode_tensor, is_tensor_entry, to_float32
 from api.schemas.patching import (
     CaptureActivationsRequest,
     CaptureActivationsResponse,
@@ -142,9 +144,12 @@ async def capture_activations(
             **model.worker_kwargs(),
         )
 
-        # Reconstruct activations locally for caching
+        # Reconstruct activations locally for caching (without logits, which nothing uses
+        # and which workers from before they were dropped still send)
         reconstructed_activations = {}
         for key, value in result['activations'].items():
+            if key == 'logits':
+                continue
             if is_tensor_entry(value):
                 reconstructed_activations[key] = torch.tensor(to_float32(value))
             elif isinstance(value, list):
@@ -181,6 +186,10 @@ async def capture_activations(
 
     except InsufficientBalanceError:
         raise HTTPException(status_code=402, detail="INSUFFICIENT_CREDITS")
+    except ActivationLimitError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except CaptureTooLargeError as e:
+        raise HTTPException(status_code=413, detail=str(e))
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to capture activations")
 
@@ -375,6 +384,9 @@ async def run_patching_experiment(
 
     except InsufficientBalanceError:
         raise HTTPException(status_code=402, detail="Insufficient credits.")
+    except ActivationLimitError as e:
+        # The source prompt is too long to capture on this model
+        raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid patching request"))
     except HTTPException:
@@ -442,7 +454,13 @@ async def run_patching_with_captured(
         # All models run on Modal GPU (base, open-source, and custom)
         worker = _get_inference_worker(request.model)
 
-        # Serialize activations for transfer to Modal
+        # Serialize activations for transfer to Modal: only those the patches replace (a
+        # capture holds every layer's), as compact raw bytes
+        needed_keys = {
+            patch_activation_key(p.patch_type, p.layer)
+            for p in request.patches
+            if p.intervention_type == 'patch'
+        }
         serialized_activations = {
             'id': captured.id,
             'prompt': captured.prompt,
@@ -452,8 +470,9 @@ async def run_patching_with_captured(
             'model_id': captured.model_id,
             'num_layers': captured.num_layers,
             'activations': {
-                key: to_wire(encode_tensor(tensor)) if isinstance(tensor, torch.Tensor) else tensor
+                key: encode_tensor(tensor) if isinstance(tensor, torch.Tensor) else tensor
                 for key, tensor in captured.activations.items()
+                if key in needed_keys
             },
         }
 

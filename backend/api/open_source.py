@@ -19,6 +19,7 @@ import json
 
 logger = logging.getLogger(__name__)
 
+from core.activation_limits import ActivationLimitError
 from core.open_source import OPEN_SOURCE_MODELS, ModelFamily
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import limiter
@@ -33,6 +34,7 @@ from services.credit_service import (
     InsufficientBalanceError,
 )
 from inference.activation_store import get_activation_store
+from api.streaming import SSE_HEADERS, billed_generation_stream
 
 router = APIRouter(prefix="/open-source", tags=["Open Source Models"])
 
@@ -429,14 +431,16 @@ async def generate_stream(
     Stream text generation using an open-source model.
 
     Returns Server-Sent Events with generated tokens.
-    Requires authentication and charges user credits.
+    Requires authentication and charges user credits: max_tokens up front, settled to the
+    tokens actually used when the stream ends (see api/streaming.py).
     """
     if body.model not in OPEN_SOURCE_MODELS:
         raise HTTPException(status_code=404, detail=f"Unknown model: {body.model}")
 
     # Check credits (with model-size-based pricing)
+    prompt_token_estimate = len(body.prompt.split()) * 2
     estimated_cost = calculate_inference_cost(
-        prompt_tokens=len(body.prompt.split()) * 2,
+        prompt_tokens=prompt_token_estimate,
         generated_tokens=body.max_tokens,
         model_id=body.model,
     )
@@ -447,9 +451,8 @@ async def generate_stream(
         )
 
     # Charge upfront based on estimated cost before streaming begins
-    prompt_token_estimate = len(body.prompt.split()) * 2
     try:
-        charge_inference(
+        transaction = charge_inference(
             db=db,
             user_id=current_user.id,
             prompt_tokens=prompt_token_estimate,
@@ -462,48 +465,25 @@ async def generate_stream(
         logger.exception("Failed to charge credits before streaming")
         raise HTTPException(status_code=500, detail="Failed to reserve credits for generation")
 
-    async def event_stream():
-        token_count = 0
-
-        try:
-            data = json.dumps({'type': 'start', 'prompt': body.prompt}, ensure_ascii=False)
-            yield f"data: {data}\n\n".encode('utf-8')
-
-            worker = _get_inference_worker(body.model)
-
-            async for token in worker().generate_stream.remote_gen.aio(
-                model_id=body.model,
-                prompt=body.prompt,
-                max_tokens=body.max_tokens,
-                temperature=body.temperature,
-                top_k=body.top_k,
-                top_p=body.top_p,
-            ):
-                token_count += 1
-                data = json.dumps({'type': 'token', 'text': token}, ensure_ascii=False)
-                yield f"data: {data}\n\n".encode('utf-8')
-
-            done_payload = {
-                'type': 'done',
-                'token_count': token_count,
-                'charged': True,
-            }
-            data = json.dumps(done_payload, ensure_ascii=False)
-            yield f"data: {data}\n\n".encode('utf-8')
-
-        except Exception as e:
-            data = json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)
-            yield f"data: {data}\n\n".encode('utf-8')
+    async def chunks():
+        worker = _get_inference_worker(body.model)
+        async for chunk in worker().generate_stream.remote_gen.aio(
+            model_id=body.model,
+            prompt=body.prompt,
+            max_tokens=body.max_tokens,
+            temperature=body.temperature,
+            top_k=body.top_k,
+            top_p=body.top_p,
+            report_usage=True,
+        ):
+            yield chunk
 
     return StreamingResponse(
-        event_stream(),
+        billed_generation_stream(
+            chunks(), body.prompt, current_user.id, body.model, charged_usd=-float(transaction.amount_usd)
+        ),
         media_type="text/event-stream; charset=utf-8",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-            "Content-Type": "text/event-stream; charset=utf-8"
-        }
+        headers=SSE_HEADERS,
     )
 
 
@@ -584,6 +564,9 @@ async def generate_with_activations(
 
     except InsufficientBalanceError:
         raise HTTPException(status_code=402, detail="Insufficient credits.")
+    except ActivationLimitError as e:
+        # Too many tokens to visualize on this model; the message says how many fit
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception:

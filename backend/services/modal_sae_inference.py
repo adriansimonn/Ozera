@@ -107,6 +107,78 @@ MODEL_CONFIGS = {
 }
 
 
+# GPU memory the service's cached models (Ozera and HuggingFace base models, SAEs) may take.
+# The L4 has 24 GB; the rest is left for activations and for loading the next model.
+MODEL_CACHE_MAX_BYTES = 14 * 1024**3
+
+
+def _weights_bytes(value) -> int:
+    """Bytes of the parameters and buffers of the torch modules in a cached value."""
+    import torch
+
+    total = 0
+    for item in value if isinstance(value, tuple) else (value,):
+        if isinstance(item, torch.nn.Module):
+            tensors = [*item.parameters(), *item.buffers()]
+            total += sum(t.numel() * t.element_size() for t in tensors)
+    return total
+
+
+class _ModelCache:
+    """
+    Loaded models by key, bounded by the memory their weights take.
+
+    External SAEs and their HuggingFace base models are loaded on demand, so without a bound
+    a container runs out of GPU memory after enough distinct ones. The least recently used
+    models are dropped to make room. The web endpoint serves one request at a time per
+    container, so no other request is using a dropped model (and a caller still holding
+    one keeps it alive until it's done).
+    """
+
+    def __init__(self, max_bytes: int):
+        from collections import OrderedDict
+
+        self._max_bytes = max_bytes
+        self._entries = OrderedDict()  # key -> (value, bytes), least recently used first
+
+    def get(self, key: str, load):
+        """The cached value for key, loading it with load() if it isn't cached."""
+        import torch
+
+        if key in self._entries:
+            self._entries.move_to_end(key)
+            return self._entries[key][0]
+
+        try:
+            value = load()
+        except torch.cuda.OutOfMemoryError:
+            # Free the cached models and try once more
+            self._evict(0)
+            value = load()
+
+        self._entries[key] = (value, _weights_bytes(value))
+        self._evict(self._max_bytes, keep=key)
+        return value
+
+    def _evict(self, max_bytes: int, keep: Optional[str] = None) -> None:
+        """Drop the least recently used entries (other than keep) until the rest fit."""
+        import gc
+        import torch
+
+        evicted = False
+        for key in list(self._entries):
+            if sum(size for _, size in self._entries.values()) <= max_bytes:
+                break
+            if key != keep:
+                del self._entries[key]
+                evicted = True
+
+        if evicted:
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+
 class SAEInferenceService:
     """
     Service class for SAE inference.
@@ -116,8 +188,7 @@ class SAEInferenceService:
     """
 
     def __init__(self):
-        self._transformer_cache = {}
-        self._sae_cache = {}
+        self._models = _ModelCache(MODEL_CACHE_MAX_BYTES)
         self._tokenizer = None
 
     @property
@@ -130,38 +201,32 @@ class SAEInferenceService:
 
     def load_transformer(self, model_name: str, device: str = "cuda"):
         """Load transformer model with caching."""
-        cache_key = f"{model_name}_{device}"
-
-        if cache_key not in self._transformer_cache:
+        def load():
             import sys
             sys.path.insert(0, "/app/backend")
 
             from inference.model_loader import load_model
 
-            model, config = load_model(
+            return load_model(
                 model_name,
                 models_dir="/models/base",
                 device=device,
             )
-            self._transformer_cache[cache_key] = (model, config)
 
-        return self._transformer_cache[cache_key]
+        return self._models.get(f"transformer_{model_name}_{device}", load)
 
     def load_sae(self, model_name: str, layer: int, activation_type: str, device: str = "cuda"):
         """Load SAE model with caching."""
-        cache_key = f"{model_name}_{layer}_{activation_type}_{device}"
-
-        if cache_key not in self._sae_cache:
+        def load():
             import sys
             sys.path.insert(0, "/app/backend")
 
             from core.sae.checkpoints import load_sae_checkpoint
 
             sae_path = f"/saes/{model_name}/layer_{layer}_{activation_type}"
-            sae_model, sae_config, metadata = load_sae_checkpoint(sae_path, device=device)
-            self._sae_cache[cache_key] = (sae_model, sae_config, metadata)
+            return tuple(load_sae_checkpoint(sae_path, device=device))
 
-        return self._sae_cache[cache_key]
+        return self._models.get(f"sae_{model_name}_{layer}_{activation_type}_{device}", load)
 
     def get_activations(self, model, config, input_ids, layer: int, activation_type: str):
         """
@@ -198,25 +263,20 @@ class SAEInferenceService:
 
     def load_external_sae_model(self, sae_id: str, device: str = "cuda"):
         """Load an external SAE from the volume with caching."""
-        cache_key = f"external_{sae_id}_{device}"
-
-        if cache_key not in self._sae_cache:
+        def load():
             import sys
             sys.path.insert(0, "/app/backend")
 
             from core.sae.checkpoints import load_sae_checkpoint
 
             sae_path = f"{EXTERNAL_SAES_ROOT}/{sae_id}"
-            sae_model, sae_config, metadata = load_sae_checkpoint(sae_path, device=device)
-            self._sae_cache[cache_key] = (sae_model, sae_config, metadata)
+            return tuple(load_sae_checkpoint(sae_path, device=device))
 
-        return self._sae_cache[cache_key]
+        return self._models.get(f"external_{sae_id}_{device}", load)
 
     def load_hf_model(self, model_name: str, device: str = "cuda"):
         """Load a HuggingFace base model and tokenizer with caching."""
-        cache_key = f"hf_{model_name}_{device}"
-
-        if cache_key not in self._transformer_cache:
+        def load():
             from transformers import AutoModelForCausalLM, AutoTokenizer
             import torch
 
@@ -231,9 +291,9 @@ class SAEInferenceService:
                 token=hf_token,
             )
             model.eval()
-            self._transformer_cache[cache_key] = (model, tokenizer)
+            return model, tokenizer
 
-        return self._transformer_cache[cache_key]
+        return self._models.get(f"hf_{model_name}_{device}", load)
 
     def get_hf_activations(self, model, input_ids, hookpoint: str, metadata: dict):
         """

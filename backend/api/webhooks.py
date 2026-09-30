@@ -12,8 +12,8 @@ from sqlalchemy.orm import Session
 
 from db import get_db
 from models.database import TrainingJob, JobStatus
-from services.custom_models import delete_replaced_models, remove_replaced_model_files
-from services.job_orchestrator import settle_completed_job, handle_failed_job
+from services.custom_models import remove_replaced_model_files
+from services.job_orchestrator import finish_job
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -110,31 +110,14 @@ async def receive_training_progress(
         job.error_message = update.error_message
 
     # Handle status changes
-    if update.status == "completed":
-        job.status = JobStatus.COMPLETED
-        job.completed_at = datetime.utcnow()
-
-        # The new model replaces the models the user had when submitting the job (committed
-        # with the settlement below). They were kept until now in case the job failed.
-        replaced_models = delete_replaced_models(
-            db, user_id, existing_at=job.created_at, new_job_id=job_id
-        )
-
-        # Settle the job (charge actual cost, refund difference)
-        if update.actual_minutes is not None:
-            await settle_completed_job(db, job_id, update.actual_minutes)
-        else:
-            # Calculate from elapsed_seconds if actual_minutes not provided
+    if update.status in ("completed", "failed"):
+        # Settle the job: charge the actual cost (a failure's partial cost), refund the
+        # rest. Calculated from elapsed_seconds if actual_minutes isn't provided.
+        actual_minutes = update.actual_minutes
+        if actual_minutes is None:
             actual_minutes = (update.elapsed_seconds or 0) / 60
-            await settle_completed_job(db, job_id, actual_minutes)
-
-    elif update.status == "failed":
-        job.status = JobStatus.FAILED
-
-        # Handle failed job (partial charge, refund rest)
-        actual_minutes = update.actual_minutes or (update.elapsed_seconds or 0) / 60
-        await handle_failed_job(
-            db, job_id, actual_minutes, update.error_message or "Unknown error"
+        replaced_models = await finish_job(
+            db, job, update.status, actual_minutes, update.error_message
         )
 
     elif update.status == "running":

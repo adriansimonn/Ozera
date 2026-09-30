@@ -18,6 +18,7 @@ from services.credit_service import (
     charge_credits,
     refund_credits,
 )
+from services.custom_models import delete_replaced_models
 from services.modal_volumes import (
     datasets_volume,
     check_dataset_exists,
@@ -25,6 +26,7 @@ from services.modal_volumes import (
     is_generic_dataset,
     parse_dataset_id,
 )
+from services.modal_worker import FINISH_SECONDS, TRAINING_TIMEOUT_SECONDS
 
 # GPU throughput for cost estimation (tokens/second)
 # Note: These are conservative estimates based on real-world training runs.
@@ -54,6 +56,23 @@ def training_charge(gpu_type: str, minutes: float) -> float:
 
 # Credit reservation buffer (20%)
 RESERVATION_BUFFER = 1.2
+
+# Jobs estimated to train for longer than this aren't accepted. Modal stops a training
+# container after TRAINING_TIMEOUT_SECONDS, and training stops FINISH_SECONDS before that
+# to save the model and report back; the 10-minute margin absorbs estimates that run short
+# (a job that still runs out of time keeps the epochs it finished).
+MAX_ESTIMATED_TRAINING_MINUTES = (TRAINING_TIMEOUT_SECONDS - FINISH_SECONDS) / 60 - 10
+
+
+def training_time_error(estimated_minutes: float) -> Optional[str]:
+    """Why a job with this estimated training time can't run, or None if it can."""
+    if estimated_minutes <= MAX_ESTIMATED_TRAINING_MINUTES:
+        return None
+    return (
+        f"Estimated training time is {estimated_minutes:.0f} minutes, over the "
+        f"{MAX_ESTIMATED_TRAINING_MINUTES:.0f}-minute limit per job. Train for fewer epochs, "
+        f"use a smaller dataset or model, or choose a faster GPU."
+    )
 
 
 def estimate_training_cost(
@@ -135,6 +154,9 @@ async def submit_training_job(
     estimated_minutes, estimated_cost = estimate_training_cost(
         num_tokens, model_config, epochs, gpu_type
     )
+    time_error = training_time_error(estimated_minutes)
+    if time_error:
+        return None, time_error
 
     # Calculate reservation amount (with buffer), in whole cents so it releases exactly
     reservation_amount = round(estimated_cost * RESERVATION_BUFFER, 2)
@@ -393,6 +415,45 @@ async def handle_failed_job(
 
     db.commit()
     return True
+
+
+async def finish_job(
+    db: Session,
+    job: TrainingJob,
+    status: str,
+    actual_minutes: float,
+    error_message: Optional[str] = None,
+) -> set[str]:
+    """
+    Record a training job's final outcome and settle its credits.
+
+    Used for the worker's final update and by the reconciler. The job must be locked (SELECT
+    ... FOR UPDATE) and still QUEUED or RUNNING, so it's only finished once.
+
+    Args:
+        status: "completed", or anything else for a failure
+        actual_minutes: Container time to charge for
+
+    Returns:
+        Names of the user's models the new model replaced (see delete_replaced_models).
+        After committing, pass them to remove_replaced_model_files to delete their weights.
+    """
+    if status != "completed":
+        await handle_failed_job(db, job.job_id, actual_minutes, error_message or "Unknown error")
+        return set()
+
+    job.status = JobStatus.COMPLETED
+    job.completed_at = datetime.utcnow()
+
+    # The new model replaces the models the user had when submitting the job (committed
+    # with the settlement below). They were kept until now in case the job failed.
+    replaced_models = delete_replaced_models(
+        db, job.user_id, existing_at=job.created_at, new_job_id=job.job_id
+    )
+
+    # Settle the job (charge actual cost, refund difference)
+    await settle_completed_job(db, job.job_id, actual_minutes)
+    return replaced_models
 
 
 async def cancel_job(

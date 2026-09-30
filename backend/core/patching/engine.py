@@ -7,17 +7,58 @@ and comparing baseline vs patched outputs.
 
 from dataclasses import dataclass, field
 from typing import Optional, Literal, Any
+import os
 import torch
 import torch.nn.functional as F
 import uuid
 
 from .hooks import (
+    PositionOffset,
     create_replacement_hook,
     create_attention_patch_hook,
     create_mlp_patch_hook,
     create_residual_patch_hook,
     create_zero_ablation_hook,
 )
+
+
+# Captured activation (per layer) that each patch type replaces
+PATCH_TYPE_ACTIVATION_KEYS = {
+    'attention': 'attn_output',
+    'attn_output': 'attn_output',
+    'mlp': 'ff_output',
+    'ff_output': 'ff_output',
+    'residual': 'post_ff',
+    'post_attn': 'post_attn',
+    'post_ff': 'post_ff',
+}
+
+
+def patch_activation_key(patch_type: str, layer: int) -> str:
+    """Key of the captured activation a patch replaces, e.g. 'layer_2_attn_output'."""
+    return f"layer_{layer}_{PATCH_TYPE_ACTIVATION_KEYS.get(patch_type, patch_type)}"
+
+
+# Interventions that only change the positions they're applied to. The rest (mean and
+# noise ablation) are computed from the whole sequence in each forward pass.
+POSITION_LOCAL_INTERVENTIONS = ('patch', 'zero_ablate')
+
+# Bounds on the captures kept with add_captured_activations (the backend's store for the
+# patching and analysis pages; Modal workers only hold a capture during its request).
+# Captures are float32: Qwen3-4B takes ~2 MB per token plus its attention weights.
+CAPTURE_CACHE_MAX_BYTES = int(os.getenv("PATCHING_CAPTURE_CACHE_MB", "1024")) * 1024 * 1024
+CAPTURE_MAX_BYTES = CAPTURE_CACHE_MAX_BYTES // 2
+CAPTURES_PER_USER = 20
+
+
+class CaptureTooLargeError(ValueError):
+    """A capture is too large to keep (see CAPTURE_MAX_BYTES)."""
+
+
+def _capture_bytes(captured: 'CapturedActivations') -> int:
+    return sum(
+        t.numel() * t.element_size() for t in captured.activations.values() if isinstance(t, torch.Tensor)
+    )
 
 
 @dataclass
@@ -128,8 +169,8 @@ class PatchingEngine:
         """
         Capture activations from a source prompt.
 
-        For open-source models, uses model_loader.generate_with_activations().
-        For Ozera models, uses the TextGenerator with activation capture.
+        Captures one forward pass over the prompt, so positions match the prompt's tokens
+        for both model types. Logits aren't kept: nothing patches or analyzes them.
 
         Args:
             prompt: Source prompt to capture activations from.
@@ -144,18 +185,10 @@ class PatchingEngine:
         activation_id = str(uuid.uuid4())
 
         if model_type == 'open_source':
-            # Use the open-source model's activation capture
-            result = model_loader.generate_with_activations(
-                prompt=prompt,
-                max_new_tokens=1,  # Just need one forward pass
-                temperature=0.0,  # Deterministic
-                do_sample=False,
-            )
-
-            # Extract activations from the model loader
-            activations = self._extract_open_source_activations(model_loader)
+            result = model_loader.capture_prompt_activations(prompt)
+            activations = result['activations']
             tokens = result['tokens']
-            decoded_tokens = result.get('decoded_tokens', [])
+            decoded_tokens = result['decoded_tokens']
             num_layers = model_loader.config.num_layers
 
         else:  # Ozera model
@@ -210,23 +243,12 @@ class PatchingEngine:
         self._captured_activations[activation_id] = captured
         return captured
 
-    def _extract_open_source_activations(self, model_loader: Any) -> dict[str, torch.Tensor]:
-        """Extract activations from an open-source model loader."""
-        activations = {}
-
-        # Copy all captured activations
-        for key, tensor in model_loader._activations.items():
-            if isinstance(tensor, torch.Tensor):
-                activations[key] = tensor.clone()
-
-        return activations
-
     def _flatten_ozera_activations(self, raw_activations: dict) -> dict[str, torch.Tensor]:
         """Flatten Ozera model activations to a flat dict format."""
         activations = {}
 
         # Top-level activations
-        for key in ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits']:
+        for key in ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm']:
             if key in raw_activations and raw_activations[key] is not None:
                 activations[key] = raw_activations[key].clone()
 
@@ -292,6 +314,8 @@ class PatchingEngine:
                 max_new_tokens=max_new_tokens,
                 temperature=temperature,
                 do_sample=temperature > 0,
+                # Same setting as the patched run, so the two stay comparable
+                use_cache=self._open_source_use_cache(patches),
             )
             baseline_output = baseline_result['text']
             baseline_tokens = baseline_result['tokens']
@@ -390,14 +414,23 @@ class PatchingEngine:
         max_new_tokens: int,
         temperature: float,
     ) -> tuple[str, list[int], list[str]]:
-        """Apply patches to open-source model generation."""
-        registered_hooks = []
+        """
+        Apply patches to open-source model generation.
+
+        Patches address absolute token positions, as they do for Ozera models (which
+        recompute the whole sequence each step). With the KV cache, each forward pass after
+        the prompt computes only the newest token, so the hooks track where each pass starts
+        in the sequence. Mean and noise ablation depend on the whole sequence at every step,
+        so experiments using them generate without the cache (see _open_source_use_cache).
+        """
+        offset = PositionOffset()
+        registered_hooks = [offset.attach(self._get_open_source_decoder(model_loader))]
 
         try:
             # Register intervention hooks
             for patch in patches:
                 hook_handle = self._register_open_source_patch_hook(
-                    model_loader, source, patch
+                    model_loader, source, patch, offset
                 )
                 if hook_handle is not None:
                     registered_hooks.append(hook_handle)
@@ -408,6 +441,7 @@ class PatchingEngine:
                 max_new_tokens=max_new_tokens,
                 temperature=temperature,
                 do_sample=temperature > 0,
+                use_cache=self._open_source_use_cache(patches),
             )
 
             output = result['text']
@@ -426,20 +460,10 @@ class PatchingEngine:
         model_loader: Any,
         source: Optional[CapturedActivations],
         patch: PatchConfig,
+        offset: PositionOffset,
     ):
         """Register a patch hook on an open-source model."""
-        # Map patch_type to activation key
-        key_map = {
-            'attention': 'attn_output',
-            'attn_output': 'attn_output',
-            'mlp': 'ff_output',
-            'ff_output': 'ff_output',
-            'residual': 'post_ff',
-            'post_attn': 'post_attn',
-            'post_ff': 'post_ff',
-        }
-
-        activation_key = key_map.get(patch.patch_type, patch.patch_type)
+        activation_key = PATCH_TYPE_ACTIVATION_KEYS.get(patch.patch_type, patch.patch_type)
 
         # Get the module to hook
         module = self._get_open_source_module(model_loader, patch.layer, activation_key)
@@ -455,6 +479,7 @@ class PatchingEngine:
                 positions=patch.positions,
                 blend_factor=patch.blend_factor,
                 ablation_type=intervention_type,
+                offset=offset,
             )
             return module.register_forward_hook(hook_fn)
 
@@ -467,6 +492,9 @@ class PatchingEngine:
         if source_activation is None:
             return None
 
+        # Move the source to the model's device once, rather than in every forward pass
+        source_activation = source_activation.to(next(model_loader.model.parameters()).device)
+
         # Create appropriate hook
         if patch.patch_type in ['attention', 'attn_output']:
             hook_fn = create_attention_patch_hook(
@@ -474,6 +502,7 @@ class PatchingEngine:
                 heads=patch.heads,
                 positions=patch.positions,
                 blend_factor=patch.blend_factor,
+                offset=offset,
             )
         elif patch.patch_type in ['mlp', 'ff_output']:
             hook_fn = create_mlp_patch_hook(
@@ -481,15 +510,39 @@ class PatchingEngine:
                 positions=patch.positions,
                 neurons=patch.neurons,
                 blend_factor=patch.blend_factor,
+                offset=offset,
             )
         else:
             hook_fn = create_residual_patch_hook(
                 source_residual=source_activation,
                 positions=patch.positions,
                 blend_factor=patch.blend_factor,
+                offset=offset,
             )
 
         return module.register_forward_hook(hook_fn)
+
+    @staticmethod
+    def _open_source_use_cache(patches: list[PatchConfig]) -> bool:
+        """
+        Whether open-source generation can use the KV cache with these patches.
+
+        Patches and zero ablations only change their own positions, so applying them to
+        each token once, as the cached pass computes it, gives what recomputing and
+        patching the whole sequence every step gives. Mean and noise ablation are
+        computed from the whole sequence in each pass, so they need every pass to
+        recompute it, like Ozera models do.
+        """
+        return all(patch.intervention_type in POSITION_LOCAL_INTERVENTIONS for patch in patches)
+
+    def _get_open_source_decoder(self, model_loader: Any):
+        """The decoder stack of an open-source model (whose passes PositionOffset tracks)."""
+        model = model_loader.model
+        if hasattr(model, 'model') and hasattr(model.model, 'layers'):
+            return model.model
+        if hasattr(model, 'transformer') and hasattr(model.transformer, 'h'):
+            return model.transformer
+        raise ValueError(f"Unsupported model structure for patching: {type(model).__name__}")
 
     def _get_open_source_module(self, model_loader: Any, layer: int, activation_key: str):
         """Get the module to hook for an open-source model."""
@@ -557,17 +610,7 @@ class PatchingEngine:
         # Set up patches in model's expected format
         patch_dict = {}
         for patch in patches:
-            key_map = {
-                'attention': 'attn_output',
-                'attn_output': 'attn_output',
-                'mlp': 'ff_output',
-                'ff_output': 'ff_output',
-                'residual': 'post_ff',
-                'post_attn': 'post_attn',
-                'post_ff': 'post_ff',
-            }
-            activation_key = key_map.get(patch.patch_type, patch.patch_type)
-            full_key = f"layer_{patch.layer}_{activation_key}"
+            full_key = patch_activation_key(patch.patch_type, patch.layer)
 
             # For ablation types, we don't need source activations
             intervention_type = patch.intervention_type if hasattr(patch, 'intervention_type') else 'patch'
@@ -931,16 +974,45 @@ class PatchingEngine:
     # if they don't exist.
 
     def add_captured_activations(self, captured: CapturedActivations) -> None:
-        """Store captured activations under their ID."""
+        """
+        Keep captured activations under their ID, within the store's bounds.
+
+        Makes room by evicting the least recently used captures: the user's own beyond
+        CAPTURES_PER_USER, then anyone's until the store fits CAPTURE_CACHE_MAX_BYTES.
+
+        Raises:
+            CaptureTooLargeError: the capture alone is over CAPTURE_MAX_BYTES (nothing is stored)
+        """
+        # Nothing patches or analyzes logits ([seq, vocab], 262k wide for Gemma)
+        captured.activations.pop('logits', None)
+
+        size = _capture_bytes(captured)
+        if size > CAPTURE_MAX_BYTES:
+            raise CaptureTooLargeError(
+                f"These activations are too large to keep ({size / 1024**2:.0f} MB, limit "
+                f"{CAPTURE_MAX_BYTES / 1024**2:.0f} MB). Use a shorter prompt or a smaller model."
+            )
+
+        # Dicts keep insertion order, and reads move entries to the end: oldest first
+        users_captures = [k for k, v in self._captured_activations.items() if v.user_id == captured.user_id]
+        for activation_id in users_captures[:max(0, len(users_captures) - CAPTURES_PER_USER + 1)]:
+            del self._captured_activations[activation_id]
+
+        total = sum(_capture_bytes(c) for c in self._captured_activations.values())
+        while self._captured_activations and total + size > CAPTURE_CACHE_MAX_BYTES:
+            oldest_id = next(iter(self._captured_activations))
+            total -= _capture_bytes(self._captured_activations.pop(oldest_id))
+
         self._captured_activations[captured.id] = captured
 
     def get_captured_activations(
         self, activation_id: str, user_id: Optional[int] = None
     ) -> Optional[CapturedActivations]:
-        """Retrieve captured activations by ID."""
+        """Retrieve captured activations by ID (marking them recently used)."""
         captured = self._captured_activations.get(activation_id)
         if captured is None or (user_id is not None and captured.user_id != user_id):
             return None
+        self._captured_activations[activation_id] = self._captured_activations.pop(activation_id)
         return captured
 
     def list_captured_activations(self, user_id: Optional[int] = None) -> list[dict]:

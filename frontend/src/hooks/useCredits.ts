@@ -16,7 +16,7 @@ export interface CreditBalance {
 export interface Transaction {
   id: number;
   amount_usd: number;
-  transaction_type: 'credit_purchase' | 'training_charge' | 'training_refund' | 'admin_adjustment' | 'inference_charge' | 'patching_charge' | 'analysis_charge';
+  transaction_type: 'credit_purchase' | 'training_charge' | 'training_refund' | 'admin_adjustment' | 'inference_charge' | 'inference_refund' | 'patching_charge' | 'analysis_charge';
   description: string | null;
   stripe_payment_intent_id: string | null;
   training_job_id: string | null;

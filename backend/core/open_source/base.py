@@ -8,6 +8,7 @@ import os
 import threading
 import torch
 
+from core.activation_limits import ActivationLimitError, max_capture_tokens
 from core.tensor_codec import encode_tensor
 from .registry import OPEN_SOURCE_MODELS, OpenSourceModelConfig
 
@@ -141,6 +142,7 @@ class OpenSourceModelLoader(ABC):
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
         do_sample: bool = True,
+        use_cache: bool = True,
     ) -> dict:
         """
         Generate text from a prompt.
@@ -152,6 +154,8 @@ class OpenSourceModelLoader(ABC):
             top_k: Top-k sampling parameter
             top_p: Nucleus sampling parameter
             do_sample: Whether to use sampling (False = greedy)
+            use_cache: Whether to use the KV cache. Without it, every step recomputes the
+                whole sequence (slower; patching needs it for some interventions).
 
         Returns:
             Dict with generated text and token info
@@ -172,6 +176,7 @@ class OpenSourceModelLoader(ABC):
             "temperature": temperature,
             "do_sample": do_sample,
             "pad_token_id": self.tokenizer.eos_token_id,
+            "use_cache": use_cache,
         }
 
         # Add attention mask to avoid unexpected behavior when pad_token == eos_token
@@ -226,12 +231,24 @@ class OpenSourceModelLoader(ABC):
 
         Returns:
             Dict with generated text, token info, and activations
+
+        Raises:
+            ActivationLimitError: the prompt plus max_new_tokens would capture more
+                activations than MAX_CAPTURE_BYTES (checked before generating)
         """
         if self.model is None or self.tokenizer is None:
             raise RuntimeError("Model not loaded. Call load() first.")
 
         inputs = self.encode_prompt(prompt)
         prompt_tokens = inputs.input_ids.shape[1]
+
+        token_limit = self._capture_token_limit()
+        if prompt_tokens + max_new_tokens > token_limit:
+            raise ActivationLimitError(
+                f"Visualizing {self.config.display_name} is limited to {token_limit} tokens "
+                f"(prompt plus generated). This prompt has {prompt_tokens}, so generate at most "
+                f"{max(token_limit - prompt_tokens, 0)} tokens."
+            )
 
         # Handle temperature edge cases
         if temperature <= 0.01:
@@ -264,46 +281,114 @@ class OpenSourceModelLoader(ABC):
             # Step 2: Forward pass on complete sequence to capture layer activations
             # (attention weights, FFN outputs, embeddings, etc.) via hooks attached
             # just for this pass, and to obtain logits for top-k token display.
-            self._clear_activations()
-            self._register_hooks()
-            try:
-                with torch.no_grad():
-                    forward_outputs = self.model(
-                        generated_ids.unsqueeze(0),  # Add batch dimension
-                        output_attentions=True,
-                        return_dict=True,
-                    )
-            finally:
-                self._remove_hooks()
+            forward_outputs = self._capture_forward(generated_ids.unsqueeze(0))
 
             # Use forward pass logits for top-k display. These are computed from a
             # full-sequence forward pass (no KV cache), so logits[0][i] gives the
             # model's prediction for token i+1 given tokens 0..i.
             self._activations["logits"] = forward_outputs.logits.detach()
 
-            # Store attention weights if available (hooks may have already captured them
-            # with GQA normalization, so only store if not already present)
-            if hasattr(forward_outputs, "attentions") and forward_outputs.attentions is not None:
-                for i, attn in enumerate(forward_outputs.attentions):
-                    if f"layer_{i}_attn_weights" not in self._activations:
-                        # Apply GQA normalization if needed
-                        attn_weights = self._normalize_attention_weights(attn.detach(), i)
-                        self._activations[f"layer_{i}_attn_weights"] = attn_weights
-
-            result = {
-                "text": generated_text,
-                "prompt": prompt,
-                "prompt_tokens": prompt_tokens,
-                "generated_tokens": total_tokens - prompt_tokens,
-                "total_tokens": total_tokens,
-                "tokens": generated_ids.tolist(),
-                "activations": self.get_activations_for_frontend(),
-                "decoded_tokens": [
-                    self.tokenizer.decode([tok]) for tok in generated_ids.tolist()
-                ],
-            }
+            try:
+                result = {
+                    "text": generated_text,
+                    "prompt": prompt,
+                    "prompt_tokens": prompt_tokens,
+                    "generated_tokens": total_tokens - prompt_tokens,
+                    "total_tokens": total_tokens,
+                    "tokens": generated_ids.tolist(),
+                    "activations": self.get_activations_for_frontend(),
+                    "decoded_tokens": [
+                        self.tokenizer.decode([tok]) for tok in generated_ids.tolist()
+                    ],
+                }
+            finally:
+                # The result holds encoded copies; don't keep the GPU tensors until the next capture
+                self._clear_activations()
 
         return result
+
+    def _capture_token_limit(self) -> int:
+        """Longest sequence whose captured activations fit in MAX_CAPTURE_BYTES."""
+        return max_capture_tokens(
+            num_layers=self.config.num_layers,
+            num_heads=self.config.num_heads,
+            hidden_dim=self.config.hidden_dim,
+            bytes_per_value=next(self.model.parameters()).element_size(),
+        )
+
+    def _capture_forward(self, input_ids: torch.Tensor, **model_kwargs):
+        """
+        Run one forward pass with the capture hooks attached, filling self._activations.
+
+        Caller holds self.lock. Attention weights the hooks didn't capture are taken from
+        the model's outputs (with GQA normalization).
+
+        Returns:
+            The model's outputs
+        """
+        self._clear_activations()
+        self._register_hooks()
+        try:
+            with torch.no_grad():
+                forward_outputs = self.model(
+                    input_ids,
+                    output_attentions=True,
+                    return_dict=True,
+                    **model_kwargs,
+                )
+        finally:
+            self._remove_hooks()
+
+        # Store attention weights if available (hooks may have already captured them
+        # with GQA normalization, so only store if not already present)
+        if hasattr(forward_outputs, "attentions") and forward_outputs.attentions is not None:
+            for i, attn in enumerate(forward_outputs.attentions):
+                if f"layer_{i}_attn_weights" not in self._activations:
+                    # Apply GQA normalization if needed
+                    attn_weights = self._normalize_attention_weights(attn.detach(), i)
+                    self._activations[f"layer_{i}_attn_weights"] = attn_weights
+
+        return forward_outputs
+
+    def capture_prompt_activations(self, prompt: str) -> dict:
+        """
+        Capture the activations of one forward pass over a prompt, without generating.
+
+        Used for patching sources, whose positions have to be the prompt's tokens.
+
+        Returns:
+            Dict with the prompt's tokens, decoded tokens, and activations (tensors on the
+            model's device, keyed like "layer_0_attn_output"; the loader keeps no reference)
+
+        Raises:
+            ActivationLimitError: the prompt's activations would exceed MAX_CAPTURE_BYTES
+        """
+        if self.model is None or self.tokenizer is None:
+            raise RuntimeError("Model not loaded. Call load() first.")
+
+        inputs = self.encode_prompt(prompt)
+        tokens = inputs.input_ids[0].tolist()
+
+        token_limit = self._capture_token_limit()
+        if len(tokens) > token_limit:
+            raise ActivationLimitError(
+                f"Capturing activations from {self.config.display_name} is limited to "
+                f"{token_limit} prompt tokens; this prompt has {len(tokens)}."
+            )
+
+        with self.lock:
+            try:
+                # Only the last position's logits are computed: nothing uses them
+                self._capture_forward(inputs.input_ids, use_cache=False, logits_to_keep=1)
+                activations = dict(self._activations)
+            finally:
+                self._clear_activations()
+
+        return {
+            "tokens": tokens,
+            "decoded_tokens": [self.tokenizer.decode([tok]) for tok in tokens],
+            "activations": activations,
+        }
 
     def get_activations_for_frontend(self) -> dict:
         """

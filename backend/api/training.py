@@ -12,10 +12,11 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from db import get_db
+from db import SessionLocal, get_db
 from middleware.rate_limit import limiter
 from api.schemas.training import (
     JobStatus,
@@ -43,6 +44,7 @@ from services.job_orchestrator import (
     cancel_job,
     get_user_jobs,
     get_job_by_id,
+    training_time_error,
     GPU_THROUGHPUT,
 )
 from services.credit_service import GPU_PRICING, check_sufficient_balance
@@ -94,10 +96,8 @@ async def get_training_estimate(
 
     total_tokens = num_tokens * request.epochs
 
-    warning = None
-    if estimated_minutes > 120:
-        warning = "Large dataset may take over 2 hours"
-    elif estimated_minutes > 60:
+    warning = training_time_error(estimated_minutes)
+    if warning is None and estimated_minutes > 60:
         warning = "Training may take over 1 hour"
 
     return TrainingEstimateResponse(
@@ -184,6 +184,11 @@ async def start_training_job(
         epochs=request.epochs,
         gpu_type=gpu_type,
     )
+
+    # A job has to finish within the training container's timeout
+    time_error = training_time_error(estimated_minutes)
+    if time_error:
+        raise HTTPException(status_code=400, detail=time_error)
 
     # Check sufficient balance (with 20% buffer)
     required_balance = estimated_cost * 1.2
@@ -307,6 +312,51 @@ async def get_job_status(
     )
 
 
+def _read_job_progress(job_id: str) -> Optional[dict]:
+    """
+    Snapshot of a job's progress for the progress stream, read in a session of its own.
+
+    Returns None if the job doesn't exist.
+    """
+    db = SessionLocal()
+    try:
+        job = get_job_by_id(db, job_id)
+        if not job:
+            return None
+
+        elapsed_seconds = 0
+        if job.started_at:
+            elapsed_seconds = int((datetime.utcnow() - job.started_at).total_seconds())
+
+        estimated_remaining = 0
+        if job.status == DBJobStatus.RUNNING and job.estimated_minutes:
+            estimated_remaining = max(0, int(job.estimated_minutes * 60 - elapsed_seconds))
+
+        def usd(value) -> Optional[float]:
+            # Numeric columns load as Decimal, which JSON can't encode
+            return None if value is None else float(value)
+
+        return {
+            "status": job.status.value,
+            "model_name": job.model_name,
+            "current_epoch": job.current_epoch or 0,
+            "total_epochs": job.total_epochs or job.epochs,
+            "train_loss": job.train_loss,
+            "val_loss": job.val_loss,
+            "train_ppl": job.train_ppl,
+            "val_ppl": job.val_ppl,
+            "elapsed_seconds": elapsed_seconds,
+            "estimated_remaining_seconds": estimated_remaining,
+            "gpu_type": job.gpu_type,
+            "estimated_cost_usd": usd(job.estimated_cost_usd),
+            "actual_cost_usd": usd(job.actual_cost_usd),
+            "actual_minutes": job.actual_minutes,
+            "error_message": job.error_message,
+        }
+    finally:
+        db.close()
+
+
 @router.get("/jobs/{job_id}/stream")
 async def stream_job_progress(
     job_id: str,
@@ -319,6 +369,9 @@ async def stream_job_progress(
     Sends progress updates every 2 seconds until the job completes or fails.
     Progress is read from the database (updated by Modal webhooks).
     Requires authentication — only the job owner can stream progress.
+
+    A stream can stay open for the whole training run, so it holds no database connection
+    between polls: each poll reads the job in its own short session, off the event loop.
     """
     job = get_job_by_id(db, job_id)
     if not job:
@@ -328,47 +381,36 @@ async def stream_job_progress(
     if job.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
+    # Return the request's connection to the pool now, rather than when the stream ends
+    db.close()
+
     async def event_stream():
-        last_epoch = -1
-
         while True:
-            # Refresh job from database
-            db.expire_all()
-            job = get_job_by_id(db, job_id)
+            job = await run_in_threadpool(_read_job_progress, job_id)
 
-            if not job:
+            if job is None:
                 data = json.dumps({"type": "error", "message": "Job not found"})
                 yield f"data: {data}\n\n"
                 break
 
-            status = job.status.value
-
-            # Calculate elapsed time
-            elapsed_seconds = 0
-            if job.started_at:
-                elapsed_seconds = int((datetime.utcnow() - job.started_at).total_seconds())
-
-            estimated_remaining = 0
-            if job.status == DBJobStatus.RUNNING and job.estimated_minutes:
-                estimated_total = job.estimated_minutes * 60
-                estimated_remaining = max(0, int(estimated_total - elapsed_seconds))
+            status = job["status"]
 
             # Send progress update
             data = json.dumps({
                 "type": "progress",
                 "job_id": job_id,
                 "status": status,
-                "current_epoch": job.current_epoch or 0,
-                "total_epochs": job.total_epochs or job.epochs,
-                "train_loss": job.train_loss,
-                "val_loss": job.val_loss,
-                "train_ppl": job.train_ppl,
-                "val_ppl": job.val_ppl,
-                "elapsed_seconds": elapsed_seconds,
-                "estimated_remaining_seconds": estimated_remaining,
-                "gpu_type": job.gpu_type,
-                "estimated_cost_usd": job.estimated_cost_usd,
-                "actual_cost_usd": job.actual_cost_usd,
+                "current_epoch": job["current_epoch"],
+                "total_epochs": job["total_epochs"],
+                "train_loss": job["train_loss"],
+                "val_loss": job["val_loss"],
+                "train_ppl": job["train_ppl"],
+                "val_ppl": job["val_ppl"],
+                "elapsed_seconds": job["elapsed_seconds"],
+                "estimated_remaining_seconds": job["estimated_remaining_seconds"],
+                "gpu_type": job["gpu_type"],
+                "estimated_cost_usd": job["estimated_cost_usd"],
+                "actual_cost_usd": job["actual_cost_usd"],
             })
             yield f"data: {data}\n\n"
 
@@ -377,9 +419,9 @@ async def stream_job_progress(
                 data = json.dumps({
                     "type": "completed",
                     "job_id": job_id,
-                    "model_name": job.model_name,
-                    "actual_cost_usd": job.actual_cost_usd,
-                    "actual_minutes": job.actual_minutes,
+                    "model_name": job["model_name"],
+                    "actual_cost_usd": job["actual_cost_usd"],
+                    "actual_minutes": job["actual_minutes"],
                 })
                 yield f"data: {data}\n\n"
                 break
@@ -388,7 +430,7 @@ async def stream_job_progress(
                 data = json.dumps({
                     "type": "error",
                     "job_id": job_id,
-                    "message": job.error_message or "Training failed",
+                    "message": job["error_message"] or "Training failed",
                 })
                 yield f"data: {data}\n\n"
                 break
@@ -397,7 +439,7 @@ async def stream_job_progress(
                 data = json.dumps({
                     "type": "cancelled",
                     "job_id": job_id,
-                    "actual_cost_usd": job.actual_cost_usd,
+                    "actual_cost_usd": job["actual_cost_usd"],
                 })
                 yield f"data: {data}\n\n"
                 break

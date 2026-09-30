@@ -93,18 +93,25 @@ def train_epoch(
     optimizer: torch.optim.Optimizer,
     device: torch.device,
     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
-) -> float:
+    out_of_time: Optional[Callable[[], bool]] = None,
+) -> Optional[float]:
     """
     Train for one epoch.
 
+    Args:
+        out_of_time: Optional check, run before each batch, for whether to stop
+
     Returns:
-        Average loss for the epoch
+        Average loss for the epoch, or None if it was stopped before finishing
     """
     model.train()
     total_loss = 0
     num_batches = 0
 
     for batch_idx, (x, y) in enumerate(train_loader):
+        if out_of_time is not None and out_of_time():
+            return None
+
         x, y = x.to(device), y.to(device)
 
         # Forward pass
@@ -166,6 +173,7 @@ def run_training(
     config: TrainingConfig,
     progress_callback: Optional[Callable[[TrainingProgress], None]] = None,
     should_stop: Optional[Callable[[], bool]] = None,
+    deadline: Optional[float] = None,
 ) -> tuple[str, float, Optional[str]]:
     """
     Run the training job.
@@ -174,12 +182,20 @@ def run_training(
         config: Training configuration
         progress_callback: Optional callback for progress updates
         should_stop: Optional check, run after each epoch, for whether the job was cancelled
+        deadline: Optional time.time() by which training must stop, leaving time to save
+            the model and report back before the container's timeout. Training stops
+            before an epoch that wouldn't finish by then (or during one that runs over),
+            and the best completed epoch is saved as usual.
 
     Returns:
         Tuple of (final_status, actual_minutes, error_message); final_status is
-        "completed", "failed", or "cancelled"
+        "completed", "failed", or "cancelled". A job stopped at the deadline is
+        "completed", with a message saying how many epochs it trained.
     """
     start_time = time.time()
+
+    def out_of_time(seconds_needed: float = 0) -> bool:
+        return deadline is not None and time.time() + seconds_needed > deadline
 
     try:
         # Setup device
@@ -255,17 +271,28 @@ def run_training(
         best_val_loss = float('inf')
         best_state = None
         output_dir = Path(config.model_output_path)
+        epochs_trained = 0
+        last_epoch_seconds = 0.0
 
         for epoch in range(config.epochs):
+            # Don't start an epoch that won't finish before the deadline
+            if epoch > 0 and out_of_time(last_epoch_seconds):
+                break
+
             epoch_start = time.time()
 
             # Train
             train_loss = train_epoch(
-                model, train_loader, optimizer, device, scheduler
+                model, train_loader, optimizer, device, scheduler, out_of_time=out_of_time
             )
+            if train_loss is None:
+                # Ran past the deadline mid-epoch: keep the epochs already finished
+                break
 
             # Evaluate
             val_loss = evaluate(model, val_loader, device)
+            epochs_trained = epoch + 1
+            last_epoch_seconds = time.time() - epoch_start
 
             # Calculate metrics
             elapsed = time.time() - start_time
@@ -317,7 +344,20 @@ def run_training(
                 }
 
         if best_state is None:
+            if epochs_trained == 0:
+                raise RuntimeError(
+                    "Training didn't finish an epoch within the time limit; "
+                    "use a smaller dataset or model, or a faster GPU"
+                )
             raise RuntimeError("Training produced no usable model: the validation loss was never finite")
+
+        stopped_early_message = None
+        if epochs_trained < config.epochs:
+            stopped_early_message = (
+                f"Stopped after {epochs_trained} of {config.epochs} epochs to stay within "
+                f"the training time limit; the best epoch was saved"
+            )
+            print(stopped_early_message)
 
         # Save the best model's weights as safetensors with config metadata
         model.load_state_dict(best_state)
@@ -334,7 +374,7 @@ def run_training(
             "trained_at": datetime.utcnow().isoformat(),
             "val_loss": float(best_val_loss),
             "parameters": model.count_parameters(),
-            "epochs": config.epochs,
+            "epochs": epochs_trained,
             "batch_size": config.batch_size,
             "seq_len": config.seq_len,
             "learning_rate": config.learning_rate,
@@ -346,7 +386,7 @@ def run_training(
         # Calculate actual training time
         actual_minutes = (time.time() - start_time) / 60
 
-        return "completed", actual_minutes, None
+        return "completed", actual_minutes, stopped_early_message
 
     except Exception as e:
         actual_minutes = (time.time() - start_time) / 60
