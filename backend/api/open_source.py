@@ -22,12 +22,14 @@ logger = logging.getLogger(__name__)
 from core.open_source import OPEN_SOURCE_MODELS, ModelFamily
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import limiter
-from models.database import User
+from models.database import TransactionType, User
 from db import get_db
 from services.credit_service import (
     calculate_inference_cost,
+    charge_flat,
     charge_inference,
     check_sufficient_balance,
+    min_gpu_request_charge,
     InsufficientBalanceError,
 )
 from inference.activation_store import get_activation_store
@@ -97,10 +99,8 @@ def _get_gpu_tier_for_model(model_id: str) -> str:
 
 def _get_inference_worker(model_id: str):
     """Get the appropriate Modal inference worker for a model."""
-    import modal
-    gpu_tier = _get_gpu_tier_for_model(model_id)
-    worker_class = "InferenceWorkerT4" if gpu_tier == "t4" else "InferenceWorkerA10G"
-    return modal.Cls.from_name("ozera-inference", worker_class)
+    from services.modal_inference import get_inference_worker
+    return get_inference_worker(_get_gpu_tier_for_model(model_id))
 
 
 def _get_download_functions():
@@ -212,7 +212,7 @@ async def list_cached_models(current_user: User = Depends(get_current_user)):
     """
     try:
         _, _, list_cached_fn, _ = _get_download_functions()
-        cached = list_cached_fn.remote()
+        cached = await list_cached_fn.remote.aio()
         return cached
     except Exception:
         logger.exception("Unhandled error")
@@ -235,7 +235,7 @@ async def get_cache_status(model_id: str, current_user: User = Depends(get_curre
 
     try:
         _, check_status_fn, _, _ = _get_download_functions()
-        status = check_status_fn.remote(cfg.hf_id)
+        status = await check_status_fn.remote.aio(cfg.hf_id)
         return ModelCacheStatus(**status)
     except Exception as e:
         return ModelCacheStatus(
@@ -262,7 +262,7 @@ async def trigger_download(model_id: str, force: bool = False, current_user: Use
 
     try:
         download_fn, _, _, _ = _get_download_functions()
-        result = download_fn.remote(cfg.hf_id, force=force)
+        result = await download_fn.remote.aio(cfg.hf_id, force=force)
         return DownloadResponse(**result)
     except Exception as e:
         return DownloadResponse(
@@ -288,7 +288,7 @@ async def delete_cached_model(model_id: str, current_user: User = Depends(get_cu
 
     try:
         _, _, _, delete_fn = _get_download_functions()
-        result = delete_fn.remote(cfg.hf_id)
+        result = await delete_fn.remote.aio(cfg.hf_id)
 
         if result.get("status") == "not_found":
             raise HTTPException(status_code=404, detail=f"Model not cached: {model_id}")
@@ -304,10 +304,14 @@ async def delete_cached_model(model_id: str, current_user: User = Depends(get_cu
 # Warmup Endpoint
 
 @router.post("/models/{model_id}/warmup")
-async def warmup_model(model_id: str, current_user: User = Depends(get_current_user)):
+async def warmup_model(
+    model_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Pre-load a model into GPU memory for faster inference.
-    Requires authentication.
+    Requires authentication and charges user credits (a GPU request's minimum charge).
 
     This triggers the model to be loaded into the inference worker's cache.
     Subsequent generation requests will be faster.
@@ -319,12 +323,17 @@ async def warmup_model(model_id: str, current_user: User = Depends(get_current_u
         raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
 
     cfg = OPEN_SOURCE_MODELS[model_id]
+    cost = min_gpu_request_charge(model_id)
+    if not check_sufficient_balance(db, current_user.id, cost):
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
 
     try:
         worker = _get_inference_worker(model_id)
-        success = worker().warmup.remote(model_id)
+        success = await worker().warmup.remote.aio(model_id)
 
         if success:
+            charge_flat(db, current_user.id, cost, TransactionType.INFERENCE_CHARGE,
+                        f"Model warmup ({model_id})")
             return {
                 "status": "ready",
                 "model": model_id,
@@ -337,6 +346,8 @@ async def warmup_model(model_id: str, current_user: User = Depends(get_current_u
                 status_code=500,
                 detail=f"Failed to warmup model. Ensure it's downloaded first."
             )
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
     except HTTPException:
         raise
     except Exception:
@@ -376,7 +387,7 @@ async def generate(
 
     try:
         worker = _get_inference_worker(body.model)
-        result = worker().generate.remote(
+        result = await worker().generate.remote.aio(
             model_id=body.model,
             prompt=body.prompt,
             max_tokens=body.max_tokens,
@@ -460,7 +471,7 @@ async def generate_stream(
 
             worker = _get_inference_worker(body.model)
 
-            for token in worker().generate_stream.remote(
+            async for token in worker().generate_stream.remote_gen.aio(
                 model_id=body.model,
                 prompt=body.prompt,
                 max_tokens=body.max_tokens,
@@ -527,7 +538,7 @@ async def generate_with_activations(
 
     try:
         worker = _get_inference_worker(body.model)
-        result = worker().generate_with_activations.remote(
+        result = await worker().generate_with_activations.remote.aio(
             model_id=body.model,
             prompt=body.prompt,
             max_tokens=body.max_tokens,
@@ -586,22 +597,39 @@ class DecodeTokensRequest(BaseModel):
 
 
 @router.post("/decode-tokens")
-async def decode_tokens(request: DecodeTokensRequest):
+async def decode_tokens(
+    request: DecodeTokensRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Decode token IDs to their string representations using the model's tokenizer.
 
     This endpoint uses the correct tokenizer for the specified model, ensuring
-    that token IDs are decoded accurately for visualization purposes.
+    that token IDs are decoded accurately for visualization purposes. The tokenizer
+    lives on the GPU worker, so this requires authentication and charges a GPU
+    request's minimum.
     """
     try:
         if request.model not in OPEN_SOURCE_MODELS:
             raise HTTPException(status_code=400, detail=f"Unknown model: {request.model}")
 
+        cost = min_gpu_request_charge(request.model)
+        if not check_sufficient_balance(db, current_user.id, cost):
+            raise HTTPException(status_code=402, detail="Insufficient credits.")
+
         worker = _get_inference_worker(request.model)
-        decoded = worker().decode_tokens.remote(request.model, request.token_ids)
+        decoded = await worker().decode_tokens.remote.aio(request.model, request.token_ids)
+
+        charge_flat(db, current_user.id, cost, TransactionType.INFERENCE_CHARGE,
+                    f"Token decoding ({request.model}): {len(request.token_ids)} tokens")
 
         return {"decoded_tokens": decoded}
 
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Token decoding failed")

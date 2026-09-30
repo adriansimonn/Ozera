@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import TextGenerator from '../../components/model/TextGenerator'
 import type { PlainGenerationResult } from '../../components/model/TextGenerator'
@@ -9,13 +9,11 @@ import { EmbeddingJourney } from '../../components/visualization/EmbeddingJourne
 import { TransformationFlow } from '../../components/visualization/TransformationFlow'
 import { GenerationFlow } from '../../components/visualization/GenerationFlow'
 import { NavBar } from '../../components/common/NavBar'
-import { apiClient } from '../../api/client'
-import type { ActivationData, LayerActivations } from '../../types/model'
+import { useActivationData, type VisualizationType } from '../../hooks/useActivationData'
 import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, Copy, Check, BarChart3, FileText, Trash2 } from 'lucide-react'
 import { Dropdown } from '../../components/common/Dropdown'
 import { useTheme } from '../../hooks/useTheme'
 
-type VisualizationType = 'network' | 'attention' | 'activations' | 'journey' | 'flow'
 type RightPanelMode = 'visualizations' | 'outputs'
 
 interface GeneratedOutput extends PlainGenerationResult {
@@ -45,13 +43,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
   const [pendingActivationId, setPendingActivationId] = useState<string | null>(null)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
 
-  const [activationData, setActivationData] = useState<ActivationData | null>(null)
-  const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const layerCacheRef = useRef<Map<number, LayerActivations>>(new Map())
-  const currentActivationIdRef = useRef<string | null>(null)
 
   const [selectedLayer, setSelectedLayer] = useState(0)
   const [selectedHead, setSelectedHead] = useState(0)
@@ -59,60 +51,21 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
   const [tokenInputValue, setTokenInputValue] = useState('0')
   const [showTextLabels, setShowTextLabels] = useState(false)
 
+  const { activationData, loading, layerLoading, error, summary, loadActivation } =
+    useActivationData(selectedVisualization, selectedLayer)
+
   useEffect(() => {
     if (urlActivationId) {
       setCurrentActivationId(urlActivationId)
-      loadActivationSummary(urlActivationId)
+      loadActivation(urlActivationId)
     }
-  }, [urlActivationId])
-
-  async function loadActivationSummary(id: string) {
-    try {
-      setLoading(true)
-      setError(null)
-      if (currentActivationIdRef.current !== id) {
-        layerCacheRef.current.clear()
-        currentActivationIdRef.current = id
-      }
-      const data = await apiClient.getActivations(id)
-      setActivationData(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load activations')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadLayerActivations = useCallback(async (layerIdx: number) => {
-    if (!currentActivationIdRef.current) return null
-    if (layerCacheRef.current.has(layerIdx)) {
-      return layerCacheRef.current.get(layerIdx)!
-    }
-    if (activationData?.activations.layers?.[layerIdx]) {
-      layerCacheRef.current.set(layerIdx, activationData.activations.layers[layerIdx])
-      return activationData.activations.layers[layerIdx]
-    }
-    try {
-      const result = await apiClient.getLayerActivations(currentActivationIdRef.current, layerIdx)
-      layerCacheRef.current.set(layerIdx, result.activations as LayerActivations)
-      return result.activations as LayerActivations
-    } catch (err) {
-      console.error(`Failed to load layer ${layerIdx}:`, err)
-      return null
-    }
-  }, [activationData])
-
-  useEffect(() => {
-    if (activationData && (selectedVisualization === 'attention' || selectedVisualization === 'activations')) {
-      loadLayerActivations(selectedLayer)
-    }
-  }, [selectedLayer, selectedVisualization, activationData, loadLayerActivations])
+  }, [urlActivationId, loadActivation])
 
   const handleActivationGenerated = (newActivationId: string) => {
     setCurrentActivationId(newActivationId)
     setPendingActivationId(newActivationId)
     setRightPanelMode('visualizations')
-    loadActivationSummary(newActivationId)
+    loadActivation(newActivationId)
   }
 
   const handleStreamingText = (text: string, streaming: boolean) => {
@@ -138,7 +91,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
   const handleVisualizeOutput = (activationId: string) => {
     setCurrentActivationId(activationId)
-    loadActivationSummary(activationId)
+    loadActivation(activationId)
     setRightPanelMode('visualizations')
   }
 
@@ -155,8 +108,10 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const numLayers = activationData?.activations.layers?.length || 0
-  const numHeads = activationData?.activations.layers?.[0]?.attn_weights?.shape[1] || 0
+  const numLayers = activationData?.activations.layers?.length || summary?.num_layers || 0
+  const numHeads = activationData?.activations.layers?.[0]?.attn_weights?.shape[1]
+    || summary?.layer_info?.[0]?.attn_weights?.shape[1]
+    || 0
 
   const visualizationOptions = [
     { value: 'network' as const, label: 'Neural Network Generation Flow', icon: Network },
@@ -185,6 +140,15 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
     spinnerTrack: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
     spinnerHead: isLight ? '#1d1d1f' : '#ffffff',
   }
+
+  const renderLayerLoading = (message: string) => (
+    <div className="df-placeholder">
+      <div className="df-placeholder-inner">
+        <div className="df-spinner" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
+        <p style={{ color: c.textSub }}>{message}</p>
+      </div>
+    </div>
+  )
 
   const renderVisualization = () => {
     if (generating) {
@@ -232,22 +196,26 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
         {selectedVisualization === 'network' && (
           <GenerationFlow activationData={activationData} />
         )}
-        {selectedVisualization === 'attention' && activationData.activations.layers?.[selectedLayer]?.attn_weights && (
-          <AttentionHeatmap
-            attentionWeights={activationData.activations.layers[selectedLayer].attn_weights!}
-            layerIndex={selectedLayer}
-            headIndex={selectedHead}
-            tokens={activationData.metadata.decoded_tokens}
-            showTextLabels={showTextLabels}
-            activationId={currentActivationId ?? undefined}
-          />
+        {selectedVisualization === 'attention' && (
+          activationData.activations.layers?.[selectedLayer]?.attn_weights ? (
+            <AttentionHeatmap
+              attentionWeights={activationData.activations.layers[selectedLayer].attn_weights!}
+              layerIndex={selectedLayer}
+              headIndex={selectedHead}
+              tokens={activationData.metadata.decoded_tokens}
+              showTextLabels={showTextLabels}
+              activationId={currentActivationId ?? undefined}
+            />
+          ) : layerLoading && renderLayerLoading(`Loading layer ${selectedLayer} attention data...`)
         )}
-        {selectedVisualization === 'activations' && activationData.activations.layers?.[selectedLayer] && (
-          <LayerActivationDisplay
-            layerActivations={activationData.activations.layers[selectedLayer]}
-            layerIndex={selectedLayer}
-            activationId={currentActivationId ?? undefined}
-          />
+        {selectedVisualization === 'activations' && (
+          activationData.activations.layers?.[selectedLayer]?.attn_output || activationData.activations.layers?.[selectedLayer]?.ff_output ? (
+            <LayerActivationDisplay
+              layerActivations={activationData.activations.layers[selectedLayer]}
+              layerIndex={selectedLayer}
+              activationId={currentActivationId ?? undefined}
+            />
+          ) : layerLoading && renderLayerLoading(`Loading layer ${selectedLayer} activations...`)
         )}
         {selectedVisualization === 'journey' && (
           <EmbeddingJourney activationData={activationData} selectedTokenIndex={selectedTokenIndex} />

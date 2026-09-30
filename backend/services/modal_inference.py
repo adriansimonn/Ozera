@@ -7,6 +7,7 @@ Separate from the training app to allow independent scaling and deployment.
 """
 
 import os
+import threading
 from typing import Iterator, Optional
 
 import modal
@@ -41,9 +42,19 @@ inference_image = (
         "accelerate>=0.26.0",
         "huggingface_hub>=0.20.0",
     )
+    # Bake the GPT-2 BPE files into the image so cold starts don't download them
+    .env({"TIKTOKEN_CACHE_DIR": "/root/tiktoken_cache"})
+    .run_commands("python -c \"import tiktoken; tiktoken.get_encoding('gpt2')\"")
     .add_local_dir(os.path.join(BACKEND_DIR, "core"), remote_path="/app/backend/core")
     .add_local_dir(os.path.join(BACKEND_DIR, "inference"), remote_path="/app/backend/inference")
 )
+
+# How long an idle inference container stays warm, per GPU tier. Modal bills this idle
+# time, so credit_service's per-request minimum charges are derived from it.
+SCALEDOWN_WINDOW_SECONDS = {
+    "l4": 300,
+    "a10g": 120,
+}
 
 # Base model paths in volume
 BASE_MODEL_PATHS = {
@@ -52,23 +63,23 @@ BASE_MODEL_PATHS = {
 }
 
 
-@app.cls(
-    image=inference_image,
-    volumes={"/models": models_volume, "/hf_cache": hf_volume},
-    secrets=[hf_secret],
-    gpu="T4",
-    timeout=300,
-    scaledown_window=300,  # Keep warm for 5 minutes
-)
-@modal.concurrent(max_inputs=10)
-class InferenceWorkerT4:
-    """Inference worker for small/medium models on T4 GPU."""
+class _InferenceWorker:
+    """
+    Shared implementation of the GPU inference workers defined below.
+
+    Each GPU tier is its own Modal class (and container pool); they differ only in
+    hardware, timeouts, and which open-source models they list.
+    """
+
+    gpu_tier = "l4"
 
     @modal.enter()
     def setup(self):
         """Initialize on container start."""
         self._models = {}  # Ozera models cache
         self._os_loaders = {}  # Open-source model loaders cache
+        # Concurrent inputs on a cold container would otherwise each load the same model
+        self._load_lock = threading.Lock()
         self._tokenizer = None
         import sys
         sys.path.insert(0, "/app/backend")
@@ -86,6 +97,13 @@ class InferenceWorkerT4:
         if model_id in self._os_loaders:
             return self._os_loaders[model_id]
 
+        with self._load_lock:
+            if model_id in self._os_loaders:
+                return self._os_loaders[model_id]
+            return self._load_open_source_model(model_id)
+
+    def _load_open_source_model(self, model_id: str):
+        """Load an open-source model loader into the cache (caller holds _load_lock)."""
         from core.open_source import OPEN_SOURCE_MODELS, get_loader_for_model
 
         if model_id not in OPEN_SOURCE_MODELS:
@@ -106,8 +124,6 @@ class InferenceWorkerT4:
 
     def _get_model(self, model_id: str):
         """Get or load a model (supports Ozera, safetensors, and open-source formats)."""
-        import torch
-
         # Check if it's an open-source model
         if self._is_open_source_model(model_id):
             # Return None for model/config - caller should use _get_open_source_loader
@@ -115,6 +131,15 @@ class InferenceWorkerT4:
 
         if model_id in self._models:
             return self._models[model_id]
+
+        with self._load_lock:
+            if model_id in self._models:
+                return self._models[model_id]
+            return self._load_model(model_id)
+
+    def _load_model(self, model_id: str):
+        """Load an Ozera model into the cache (caller holds _load_lock)."""
+        import torch
 
         # Determine checkpoint path
         if model_id in BASE_MODEL_PATHS:
@@ -430,8 +455,12 @@ class InferenceWorkerT4:
             if top_p is not None:
                 gen_kwargs["top_p"] = top_p
 
+            def generate_locked():
+                with loader.lock:
+                    loader.model.generate(**gen_kwargs)
+
             # Run generation in a thread so we can stream
-            thread = Thread(target=loader.model.generate, kwargs=gen_kwargs)
+            thread = Thread(target=generate_locked)
             thread.start()
 
             for text in streamer:
@@ -595,7 +624,7 @@ class InferenceWorkerT4:
 
         # Extract logits for top-K computation before serializing other activations
         logits_tensor = activations.pop("logits", None)
-        serialized_activations = self._serialize_activations(activations)
+        serialized_activations = self._serialize_value(activations)
 
         # Add compact top-K logits instead of full tensor
         if logits_tensor is not None:
@@ -619,23 +648,12 @@ class InferenceWorkerT4:
         }
 
     def _serialize_value(self, value):
-        """Recursively convert a value to JSON-serializable format."""
+        """Recursively encode tensors in a value for transport (see core.tensor_codec)."""
         import torch
-        import base64
-        import numpy as np
+        from core.tensor_codec import encode_tensor
 
         if isinstance(value, torch.Tensor):
-            arr = value.cpu().float().numpy().astype(np.float32)
-            return {
-                "values": base64.b64encode(arr.tobytes()).decode("ascii"),
-                "shape": list(arr.shape),
-                "dtype": "float32",
-                "encoding": "base64_float32",
-                "mean": float(arr.mean()),
-                "std": float(arr.std()),
-                "min": float(arr.min()),
-                "max": float(arr.max()),
-            }
+            return encode_tensor(value)
         elif isinstance(value, dict):
             return {k: self._serialize_value(v) for k, v in value.items()}
         elif isinstance(value, list):
@@ -696,10 +714,6 @@ class InferenceWorkerT4:
             "seq_len": seq_len,
         }
 
-    def _serialize_activations(self, activations: dict) -> dict:
-        """Convert torch tensors to lists for JSON serialization."""
-        return self._serialize_value(activations)
-
     @modal.method()
     def get_model_info(self, model_id: str) -> dict:
         """Get model configuration info (Ozera or open-source)."""
@@ -737,8 +751,9 @@ class InferenceWorkerT4:
     @modal.method()
     def list_models(self) -> list:
         """List available models in the volume (includes open-source models)."""
-        # Reload volume to ensure we see newly trained models
-        models_volume.reload()
+        if self.gpu_tier == "l4":
+            # Reload volume to ensure we see newly trained models
+            models_volume.reload()
 
         available = []
 
@@ -746,7 +761,7 @@ class InferenceWorkerT4:
         from core.open_source import OPEN_SOURCE_MODELS
         for model_id, config in OPEN_SOURCE_MODELS.items():
             # Only include models that match this worker's GPU tier
-            if config.gpu_tier == "t4":
+            if config.gpu_tier == self.gpu_tier:
                 # Check if model is cached
                 cache_path = f"/hf_cache/{config.hf_id.replace('/', '--')}"
                 is_cached = os.path.exists(cache_path)
@@ -764,9 +779,9 @@ class InferenceWorkerT4:
             if os.path.exists(path):
                 available.append({"id": model_id, "type": "base"})
 
-        # Check custom models
+        # Check custom models (served by the L4 tier)
         models_root = "/models"
-        if os.path.exists(models_root):
+        if self.gpu_tier == "l4" and os.path.exists(models_root):
             for user_dir in os.listdir(models_root):
                 if user_dir == "base":
                     continue
@@ -846,26 +861,29 @@ class InferenceWorkerT4:
         if self._is_open_source_model(model_id):
             loader = self._get_open_source_loader(model_id)
 
-            # Only capture source activations if needed
-            captured = None
-            if source_prompt and requires_source:
-                captured = engine.capture_source_activations(
-                    prompt=source_prompt,
+            # Hold the model for the whole experiment: capture reads the loader's hook
+            # state, and patch hooks must not fire in other requests' generations
+            with loader.lock:
+                # Only capture source activations if needed
+                captured = None
+                if source_prompt and requires_source:
+                    captured = engine.capture_source_activations(
+                        prompt=source_prompt,
+                        model_loader=loader,
+                        model_type="open_source",
+                        model_id=model_id,
+                    )
+
+                # Run patched generation
+                result = engine.run_patched_generation(
+                    target_prompt=target_prompt,
+                    source_activation_id=captured.id if captured else None,
+                    patches=patch_configs,
                     model_loader=loader,
                     model_type="open_source",
-                    model_id=model_id,
+                    max_new_tokens=max_tokens,
+                    temperature=temperature,
                 )
-
-            # Run patched generation
-            result = engine.run_patched_generation(
-                target_prompt=target_prompt,
-                source_activation_id=captured.id if captured else None,
-                patches=patch_configs,
-                model_loader=loader,
-                model_type="open_source",
-                max_new_tokens=max_tokens,
-                temperature=temperature,
-            )
         else:
             # Ozera model
             model, config = self._get_model(model_id)
@@ -929,12 +947,13 @@ class InferenceWorkerT4:
 
         if self._is_open_source_model(model_id):
             loader = self._get_open_source_loader(model_id)
-            captured = engine.capture_source_activations(
-                prompt=prompt,
-                model_loader=loader,
-                model_type="open_source",
-                model_id=model_id,
-            )
+            with loader.lock:
+                captured = engine.capture_source_activations(
+                    prompt=prompt,
+                    model_loader=loader,
+                    model_type="open_source",
+                    model_id=model_id,
+                )
         else:
             # Ozera model
             model, config = self._get_model(model_id)
@@ -946,7 +965,7 @@ class InferenceWorkerT4:
                 tokenizer=self._tokenizer,
             )
 
-        # Serialize activations for transfer (base64 for speed)
+        # Serialize activations for transfer (compact raw bytes)
         serialized_activations = {}
         for key, tensor in captured.activations.items():
             serialized_activations[key] = self._serialize_value(tensor)
@@ -988,19 +1007,15 @@ class InferenceWorkerT4:
         """
         import torch
         from core.patching import get_patching_engine, PatchConfig, CapturedActivations
+        from core.tensor_codec import is_tensor_entry, to_float32
 
         engine = get_patching_engine()
 
         # Reconstruct activations from serialized data
-        import base64
-        import numpy as np
-
         reconstructed_activations = {}
         for key, value in source_activations['activations'].items():
-            if isinstance(value, dict) and value.get('encoding') == 'base64_float32':
-                raw = base64.b64decode(value['values'])
-                arr = np.frombuffer(raw, dtype=np.float32).reshape(value['shape'])
-                reconstructed_activations[key] = torch.tensor(arr)
+            if is_tensor_entry(value):
+                reconstructed_activations[key] = torch.tensor(to_float32(value))
             elif isinstance(value, list):
                 reconstructed_activations[key] = torch.tensor(value)
             else:
@@ -1037,15 +1052,16 @@ class InferenceWorkerT4:
 
         if self._is_open_source_model(model_id):
             loader = self._get_open_source_loader(model_id)
-            result = engine.run_patched_generation(
-                target_prompt=target_prompt,
-                source_activation_id=captured.id,
-                patches=patch_configs,
-                model_loader=loader,
-                model_type="open_source",
-                max_new_tokens=max_tokens,
-                temperature=temperature,
-            )
+            with loader.lock:
+                result = engine.run_patched_generation(
+                    target_prompt=target_prompt,
+                    source_activation_id=captured.id,
+                    patches=patch_configs,
+                    model_loader=loader,
+                    model_type="open_source",
+                    max_new_tokens=max_tokens,
+                    temperature=temperature,
+                )
         else:
             # Ozera model
             model, config = self._get_model(model_id)
@@ -1080,634 +1096,56 @@ class InferenceWorkerT4:
     image=inference_image,
     volumes={"/models": models_volume, "/hf_cache": hf_volume},
     secrets=[hf_secret],
+    gpu="L4",
+    timeout=300,
+    scaledown_window=SCALEDOWN_WINDOW_SECONDS["l4"],  # Keep warm for 5 minutes
+)
+@modal.concurrent(max_inputs=10)
+class InferenceWorkerL4(_InferenceWorker):
+    """Inference worker for small/medium models on L4 GPU."""
+
+    gpu_tier = "l4"
+
+
+@app.cls(
+    image=inference_image,
+    volumes={"/models": models_volume, "/hf_cache": hf_volume},
+    secrets=[hf_secret],
     gpu="A10G",
     timeout=600,
-    scaledown_window=120,
+    scaledown_window=SCALEDOWN_WINDOW_SECONDS["a10g"],
 )
 @modal.concurrent(max_inputs=5)
-class InferenceWorkerA10G:
+class InferenceWorkerA10G(_InferenceWorker):
     """Inference worker for larger models on A10G GPU."""
 
-    @modal.enter()
-    def setup(self):
-        """Initialize on container start."""
-        self._models = {}  # Ozera models cache
-        self._os_loaders = {}  # Open-source model loaders cache
-        self._tokenizer = None
-        import sys
-        sys.path.insert(0, "/app/backend")
+    gpu_tier = "a10g"
 
-        from core.tokenizer import get_tokenizer
-        self._tokenizer = get_tokenizer()
 
-    def _is_open_source_model(self, model_id: str) -> bool:
-        """Check if model_id is an open-source model."""
-        from core.open_source import OPEN_SOURCE_MODELS
-        return model_id in OPEN_SOURCE_MODELS
+_worker_refs: dict[str, modal.Cls] = {}
 
-    def _get_open_source_loader(self, model_id: str):
-        """Get or load an open-source model loader."""
-        if model_id in self._os_loaders:
-            return self._os_loaders[model_id]
 
-        from core.open_source import OPEN_SOURCE_MODELS, get_loader_for_model
-
-        if model_id not in OPEN_SOURCE_MODELS:
-            raise ValueError(f"Unknown open-source model: {model_id}")
-
-        config = OPEN_SOURCE_MODELS[model_id]
-        cache_dir = f"/hf_cache/{config.hf_id.replace('/', '--')}"
-
-        print(f"Loading open-source model '{model_id}' from {cache_dir}")
-
-        loader = get_loader_for_model(model_id)
-        loader.load(cache_dir)
-
-        self._os_loaders[model_id] = loader
-        print(f"Open-source model '{model_id}' loaded ({config.parameters:,} params)")
-
-        return loader
-
-    def _get_model(self, model_id: str):
-        """Get or load a model (supports Ozera, safetensors, and open-source formats)."""
-        import torch
-
-        # Check if it's an open-source model
-        if self._is_open_source_model(model_id):
-            raise ValueError(f"Use _get_open_source_loader for open-source model: {model_id}")
-
-        if model_id in self._models:
-            return self._models[model_id]
-
-        # For A10G, we support larger models
-        # First check base models, then custom
-        if model_id in BASE_MODEL_PATHS:
-            checkpoint_path = BASE_MODEL_PATHS[model_id]
-        else:
-            checkpoint_path = self._find_custom_model(model_id)
-            if not checkpoint_path:
-                raise ValueError(f"Model '{model_id}' not found")
-
-        if not os.path.exists(checkpoint_path):
-            raise FileNotFoundError(f"Model checkpoint not found at {checkpoint_path}")
-
-        print(f"Loading model '{model_id}' from {checkpoint_path}")
-
-        from core.transformer.model_torch import TransformerLM
-
-        if checkpoint_path.endswith(".safetensors"):
-            # Load safetensors format (uploaded models)
-            model, config = self._load_safetensors_model(checkpoint_path)
-        else:
-            # Load .pt format (trained models)
-            checkpoint = torch.load(checkpoint_path, map_location="cuda", weights_only=False)
-            config = checkpoint["config"]
-            model = TransformerLM(config).to("cuda")
-            model.load_state_dict(checkpoint["model_state_dict"])
-
-        model.eval()
-
-        self._models[model_id] = (model, config)
-        print(f"Model '{model_id}' loaded ({config.count_parameters():,} params)")
-
-        return model, config
-
-    def _find_custom_model(self, model_id: str) -> Optional[str]:
-        """Find a custom model in the volume (supports both .pt and .safetensors)."""
-        # Reload volume to ensure we see newly trained models
-        models_volume.reload()
-
-        models_root = "/models"
-
-        for user_dir in os.listdir(models_root):
-            if user_dir == "base":
-                continue
-            user_path = os.path.join(models_root, user_dir)
-            if not os.path.isdir(user_path):
-                continue
-
-            # Check for .safetensors file first (preferred format for both trained and uploaded)
-            safetensors_path = os.path.join(user_path, model_id, "model.safetensors")
-            if os.path.exists(safetensors_path):
-                return safetensors_path
-
-            # Check for .pt file (legacy trained models)
-            pt_path = os.path.join(user_path, model_id, "model.pt")
-            if os.path.exists(pt_path):
-                return pt_path
-
-        return None
-
-    def _load_safetensors_model(self, checkpoint_path: str):
-        """Load a model from safetensors format."""
-        import torch
-        from safetensors.torch import load_file
-        from safetensors import safe_open
-
-        from core.transformer.model_torch import TransformerLM
-        from core.transformer.config import TransformerConfig
-
-        # Load safetensors file
-        state_dict = load_file(checkpoint_path)
-
-        # Try to get config from safetensors metadata first (for trained models)
-        config = None
-        try:
-            with safe_open(checkpoint_path, framework="pt") as f:
-                metadata = f.metadata()
-                if metadata and metadata.get("format") == "ozera" and "d_model" in metadata:
-                    config = TransformerConfig(
-                        vocab_size=int(metadata.get("vocab_size", 50257)),
-                        max_seq_len=int(metadata.get("max_seq_len", 256)),
-                        d_model=int(metadata["d_model"]),
-                        num_layers=int(metadata.get("num_layers", 6)),
-                        num_heads=int(metadata.get("num_heads", 6)),
-                        d_ff=int(metadata.get("d_ff", int(metadata["d_model"]) * 4)),
-                        dropout_rate=float(metadata.get("dropout_rate", 0.0)),
-                    )
-                    print(f"Loaded config from safetensors metadata")
-        except Exception as e:
-            print(f"Could not read safetensors metadata: {e}")
-
-        # Fall back to inferring config from state dict
-        if config is None:
-            config = self._infer_config_from_state_dict(state_dict)
-
-        # Create model and load state dict
-        model = TransformerLM(config).to("cuda")
-
-        # Map state dict keys if needed
-        mapped_state_dict = self._map_safetensors_state_dict(state_dict, model)
-        model.load_state_dict(mapped_state_dict, strict=False)
-
-        return model, config
-
-    def _infer_config_from_state_dict(self, state_dict: dict):
-        """Infer TransformerConfig from state dict tensor shapes."""
-        from core.transformer.config import TransformerConfig
-
-        # Default config (nano-like)
-        d_model = 192
-        num_layers = 6
-        num_heads = 6
-        vocab_size = 50257
-        max_seq_len = 256
-
-        # Try to infer from embedding layer
-        for key, tensor in state_dict.items():
-            if "embed" in key.lower() and "token" in key.lower():
-                if len(tensor.shape) == 2:
-                    vocab_size, d_model = tensor.shape
-                    break
-            elif "wte" in key.lower():  # GPT-style token embedding
-                if len(tensor.shape) == 2:
-                    vocab_size, d_model = tensor.shape
-                    break
-
-        # Try to count layers
-        layer_indices = set()
-        for key in state_dict.keys():
-            parts = key.split(".")
-            for i, part in enumerate(parts):
-                if part.isdigit():
-                    layer_indices.add(int(part))
-                elif part.startswith("layer"):
-                    try:
-                        idx = int(part.replace("layer", "").replace("_", ""))
-                        layer_indices.add(idx)
-                    except ValueError:
-                        pass
-        if layer_indices:
-            num_layers = max(layer_indices) + 1
-
-        # Try to infer num_heads from attention projections
-        for key, tensor in state_dict.items():
-            if "attn" in key.lower() and ("q_proj" in key.lower() or "query" in key.lower()):
-                if len(tensor.shape) == 2:
-                    potential_heads = d_model // 64
-                    if potential_heads > 0:
-                        num_heads = min(potential_heads, 32)
-                    break
-
-        return TransformerConfig(
-            vocab_size=vocab_size,
-            max_seq_len=max_seq_len,
-            d_model=d_model,
-            num_layers=num_layers,
-            num_heads=num_heads,
-            d_ff=d_model * 4,
-            dropout_rate=0.0,
-        )
-
-    def _map_safetensors_state_dict(self, state_dict: dict, model) -> dict:
-        """Map safetensors state dict keys to our model's expected keys."""
-        model_keys = set(model.state_dict().keys())
-
-        if set(state_dict.keys()) == model_keys:
-            return state_dict
-
-        mapped = {}
-        for key, tensor in state_dict.items():
-            if key in model_keys:
-                mapped[key] = tensor
-                continue
-
-            new_key = key
-            if key.startswith("transformer."):
-                new_key = key.replace("transformer.", "")
-
-            new_key = new_key.replace("h.", "layers.")
-            new_key = new_key.replace(".attn.", ".attention.")
-            new_key = new_key.replace(".mlp.", ".ffn.")
-            new_key = new_key.replace(".ln_1.", ".norm1.")
-            new_key = new_key.replace(".ln_2.", ".norm2.")
-            new_key = new_key.replace("ln_f.", "final_norm.")
-            new_key = new_key.replace("wte.", "token_embedding.")
-            new_key = new_key.replace("wpe.", "position_embedding.")
-            new_key = new_key.replace("lm_head.", "output_projection.")
-
-            if new_key in model_keys:
-                mapped[new_key] = tensor
-            else:
-                mapped[key] = tensor
-
-        return mapped
-
-    @modal.method()
-    def generate(
-        self,
-        model_id: str,
-        prompt: str,
-        max_tokens: int = 200,
-        temperature: float = 0.8,
-        top_k: Optional[int] = 40,
-        top_p: Optional[float] = None,
-    ) -> dict:
-        """Generate text from a model (Ozera or open-source)."""
-        import torch
-
-        # Handle open-source models
-        if self._is_open_source_model(model_id):
-            loader = self._get_open_source_loader(model_id)
-            result = loader.generate(
-                prompt=prompt,
-                max_new_tokens=max_tokens,
-                temperature=temperature,
-                top_k=top_k,
-                top_p=top_p,
-                do_sample=temperature > 0,
-            )
-            result["model"] = model_id
-            result["top_k"] = top_k
-            result["top_p"] = top_p
-            result["temperature"] = temperature
-            return result
-
-        # Handle Ozera models
-        model, config = self._get_model(model_id)
-
-        prompt_ids = self._tokenizer.encode(prompt)
-        input_ids = torch.tensor([prompt_ids], dtype=torch.long).to("cuda")
-
-        generated_ids, _ = model.generate(
-            input_ids,
-            max_new_tokens=max_tokens,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            return_attention=False,
-        )
-
-        generated_text = self._tokenizer.decode(generated_ids[0].cpu().tolist())
-
-        return {
-            "text": generated_text,
-            "prompt": prompt,
-            "model": model_id,
-            "prompt_tokens": len(prompt_ids),
-            "generated_tokens": len(generated_ids[0]) - len(prompt_ids),
-            "total_tokens": len(generated_ids[0]),
-            "temperature": temperature,
-            "top_k": top_k,
-            "top_p": top_p,
-        }
-
-    @modal.method()
-    def decode_tokens(self, model_id: str, token_ids: list[int]) -> list[str]:
-        """Decode token IDs to strings using the appropriate tokenizer for the model."""
-        if self._is_open_source_model(model_id):
-            loader = self._get_open_source_loader(model_id)
-            return [loader.tokenizer.decode([tid]) for tid in token_ids]
-        else:
-            return [self._tokenizer.decode([tid]) for tid in token_ids]
-
-    @modal.method()
-    def generate_with_activations(
-        self,
-        model_id: str,
-        prompt: str,
-        max_tokens: int = 200,
-        temperature: float = 0.8,
-        top_k: Optional[int] = 40,
-        top_p: Optional[float] = None,
-    ) -> dict:
-        """Generate text and return activations for visualization (open-source models only on A10G)."""
-        # Handle open-source models
-        if self._is_open_source_model(model_id):
-            loader = self._get_open_source_loader(model_id)
-            result = loader.generate_with_activations(
-                prompt=prompt,
-                max_new_tokens=max_tokens,
-                temperature=temperature,
-                top_k=top_k,
-                top_p=top_p,
-                do_sample=temperature > 0,
-            )
-            result["model"] = model_id
-            result["top_k"] = top_k
-            result["top_p"] = top_p
-            result["temperature"] = temperature
-            return result
-
-        # For Ozera models on A10G, delegate to T4 worker or raise error
-        raise ValueError(f"Activation capture not implemented for Ozera models on A10G: {model_id}")
-
-    @modal.method()
-    def warmup(self, model_id: str) -> bool:
-        """Pre-load a model into memory (Ozera or open-source)."""
-        try:
-            if self._is_open_source_model(model_id):
-                self._get_open_source_loader(model_id)
-            else:
-                self._get_model(model_id)
-            return True
-        except Exception as e:
-            print(f"Warmup failed for {model_id}: {e}")
-            return False
-
-    @modal.method()
-    def run_patching_experiment(
-        self,
-        model_id: str,
-        source_prompt: Optional[str],
-        target_prompt: str,
-        patches: list[dict],
-        max_tokens: int = 50,
-        temperature: float = 0.0,
-    ) -> dict:
-        """Run a patching experiment (A10G worker version, supports ablation)."""
-        from core.patching import get_patching_engine, PatchConfig
-
-        engine = get_patching_engine()
-
-        # Convert patch dicts to PatchConfig objects (including intervention_type)
-        patch_configs = [
-            PatchConfig(
-                layer=p['layer'],
-                patch_type=p['patch_type'],
-                positions=p.get('positions'),
-                heads=p.get('heads'),
-                neurons=p.get('neurons'),
-                blend_factor=p.get('blend_factor', 1.0),
-                intervention_type=p.get('intervention_type', 'patch'),
-            )
-            for p in patches
-        ]
-
-        # Check if any patches require source activations (patch intervention type)
-        requires_source = any(p.get('intervention_type', 'patch') == 'patch' for p in patches)
-
-        if self._is_open_source_model(model_id):
-            loader = self._get_open_source_loader(model_id)
-
-            # Only capture source activations if needed
-            captured = None
-            if source_prompt and requires_source:
-                captured = engine.capture_source_activations(
-                    prompt=source_prompt,
-                    model_loader=loader,
-                    model_type="open_source",
-                    model_id=model_id,
-                )
-
-            result = engine.run_patched_generation(
-                target_prompt=target_prompt,
-                source_activation_id=captured.id if captured else None,
-                patches=patch_configs,
-                model_loader=loader,
-                model_type="open_source",
-                max_new_tokens=max_tokens,
-                temperature=temperature,
-            )
-        else:
-            raise ValueError(f"Patching not implemented for Ozera models on A10G: {model_id}")
-
-        return {
-            "baseline_output": result.baseline_output,
-            "patched_output": result.patched_output,
-            "baseline_tokens": result.baseline_tokens,
-            "patched_tokens": result.patched_tokens,
-            "baseline_decoded": result.baseline_decoded,
-            "patched_decoded": result.patched_decoded,
-            "source_activation_id": result.source_activation_id if result.source_activation_id else "",
-            "patches_applied": [p.to_dict() for p in result.patches_applied],
-            "effect_summary": result.effect_summary,
-        }
-
-    @modal.method()
-    def capture_activations(
-        self,
-        model_id: str,
-        prompt: str,
-    ) -> dict:
-        """
-        Capture activations from a forward pass (A10G worker version).
-
-        Args:
-            model_id: Model ID (open-source models on A10G)
-            prompt: Prompt to capture activations from
-
-        Returns:
-            Dict with activation metadata and serialized activations
-        """
-        import torch
-        from core.patching import get_patching_engine
-
-        engine = get_patching_engine()
-
-        if self._is_open_source_model(model_id):
-            loader = self._get_open_source_loader(model_id)
-            captured = engine.capture_source_activations(
-                prompt=prompt,
-                model_loader=loader,
-                model_type="open_source",
-                model_id=model_id,
-            )
-        else:
-            raise ValueError(f"Activation capture not implemented for Ozera models on A10G: {model_id}")
-
-        # Serialize activations for transfer (base64 for speed)
-        serialized_activations = {}
-        for key, tensor in captured.activations.items():
-            serialized_activations[key] = self._serialize_value(tensor)
-
-        return {
-            "id": captured.id,
-            "prompt": captured.prompt,
-            "tokens": captured.tokens,
-            "decoded_tokens": captured.decoded_tokens,
-            "model_type": captured.model_type,
-            "model_id": captured.model_id,
-            "num_layers": captured.num_layers,
-            "activations": serialized_activations,
-        }
-
-    @modal.method()
-    def run_patching_with_activations(
-        self,
-        model_id: str,
-        target_prompt: str,
-        patches: list[dict],
-        source_activations: dict,
-        max_tokens: int = 50,
-        temperature: float = 0.0,
-    ) -> dict:
-        """
-        Run patching experiment using provided source activations (A10G worker version).
-
-        Args:
-            model_id: Model ID (open-source models on A10G)
-            target_prompt: Prompt to run generation on
-            patches: List of patch configurations
-            source_activations: Pre-captured source activations (serialized)
-            max_tokens: Maximum tokens to generate
-            temperature: Sampling temperature
-
-        Returns:
-            Dict with baseline and patched outputs
-        """
-        import torch
-        from core.patching import get_patching_engine, PatchConfig, CapturedActivations
-
-        engine = get_patching_engine()
-
-        # Reconstruct activations from serialized data
-        import base64
-        import numpy as np
-
-        reconstructed_activations = {}
-        for key, value in source_activations['activations'].items():
-            if isinstance(value, dict) and value.get('encoding') == 'base64_float32':
-                raw = base64.b64decode(value['values'])
-                arr = np.frombuffer(raw, dtype=np.float32).reshape(value['shape'])
-                reconstructed_activations[key] = torch.tensor(arr)
-            elif isinstance(value, list):
-                reconstructed_activations[key] = torch.tensor(value)
-            else:
-                reconstructed_activations[key] = value
-
-        # Create CapturedActivations object and register it
-        captured = CapturedActivations(
-            id=source_activations['id'],
-            prompt=source_activations['prompt'],
-            tokens=source_activations['tokens'],
-            decoded_tokens=source_activations['decoded_tokens'],
-            activations=reconstructed_activations,
-            model_type=source_activations['model_type'],
-            model_id=source_activations['model_id'],
-            num_layers=source_activations['num_layers'],
-        )
-
-        # Register in engine's cache
-        engine._captured_activations[captured.id] = captured
-
-        # Convert patch dicts to PatchConfig objects
-        patch_configs = [
-            PatchConfig(
-                layer=p['layer'],
-                patch_type=p['patch_type'],
-                positions=p.get('positions'),
-                heads=p.get('heads'),
-                neurons=p.get('neurons'),
-                blend_factor=p.get('blend_factor', 1.0),
-                intervention_type=p.get('intervention_type', 'patch'),
-            )
-            for p in patches
-        ]
-
-        if self._is_open_source_model(model_id):
-            loader = self._get_open_source_loader(model_id)
-            result = engine.run_patched_generation(
-                target_prompt=target_prompt,
-                source_activation_id=captured.id,
-                patches=patch_configs,
-                model_loader=loader,
-                model_type="open_source",
-                max_new_tokens=max_tokens,
-                temperature=temperature,
-            )
-        else:
-            raise ValueError(f"Patching not implemented for Ozera models on A10G: {model_id}")
-
-        # Clean up cached activations
-        engine.delete_captured_activations(captured.id)
-
-        return {
-            "baseline_output": result.baseline_output,
-            "patched_output": result.patched_output,
-            "baseline_tokens": result.baseline_tokens,
-            "patched_tokens": result.patched_tokens,
-            "baseline_decoded": result.baseline_decoded,
-            "patched_decoded": result.patched_decoded,
-            "source_activation_id": result.source_activation_id if result.source_activation_id else "",
-            "patches_applied": [p.to_dict() for p in result.patches_applied],
-            "effect_summary": result.effect_summary,
-        }
-
-    @modal.method()
-    def list_models(self) -> list:
-        """List available models (includes A10G-tier open-source models)."""
-        available = []
-
-        # Add open-source models that need A10G
-        from core.open_source import OPEN_SOURCE_MODELS
-        for model_id, config in OPEN_SOURCE_MODELS.items():
-            if config.gpu_tier == "a10g":
-                cache_path = f"/hf_cache/{config.hf_id.replace('/', '--')}"
-                is_cached = os.path.exists(cache_path)
-                available.append({
-                    "id": model_id,
-                    "type": "open_source",
-                    "family": config.family.value,
-                    "display_name": config.display_name,
-                    "parameters": config.parameters,
-                    "cached": is_cached,
-                })
-
-        # Check base models
-        for model_id, path in BASE_MODEL_PATHS.items():
-            if os.path.exists(path):
-                available.append({"id": model_id, "type": "base"})
-
-        return available
-
-
-def get_inference_worker(gpu_tier: str = "t4"):
+def get_inference_worker(gpu_tier: str = "l4"):
     """
     Get a reference to a deployed inference worker.
 
+    References are cached so the lookup against Modal happens once per process
+    instead of on every request.
+
     Args:
-        gpu_tier: GPU tier ('t4' or 'a10g')
+        gpu_tier: GPU tier ('l4' or 'a10g')
 
     Returns:
         Modal class reference
     """
     worker_classes = {
-        "t4": "InferenceWorkerT4",
+        "l4": "InferenceWorkerL4",
         "a10g": "InferenceWorkerA10G",
     }
-    class_name = worker_classes.get(gpu_tier, "InferenceWorkerT4")
-    return modal.Cls.from_name("ozera-inference", class_name)
+    class_name = worker_classes.get(gpu_tier, "InferenceWorkerL4")
+    if class_name not in _worker_refs:
+        _worker_refs[class_name] = modal.Cls.from_name("ozera-inference", class_name)
+    return _worker_refs[class_name]
 
 
 if __name__ == "__main__":

@@ -66,7 +66,6 @@ class SmolLMLoader(OpenSourceModelLoader):
         )
 
         self.model.eval()
-        self._register_hooks()
 
     def _register_hooks(self) -> None:
         """

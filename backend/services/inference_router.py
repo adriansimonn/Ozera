@@ -9,12 +9,14 @@ Routes inference requests based on INFERENCE_MODE environment variable:
 import os
 from typing import AsyncIterator, Optional
 
+from core.open_source import get_gpu_tier
+
 # Inference mode configuration
 INFERENCE_MODE = os.environ.get("INFERENCE_MODE", "local")
 
 # Model size thresholds for GPU tier selection (in parameters)
 TIER_THRESHOLDS = {
-    "t4": 100_000_000,      # Up to 100M params
+    "l4": 100_000_000,      # Up to 100M params
     "a10g": 1_000_000_000,  # Up to 1B params
     "a100": float("inf"),   # 1B+ params
 }
@@ -84,15 +86,11 @@ class InferenceRouter:
             model_id: Model identifier
 
         Returns:
-            GPU tier ('t4', 'a10g', or 'a100')
+            GPU tier ('l4' or 'a10g')
         """
-        # Base models use T4
-        if model_id in BASE_MODELS:
-            return "t4"
-
-        # For custom models, we'd need to look up size
-        # Default to T4 for now (can be enhanced with model registry)
-        return "t4"
+        # Open-source models run on the tier registered for them (3-4B models need A10G);
+        # base and custom Ozera models use L4
+        return get_gpu_tier(model_id)
 
     async def generate(
         self,
@@ -371,7 +369,7 @@ class InferenceRouter:
         if self.is_modal_mode():
             from services.modal_inference import get_inference_worker
 
-            worker = get_inference_worker("t4")
+            worker = get_inference_worker("l4")
             return await worker().list_models.remote.aio()
         else:
             loader = self._get_local_loader()

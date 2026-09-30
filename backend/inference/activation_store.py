@@ -5,13 +5,13 @@ Stores intermediate activations from model forward passes for visualization
 and analysis purposes.
 """
 
-import base64
-
 import torch
 import numpy as np
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import uuid
+
+from core.tensor_codec import encode_tensor, is_tensor_entry, slice_last_dim, to_wire
 
 
 class ActivationStore:
@@ -19,6 +19,8 @@ class ActivationStore:
     In-memory storage for model activations.
 
     Stores activations with metadata and provides retrieval and cleanup.
+    Tensors are kept in the compact encoding from core.tensor_codec and only
+    expanded to the base64 float32 wire format when they are read.
     """
 
     def __init__(self, max_entries: int = 100):
@@ -94,7 +96,12 @@ class ActivationStore:
         # Update access time
         self._access_times[activation_id] = datetime.now()
 
-        return self._store[activation_id]
+        data = self._store[activation_id]
+        activations = {
+            key: [{k: to_wire(v) for k, v in layer.items()} for layer in value] if key == 'layers' else to_wire(value)
+            for key, value in data['activations'].items()
+        }
+        return {**data, 'activations': activations}
 
     def get_activation_summary(self, activation_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -186,7 +193,42 @@ class ActivationStore:
 
         return {
             'layer_idx': layer_idx,
-            'activations': layers[layer_idx]
+            'activations': {k: to_wire(v) for k, v in layers[layer_idx].items()}
+        }
+
+    def get_flow_activations(self, activation_id: str, dims: int) -> Optional[Dict[str, Any]]:
+        """
+        Get the slice of activations the generation flow visualization reads.
+
+        That is each layer's residual stream after the FFN (post_attn when post_ff
+        is missing) and the combined (else token) embeddings, limited to the first
+        `dims` hidden dimensions. Statistics still describe the full tensors, since
+        the visualization normalizes by them.
+
+        Args:
+            activation_id: ID of activations
+            dims: Number of leading hidden dimensions to include
+
+        Returns:
+            Dict with per-layer and embedding slices, or None if not found
+        """
+        if activation_id not in self._store:
+            return None
+
+        # Update access time
+        self._access_times[activation_id] = datetime.now()
+
+        activations = self._store[activation_id]['activations']
+
+        def pick(source: Dict[str, Any], *keys: str) -> Dict[str, Any]:
+            for key in keys:
+                if is_tensor_entry(source.get(key)):
+                    return {key: slice_last_dim(source[key], dims)}
+            return {}
+
+        return {
+            'layers': [pick(layer, 'post_ff', 'post_attn') for layer in activations.get('layers', [])],
+            **pick(activations, 'combined_embeddings', 'token_embeddings'),
         }
 
     def get_tensor_activation(self, activation_id: str, tensor_name: str) -> Optional[Dict[str, Any]]:
@@ -219,7 +261,7 @@ class ActivationStore:
 
         return {
             'tensor_name': tensor_name,
-            'data': tensor_data
+            'data': to_wire(tensor_data)
         }
 
     def list_activations(self) -> List[Dict[str, Any]]:
@@ -257,16 +299,16 @@ class ActivationStore:
 
     def _process_activations(self, activations: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Convert activation tensors to numpy arrays and compute statistics.
+        Convert activation tensors to the compact storage encoding.
 
-        Handles both torch.Tensor inputs (from local inference) and
-        already-serialized list inputs (from Modal inference).
+        Handles torch.Tensor inputs (from local inference), already-encoded
+        dicts (from Modal inference), and legacy serialized lists.
 
         Args:
-            activations: Raw activation tensors or serialized lists from model
+            activations: Raw activation tensors or serialized values from model
 
         Returns:
-            Processed activation dictionary with numpy arrays and stats
+            Processed activation dictionary with encoded tensors and stats
         """
         processed = {}
 
@@ -280,76 +322,20 @@ class ActivationStore:
                     for act_name, act_value in layer_act.items():
                         layer_processed[act_name] = self._value_to_data(act_value)
                     processed['layers'].append(layer_processed)
-            elif isinstance(value, torch.Tensor):
-                processed[key] = self._tensor_to_data(value)
-            elif isinstance(value, dict) and value.get('encoding') == 'base64_float32':
-                # Already base64-encoded from Modal - pass through
-                processed[key] = value
-            elif isinstance(value, list):
-                # Already serialized from Modal (legacy) - convert to data format
-                processed[key] = self._list_to_data(value)
             else:
-                processed[key] = value
+                processed[key] = self._value_to_data(value)
 
         return processed
 
     def _value_to_data(self, value) -> Dict[str, Any]:
-        """Convert a tensor, list, or pre-encoded dict to data format."""
+        """Convert a tensor or list to the compact encoding; encoded dicts pass through."""
         if isinstance(value, torch.Tensor):
-            return self._tensor_to_data(value)
-        elif isinstance(value, dict) and value.get('encoding') == 'base64_float32':
-            # Already base64-encoded - pass through
-            return value
+            return encode_tensor(value)
         elif isinstance(value, list):
-            return self._list_to_data(value)
+            # Legacy list serialization
+            return encode_tensor(torch.tensor(np.array(value, dtype=np.float32)))
         else:
             return value
-
-    def _list_to_data(self, data: list) -> Dict[str, Any]:
-        """
-        Convert an already-serialized list to data format with statistics.
-
-        Args:
-            data: List of values (from Modal serialization)
-
-        Returns:
-            Dictionary with base64-encoded array and statistics
-        """
-        arr = np.array(data, dtype=np.float32)
-
-        return {
-            'values': base64.b64encode(arr.tobytes()).decode('ascii'),
-            'shape': list(arr.shape),
-            'dtype': 'float32',
-            'encoding': 'base64_float32',
-            'mean': float(np.mean(arr)),
-            'std': float(np.std(arr)),
-            'min': float(np.min(arr)),
-            'max': float(np.max(arr))
-        }
-
-    def _tensor_to_data(self, tensor: torch.Tensor) -> Dict[str, Any]:
-        """
-        Convert a tensor to base64-encoded float32 buffer with statistics.
-
-        Args:
-            tensor: PyTorch tensor
-
-        Returns:
-            Dictionary with base64-encoded array and statistics
-        """
-        arr = tensor.cpu().float().numpy().astype(np.float32)
-
-        return {
-            'values': base64.b64encode(arr.tobytes()).decode('ascii'),
-            'shape': list(arr.shape),
-            'dtype': 'float32',
-            'encoding': 'base64_float32',
-            'mean': float(np.mean(arr)),
-            'std': float(np.std(arr)),
-            'min': float(np.min(arr)),
-            'max': float(np.max(arr))
-        }
 
     def _cleanup_oldest(self):
         """Remove the least recently accessed activation."""

@@ -13,8 +13,9 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import os
 
-from core.open_source import OPEN_SOURCE_MODELS, OpenSourceModelLoader, get_loader_for_model
+from core.open_source import OPEN_SOURCE_MODELS, OpenSourceModelLoader, get_gpu_tier, get_loader_for_model
 from core.patching import get_patching_engine, PatchConfig
+from core.tensor_codec import encode_tensor, is_tensor_entry, to_float32, to_wire
 from api.schemas.patching import (
     CaptureActivationsRequest,
     CaptureActivationsResponse,
@@ -29,12 +30,14 @@ from api.schemas.patching import (
 )
 from middleware.auth_middleware import get_optional_current_user, get_current_user
 from services.credit_service import InsufficientBalanceError
-from models.database import User, TrainingJob, UploadedModel, JobStatus
+from models.database import User, TrainingJob, TransactionType, UploadedModel, JobStatus
 from db import get_db
 from services.credit_service import (
     estimate_patching_cost,
+    charge_flat,
     charge_patching,
     check_sufficient_balance,
+    min_gpu_request_charge,
 )
 
 router = APIRouter(prefix="/patching", tags=["Activation Patching"])
@@ -71,21 +74,11 @@ def _get_open_source_loader(model_id: str) -> OpenSourceModelLoader:
 
 def _get_inference_worker(model_id: str):
     """Get the appropriate Modal inference worker for a model."""
-    import modal
+    from services.modal_inference import get_inference_worker
 
-    # Ozera base models use T4 GPU
-    if model_id in BASE_MODELS:
-        return modal.Cls.from_name("ozera-inference", "InferenceWorkerT4")
-
-    # Open-source models use tier specified in config
-    if model_id in OPEN_SOURCE_MODELS:
-        config = OPEN_SOURCE_MODELS[model_id]
-        gpu_tier = config.gpu_tier
-        worker_class = "InferenceWorkerT4" if gpu_tier == "t4" else "InferenceWorkerA10G"
-        return modal.Cls.from_name("ozera-inference", worker_class)
-
-    # Custom models use T4 GPU (they're based on Ozera nano/mini architecture)
-    return modal.Cls.from_name("ozera-inference", "InferenceWorkerT4")
+    # Open-source models use the tier specified in their config; base and custom
+    # Ozera models use L4
+    return get_inference_worker(get_gpu_tier(model_id))
 
 
 def _get_ozera_generator(model_id: str):
@@ -144,7 +137,8 @@ async def capture_activations(
     Capture activations from a source prompt.
 
     This captures all layer activations from a forward pass through the model,
-    which can later be used for patching experiments.
+    which can later be used for patching experiments. Charged as a GPU request
+    (the model's per-request minimum).
 
     Args:
         request: Contains prompt and model ID
@@ -158,26 +152,25 @@ async def capture_activations(
     model_type = _get_model_type(request.model)
     engine = get_patching_engine()
 
+    cost = min_gpu_request_charge(request.model)
+    if not check_sufficient_balance(db, current_user.id, cost):
+        raise HTTPException(status_code=402, detail="INSUFFICIENT_CREDITS")
+
     try:
         # All models run on Modal GPU (base, open-source, and custom)
         worker = _get_inference_worker(request.model)
 
         # Capture activations on Modal
-        result = worker().capture_activations.remote(
+        result = await worker().capture_activations.remote.aio(
             model_id=request.model,
             prompt=request.prompt,
         )
 
         # Reconstruct activations locally for caching
-        import base64
-        import numpy as np
-
         reconstructed_activations = {}
         for key, value in result['activations'].items():
-            if isinstance(value, dict) and value.get('encoding') == 'base64_float32':
-                raw = base64.b64decode(value['values'])
-                arr = np.frombuffer(raw, dtype=np.float32).reshape(value['shape'])
-                reconstructed_activations[key] = torch.tensor(arr)
+            if is_tensor_entry(value):
+                reconstructed_activations[key] = torch.tensor(to_float32(value))
             elif isinstance(value, list):
                 reconstructed_activations[key] = torch.tensor(value)
             else:
@@ -196,6 +189,9 @@ async def capture_activations(
         )
         engine._captured_activations[captured.id] = captured
 
+        charge_flat(db, current_user.id, cost, TransactionType.PATCHING_CHARGE,
+                    f"Activation capture ({request.model}): {len(captured.tokens)} tokens")
+
         return CaptureActivationsResponse(
             activation_id=captured.id,
             prompt=captured.prompt,
@@ -206,6 +202,8 @@ async def capture_activations(
             decoded_tokens=captured.decoded_tokens,
         )
 
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="INSUFFICIENT_CREDITS")
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to capture activations")
 
@@ -370,7 +368,7 @@ async def run_patching_experiment(
         ]
 
         # Run patching on Modal
-        result = worker().run_patching_experiment.remote(
+        result = await worker().run_patching_experiment.remote.aio(
             model_id=request.model,
             source_prompt=request.source_prompt,  # Can be None for ablation
             target_prompt=request.target_prompt,
@@ -476,7 +474,7 @@ async def run_patching_with_captured(
             'model_id': captured.model_id,
             'num_layers': captured.num_layers,
             'activations': {
-                key: tensor.cpu().tolist() if isinstance(tensor, torch.Tensor) else tensor
+                key: to_wire(encode_tensor(tensor)) if isinstance(tensor, torch.Tensor) else tensor
                 for key, tensor in captured.activations.items()
             },
         }
@@ -496,7 +494,7 @@ async def run_patching_with_captured(
         ]
 
         # Run patching on Modal with pre-captured activations
-        result = worker().run_patching_with_activations.remote(
+        result = await worker().run_patching_with_activations.remote.aio(
             model_id=request.model,
             target_prompt=request.target_prompt,
             patches=patches_dicts,

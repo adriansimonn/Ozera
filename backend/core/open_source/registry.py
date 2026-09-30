@@ -32,7 +32,7 @@ class OpenSourceModelConfig:
     intermediate_dim: int   # FFN intermediate dimension
     vocab_size: int
     max_seq_len: int
-    gpu_tier: str           # "t4" or "a10g"
+    gpu_tier: str           # "l4" or "a10g"
     requires_auth: bool = False  # If HF token needed
     is_instruct: bool = False  # Prompts are wrapped in the tokenizer's chat template
     system_prompt: Optional[str] = None  # System message for the chat template (None = template default)
@@ -53,7 +53,7 @@ SMOLLM_135M = OpenSourceModelConfig(
     intermediate_dim=1536,
     vocab_size=49152,
     max_seq_len=2048,
-    gpu_tier="t4",
+    gpu_tier="l4",
 )
 
 SMOLLM_360M = OpenSourceModelConfig(
@@ -69,7 +69,7 @@ SMOLLM_360M = OpenSourceModelConfig(
     intermediate_dim=2560,
     vocab_size=49152,
     max_seq_len=2048,
-    gpu_tier="t4",
+    gpu_tier="l4",
 )
 
 # SmolLM3 - Llama-style layout with NoPE (no rotary embedding) on every 4th layer
@@ -105,7 +105,7 @@ GEMMA_3_270M = OpenSourceModelConfig(
     intermediate_dim=2048,
     vocab_size=262144,
     max_seq_len=32768,
-    gpu_tier="t4",
+    gpu_tier="l4",
     requires_auth=True,  # Gated: Gemma license must be accepted on HF
 )
 
@@ -122,7 +122,7 @@ GEMMA_3_1B = OpenSourceModelConfig(
     intermediate_dim=6912,
     vocab_size=262144,
     max_seq_len=32768,
-    gpu_tier="t4",
+    gpu_tier="l4",
     requires_auth=True,  # Gated: Gemma license must be accepted on HF
 )
 
@@ -141,7 +141,7 @@ QWEN3_0_6B = OpenSourceModelConfig(
     intermediate_dim=3072,
     vocab_size=151936,
     max_seq_len=32768,
-    gpu_tier="t4",
+    gpu_tier="l4",
 )
 
 QWEN3_1_7B = OpenSourceModelConfig(
@@ -157,7 +157,7 @@ QWEN3_1_7B = OpenSourceModelConfig(
     intermediate_dim=6144,
     vocab_size=151936,
     max_seq_len=32768,
-    gpu_tier="t4",
+    gpu_tier="l4",
 )
 
 QWEN3_4B = OpenSourceModelConfig(
@@ -226,6 +226,25 @@ OPEN_SOURCE_MODELS: dict[str, OpenSourceModelConfig] = {
         QWEN3_4B, QWEN3_4B_IT,
     ]
 }
+
+
+# Tier for everything that isn't a registered open-source model (Ozera base and custom models)
+DEFAULT_GPU_TIER = "l4"
+
+
+def get_gpu_tier(model_id: str) -> str:
+    """
+    Get the GPU tier ('l4' or 'a10g') whose inference worker serves a model.
+
+    Args:
+        model_id: Open-source model ID, or an Ozera base/custom model name
+
+    Returns:
+        GPU tier name
+    """
+    if model_id in OPEN_SOURCE_MODELS:
+        return OPEN_SOURCE_MODELS[model_id].gpu_tier
+    return DEFAULT_GPU_TIER
 
 
 def get_loader_for_model(model_id: str) -> "OpenSourceModelLoader":

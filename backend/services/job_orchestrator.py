@@ -38,6 +38,21 @@ GPU_THROUGHPUT = {
 # Default GPU rates (from credit_service.py)
 GPU_RATES = {gpu: info["rate_per_hour"] for gpu, info in GPU_PRICING.items()}
 
+# Container time Modal bills that the job's reported minutes don't include: startup before
+# the training function runs. (Workers report time through saving the model, and training
+# containers shut down 2s after finishing.)
+TRAINING_STARTUP_MINUTES = 1.0
+
+
+def training_charge(gpu_type: str, minutes: float) -> float:
+    """
+    Charge for a training job that ran for `minutes`, including container startup.
+
+    Unknown GPU types are charged at the highest rate so a job is never billed below cost.
+    """
+    gpu_rate = GPU_RATES.get(gpu_type, max(GPU_RATES.values()))
+    return ((minutes + TRAINING_STARTUP_MINUTES) / 60) * gpu_rate
+
 # Credit reservation buffer (20%)
 RESERVATION_BUFFER = 1.2
 
@@ -62,7 +77,6 @@ def estimate_training_cost(
     """
     # Get throughput for this model/GPU combination
     throughput = GPU_THROUGHPUT.get(model_config, {}).get(gpu_type, 40000)
-    gpu_rate = GPU_RATES.get(gpu_type, 0.80)
 
     # Calculate total tokens to process
     total_tokens = num_tokens * epochs
@@ -72,8 +86,7 @@ def estimate_training_cost(
     estimated_minutes = estimated_seconds / 60
 
     # Estimate cost
-    estimated_hours = estimated_minutes / 60
-    estimated_cost = estimated_hours * gpu_rate
+    estimated_cost = training_charge(gpu_type, estimated_minutes)
 
     return round(estimated_minutes, 1), round(estimated_cost, 2)
 
@@ -279,9 +292,7 @@ async def settle_completed_job(
         return False
 
     # Calculate actual cost
-    gpu_rate = GPU_RATES.get(job.gpu_type, 0.80)
-    actual_hours = actual_minutes / 60
-    actual_cost = actual_hours * gpu_rate
+    actual_cost = training_charge(job.gpu_type, actual_minutes)
 
     # Update job with actual values
     job.actual_minutes = actual_minutes
@@ -324,10 +335,8 @@ async def handle_failed_job(
     if not job:
         return False
 
-    # Calculate partial cost (only charge if meaningful work was done)
-    gpu_rate = GPU_RATES.get(job.gpu_type, 0.80)
-    actual_hours = actual_minutes / 60
-    partial_cost = actual_hours * gpu_rate if actual_minutes > 0.5 else 0
+    # Charge for the container time Modal billed before the failure
+    partial_cost = training_charge(job.gpu_type, actual_minutes)
 
     # Update job
     job.status = JobStatus.FAILED
@@ -377,15 +386,13 @@ async def cancel_job(
     if job.status not in [JobStatus.PENDING, JobStatus.QUEUED, JobStatus.RUNNING]:
         return False, f"Cannot cancel job with status: {job.status.value}"
 
-    # Try to cancel on Modal if running
+    # Stop the job on Modal; otherwise it keeps running (and billing) to completion
     if job.modal_call_id and job.status == JobStatus.RUNNING:
         try:
             import modal
-            # Cancel the Modal function call
-            # Note: This may not immediately stop the job
-            pass  # Modal doesn't have a direct cancel API for spawned calls
+            await modal.FunctionCall.from_id(job.modal_call_id).cancel.aio(terminate_containers=True)
         except Exception:
-            pass
+            return False, "Failed to stop the job on Modal, please try again"
 
     # Calculate time so far
     if job.started_at:
@@ -398,9 +405,10 @@ async def cancel_job(
     job.actual_minutes = elapsed
     job.completed_at = datetime.utcnow()
 
-    # Calculate partial cost
-    gpu_rate = GPU_RATES.get(job.gpu_type, 0.80)
-    partial_cost = (elapsed / 60) * gpu_rate if elapsed > 0.5 else 0
+    # Calculate partial cost. Elapsed time runs from when the job was spawned, so it
+    # already covers container startup.
+    gpu_rate = GPU_RATES.get(job.gpu_type, max(GPU_RATES.values()))
+    partial_cost = (elapsed / 60) * gpu_rate
     job.actual_cost_usd = round(partial_cost, 2)
 
     # Refund credits

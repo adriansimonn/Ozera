@@ -49,14 +49,6 @@ GPU_CONFIGS = {
     "a100": "A100-40GB",
 }
 
-# GPU pricing (matches credit_service.py)
-GPU_RATES = {
-    "t4": 0.40,      # $0.40/hr
-    "a10g": 0.80,    # $0.80/hr
-    "a100": 3.25,    # $3.25/hr
-}
-
-
 def send_progress_update(
     backend_url: str,
     webhook_secret: str,
@@ -98,6 +90,7 @@ def send_progress_update(
     },
     gpu="T4",  # Default, will be overridden by spawn() call
     timeout=7200,  # 2 hour timeout
+    scaledown_window=2,  # One-off jobs: don't pay for an idle container afterwards
     secrets=[modal.Secret.from_name("ozera-secrets")],
 )
 def run_training_on_modal(
@@ -132,75 +125,10 @@ def run_training_on_modal(
     Returns:
         Dict with status, actual_minutes, and optional error_message
     """
-    import sys
-    sys.path.insert(0, "/app/backend")
-
-    from services.training_logic import TrainingConfig, TrainingProgress, run_training
-
-    # Get environment variables for webhook callbacks
-    backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
-    webhook_secret = os.environ.get("MODAL_WEBHOOK_SECRET", "")
-
-    # Construct paths in Modal volumes
-    # Handle generic datasets (prefixed with 'generic:') vs user-uploaded datasets
-    if dataset_id.startswith("generic:"):
-        actual_dataset_id = dataset_id[8:]  # Remove 'generic:' prefix
-        dataset_path = f"/datasets/generic/{actual_dataset_id}/raw.txt"
-    else:
-        dataset_path = f"/datasets/{user_id}/{dataset_id}/raw.txt"
-    model_output_path = f"/models/{user_id}/{model_name}"
-
-    # Create training config
-    config = TrainingConfig(
-        job_id=job_id,
-        user_id=user_id,
-        dataset_path=dataset_path,
-        model_output_path=model_output_path,
-        model_config=model_config,
-        model_name=model_name,
-        epochs=epochs,
-        batch_size=batch_size,
-        learning_rate=learning_rate,
-        seq_len=seq_len,
-        dataset_name=dataset_name,
+    return _run_training_impl(
+        job_id, user_id, dataset_id, model_config, model_name,
+        epochs, batch_size, learning_rate, seq_len, dataset_name, gpu_type
     )
-
-    # Progress callback that sends updates to backend
-    def progress_callback(progress: TrainingProgress):
-        progress_data = {
-            "status": progress.status,
-            "current_epoch": progress.current_epoch,
-            "total_epochs": progress.total_epochs,
-            "train_loss": progress.train_loss,
-            "val_loss": progress.val_loss,
-            "train_ppl": progress.train_ppl,
-            "val_ppl": progress.val_ppl,
-            "elapsed_seconds": progress.elapsed_seconds,
-            "error_message": progress.error_message,
-        }
-        send_progress_update(backend_url, webhook_secret, job_id, progress_data)
-
-    # Run training
-    status, actual_minutes, error_message = run_training(config, progress_callback)
-
-    # Commit volume changes
-    models_volume.commit()
-
-    # Send final update
-    final_progress = {
-        "status": status,
-        "current_epoch": epochs if status == "completed" else 0,
-        "total_epochs": epochs,
-        "actual_minutes": actual_minutes,
-        "error_message": error_message,
-    }
-    send_progress_update(backend_url, webhook_secret, job_id, final_progress)
-
-    return {
-        "status": status,
-        "actual_minutes": actual_minutes,
-        "error_message": error_message,
-    }
 
 
 # Separate functions for each GPU type to allow proper GPU selection
@@ -212,6 +140,7 @@ def run_training_on_modal(
     },
     gpu="T4",
     timeout=7200,
+    scaledown_window=2,  # One-off jobs: don't pay for an idle container afterwards
     secrets=[modal.Secret.from_name("ozera-secrets")],
 )
 def run_training_t4(
@@ -241,6 +170,7 @@ def run_training_t4(
     },
     gpu="A10G",
     timeout=7200,
+    scaledown_window=2,  # One-off jobs: don't pay for an idle container afterwards
     secrets=[modal.Secret.from_name("ozera-secrets")],
 )
 def run_training_a10g(
@@ -270,6 +200,7 @@ def run_training_a10g(
     },
     gpu="A100-40GB",
     timeout=7200,
+    scaledown_window=2,  # One-off jobs: don't pay for an idle container afterwards
     secrets=[modal.Secret.from_name("ozera-secrets")],
 )
 def run_training_a100(
@@ -306,6 +237,8 @@ def _run_training_impl(
 ) -> dict:
     """Internal implementation for all GPU types."""
     import sys
+    import time
+    function_start = time.time()
     sys.path.insert(0, "/app/backend")
 
     from services.training_logic import TrainingConfig, TrainingProgress, run_training
@@ -351,10 +284,14 @@ def _run_training_impl(
         }
         send_progress_update(backend_url, webhook_secret, job_id, progress_data)
 
-    status, actual_minutes, error_message = run_training(config, progress_callback)
+    status, _, error_message = run_training(config, progress_callback)
 
     # Commit model volume changes
     models_volume.commit()
+
+    # Bill the container time from function start through saving the model, not just the
+    # training loop
+    actual_minutes = (time.time() - function_start) / 60
 
     # Send final update
     final_progress = {

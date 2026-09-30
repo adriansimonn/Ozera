@@ -1837,6 +1837,7 @@ def upload_sae(request: UploadSAERequest) -> dict:
     gpu="L4",
     timeout=600,
     memory=16384,
+    scaledown_window=60,  # SAE_SCALEDOWN_SECONDS in credit_service prices this idle time; keep in sync
 )
 @modal.asgi_app()
 def serve():

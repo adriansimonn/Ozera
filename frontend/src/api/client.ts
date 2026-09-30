@@ -9,6 +9,7 @@ import type {
   ActivationData,
   ActivationSummary,
   ActivationSummaryWithInfo,
+  FlowActivations,
   GenerateWithActivationsResponse,
   OpenSourceModelInfo,
   ModelCacheStatus,
@@ -378,7 +379,9 @@ class OzeraAPIClient {
    * Get information about a specific model.
    */
   async getModelInfo(modelName: string): Promise<ModelInfo> {
-    const response = await fetchWithTimeout(`${this.baseUrl}/models/${modelName}`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/models/${modelName}`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to get model info: ${response.statusText}`)
@@ -394,6 +397,7 @@ class OzeraAPIClient {
   async prepareModel(modelName: string): Promise<{ status: string; model: string; parameters: number; layers: number }> {
     const response = await fetchWithTimeout(`${this.baseUrl}/models/${modelName}/prepare`, {
       method: 'POST',
+      headers: getAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -401,6 +405,7 @@ class OzeraAPIClient {
       throw new Error(error.detail || `Failed to prepare model: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -603,8 +608,25 @@ class OzeraAPIClient {
   }
 
   /**
+   * Get the first `dims` hidden dimensions of every layer's residual stream and of the
+   * input embeddings: all the generation flow visualization reads, instead of every layer in full.
+   */
+  async getFlowActivations(activationId: string, dims: number): Promise<FlowActivations> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/activations/${activationId}/flow?dims=${dims}`, {
+      headers: getAuthHeaders(),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to get flow activations: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return decodeTensorData(data)
+  }
+
+  /**
    * Get a specific top-level tensor (lazy loading).
-   * Valid tensor names: token_embeddings, positional_embeddings, combined_embeddings, final_layer_norm, logits
+   * Valid tensor names: token_embeddings, positional_embeddings, combined_embeddings, final_layer_norm, logits, top_k_logits
    */
   async getTensorActivation(activationId: string, tensorName: string): Promise<{ tensor_name: string; data: TensorData | TopKLogits }> {
     const response = await fetchWithTimeout(`${this.baseUrl}/activations/${activationId}/tensor/${tensorName}`, {
@@ -1129,6 +1151,7 @@ class OzeraAPIClient {
       throw new Error(error.detail || `Failed to warmup model: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1294,6 +1317,7 @@ class OzeraAPIClient {
       throw new Error(error.detail || `Failed to capture activations: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -1874,10 +1898,12 @@ class SAEAPIClient {
 
   /**
    * List all available SAEs with metadata.
-   * Public endpoint (no auth required).
+   * Requires auth and is charged (it starts the SAE GPU service).
    */
   async listSAEs(): Promise<SAEListResponse> {
-    const response = await fetchWithTimeout(`${this.baseUrl}/sae/list`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/list`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to list SAEs: ${response.statusText}`)
@@ -2055,14 +2081,18 @@ class SAEAPIClient {
 
   /**
    * Health check endpoint.
+   * Requires auth and is charged (it starts the SAE GPU service).
    */
   async health(): Promise<{ status: string; cuda_available: boolean; cuda_device: string | null }> {
-    const response = await fetchWithTimeout(`${this.baseUrl}/sae/health`)
+    const response = await fetchWithTimeout(`${this.baseUrl}/sae/health`, {
+      headers: getAuthHeaders(),
+    })
 
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -2087,6 +2117,7 @@ class SAEAPIClient {
       throw new Error(error.detail || `Failed to load external SAE: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -2107,6 +2138,7 @@ class SAEAPIClient {
       throw new Error(`Failed to list external SAE sources: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 
@@ -2216,6 +2248,7 @@ class SAEAPIClient {
       throw new Error(error.detail || `Failed to upload SAE: ${response.statusText}`)
     }
 
+    notifyCreditsChanged()
     return response.json()
   }
 }

@@ -1,13 +1,16 @@
 """
 Credit service for managing user credit balances and transactions.
 """
+import math
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, List, Tuple
 
 from sqlalchemy.orm import Session
 
+from core.open_source import get_gpu_tier
 from models.database import CreditBalance, Transaction, TransactionType, User
+from services.modal_inference import SCALEDOWN_WINDOW_SECONDS as INFERENCE_SCALEDOWN_SECONDS
 
 
 class InsufficientBalanceError(Exception):
@@ -23,16 +26,69 @@ def _to_decimal(value: float) -> Decimal:
     return Decimal(str(value))
 
 
-# GPU pricing tiers (30% markup on Modal base costs)
+# Modal list prices per second (https://modal.com/pricing, checked 2026-09-29).
+# Nothing on Ozera may charge below Modal's cost; GPU containers are also billed for CPU and memory.
+MODAL_GPU_PRICE_PER_SEC = {
+    "t4": 0.000164,
+    "l4": 0.000222,
+    "a10g": 0.000306,
+    "a100": 0.000583,  # A100 40GB
+}
+MODAL_CPU_CORE_PRICE_PER_SEC = 0.0000131
+MODAL_MEMORY_GIB_PRICE_PER_SEC = 0.00000222
+
+# Markup over Modal's cost
+PRICE_MARKUP = 1.3
+
+# CPU and memory a training container is billed for (the single-process training loop on a
+# 50MB dataset stays under this; the markup leaves further headroom)
+TRAINING_CPU_CORES = 2
+TRAINING_MEMORY_GIB = 8
+
+
+def container_cost_per_second(gpu_type: str, cpu_cores: float, memory_gib: float) -> float:
+    """Modal's cost per second for a container with the given GPU, CPU, and memory."""
+    return (
+        MODAL_GPU_PRICE_PER_SEC[gpu_type]
+        + cpu_cores * MODAL_CPU_CORE_PRICE_PER_SEC
+        + memory_gib * MODAL_MEMORY_GIB_PRICE_PER_SEC
+    )
+
+
+def training_hourly_cost(gpu_type: str) -> float:
+    """Modal's cost per hour for a training container on the given GPU."""
+    return container_cost_per_second(gpu_type, TRAINING_CPU_CORES, TRAINING_MEMORY_GIB) * 3600
+
+
+def lone_request_charge(
+    gpu_type: str,
+    cold_start_seconds: float,
+    busy_seconds: float,
+    idle_seconds: float,
+    cpu_cores: float,
+    memory_gib: float,
+) -> float:
+    """
+    Charge that covers a request with a GPU container to itself.
+
+    Modal bills the container's cold start, the request's work, and the warm window it
+    idles for afterwards. Returns that cost plus markup, rounded up to the cent.
+    """
+    seconds = cold_start_seconds + busy_seconds + idle_seconds
+    cost = seconds * container_cost_per_second(gpu_type, cpu_cores, memory_gib)
+    return math.ceil(cost * PRICE_MARKUP * 100) / 100
+
+
+# GPU pricing tiers for training (at least PRICE_MARKUP over Modal's cost, enforced below)
 GPU_PRICING = {
     "t4": {
         "display_name": "NVIDIA T4",
-        "rate_per_hour": 0.40,
+        "rate_per_hour": 0.98,
         "description": "Budget-friendly option for smaller models",
     },
     "a10g": {
         "display_name": "NVIDIA A10G",
-        "rate_per_hour": 0.80,
+        "rate_per_hour": 1.64,
         "description": "Best price/performance balance (recommended)",
     },
     "a100": {
@@ -41,6 +97,10 @@ GPU_PRICING = {
         "description": "Fastest training for large models",
     },
 }
+
+for _gpu_type, _info in GPU_PRICING.items():
+    if _info["rate_per_hour"] < training_hourly_cost(_gpu_type) * PRICE_MARKUP:
+        raise RuntimeError(f"{_gpu_type} training rate ${_info['rate_per_hour']}/h is below Modal's cost plus markup")
 
 # Minimum and maximum credit purchase amounts
 MIN_CREDIT_PURCHASE = 5.0
@@ -195,8 +255,9 @@ def charge_credits(
     db.add(transaction)
 
     # If there's a difference (refund), create refund transaction
-    refund_amount = reserved_amount - amount_usd
-    if refund_amount > 0.01:  # Only if meaningful difference
+    # (reserved amounts come back from the DB as Decimal, so do the arithmetic in Decimal)
+    refund_amount = _to_decimal(reserved_amount) - _to_decimal(amount_usd)
+    if refund_amount > Decimal("0.01"):  # Only if meaningful difference
         refund_transaction = Transaction(
             user_id=user_id,
             amount_usd=_to_decimal(refund_amount),  # Positive for refund
@@ -247,7 +308,7 @@ def refund_credits(
     credit_balance.updated_at = datetime.utcnow()
 
     # Create refund transaction for unused portion
-    refund_amount = reserved_amount - amount_usd
+    refund_amount = _to_decimal(reserved_amount) - _to_decimal(amount_usd)
     transaction = Transaction(
         user_id=user_id,
         amount_usd=_to_decimal(refund_amount),  # Positive for refund
@@ -300,7 +361,8 @@ def check_sufficient_balance(db: Session, user_id: int, required_amount: float) 
 
 
 # Base inference pricing (per 1000 tokens, 30% markup on Modal GPU costs)
-# Based on T4 GPU usage for small models
+# Set when small models ran on a T4; models now served by the L4 tier are scaled up
+# by the GPU rate difference (see get_inference_multiplier)
 BASE_INFERENCE_PRICING = {
     "input": 0.05,    # $0.05 per 1000 input tokens ($50 per 1M)
     "output": 0.10,   # $0.10 per 1000 output tokens ($100 per 1M)
@@ -310,27 +372,27 @@ BASE_INFERENCE_PRICING = {
 # Larger models use more GPU memory and compute, so they cost more
 # Multipliers based on approximate compute requirements relative to smallest model
 MODEL_SIZE_MULTIPLIERS = {
-    # Ozera models (small, run on T4)
+    # Ozera models (small, run on L4)
     "nano": 1.0,
     "mini": 1.5,
     # SmolLM family (instruct variants share the base model's compute)
-    "smollm-135m": 1.0,      # 135M params, baseline (T4)
+    "smollm-135m": 1.0,      # 135M params, baseline (L4)
     "smollm-135m-it": 1.0,
-    "smollm-360m": 2.0,      # 360M params, ~2.7x compute (T4)
+    "smollm-360m": 2.0,      # 360M params, ~2.7x compute (L4)
     "smollm-360m-it": 2.0,
-    "smollm3-3b": 12.0,      # 3B params (A10G, 2x GPU cost)
+    "smollm3-3b": 12.0,      # 3B params (A10G, 2x T4 GPU cost)
     "smollm3-3b-it": 12.0,
     # Qwen family
-    "qwen3-0.6b": 3.0,       # 600M params (T4)
+    "qwen3-0.6b": 3.0,       # 600M params (L4)
     "qwen3-0.6b-it": 3.0,
-    "qwen3-1.7b": 5.0,       # 1.7B params (T4)
+    "qwen3-1.7b": 5.0,       # 1.7B params (L4)
     "qwen3-1.7b-it": 5.0,
-    "qwen3-4b": 16.0,        # 4B params (A10G, 2x GPU cost)
+    "qwen3-4b": 16.0,        # 4B params (A10G, 2x T4 GPU cost)
     "qwen3-4b-it": 16.0,
     # Gemma family
-    "gemma-3-270m": 1.5,     # 270M params, 262K vocab (T4)
+    "gemma-3-270m": 1.5,     # 270M params, 262K vocab (L4)
     "gemma-3-270m-it": 1.5,
-    "gemma-3-1b": 4.0,       # 1B params, 262K vocab (T4)
+    "gemma-3-1b": 4.0,       # 1B params, 262K vocab (L4)
     "gemma-3-1b-it": 4.0,
 }
 
@@ -338,13 +400,44 @@ MODEL_SIZE_MULTIPLIERS = {
 DEFAULT_MODEL_MULTIPLIER = 1.0
 
 
-# Minimum charge per inference request (covers GPU cold start overhead)
-MIN_INFERENCE_CHARGE = 0.01  # $0.01 minimum
+# Per-request minimums for the inference workers (L4 and A10G tiers). A request that finds
+# no warm container pays for the whole container lifetime Modal bills; per-token charges
+# cover the work of requests that share a warm container.
+INFERENCE_CPU_CORES = 2
+INFERENCE_MEMORY_GIB = 8
+INFERENCE_COLD_START_SECONDS = {"l4": 30, "a10g": 60}  # Boot, imports, model load (estimates)
+INFERENCE_BUSY_SECONDS = {"l4": 10, "a10g": 20}  # Generation plus activation capture (estimates)
+
+
+def min_gpu_request_charge(model_id: str, busy_seconds: dict[str, float] = INFERENCE_BUSY_SECONDS) -> float:
+    """Minimum charge for a request to the inference worker that serves a model."""
+    tier = get_gpu_tier(model_id)
+    return lone_request_charge(
+        gpu_type=tier,
+        cold_start_seconds=INFERENCE_COLD_START_SECONDS[tier],
+        busy_seconds=busy_seconds[tier],
+        idle_seconds=INFERENCE_SCALEDOWN_SECONDS[tier],
+        cpu_cores=INFERENCE_CPU_CORES,
+        memory_gib=INFERENCE_MEMORY_GIB,
+    )
 
 
 def get_model_multiplier(model_id: str) -> float:
     """Get the pricing multiplier for a model based on its size."""
     return MODEL_SIZE_MULTIPLIERS.get(model_id, DEFAULT_MODEL_MULTIPLIER)
+
+
+def get_inference_multiplier(model_id: str) -> float:
+    """
+    Get the pricing multiplier for GPU inference on a model.
+
+    The size multiplier, scaled by the L4/T4 rate for models on the L4 tier. A10G
+    models already carry their GPU cost in their size multiplier.
+    """
+    multiplier = get_model_multiplier(model_id)
+    if get_gpu_tier(model_id) == "l4":
+        multiplier *= MODAL_GPU_PRICE_PER_SEC["l4"] / MODAL_GPU_PRICE_PER_SEC["t4"]
+    return multiplier
 
 
 def calculate_inference_cost(prompt_tokens: int, generated_tokens: int, model_id: str = None) -> float:
@@ -357,12 +450,12 @@ def calculate_inference_cost(prompt_tokens: int, generated_tokens: int, model_id
         model_id: Model identifier for size-based pricing (optional)
 
     Returns:
-        Cost in USD (minimum $0.01 per request)
+        Cost in USD (at least the model's per-request minimum, see min_gpu_request_charge)
     """
-    multiplier = get_model_multiplier(model_id) if model_id else DEFAULT_MODEL_MULTIPLIER
+    multiplier = get_inference_multiplier(model_id)
     input_cost = (prompt_tokens / 1000) * BASE_INFERENCE_PRICING["input"] * multiplier
     output_cost = (generated_tokens / 1000) * BASE_INFERENCE_PRICING["output"] * multiplier
-    return max(input_cost + output_cost, MIN_INFERENCE_CHARGE)
+    return max(input_cost + output_cost, min_gpu_request_charge(model_id))
 
 
 def charge_inference(
@@ -417,6 +510,54 @@ def charge_inference(
     return transaction
 
 
+def charge_flat(
+    db: Session,
+    user_id: int,
+    amount_usd: float,
+    transaction_type: TransactionType,
+    description: str,
+) -> Transaction:
+    """
+    Charge a fixed amount, e.g. the per-request minimum for a GPU call not priced by tokens.
+
+    Args:
+        db: Database session
+        user_id: User ID
+        amount_usd: Amount to charge
+        transaction_type: Transaction type to record
+        description: Transaction description
+
+    Returns:
+        Created transaction record
+    """
+    cost_decimal = _to_decimal(amount_usd)
+
+    # Lock the row to prevent concurrent read-modify-write races
+    credit_balance = get_credit_balance_for_update(db, user_id)
+    if not credit_balance:
+        raise InsufficientBalanceError(required=amount_usd, available=0.0)
+
+    # Check sufficient balance before deducting
+    if credit_balance.balance_usd < cost_decimal:
+        raise InsufficientBalanceError(required=amount_usd, available=float(credit_balance.balance_usd))
+
+    # Deduct cost from balance
+    credit_balance.balance_usd -= cost_decimal
+    credit_balance.updated_at = datetime.utcnow()
+
+    transaction = Transaction(
+        user_id=user_id,
+        amount_usd=-cost_decimal,  # Negative for deduction
+        transaction_type=transaction_type,
+        description=description,
+    )
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+
+    return transaction
+
+
 # Patching experiment pricing
 # Patching is more compute-intensive than regular inference because it:
 # 1. Captures activations from source prompt (forward pass with hooks)
@@ -425,8 +566,8 @@ def charge_inference(
 # We charge a multiplier on top of regular inference pricing
 PATCHING_MULTIPLIER = 3.0  # 3x cost of regular inference
 
-# Minimum charge per patching experiment (covers overhead)
-MIN_PATCHING_CHARGE = 0.02  # $0.02 minimum
+# GPU work per patching experiment: capture, baseline, and patched generation (estimates)
+PATCHING_BUSY_SECONDS = {"l4": 20, "a10g": 40}
 
 
 def calculate_patching_cost(
@@ -449,7 +590,7 @@ def calculate_patching_cost(
     Returns:
         Cost in USD
     """
-    model_multiplier = get_model_multiplier(model_id)
+    model_multiplier = get_inference_multiplier(model_id)
 
     # Input cost: source prompt + target prompt (both processed)
     total_input_tokens = source_tokens + target_tokens
@@ -465,7 +606,7 @@ def calculate_patching_cost(
     # Small additional cost per patch (more hooks = more overhead)
     patch_overhead = num_patches * 0.001 * model_multiplier  # $0.001 per patch
 
-    return max(base_cost + patch_overhead, MIN_PATCHING_CHARGE)
+    return max(base_cost + patch_overhead, min_gpu_request_charge(model_id, PATCHING_BUSY_SECONDS))
 
 
 def estimate_patching_cost(
@@ -543,7 +684,7 @@ def calculate_analysis_cost(
     # Get analysis type multiplier
     type_multiplier = ANALYSIS_TYPE_MULTIPLIERS.get(analysis_type, 1.0)
 
-    # Get model size multiplier
+    # Get model size multiplier (analysis runs on the backend CPU, so no GPU rate adjustment)
     model_multiplier = get_model_multiplier(model_id) if model_id else DEFAULT_MODEL_MULTIPLIER
 
     # Scale cost by model complexity (layers * heads) and token count
@@ -722,8 +863,17 @@ SAE_MODEL_MULTIPLIERS = {
     "mini": 1.5,   # 10M param model, 1.5x compute
 }
 
-# Minimum charge per SAE operation (covers GPU overhead and cold start)
-MIN_SAE_CHARGE = 0.04  # $0.04 minimum (matches typical Modal costs)
+# Minimum charge per SAE service request: a lone request pays for the L4 container's cold
+# start, its work, and the warm window after it (the service reserves 16 GiB of memory)
+SAE_SCALEDOWN_SECONDS = 60  # Must match scaledown_window in services/modal_sae_inference.py
+MIN_SAE_CHARGE = lone_request_charge(
+    gpu_type="l4",
+    cold_start_seconds=45,  # Boot, imports, transformer + SAE load (estimate)
+    busy_seconds=5,
+    idle_seconds=SAE_SCALEDOWN_SECONDS,
+    cpu_cores=2,
+    memory_gib=16,
+)
 
 
 def calculate_sae_cost(
@@ -740,7 +890,7 @@ def calculate_sae_cost(
         operation_type: Type of operation ("analyze", "compare", "compare_layers")
 
     Returns:
-        Cost in USD (minimum $0.04 per operation)
+        Cost in USD (at least MIN_SAE_CHARGE per operation)
     """
     # Get model multiplier
     model_multiplier = SAE_MODEL_MULTIPLIERS.get(model_id, 1.0)

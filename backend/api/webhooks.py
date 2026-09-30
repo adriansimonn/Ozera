@@ -81,6 +81,11 @@ async def receive_training_progress(
     if not job:
         raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
 
+    # A finished job (completed, failed, or cancelled) is already settled; ignore late
+    # updates so it can't be charged twice
+    if job.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED):
+        return {"status": "ignored", "job_id": job_id}
+
     # Update progress fields
     job.current_epoch = update.current_epoch
     job.total_epochs = update.total_epochs

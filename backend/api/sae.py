@@ -12,8 +12,14 @@ from typing import Optional, List
 
 from db import get_db
 from middleware.auth_middleware import get_current_user
-from models.database import User, UserExternalSAE
-from services.credit_service import charge_sae, check_sufficient_balance, estimate_sae_cost
+from models.database import TransactionType, User, UserExternalSAE
+from services.credit_service import (
+    MIN_SAE_CHARGE,
+    charge_flat,
+    charge_sae,
+    check_sufficient_balance,
+    estimate_sae_cost,
+)
 
 # Get SAE API URL and shared secret from environment (both required in production)
 SAE_API_URL = os.getenv("SAE_API_URL", "")
@@ -23,6 +29,20 @@ if os.getenv("APP_ENV", "development") == "production":
         raise RuntimeError("SAE_API_URL must be set in production")
     if not SAE_API_SECRET:
         raise RuntimeError("SAE_API_SECRET must be set in production")
+
+
+def _require_sae_request_balance(db: Session, user: User) -> None:
+    """Check the user can pay MIN_SAE_CHARGE, the minimum for any call that starts the SAE GPU service."""
+    if not check_sufficient_balance(db, user.id, MIN_SAE_CHARGE):
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="INSUFFICIENT_CREDITS",
+        )
+
+
+def _charge_sae_request(db: Session, user: User, description: str) -> None:
+    """Charge MIN_SAE_CHARGE for a call to the SAE GPU service not priced by tokens."""
+    charge_flat(db, user.id, MIN_SAE_CHARGE, TransactionType.SAE_CHARGE, description)
 
 
 def _sae_client(timeout: float, follow_redirects: bool = False) -> httpx.AsyncClient:
@@ -75,16 +95,22 @@ class SAEAnalyzeBatchRequest(BaseModel):
 
 
 @router.get("/list")
-async def list_saes():
+async def list_saes(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """
     List available SAEs.
 
-    This endpoint is public (no auth required).
+    Requires auth and charges MIN_SAE_CHARGE, since it starts the SAE GPU service.
     """
+    _require_sae_request_balance(db, user)
     async with _sae_client(timeout=30.0) as client:
         response = await client.get(f"{SAE_API_URL}/sae/list")
         response.raise_for_status()
-        return response.json()
+        result = response.json()
+    _charge_sae_request(db, user, "SAE list")
+    return result
 
 
 @router.post("/analyze")
@@ -173,7 +199,7 @@ async def get_feature_info(
     Requires authentication. Charges a small fee for feature lookup.
     """
     # This is a cheap operation, charge minimal fee
-    min_cost = 0.001  # $0.001
+    min_cost = MIN_SAE_CHARGE  # Feature lookups are charged at least this
 
     if not check_sufficient_balance(db, user.id, min_cost):
         raise HTTPException(
@@ -436,22 +462,28 @@ async def compare_layers(
 
 
 @router.get("/health")
-async def health():
+async def health(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """
     Health check endpoint.
 
-    Public endpoint (no auth).
+    Requires auth and charges MIN_SAE_CHARGE, since it starts the SAE GPU service.
     """
+    _require_sae_request_balance(db, user)
     async with _sae_client(timeout=10.0) as client:
         try:
             response = await client.get(f"{SAE_API_URL}/health")
             response.raise_for_status()
-            return response.json()
+            result = response.json()
         except httpx.HTTPError:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="SAE service unhealthy",
             )
+    _charge_sae_request(db, user, "SAE service health check")
+    return result
 
 
 class ExternalSAELoadRequest(BaseModel):
@@ -558,8 +590,10 @@ async def load_external_sae(
     """Load an external SAE from HuggingFace or Gemma Scope.
 
     Downloads the SAE to shared Modal volume storage (if not already there),
-    then creates a per-user reference in the database.
+    then creates a per-user reference in the database. Charges MIN_SAE_CHARGE.
     """
+    _require_sae_request_balance(db, user)
+
     # Forward to Modal to download/store the SAE weights
     async with _sae_client(timeout=600.0, follow_redirects=True) as client:
         try:
@@ -603,15 +637,18 @@ async def load_external_sae(
         db.add(user_sae)
         db.commit()
 
+    _charge_sae_request(db, user, f"External SAE load ({sae_id})")
     return result
 
 
 @router.post("/external/list-sources")
 async def list_external_sae_sources(
     request: ExternalSAEListSourcesRequest,
+    db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """List available hookpoints in an external SAE repository."""
+    """List available hookpoints in an external SAE repository. Charges MIN_SAE_CHARGE."""
+    _require_sae_request_balance(db, user)
     async with _sae_client(timeout=60.0) as client:
         try:
             response = await client.post(
@@ -619,12 +656,14 @@ async def list_external_sae_sources(
                 json=request.model_dump(),
             )
             response.raise_for_status()
-            return response.json()
+            result = response.json()
         except httpx.HTTPError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="SAE service error",
             )
+    _charge_sae_request(db, user, f"External SAE source listing ({request.repo_id})")
+    return result
 
 
 @router.get("/external/list-loaded")
@@ -690,7 +729,7 @@ async def get_external_feature_info(
 ):
     """Get feature info for an external SAE."""
     # Charge minimal fee
-    min_cost = 0.001
+    min_cost = MIN_SAE_CHARGE  # Feature lookups are charged at least this
     if not check_sufficient_balance(db, user.id, min_cost):
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
@@ -740,7 +779,10 @@ async def upload_sae(
 
     Limited to 1 uploaded SAE per user. If the user already has an upload,
     the old one is replaced (reference removed; weights cleaned up periodically).
+    Charges MIN_SAE_CHARGE.
     """
+    _require_sae_request_balance(db, user)
+
     # Check for existing upload and remove reference if present
     existing_upload = (
         db.query(UserExternalSAE)
@@ -788,6 +830,7 @@ async def upload_sae(
     db.add(user_sae)
     db.commit()
 
+    _charge_sae_request(db, user, f"SAE upload ({sae_id})")
     return result
 
 

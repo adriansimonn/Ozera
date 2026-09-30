@@ -68,6 +68,6 @@ class PricingResponse(BaseModel):
     """Response schema for GPU pricing tiers, inference pricing, and credit purchase limits."""
     gpu_pricing: List[GPUPricing]
     inference_pricing: InferencePricing = Field(..., description="Base token-based inference pricing (multiply by model_multipliers for actual cost)")
-    model_multipliers: dict[str, float] = Field(..., description="Pricing multipliers per model based on size")
+    model_multipliers: dict[str, float] = Field(..., description="Pricing multipliers per model based on size and the GPU serving it")
     min_purchase: float = Field(..., description="Minimum credit purchase amount in USD")
     max_purchase: float = Field(..., description="Maximum credit purchase amount in USD")

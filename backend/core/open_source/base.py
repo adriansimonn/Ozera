@@ -5,10 +5,10 @@ Abstract base class for open-source model loaders.
 from abc import ABC, abstractmethod
 from typing import Optional, Callable
 import os
-import base64
-import numpy as np
+import threading
 import torch
 
+from core.tensor_codec import encode_tensor
 from .registry import OPEN_SOURCE_MODELS, OpenSourceModelConfig
 
 
@@ -43,6 +43,9 @@ class OpenSourceModelLoader(ABC):
         self.tokenizer = None
         self._hooks: list = []
         self._activations: dict[str, torch.Tensor] = {}
+        # Forward hooks and self._activations are shared by every caller of this model,
+        # so concurrent requests on one worker container must take turns
+        self.lock = threading.RLock()
 
     @abstractmethod
     def load(self, cache_dir: str, token: Optional[str] = None) -> None:
@@ -60,6 +63,9 @@ class OpenSourceModelLoader(ABC):
     def _register_hooks(self) -> None:
         """
         Register forward hooks for activation capture.
+
+        Hooks are only attached for the capture forward pass (see
+        generate_with_activations) so they add no overhead to generation.
 
         Must register hooks for:
         - Token embeddings
@@ -177,7 +183,7 @@ class OpenSourceModelLoader(ABC):
         if top_p is not None:
             gen_kwargs["top_p"] = top_p
 
-        with torch.no_grad():
+        with self.lock, torch.no_grad():
             outputs = self.model.generate(inputs.input_ids, **gen_kwargs)
 
         generated_ids = outputs[0]
@@ -206,9 +212,9 @@ class OpenSourceModelLoader(ABC):
         """
         Generate text and capture activations for visualization.
 
-        Captures logits during generation via a temporary LM head hook to ensure
-        the displayed top-k tokens match the actual generation. A separate forward
-        pass captures layer activations (attention, FFN, etc.) for visualization.
+        Generation runs without capture hooks. A separate forward pass over the
+        full sequence, with hooks attached only for its duration, captures layer
+        activations (attention, FFN, etc.) and the logits used for top-k display.
 
         Args:
             prompt: Input text
@@ -247,51 +253,55 @@ class OpenSourceModelLoader(ABC):
         if top_p is not None:
             gen_kwargs["top_p"] = top_p
 
-        # Step 1: Generate tokens.
-        with torch.no_grad():
-            generated_ids = self.model.generate(inputs.input_ids, **gen_kwargs)[0]
+        with self.lock:
+            # Step 1: Generate tokens.
+            with torch.no_grad():
+                generated_ids = self.model.generate(inputs.input_ids, **gen_kwargs)[0]
 
-        total_tokens = generated_ids.shape[0]
-        generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
+            total_tokens = generated_ids.shape[0]
+            generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
 
-        # Step 2: Forward pass on complete sequence to capture layer activations
-        # (attention weights, FFN outputs, embeddings, etc.) via registered hooks,
-        # and to obtain logits for top-k token display.
-        self._clear_activations()
+            # Step 2: Forward pass on complete sequence to capture layer activations
+            # (attention weights, FFN outputs, embeddings, etc.) via hooks attached
+            # just for this pass, and to obtain logits for top-k token display.
+            self._clear_activations()
+            self._register_hooks()
+            try:
+                with torch.no_grad():
+                    forward_outputs = self.model(
+                        generated_ids.unsqueeze(0),  # Add batch dimension
+                        output_attentions=True,
+                        return_dict=True,
+                    )
+            finally:
+                self._remove_hooks()
 
-        with torch.no_grad():
-            forward_outputs = self.model(
-                generated_ids.unsqueeze(0),  # Add batch dimension
-                output_attentions=True,
-                return_dict=True,
-            )
+            # Use forward pass logits for top-k display. These are computed from a
+            # full-sequence forward pass (no KV cache), so logits[0][i] gives the
+            # model's prediction for token i+1 given tokens 0..i.
+            self._activations["logits"] = forward_outputs.logits.detach()
 
-        # Use forward pass logits for top-k display. These are computed from a
-        # full-sequence forward pass (no KV cache), so logits[0][i] gives the
-        # model's prediction for token i+1 given tokens 0..i.
-        self._activations["logits"] = forward_outputs.logits.detach()
+            # Store attention weights if available (hooks may have already captured them
+            # with GQA normalization, so only store if not already present)
+            if hasattr(forward_outputs, "attentions") and forward_outputs.attentions is not None:
+                for i, attn in enumerate(forward_outputs.attentions):
+                    if f"layer_{i}_attn_weights" not in self._activations:
+                        # Apply GQA normalization if needed
+                        attn_weights = self._normalize_attention_weights(attn.detach(), i)
+                        self._activations[f"layer_{i}_attn_weights"] = attn_weights
 
-        # Store attention weights if available (hooks may have already captured them
-        # with GQA normalization, so only store if not already present)
-        if hasattr(forward_outputs, "attentions") and forward_outputs.attentions is not None:
-            for i, attn in enumerate(forward_outputs.attentions):
-                if f"layer_{i}_attn_weights" not in self._activations:
-                    # Apply GQA normalization if needed
-                    attn_weights = self._normalize_attention_weights(attn.detach(), i)
-                    self._activations[f"layer_{i}_attn_weights"] = attn_weights
-
-        result = {
-            "text": generated_text,
-            "prompt": prompt,
-            "prompt_tokens": prompt_tokens,
-            "generated_tokens": total_tokens - prompt_tokens,
-            "total_tokens": total_tokens,
-            "tokens": generated_ids.tolist(),
-            "activations": self.get_activations_for_frontend(),
-            "decoded_tokens": [
-                self.tokenizer.decode([tok]) for tok in generated_ids.tolist()
-            ],
-        }
+            result = {
+                "text": generated_text,
+                "prompt": prompt,
+                "prompt_tokens": prompt_tokens,
+                "generated_tokens": total_tokens - prompt_tokens,
+                "total_tokens": total_tokens,
+                "tokens": generated_ids.tolist(),
+                "activations": self.get_activations_for_frontend(),
+                "decoded_tokens": [
+                    self.tokenizer.decode([tok]) for tok in generated_ids.tolist()
+                ],
+            }
 
         return result
 
@@ -347,28 +357,20 @@ class OpenSourceModelLoader(ABC):
 
     def _tensor_to_data(self, tensor: Optional[torch.Tensor]) -> Optional[dict]:
         """
-        Convert a PyTorch tensor to the TensorData format expected by frontend.
+        Encode a PyTorch tensor for transport to the backend.
+
+        The backend expands it to the TensorData format expected by the frontend.
 
         Args:
             tensor: PyTorch tensor or None
 
         Returns:
-            Dict with values, shape, dtype, and statistics, or None
+            Compact tensor dict (raw bytes, shape, dtype, and statistics), or None
         """
         if tensor is None:
             return None
 
-        arr = tensor.cpu().float().numpy().astype(np.float32)
-        return {
-            "values": base64.b64encode(arr.tobytes()).decode("ascii"),
-            "shape": list(arr.shape),
-            "dtype": "float32",
-            "encoding": "base64_float32",
-            "mean": float(arr.mean()),
-            "std": float(arr.std()),
-            "min": float(arr.min()),
-            "max": float(arr.max()),
-        }
+        return encode_tensor(tensor)
 
     def _logits_to_topk_data(self, logits_tensor: Optional[torch.Tensor], k: int = 20) -> Optional[dict]:
         """

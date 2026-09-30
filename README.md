@@ -82,5 +82,5 @@ ozera/
 - **Frontend**: Vercel
 - **Backend**: Railway (Dockerized FastAPI)
 - **Database**: Supabase (PostgreSQL + auth)
-- **GPU Compute**: Modal (serverless T4 and A10G workers)
+- **GPU Compute**: Modal (serverless L4 and A10G workers)
 - **Model Storage**: Modal Volumes (weights, SAE checkpoints, datasets)

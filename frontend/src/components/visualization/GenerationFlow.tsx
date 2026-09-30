@@ -7,6 +7,10 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import type { ActivationData } from '../../types/model'
 
+// Nodes drawn per layer; node i shows hidden dimension i, so this is also how many
+// dimensions of each layer's activations the view needs
+export const FLOW_NODES_PER_LAYER = 10
+
 interface GenerationFlowProps {
   activationData: ActivationData
   className?: string
@@ -66,22 +70,19 @@ export const GenerationFlow = memo(function GenerationFlow({
     return `[${tokenId}]`
   }
 
-  // Decode token IDs to text via API.
-  // If forceClean is true, starts with an empty cache (used on activation change).
-  const decodeTokenIds = async (tokenIds: number[], forceClean: boolean = false): Promise<Map<number, string>> => {
-    const baseCache = forceClean ? new Map<number, string>() : new Map(tokenDecodeCache)
+  // Decode token IDs missing from baseCache via API. Only Ozera models' tokenizer is served
+  // by the backend itself; open-source tokenizers live on a GPU worker (a charged request),
+  // and open-source generations always store their decoded tokens in the metadata.
+  const decodeTokenIds = async (tokenIds: number[], baseCache: Map<number, string>): Promise<Map<number, string>> => {
     const toFetch = tokenIds.filter(id => !baseCache.has(id))
+    const modelFamily = activationData.metadata?.model_family
+    const isOpenSourceModel = modelFamily && modelFamily !== 'ozera'
 
-    if (toFetch.length === 0) return baseCache
+    if (toFetch.length === 0 || isOpenSourceModel) return baseCache
 
     try {
-      // Use the open-source endpoint for non-Ozera models (they have different tokenizers)
-      const modelFamily = activationData.metadata?.model_family
-      const isOpenSourceModel = modelFamily && modelFamily !== 'ozera'
       const apiBase = import.meta.env.VITE_API_URL || (import.meta.env.VITE_APP_ENV === 'production' ? 'https://api.ozera.app' : 'http://localhost:8000')
-      const endpoint = isOpenSourceModel
-        ? `${apiBase}/open-source/decode-tokens`
-        : `${apiBase}/decode-tokens`
+      const endpoint = `${apiBase}/decode-tokens`
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -94,10 +95,12 @@ export const GenerationFlow = memo(function GenerationFlow({
 
       if (response.ok) {
         const data = await response.json()
+        const updated = new Map(baseCache)
         toFetch.forEach((id, idx) => {
-          baseCache.set(id, data.decoded_tokens[idx])
+          updated.set(id, data.decoded_tokens[idx])
         })
-        setTokenDecodeCache(baseCache)
+        setTokenDecodeCache(updated)
+        return updated
       }
     } catch (error) {
       console.error('Error decoding tokens:', error)
@@ -193,12 +196,26 @@ export const GenerationFlow = memo(function GenerationFlow({
     }
 
     const prefetchSequenceTokens = async () => {
-      // Only need to decode sequence tokens (for generated output display)
-      const allTokenIds = new Set<number>()
-      activationData.tokens.forEach(tokenId => allTokenIds.add(tokenId))
+      // Only need to decode sequence tokens (for generated output display).
+      // The metadata's decoded_tokens come from the same tokenizer the decode API uses,
+      // so seed the cache with them and only ask the API (a GPU worker round trip for
+      // open-source models) for ids they don't cover.
+      const cache = isNewActivation ? new Map<number, string>() : new Map(tokenDecodeCache)
+      let seeded = false
+      activationData.tokens.forEach((tokenId, idx) => {
+        const text = decodedTokens[idx]
+        if (typeof text === 'string' && cache.get(tokenId) !== text) {
+          cache.set(tokenId, text)
+          seeded = true
+        }
+      })
+      if (seeded || isNewActivation) {
+        setTokenDecodeCache(cache)
+      }
 
+      const allTokenIds = new Set<number>(activationData.tokens)
       if (allTokenIds.size > 0) {
-        await decodeTokenIds(Array.from(allTokenIds), isNewActivation)
+        await decodeTokenIds(Array.from(allTokenIds), cache)
       }
     }
 
@@ -243,7 +260,7 @@ export const GenerationFlow = memo(function GenerationFlow({
     const layerSpacing = (width - 200) / (numLayers + 2)
     const tokenHeight = 40
     const maxVisibleTokens = Math.floor((height - 200) / tokenHeight)
-    const nodesPerLayer = 10 // Number of nodes to display per layer
+    const nodesPerLayer = FLOW_NODES_PER_LAYER
     const nodeRadius = 6
     const networkTop = 100
     const networkHeight = 380

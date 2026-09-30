@@ -13,6 +13,7 @@ from services.credit_service import (
     GPU_PRICING,
     BASE_INFERENCE_PRICING,
     MODEL_SIZE_MULTIPLIERS,
+    get_inference_multiplier,
     MIN_CREDIT_PURCHASE,
     MAX_CREDIT_PURCHASE,
 )
@@ -110,7 +111,7 @@ async def get_pricing():
     return PricingResponse(
         gpu_pricing=gpu_pricing,
         inference_pricing=inference_pricing,
-        model_multipliers=MODEL_SIZE_MULTIPLIERS,
+        model_multipliers={model_id: get_inference_multiplier(model_id) for model_id in MODEL_SIZE_MULTIPLIERS},
         min_purchase=MIN_CREDIT_PURCHASE,
         max_purchase=MAX_CREDIT_PURCHASE,
     )

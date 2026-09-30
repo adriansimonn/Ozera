@@ -8,13 +8,14 @@ Supports both local and Modal cloud inference based on INFERENCE_MODE env var.
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import Optional
 from slowapi.errors import RateLimitExceeded
+import gzip
 import logging
 import sys
 import os
@@ -30,7 +31,9 @@ from services.inference_router import get_inference_router
 from core.open_source import OPEN_SOURCE_MODELS
 from services.credit_service import (
     calculate_inference_cost,
+    charge_flat,
     charge_inference,
+    min_gpu_request_charge,
     check_sufficient_balance,
     get_credit_balance,
     InsufficientBalanceError,
@@ -49,7 +52,9 @@ from api.sae import router as sae_router
 from api.settings import router as settings_router
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
-from models.database import User
+from models.database import JobStatus, TrainingJob, TransactionType, UploadedModel, User
+from core.tokenizer import get_tokenizer
+from core.transformer.config import TransformerConfig, get_config
 from db import get_db, SessionLocal
 from api.error_utils import safe_detail
 
@@ -278,12 +283,95 @@ async def list_models():
     return model_loader.list_available_models(include_remote=True)
 
 
+# Base models' specs from their trained checkpoints (mirrors STATIC_BASE_MODEL_INFO in the frontend)
+BASE_MODEL_INFO = {
+    "nano": {"parameters": 12_412_608, "layers": 6, "heads": 6, "hidden_dim": 192, "vocab_size": 50257},
+    "mini": {"parameters": 51_197_440, "layers": 8, "heads": 8, "hidden_dim": 512, "vocab_size": 50257},
+}
+
+
+def _model_info_without_gpu(model_name: str, user_id: int, db: Session) -> Optional[dict]:
+    """
+    Model specs from the registries and database, so no GPU worker has to load the model.
+
+    Returns None for an uploaded model whose file didn't carry complete config metadata.
+    """
+    if model_name in BASE_MODEL_INFO:
+        return {"name": model_name, **BASE_MODEL_INFO[model_name]}
+
+    if model_name in OPEN_SOURCE_MODELS:
+        cfg = OPEN_SOURCE_MODELS[model_name]
+        return {
+            "name": model_name,
+            "parameters": cfg.parameters,
+            "layers": cfg.num_layers,
+            "heads": cfg.num_heads,
+            "hidden_dim": cfg.hidden_dim,
+            "vocab_size": cfg.vocab_size,
+        }
+
+    job = (
+        db.query(TrainingJob)
+        .filter(
+            TrainingJob.user_id == user_id,
+            TrainingJob.model_name == model_name,
+            TrainingJob.status == JobStatus.COMPLETED,
+        )
+        .order_by(TrainingJob.completed_at.desc())
+        .first()
+    )
+    if job:
+        # The config the worker rebuilds from the checkpoint's metadata (see training_logic.py)
+        base = get_config(job.model_config)
+        config = TransformerConfig(
+            vocab_size=get_tokenizer().vocab_size,
+            max_seq_len=job.seq_len,
+            d_model=base.d_model,
+            num_layers=base.num_layers,
+            num_heads=base.num_heads,
+            d_ff=base.d_ff,
+            dropout_rate=base.dropout_rate,
+        )
+        return {
+            "name": model_name,
+            "parameters": config.count_parameters(),
+            "layers": config.num_layers,
+            "heads": config.num_heads,
+            "hidden_dim": config.d_model,
+            "vocab_size": config.vocab_size,
+        }
+
+    uploaded = (
+        db.query(UploadedModel)
+        .filter(UploadedModel.user_id == user_id, UploadedModel.name == model_name)
+        .first()
+    )
+    if uploaded is None:
+        raise FileNotFoundError(f"Model '{model_name}' not found")
+    specs = {
+        "parameters": uploaded.num_parameters,
+        "layers": uploaded.num_layers,
+        "heads": uploaded.num_heads,
+        "hidden_dim": uploaded.hidden_dim,
+        "vocab_size": uploaded.vocab_size,
+    }
+    if None in specs.values():
+        return None
+    return {"name": model_name, **specs}
+
+
 @app.get("/models/{model_name}", response_model=ModelInfo)
-async def get_model_info(model_name: str):
+async def get_model_info(
+    model_name: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Get information about a specific model.
 
-    Routes to local or Modal inference based on INFERENCE_MODE env var.
+    Answered from the model registries and database. Only an uploaded model without
+    complete config metadata needs a GPU worker to inspect it, which is charged as a
+    GPU request.
 
     Args:
         model_name: Name of the model ('nano', 'mini', or custom model name)
@@ -292,7 +380,15 @@ async def get_model_info(model_name: str):
         Model information
     """
     try:
-        info = await inference_router.get_model_info(model_name)
+        info = _model_info_without_gpu(model_name, current_user.id, db)
+
+        if info is None:
+            cost = min_gpu_request_charge(model_name)
+            if not check_sufficient_balance(db, current_user.id, cost):
+                raise HTTPException(status_code=402, detail="Insufficient credits.")
+            info = await inference_router.get_model_info(model_name)
+            charge_flat(db, current_user.id, cost, TransactionType.INFERENCE_CHARGE,
+                        f"Model inspection ({model_name})")
 
         return ModelInfo(
             name=info["name"],
@@ -303,6 +399,10 @@ async def get_model_info(model_name: str):
             vocab_size=info["vocab_size"]
         )
 
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid request"))
     except FileNotFoundError as e:
@@ -313,7 +413,11 @@ async def get_model_info(model_name: str):
 
 
 @app.post("/models/{model_name}/prepare")
-async def prepare_model(model_name: str):
+async def prepare_model(
+    model_name: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Pre-load a model to ensure it's available for inference.
 
@@ -321,6 +425,7 @@ async def prepare_model(model_name: str):
     For Modal mode: Warms up the Modal container with the model.
 
     This is useful to trigger model loading before the first generation request.
+    Charged as a GPU request, since it starts a worker that Modal bills until it idles out.
 
     Args:
         model_name: Name of the model
@@ -329,14 +434,23 @@ async def prepare_model(model_name: str):
         Status and model info
     """
     try:
+        cost = min_gpu_request_charge(model_name)
+        if not check_sufficient_balance(db, current_user.id, cost):
+            raise HTTPException(status_code=402, detail="Insufficient credits.")
+
         # Warmup using the inference router
         success = await inference_router.warmup_model(model_name)
 
         if not success:
             raise HTTPException(status_code=500, detail=f"Failed to prepare model: {model_name}")
 
-        # Get model info
-        model_info = await inference_router.get_model_info(model_name)
+        charge_flat(db, current_user.id, cost, TransactionType.INFERENCE_CHARGE,
+                    f"Model warmup ({model_name})")
+
+        # Get model info (the worker is warm now, so inspecting it adds no cold start)
+        model_info = _model_info_without_gpu(model_name, current_user.id, db)
+        if model_info is None:
+            model_info = await inference_router.get_model_info(model_name)
 
         return {
             "status": "ready",
@@ -346,6 +460,10 @@ async def prepare_model(model_name: str):
             "inference_mode": inference_router.get_inference_mode(),
         }
 
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid request"))
     except FileNotFoundError as e:
@@ -532,8 +650,27 @@ async def generate_with_activations(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+def _tensor_json_response(request: Request, payload) -> Response:
+    """
+    Render a JSON payload carrying activation tensors.
+
+    Tensor payloads run to megabytes per layer, so they are gzip-compressed (at a fast
+    level) when the client accepts it. Endpoints using this are sync so the encoding
+    and compression run in the threadpool instead of blocking the event loop.
+    """
+    body = json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+    if len(body) >= 1024 and "gzip" in request.headers.get("accept-encoding", ""):
+        return Response(
+            gzip.compress(body, compresslevel=1),
+            media_type="application/json",
+            headers={"Content-Encoding": "gzip", "Vary": "Accept-Encoding"},
+        )
+    return Response(body, media_type="application/json")
+
+
 @app.get("/activations/{activation_id}")
-async def get_activations(
+def get_activations(
+    request: Request,
     activation_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -543,7 +680,7 @@ async def get_activations(
     if activations is None:
         raise HTTPException(status_code=404, detail=f"Activations not found: {activation_id}")
 
-    return activations
+    return _tensor_json_response(request, activations)
 
 
 @app.get("/activations/{activation_id}/summary")
@@ -598,7 +735,8 @@ async def list_activations(
 
 
 @app.get("/activations/{activation_id}/layer/{layer_idx}")
-async def get_layer_activations(
+def get_layer_activations(
+    request: Request,
     activation_id: str,
     layer_idx: int,
     current_user: User = Depends(get_current_user),
@@ -625,11 +763,34 @@ async def get_layer_activations(
             detail=f"Layer {layer_idx} not found for activation {activation_id}"
         )
 
-    return result
+    return _tensor_json_response(request, result)
+
+
+@app.get("/activations/{activation_id}/flow")
+def get_flow_activations(
+    request: Request,
+    activation_id: str,
+    dims: int = Query(default=10, ge=1, le=256),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get the per-layer residual stream slices the generation flow visualization reads.
+
+    Returns only the first `dims` hidden dimensions of each layer's post-FFN state
+    (and of the input embeddings), with statistics of the full tensors, instead of
+    every layer's full activations.
+    """
+    result = activation_store.get_flow_activations(activation_id, dims)
+
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Activations not found: {activation_id}")
+
+    return _tensor_json_response(request, result)
 
 
 @app.get("/activations/{activation_id}/tensor/{tensor_name}")
-async def get_tensor_activation(
+def get_tensor_activation(
+    request: Request,
     activation_id: str,
     tensor_name: str,
     current_user: User = Depends(get_current_user),
@@ -648,11 +809,12 @@ async def get_tensor_activation(
             - combined_embeddings
             - final_layer_norm
             - logits
+            - top_k_logits
 
     Returns:
         Tensor data with values, shape, and statistics
     """
-    valid_tensors = ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits']
+    valid_tensors = ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits', 'top_k_logits']
     if tensor_name not in valid_tensors:
         raise HTTPException(
             status_code=400,
@@ -667,7 +829,7 @@ async def get_tensor_activation(
             detail=f"Tensor {tensor_name} not found for activation {activation_id}"
         )
 
-    return result
+    return _tensor_json_response(request, result)
 
 
 @app.delete("/activations/{activation_id}")

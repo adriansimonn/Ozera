@@ -23,7 +23,7 @@ export interface OpenSourceModelInfo {
   intermediate_dim: number
   vocab_size: number
   max_seq_len: number
-  gpu_tier: 't4' | 'a10g'
+  gpu_tier: 'l4' | 'a10g'
 }
 
 /**
@@ -240,6 +240,17 @@ export interface LayerActivationResponse {
 export interface TensorActivationResponse {
   tensor_name: string
   data: TensorData
+}
+
+/**
+ * Leading hidden dimensions of each layer's residual stream (post_ff, or post_attn
+ * when post_ff is missing) and of the input embeddings, for the generation flow view.
+ * Statistics describe the full tensors.
+ */
+export interface FlowActivations {
+  layers: LayerActivations[]
+  combined_embeddings?: TensorData
+  token_embeddings?: TensorData
 }
 
 export interface GenerateWithActivationsResponse {
