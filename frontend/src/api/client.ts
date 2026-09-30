@@ -44,7 +44,6 @@ import type {
   AttentionHeatmapExportRequest,
   MultiHeadHeatmapExportRequest,
   ActivationHistogramExportRequest,
-  PatchingComparisonExportRequest,
   BatchExportRequest,
 } from '../types/export'
 
@@ -301,11 +300,12 @@ export interface GenerateResponse {
 
 export interface ModelInfo {
   name: string
-  parameters: number
-  layers: number
-  heads: number
-  hidden_dim: number
-  vocab_size: number
+  // null only for an uploaded model whose file the backend couldn't read yet
+  parameters: number | null
+  layers: number | null
+  heads: number | null
+  hidden_dim: number | null
+  vocab_size: number | null
 }
 
 export interface HealthResponse {
@@ -391,12 +391,12 @@ class OzeraAPIClient {
   }
 
   /**
-   * Get information about a specific model.
+   * Get information about a specific model (free: answered without a GPU).
    */
   async getModelInfo(modelName: string): Promise<ModelInfo> {
     const response = await fetchWithTimeout(`${this.baseUrl}/models/${modelName}`, {
       headers: getAuthHeaders(),
-    }, GPU_TIMEOUT_MS)
+    })
 
     if (!response.ok) {
       throw new Error(`Failed to get model info: ${response.statusText}`)
@@ -409,7 +409,7 @@ class OzeraAPIClient {
    * Prepare a model for inference (pre-loads and caches it).
    * For custom models, this triggers download from Modal volume if needed.
    */
-  async prepareModel(modelName: string): Promise<{ status: string; model: string; parameters: number; layers: number }> {
+  async prepareModel(modelName: string): Promise<{ status: string; model: string; parameters: number | null; layers: number | null }> {
     const response = await fetchWithTimeout(`${this.baseUrl}/models/${modelName}/prepare`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -1660,28 +1660,6 @@ class OzeraAPIClient {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.detail || `Failed to export activation histogram: ${response.statusText}`)
-    }
-
-    return response.blob()
-  }
-
-  /**
-   * Export patching comparison figure.
-   * Returns the file as a Blob for download.
-   */
-  async exportPatchingComparison(request: PatchingComparisonExportRequest): Promise<Blob> {
-    const response = await fetchWithTimeout(`${this.baseUrl}/export/patching-comparison`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(request),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || `Failed to export patching comparison: ${response.statusText}`)
     }
 
     return response.blob()

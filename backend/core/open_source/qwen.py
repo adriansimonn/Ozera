@@ -14,7 +14,7 @@ from typing import Optional
 
 from .base import OpenSourceModelLoader, get_hf_token
 from .registry import ModelFamily
-from .hooks import create_capture_hook, normalize_gqa_attention
+from .hooks import create_capture_hook, create_input_capture_hook, normalize_gqa_attention
 
 
 class QwenLoader(OpenSourceModelLoader):
@@ -103,6 +103,12 @@ class QwenLoader(OpenSourceModelLoader):
             # Attention output and weights
             hook = layer.self_attn.register_forward_hook(
                 self._create_attn_hook(i)
+            )
+            self._hooks.append(hook)
+
+            # Post-attention residual (attention output + residual), the pre-FFN norm's input
+            hook = layer.post_attention_layernorm.register_forward_pre_hook(
+                create_input_capture_hook(self._activations, f"layer_{i}_post_attn")
             )
             self._hooks.append(hook)
 

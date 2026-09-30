@@ -4,8 +4,6 @@
 
 export type ExportFormat = 'png' | 'pdf' | 'svg'
 
-export type ChartType = 'bar' | 'heatmap' | 'line'
-
 export type ActivationType = 'attn_output' | 'ff_output' | 'all'
 
 /**
@@ -80,17 +78,6 @@ export interface ActivationHistogramExportRequest {
 }
 
 /**
- * Request to export patching comparison.
- */
-export interface PatchingComparisonExportRequest {
-  experiment_ids: string[]
-  metric?: string
-  config?: ExportConfig
-  title?: string
-  chart_type?: ChartType
-}
-
-/**
  * Single export item for batch export.
  */
 export interface BatchExportItem {
@@ -116,7 +103,7 @@ export interface BatchExportRequest {
  */
 export interface ExportModalState {
   isOpen: boolean
-  exportType: 'attention-heatmap' | 'activation-histogram' | 'patching-comparison' | null
+  exportType: 'attention-heatmap' | 'activation-histogram' | null
   activationId?: string
   layer?: number
   head?: number

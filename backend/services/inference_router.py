@@ -347,35 +347,6 @@ class InferenceRouter:
         )
         return result
 
-    async def get_model_info(self, model: "ModelRef") -> dict:
-        """
-        Get model information.
-
-        Args:
-            model: Model to inspect (resolved for the requesting user)
-
-        Returns:
-            Model info dict
-        """
-        if self.is_modal_mode():
-            from services.modal_inference import get_inference_worker
-
-            gpu_tier = self.get_gpu_tier(model.name)
-            worker = get_inference_worker(gpu_tier)
-            return await worker().get_model_info.remote.aio(model.name, **model.worker_kwargs())
-        else:
-            loader = self._get_local_loader()
-            _, config = loader.load_model(model.name, owner_id=model.owner_id, version=model.version)
-            return {
-                "name": model.name,
-                "parameters": config.count_parameters(),
-                "layers": config.num_layers,
-                "heads": config.num_heads,
-                "hidden_dim": config.d_model,
-                "vocab_size": config.vocab_size,
-                "max_seq_len": config.max_seq_len,
-            }
-
     async def list_models(self) -> list:
         """
         List the shared models (custom models are listed per user, from the database).

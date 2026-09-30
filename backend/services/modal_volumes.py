@@ -448,6 +448,28 @@ async def upload_model_to_volume(
         return False
 
 
+async def read_model_header_from_volume(user_id: int, model_name: str) -> bytes:
+    """
+    The start of an uploaded model's safetensors file, up to the end of its header.
+
+    Reading stops once the header is in, rather than downloading the whole file.
+
+    Raises:
+        FileNotFoundError: the model has no safetensors file
+    """
+    from contextlib import aclosing
+    from core.transformer.checkpoint import MAX_HEADER_BYTES, safetensors_header_end
+
+    data = b""
+    async with aclosing(models_volume.read_file.aio(get_uploaded_model_path(user_id, model_name))) as chunks:
+        async for chunk in chunks:
+            data += chunk
+            end = safetensors_header_end(data)
+            if end is not None and (len(data) >= end or end > MAX_HEADER_BYTES):
+                break
+    return data
+
+
 async def delete_model_from_volume(user_id: int, model_name: str) -> bool:
     """
     Delete a model directory from the Modal volume.

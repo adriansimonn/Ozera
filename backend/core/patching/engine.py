@@ -9,16 +9,18 @@ from dataclasses import dataclass, field
 from typing import Optional, Literal, Any
 import os
 import torch
-import torch.nn.functional as F
 import uuid
 
+from core.activation_limits import ActivationLimitError
 from .hooks import (
+    LayerInput,
     PositionOffset,
-    create_replacement_hook,
     create_attention_patch_hook,
     create_mlp_patch_hook,
     create_residual_patch_hook,
+    create_unit_intervention_hook,
     create_zero_ablation_hook,
+    residual_stream_hook,
 )
 
 
@@ -37,6 +39,15 @@ PATCH_TYPE_ACTIVATION_KEYS = {
 def patch_activation_key(patch_type: str, layer: int) -> str:
     """Key of the captured activation a patch replaces, e.g. 'layer_2_attn_output'."""
     return f"layer_{layer}_{PATCH_TYPE_ACTIVATION_KEYS.get(patch_type, patch_type)}"
+
+
+# Patch types whose patches can pick attention heads, and MLP neurons
+HEAD_PATCH_TYPES = ('attention', 'attn_output')
+NEURON_PATCH_TYPES = ('mlp', 'ff_output')
+
+
+class PatchError(ValueError):
+    """A patch can't be applied as requested. The message says why, for the user."""
 
 
 # Interventions that only change the positions they're applied to. The rest (mean and
@@ -101,6 +112,97 @@ class PatchConfig:
             blend_factor=data.get('blend_factor', 1.0),
             intervention_type=data.get('intervention_type', 'patch'),
         )
+
+
+def unit_projection_key(patch: PatchConfig) -> Optional[str]:
+    """
+    Key of the projection input a patch of chosen heads or neurons changes, e.g.
+    'layer_2_attn_heads' (the attention output projection's input) or 'layer_2_mlp_neurons'
+    (the MLP down projection's input). None for a patch of a whole activation.
+    """
+    if patch.heads is not None:
+        return f"layer_{patch.layer}_attn_heads"
+    if patch.neurons is not None:
+        return f"layer_{patch.layer}_mlp_neurons"
+    return None
+
+
+def _index_problem(indices: list[int], count: Optional[int], unit: str) -> Optional[str]:
+    if not indices:
+        return f"no {unit}s chosen (leave them empty for all {unit}s)"
+    bad = [i for i in indices if i < 0 or (count is not None and i >= count)]
+    if bad:
+        if count is None:
+            return f"{unit}s can't be negative"
+        return f"the model has {count} {unit}s per layer (0-{count - 1}), so {bad} don't exist"
+    return None
+
+
+def _patch_problem(
+    patch: PatchConfig,
+    num_layers: int,
+    num_heads: int,
+    mlp_neurons: Optional[int],
+    source_tokens: Optional[int],
+    max_tokens: Optional[int],
+) -> Optional[str]:
+    if not 0 <= patch.layer < num_layers:
+        return f"the model has layers 0-{num_layers - 1}"
+
+    if patch.heads is not None and patch.neurons is not None:
+        return "choose heads or neurons, not both"
+    if patch.heads is not None:
+        if patch.patch_type not in HEAD_PATCH_TYPES:
+            return "heads can only be chosen for attention patches"
+        problem = _index_problem(patch.heads, num_heads, "head")
+        if problem:
+            return problem
+    if patch.neurons is not None:
+        if patch.patch_type not in NEURON_PATCH_TYPES:
+            return "neurons can only be chosen for MLP patches"
+        problem = _index_problem(patch.neurons, mlp_neurons, "neuron")
+        if problem:
+            return problem
+
+    if patch.positions is not None:
+        if not patch.positions:
+            return "no positions chosen (leave them empty for all positions)"
+        if min(patch.positions) < 0:
+            return "positions can't be negative"
+        last = max(patch.positions)
+        if patch.intervention_type == 'patch' and source_tokens is not None and last >= source_tokens:
+            return f"the source prompt only has positions 0-{source_tokens - 1}"
+        if max_tokens is not None and last >= max_tokens:
+            return f"the sequence only reaches position {max_tokens - 1} (prompt plus max tokens)"
+    return None
+
+
+def validate_patches(
+    patches: list[PatchConfig],
+    num_layers: int,
+    num_heads: int,
+    mlp_neurons: Optional[int] = None,
+    source_tokens: Optional[int] = None,
+    max_tokens: Optional[int] = None,
+) -> None:
+    """
+    Check that every patch can be applied as requested, rather than silently skipping it.
+
+    Args:
+        patches: The patches
+        num_layers: The model's layers
+        num_heads: The model's attention heads per layer
+        mlp_neurons: The model's neurons per MLP layer, if known
+        source_tokens: Tokens in the source prompt, if known (a patch only covers those)
+        max_tokens: The most tokens the patched sequence can have, if known
+
+    Raises:
+        PatchError: for the first patch that can't be applied
+    """
+    for number, patch in enumerate(patches, start=1):
+        problem = _patch_problem(patch, num_layers, num_heads, mlp_neurons, source_tokens, max_tokens)
+        if problem:
+            raise PatchError(f"Patch {number} (layer {patch.layer}, {patch.patch_type}): {problem}")
 
 
 @dataclass
@@ -215,6 +317,13 @@ class PatchingEngine:
             else:
                 model = model_loader
 
+            # Positions past the context window have no position embedding
+            if input_ids.shape[1] > model.config.max_seq_len:
+                raise ActivationLimitError(
+                    f"Capturing activations from {model_id} is limited to its context window of "
+                    f"{model.config.max_seq_len} tokens; this prompt has {input_ids.shape[1]}."
+                )
+
             # Forward pass with activation capture
             with torch.no_grad():
                 _, _, raw_activations = model.forward(
@@ -292,12 +401,12 @@ class PatchingEngine:
 
         Returns:
             PatchingResult with baseline and patched outputs.
+
+        Raises:
+            PatchError: a patch can't be applied as requested (checked before generating)
         """
         # Check if any patches require source activations (patch intervention type)
-        requires_source = any(
-            (patch.intervention_type if hasattr(patch, 'intervention_type') else 'patch') == 'patch'
-            for patch in patches
-        )
+        requires_source = any(patch.intervention_type == 'patch' for patch in patches)
 
         source = None
         if source_activation_id:
@@ -306,6 +415,35 @@ class PatchingEngine:
                 raise ValueError(f"Source activations not found: {source_activation_id}")
         elif requires_source:
             raise ValueError("Source activations required for patching interventions. Use ablation types (zero_ablate, mean_ablate, noise_ablate) or provide source activations.")
+
+        # Check every patch can be applied, before generating anything
+        if model_type == 'open_source':
+            target_tokens = model_loader.encode_prompt(target_prompt).input_ids.shape[1]
+            config = model_loader.config
+            num_layers, num_heads, mlp_neurons = config.num_layers, config.num_heads, config.intermediate_dim
+        else:
+            if tokenizer is None:
+                raise ValueError("Tokenizer required for Ozera models")
+            config = self._ozera_model(model_loader).config
+            target_tokens = len(tokenizer.encode(target_prompt))
+            num_layers, num_heads, mlp_neurons = config.num_layers, config.num_heads, config.d_ff
+            # Past the context window, generation only attends over the last max_seq_len
+            # tokens, where the patched positions would no longer be the ones asked for
+            if target_tokens + max_new_tokens > config.max_seq_len:
+                raise PatchError(
+                    f"Patching is limited to the model's context window of {config.max_seq_len} tokens "
+                    f"(prompt plus generated). This prompt has {target_tokens}, so generate at most "
+                    f"{max(config.max_seq_len - target_tokens, 0)} tokens."
+                )
+        validate_patches(
+            patches,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            mlp_neurons=mlp_neurons,
+            source_tokens=len(source.tokens) if source is not None else None,
+            max_tokens=target_tokens + max_new_tokens,
+        )
+        unit_sources = self._unit_projection_sources(patches, source, model_loader, model_type)
 
         # Generate baseline (no patches)
         if model_type == 'open_source':
@@ -321,23 +459,11 @@ class PatchingEngine:
             baseline_tokens = baseline_result['tokens']
             baseline_decoded = [model_loader.tokenizer.decode([t]) for t in baseline_tokens]
         else:
-            # Ozera model - handle both TextGenerator wrapper and raw TransformerLM
-            if tokenizer is None:
-                raise ValueError("Tokenizer required for Ozera models")
-
-            # Check if this is a TextGenerator wrapper (has .model attribute) or raw TransformerLM
-            if hasattr(model_loader, 'model'):
-                # TextGenerator wrapper
-                model = model_loader.model
-                device = model_loader.device if hasattr(model_loader, 'device') else 'cpu'
-            else:
-                # Raw TransformerLM model
-                model = model_loader
-                device = next(model.parameters()).device
+            model = self._ozera_model(model_loader)
 
             # Tokenize and generate baseline
             prompt_ids = tokenizer.encode(target_prompt)
-            input_ids = torch.tensor([prompt_ids], dtype=torch.long).to(device)
+            input_ids = torch.tensor([prompt_ids], dtype=torch.long).to(next(model.parameters()).device)
 
             with torch.no_grad():
                 gen_ids, _ = model.generate(
@@ -359,6 +485,7 @@ class PatchingEngine:
             tokenizer=tokenizer,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
+            unit_sources=unit_sources,
         )
 
         # Compute effect summary
@@ -391,19 +518,86 @@ class PatchingEngine:
         tokenizer: Any,
         max_new_tokens: int,
         temperature: float,
+        unit_sources: dict[str, torch.Tensor],
     ) -> tuple[str, list[int], list[str]]:
         """Generate with patches applied via hooks."""
 
         if model_type == 'open_source':
             return self._generate_with_patches_open_source(
                 target_prompt, source, patches, model_loader,
-                max_new_tokens, temperature,
+                max_new_tokens, temperature, unit_sources,
             )
         else:
             return self._generate_with_patches_ozera(
                 target_prompt, source, patches, model_loader,
-                tokenizer, max_new_tokens, temperature,
+                tokenizer, max_new_tokens, temperature, unit_sources,
             )
+
+    @staticmethod
+    def _ozera_model(model_loader: Any):
+        """The TransformerLM behind an Ozera model loader (a TextGenerator, or the model itself)."""
+        return model_loader.model if hasattr(model_loader, 'model') else model_loader
+
+    def _unit_projection(self, model_loader: Any, model_type: str, layer: int, kind: str) -> torch.nn.Module:
+        """
+        The projection whose input a head or neuron patch changes (see unit_projection_key):
+        the attention output projection ('attn_heads') or the MLP down projection ('mlp_neurons').
+        """
+        if model_type == 'open_source':
+            layer_module = self._open_source_layer(model_loader, layer)
+            return layer_module.self_attn.o_proj if kind == 'attn_heads' else layer_module.mlp.down_proj
+        block = self._ozera_model(model_loader).blocks[layer]
+        return block.attention.Wo if kind == 'attn_heads' else block.feed_forward.fc2
+
+    def _unit_projection_sources(
+        self,
+        patches: list[PatchConfig],
+        source: Optional[CapturedActivations],
+        model_loader: Any,
+        model_type: str,
+    ) -> dict[str, torch.Tensor]:
+        """
+        The source prompt's inputs to the projections that head and neuron patches replace.
+
+        Captures don't keep these (the MLP neurons alone are several times the size of the
+        rest of a layer's activations), so they're recomputed with one forward pass over the
+        source's tokens.
+        """
+        keys = {
+            unit_projection_key(patch)
+            for patch in patches
+            if patch.intervention_type == 'patch' and unit_projection_key(patch) is not None
+        }
+        if not keys:
+            return {}
+
+        inputs: dict[str, torch.Tensor] = {}
+
+        def recorder(key):
+            def hook(module, args):
+                inputs[key] = args[0].detach()
+            return hook
+
+        handles = []
+        try:
+            for key in keys:
+                _, layer, kind = key.split('_', 2)
+                module = self._unit_projection(model_loader, model_type, int(layer), kind)
+                handles.append(module.register_forward_pre_hook(recorder(key)))
+
+            with torch.no_grad():
+                if model_type == 'open_source':
+                    device = next(model_loader.model.parameters()).device
+                    input_ids = torch.tensor([source.tokens], dtype=torch.long, device=device)
+                    model_loader.model(input_ids, use_cache=False, logits_to_keep=1)
+                else:
+                    model = self._ozera_model(model_loader)
+                    device = next(model.parameters()).device
+                    model.forward(torch.tensor([source.tokens], dtype=torch.long, device=device))
+        finally:
+            for handle in handles:
+                handle.remove()
+        return inputs
 
     def _generate_with_patches_open_source(
         self,
@@ -413,6 +607,7 @@ class PatchingEngine:
         model_loader: Any,
         max_new_tokens: int,
         temperature: float,
+        unit_sources: dict[str, torch.Tensor],
     ) -> tuple[str, list[int], list[str]]:
         """
         Apply patches to open-source model generation.
@@ -429,11 +624,9 @@ class PatchingEngine:
         try:
             # Register intervention hooks
             for patch in patches:
-                hook_handle = self._register_open_source_patch_hook(
-                    model_loader, source, patch, offset
+                registered_hooks.extend(
+                    self._register_open_source_patch_hooks(model_loader, source, patch, offset, unit_sources)
                 )
-                if hook_handle is not None:
-                    registered_hooks.append(hook_handle)
 
             # Generate with patches active
             result = model_loader.generate(
@@ -455,25 +648,44 @@ class PatchingEngine:
             for hook in registered_hooks:
                 hook.remove()
 
-    def _register_open_source_patch_hook(
+    def _register_open_source_patch_hooks(
         self,
         model_loader: Any,
         source: Optional[CapturedActivations],
         patch: PatchConfig,
         offset: PositionOffset,
-    ):
-        """Register a patch hook on an open-source model."""
-        activation_key = PATCH_TYPE_ACTIVATION_KEYS.get(patch.patch_type, patch.patch_type)
+        unit_sources: dict[str, torch.Tensor],
+    ) -> list:
+        """
+        Register the hooks that apply a patch to an open-source model.
 
-        # Get the module to hook
-        module = self._get_open_source_module(model_loader, patch.layer, activation_key)
-        if module is None:
-            return None
+        Returns:
+            The hook handles
 
-        # Get intervention type
-        intervention_type = patch.intervention_type if hasattr(patch, 'intervention_type') else 'patch'
+        Raises:
+            PatchError: the patch can't be applied
+        """
+        intervention_type = patch.intervention_type
+        device = next(model_loader.model.parameters()).device
 
-        # Handle ablation types (don't need source activations)
+        # Chosen heads or neurons: intervene on their slice of a projection's input
+        unit_key = unit_projection_key(patch)
+        if unit_key is not None:
+            kind = unit_key.split('_', 2)[2]
+            projection = self._unit_projection(model_loader, 'open_source', patch.layer, kind)
+            hook_fn = create_unit_intervention_hook(
+                units=patch.heads if patch.heads is not None else patch.neurons,
+                unit_size=projection.in_features // model_loader.config.num_heads if kind == 'attn_heads' else 1,
+                intervention_type=intervention_type,
+                source_input=unit_sources.get(unit_key),
+                positions=patch.positions,
+                blend_factor=patch.blend_factor,
+                offset=offset,
+            )
+            return [projection.register_forward_pre_hook(hook_fn)]
+
+        activation_key = PATCH_TYPE_ACTIVATION_KEYS[patch.patch_type]
+
         if intervention_type in ['zero_ablate', 'mean_ablate', 'noise_ablate']:
             hook_fn = create_zero_ablation_hook(
                 positions=patch.positions,
@@ -481,46 +693,61 @@ class PatchingEngine:
                 ablation_type=intervention_type,
                 offset=offset,
             )
-            return module.register_forward_hook(hook_fn)
-
-        # Standard patching requires source activations
-        if source is None:
-            return None
-
-        full_key = f"layer_{patch.layer}_{activation_key}"
-        source_activation = source.activations.get(full_key)
-        if source_activation is None:
-            return None
-
-        # Move the source to the model's device once, rather than in every forward pass
-        source_activation = source_activation.to(next(model_loader.model.parameters()).device)
-
-        # Create appropriate hook
-        if patch.patch_type in ['attention', 'attn_output']:
-            hook_fn = create_attention_patch_hook(
-                source_attention=source_activation,
-                heads=patch.heads,
-                positions=patch.positions,
-                blend_factor=patch.blend_factor,
-                offset=offset,
-            )
-        elif patch.patch_type in ['mlp', 'ff_output']:
-            hook_fn = create_mlp_patch_hook(
-                source_mlp_output=source_activation,
-                positions=patch.positions,
-                neurons=patch.neurons,
-                blend_factor=patch.blend_factor,
-                offset=offset,
-            )
         else:
-            hook_fn = create_residual_patch_hook(
-                source_residual=source_activation,
-                positions=patch.positions,
-                blend_factor=patch.blend_factor,
-                offset=offset,
-            )
+            full_key = f"layer_{patch.layer}_{activation_key}"
+            source_activation = source.activations.get(full_key) if source is not None else None
+            if source_activation is None:
+                raise PatchError(
+                    f"The source activations have no '{full_key}'. Capture the source prompt again."
+                )
+            # Move the source to the model's device once, rather than in every forward pass
+            source_activation = source_activation.to(device)
 
-        return module.register_forward_hook(hook_fn)
+            if activation_key == 'attn_output':
+                hook_fn = create_attention_patch_hook(
+                    source_attention=source_activation,
+                    positions=patch.positions,
+                    blend_factor=patch.blend_factor,
+                    offset=offset,
+                )
+            elif activation_key == 'ff_output':
+                hook_fn = create_mlp_patch_hook(
+                    source_mlp_output=source_activation,
+                    positions=patch.positions,
+                    blend_factor=patch.blend_factor,
+                    offset=offset,
+                )
+            else:
+                hook_fn = create_residual_patch_hook(
+                    source_residual=source_activation,
+                    positions=patch.positions,
+                    blend_factor=patch.blend_factor,
+                    offset=offset,
+                )
+
+        layer_module = self._open_source_layer(model_loader, patch.layer)
+        if activation_key == 'post_attn':
+            # No module outputs the residual stream after attention: the layer adds its
+            # attention branch's output to its input, so the patch changes that branch's output.
+            # The branch ends at self_attn, or (Gemma, which normalizes the attention output
+            # and has a separate pre-FFN norm) at post_attention_layernorm.
+            layer_input = LayerInput()
+            branch_end = (
+                layer_module.post_attention_layernorm
+                if hasattr(layer_module, 'pre_feedforward_layernorm')
+                else layer_module.self_attn
+            )
+            return [
+                layer_input.attach(layer_module),
+                branch_end.register_forward_hook(residual_stream_hook(hook_fn, layer_input)),
+            ]
+
+        module = {
+            'attn_output': layer_module.self_attn,
+            'ff_output': layer_module.mlp,
+            'post_ff': layer_module,
+        }[activation_key]
+        return [module.register_forward_hook(hook_fn)]
 
     @staticmethod
     def _open_source_use_cache(patches: list[PatchConfig]) -> bool:
@@ -544,43 +771,12 @@ class PatchingEngine:
             return model.transformer
         raise ValueError(f"Unsupported model structure for patching: {type(model).__name__}")
 
-    def _get_open_source_module(self, model_loader: Any, layer: int, activation_key: str):
-        """Get the module to hook for an open-source model."""
+    def _open_source_layer(self, model_loader: Any, layer: int) -> torch.nn.Module:
+        """A decoder layer of an open-source model (Llama, Qwen and Gemma layouts)."""
         model = model_loader.model
-
-        # Try common HuggingFace model structures
-        # SmolLM/Llama-style
-        if hasattr(model, 'model') and hasattr(model.model, 'layers'):
-            layers = model.model.layers
-            if layer >= len(layers):
-                return None
-            layer_module = layers[layer]
-
-            if activation_key == 'attn_output':
-                return layer_module.self_attn if hasattr(layer_module, 'self_attn') else None
-            elif activation_key == 'ff_output':
-                return layer_module.mlp if hasattr(layer_module, 'mlp') else None
-            elif activation_key == 'post_ff':
-                return layer_module
-            elif activation_key == 'post_attn':
-                # This is after attention but before MLP
-                return layer_module.post_attention_layernorm if hasattr(layer_module, 'post_attention_layernorm') else None
-
-        # GPT-2 style
-        elif hasattr(model, 'transformer') and hasattr(model.transformer, 'h'):
-            layers = model.transformer.h
-            if layer >= len(layers):
-                return None
-            layer_module = layers[layer]
-
-            if activation_key == 'attn_output':
-                return layer_module.attn if hasattr(layer_module, 'attn') else None
-            elif activation_key == 'ff_output':
-                return layer_module.mlp if hasattr(layer_module, 'mlp') else None
-            elif activation_key in ['post_ff', 'post_attn']:
-                return layer_module
-
-        return None
+        if not (hasattr(model, 'model') and hasattr(model.model, 'layers')):
+            raise PatchError(f"Patching isn't supported for {type(model).__name__} models")
+        return model.model.layers[layer]
 
     def _generate_with_patches_ozera(
         self,
@@ -591,15 +787,18 @@ class PatchingEngine:
         tokenizer: Any,
         max_new_tokens: int,
         temperature: float,
+        unit_sources: dict[str, torch.Tensor],
     ) -> tuple[str, list[int], list[str]]:
-        """Apply patches to Ozera model generation."""
-        # Get the model
-        if hasattr(model_loader, 'model'):
-            model = model_loader.model
-            device = model_loader.device if hasattr(model_loader, 'device') else 'cpu'
-        else:
-            model = model_loader
-            device = next(model.parameters()).device
+        """
+        Apply patches to Ozera model generation.
+
+        Patches of whole activations go to the model's generate_with_patches (a list per
+        activation, applied in order). Patches of chosen heads or neurons are hooks on the
+        attention output and MLP down projections. The model recomputes the whole sequence
+        every step, so positions are absolute.
+        """
+        model = self._ozera_model(model_loader)
+        device = next(model.parameters()).device
 
         # Encode prompt
         prompt_ids = tokenizer.encode(target_prompt)
@@ -608,51 +807,53 @@ class PatchingEngine:
         model.eval()
 
         # Set up patches in model's expected format
-        patch_dict = {}
+        patch_dict: dict[str, list[dict]] = {}
+        unit_hooks = []
         for patch in patches:
-            full_key = patch_activation_key(patch.patch_type, patch.layer)
+            intervention_type = patch.intervention_type
 
-            # For ablation types, we don't need source activations
-            intervention_type = patch.intervention_type if hasattr(patch, 'intervention_type') else 'patch'
+            unit_key = unit_projection_key(patch)
+            if unit_key is not None:
+                kind = unit_key.split('_', 2)[2]
+                hook_fn = create_unit_intervention_hook(
+                    units=patch.heads if patch.heads is not None else patch.neurons,
+                    unit_size=model.config.d_k if kind == 'attn_heads' else 1,
+                    intervention_type=intervention_type,
+                    source_input=unit_sources.get(unit_key),
+                    positions=patch.positions,
+                    blend_factor=patch.blend_factor,
+                )
+                unit_hooks.append((self._unit_projection(model, 'ozera', patch.layer, kind), hook_fn))
+                continue
+
+            full_key = patch_activation_key(patch.patch_type, patch.layer)
+            patch_info = {
+                'positions': patch.positions,
+                'blend_factor': patch.blend_factor,
+                'intervention_type': intervention_type,
+            }
 
             if intervention_type == 'patch':
                 # Standard patching requires source activations
-                if source is None:
-                    raise ValueError(
-                        f"Source activations required for patch intervention at layer {patch.layer}. "
-                        "Use ablation types (zero_ablate, mean_ablate, noise_ablate) or provide source activations."
-                    )
-                source_activation = source.activations.get(full_key)
+                source_activation = source.activations.get(full_key) if source is not None else None
                 if source_activation is None:
-                    available_keys = [k for k in source.activations.keys() if f"layer_{patch.layer}" in k]
-                    raise ValueError(
-                        f"Cannot find activation for patch type '{patch.patch_type}' at layer {patch.layer}. "
-                        f"Tried key '{full_key}'. Available keys for layer {patch.layer}: {available_keys}"
+                    raise PatchError(
+                        f"The source activations have no '{full_key}'. Capture the source prompt again."
                     )
 
                 # Check for NaN/inf in source activation
                 if torch.isnan(source_activation).any() or torch.isinf(source_activation).any():
-                    raise ValueError(
+                    raise PatchError(
                         f"Source activation for '{full_key}' contains NaN/inf values. "
                         "The model may have produced unstable activations during capture."
                     )
 
-                patch_dict[full_key] = {
-                    'source': source_activation.to(device),
-                    'positions': patch.positions,
-                    'blend_factor': patch.blend_factor,
-                    'intervention_type': intervention_type,
-                }
-            else:
-                # Ablation types don't need source activations
-                patch_dict[full_key] = {
-                    'positions': patch.positions,
-                    'blend_factor': patch.blend_factor,
-                    'intervention_type': intervention_type,
-                }
+                patch_info['source'] = source_activation.to(device)
 
-        # Use the model's built-in generate_with_patches method if available
-        if hasattr(model, 'generate_with_patches'):
+            patch_dict.setdefault(full_key, []).append(patch_info)
+
+        handles = [projection.register_forward_pre_hook(hook_fn) for projection, hook_fn in unit_hooks]
+        try:
             with torch.no_grad():
                 generated_ids, _ = model.generate_with_patches(
                     input_ids=input_ids,
@@ -660,273 +861,14 @@ class PatchingEngine:
                     max_new_tokens=max_new_tokens,
                     temperature=temperature,
                 )
-            tokens = generated_ids[0].cpu().tolist()
-            output = tokenizer.decode(tokens)
-            decoded = [tokenizer.decode([t]) for t in tokens]
-            return output, tokens, decoded
+        finally:
+            for handle in handles:
+                handle.remove()
 
-        # Fallback to manual implementation if model doesn't have the method
-        with torch.no_grad():
-            for _ in range(max_new_tokens):
-                # Truncate if needed
-                idx_cond = input_ids if input_ids.size(1) <= model.config.max_seq_len else input_ids[:, -model.config.max_seq_len:]
-
-                # Forward pass with patching using model's method
-                if hasattr(model, 'forward_with_patches'):
-                    logits, _, _ = model.forward_with_patches(
-                        idx_cond, patch_dict, return_attention=False, capture_activations=False
-                    )
-                else:
-                    logits, _, _ = self._forward_with_patches_ozera(
-                        model, idx_cond, patch_dict
-                    )
-
-                # Get logits for last position
-                logits = logits[:, -1, :]
-
-                # Check for NaN/inf in logits (can happen with incompatible patches)
-                has_nan = torch.isnan(logits).any()
-                all_inf = torch.isinf(logits).all()
-
-                if has_nan or all_inf:
-                    # Try to recover: if any valid values, use those; otherwise sample random
-                    valid_mask = ~(torch.isnan(logits) | torch.isinf(logits))
-                    if valid_mask.any():
-                        # Replace invalid values with very negative number
-                        logits = torch.where(valid_mask, logits, torch.tensor(-1e10, device=logits.device))
-                    else:
-                        # Fall back to random sampling if completely invalid
-                        next_token = torch.randint(0, tokenizer.vocab_size, (logits.shape[0], 1), device=logits.device)
-                        input_ids = torch.cat([input_ids, next_token], dim=1)
-                        continue
-
-                # Clamp logits for numerical stability
-                logits = torch.clamp(logits, min=-100, max=100)
-
-                if temperature == 0.0:
-                    next_token = torch.argmax(logits, dim=-1, keepdim=True)
-                else:
-                    logits = logits / temperature
-                    probs = F.softmax(logits, dim=-1)
-
-                    # Final safety check for multinomial
-                    if torch.isnan(probs).any() or (probs <= 0).all():
-                        next_token = torch.argmax(logits, dim=-1, keepdim=True)
-                    else:
-                        # Ensure probabilities are valid (positive and sum to 1)
-                        probs = torch.clamp(probs, min=1e-10)
-                        probs = probs / probs.sum(dim=-1, keepdim=True)
-                        next_token = torch.multinomial(probs, num_samples=1)
-
-                # Clamp and append
-                next_token = torch.clamp(next_token, 0, tokenizer.vocab_size - 1)
-                input_ids = torch.cat([input_ids, next_token], dim=1)
-
-        # Decode
-        tokens = input_ids[0].cpu().tolist()
+        tokens = generated_ids[0].cpu().tolist()
         output = tokenizer.decode(tokens)
         decoded = [tokenizer.decode([t]) for t in tokens]
-
         return output, tokens, decoded
-
-    def _forward_with_patches_ozera(
-        self,
-        model: Any,
-        input_ids: torch.Tensor,
-        patch_dict: dict,
-    ) -> tuple:
-        """
-        Forward pass with patches applied to Ozera model.
-
-        Patches are applied by modifying activations during the forward pass.
-        """
-        batch_size, seq_len = input_ids.shape
-        device = input_ids.device
-
-        # Token embeddings
-        import math
-        token_emb = model.token_embedding(input_ids)
-        token_emb = token_emb * math.sqrt(model.config.d_model)
-
-        # Positional embeddings
-        if model.config.learned_pos_emb:
-            positions = torch.arange(seq_len, device=device).unsqueeze(0)
-            pos_emb = model.pos_embedding(positions)
-        else:
-            pos_emb = model.pos_embedding[:seq_len, :].unsqueeze(0)
-
-        x = token_emb + pos_emb
-        x = model.emb_dropout(x)
-
-        # Causal mask
-        causal_mask = torch.tril(torch.ones(seq_len, seq_len, device=device)).unsqueeze(0).unsqueeze(0)
-
-        # Process each block
-        for layer_idx, block in enumerate(model.blocks):
-            # Pre-norm attention
-            attn_input = block.ln1(x)
-
-            # Check for attn_input patch
-            patch_key = f"layer_{layer_idx}_attn_input"
-            if patch_key in patch_dict:
-                attn_input = self._apply_patch(attn_input, patch_dict[patch_key])
-
-            attn_output, attn_weights = block.attention(attn_input, causal_mask, return_attention=False)
-
-            # Check for attn_output patch
-            patch_key = f"layer_{layer_idx}_attn_output"
-            if patch_key in patch_dict:
-                attn_output = self._apply_patch(attn_output, patch_dict[patch_key])
-
-            x = x + attn_output
-
-            # Check for post_attn patch
-            patch_key = f"layer_{layer_idx}_post_attn"
-            if patch_key in patch_dict:
-                x = self._apply_patch(x, patch_dict[patch_key])
-
-            # Pre-norm feed-forward
-            ff_input = block.ln2(x)
-
-            # Check for ff_input patch
-            patch_key = f"layer_{layer_idx}_ff_input"
-            if patch_key in patch_dict:
-                ff_input = self._apply_patch(ff_input, patch_dict[patch_key])
-
-            ff_output = block.feed_forward(ff_input)
-
-            # Check for ff_output patch
-            patch_key = f"layer_{layer_idx}_ff_output"
-            if patch_key in patch_dict:
-                ff_output = self._apply_patch(ff_output, patch_dict[patch_key])
-
-            x = x + ff_output
-
-            # Check for post_ff patch
-            patch_key = f"layer_{layer_idx}_post_ff"
-            if patch_key in patch_dict:
-                x = self._apply_patch(x, patch_dict[patch_key])
-
-        # Final layer norm
-        x = model.ln_f(x)
-
-        # Project to vocabulary
-        logits = model.lm_head(x)
-
-        return logits, None, None
-
-    def _apply_patch(self, tensor: torch.Tensor, patch_info: dict) -> torch.Tensor:
-        """Apply a patch to a tensor.
-
-        Supports multiple intervention types:
-        - 'patch': Replace with source activations (standard activation patching)
-        - 'zero_ablate': Zero out activations
-        - 'mean_ablate': Replace with mean activation (computed from current tensor)
-        - 'noise_ablate': Replace with Gaussian noise matching activation statistics
-        """
-        intervention_type = patch_info.get('intervention_type', 'patch')
-        positions = patch_info.get('positions')
-        blend_factor = patch_info.get('blend_factor', 1.0)
-
-        result = tensor.clone()
-
-        if intervention_type == 'zero_ablate':
-            # Zero ablation: set activations to zero
-            if positions is None:
-                if blend_factor == 1.0:
-                    result.zero_()
-                else:
-                    result = (1 - blend_factor) * tensor
-            else:
-                for pos in positions:
-                    if pos < tensor.shape[1]:
-                        if blend_factor == 1.0:
-                            result[:, pos] = 0.0
-                        else:
-                            result[:, pos] = (1 - blend_factor) * tensor[:, pos]
-            return result
-
-        elif intervention_type == 'mean_ablate':
-            # Mean ablation: replace with mean activation
-            # Compute mean across sequence dimension for each batch
-            mean_activation = tensor.mean(dim=1, keepdim=True)  # [batch, 1, d_model]
-
-            if positions is None:
-                if blend_factor == 1.0:
-                    result = mean_activation.expand_as(tensor)
-                else:
-                    result = (1 - blend_factor) * tensor + blend_factor * mean_activation.expand_as(tensor)
-            else:
-                for pos in positions:
-                    if pos < tensor.shape[1]:
-                        if blend_factor == 1.0:
-                            result[:, pos] = mean_activation.squeeze(1)
-                        else:
-                            result[:, pos] = (1 - blend_factor) * tensor[:, pos] + blend_factor * mean_activation.squeeze(1)
-            return result
-
-        elif intervention_type == 'noise_ablate':
-            # Noise ablation: replace with Gaussian noise matching activation statistics
-            mean = tensor.mean()
-            std = tensor.std()
-            noise = torch.randn_like(tensor) * std + mean
-
-            if positions is None:
-                if blend_factor == 1.0:
-                    result = noise
-                else:
-                    result = (1 - blend_factor) * tensor + blend_factor * noise
-            else:
-                for pos in positions:
-                    if pos < tensor.shape[1]:
-                        if blend_factor == 1.0:
-                            result[:, pos] = noise[:, pos]
-                        else:
-                            result[:, pos] = (1 - blend_factor) * tensor[:, pos] + blend_factor * noise[:, pos]
-            return result
-
-        else:
-            # Standard patching: replace with source activations
-            source = patch_info.get('source')
-            if source is None:
-                # No source provided, return original tensor unchanged
-                return tensor
-
-            # Ensure source is on the same device
-            source = source.to(tensor.device)
-
-            # Ensure source matches batch size
-            if source.shape[0] != tensor.shape[0]:
-                source = source.expand(tensor.shape[0], -1, -1)
-
-            # Check for NaN/inf in source (shouldn't happen, but be safe)
-            if torch.isnan(source).any() or torch.isinf(source).any():
-                # Replace invalid values with corresponding tensor values
-                valid_mask = ~(torch.isnan(source) | torch.isinf(source))
-                source = torch.where(valid_mask, source, tensor[:, :source.shape[1], :] if tensor.shape[1] >= source.shape[1] else torch.zeros_like(source))
-
-            if positions is None:
-                # Patch all positions
-                min_seq = min(tensor.shape[1], source.shape[1])
-                if blend_factor == 1.0:
-                    result[:, :min_seq] = source[:, :min_seq]
-                else:
-                    result[:, :min_seq] = (
-                        (1 - blend_factor) * tensor[:, :min_seq] +
-                        blend_factor * source[:, :min_seq]
-                    )
-            else:
-                for pos in positions:
-                    if pos < tensor.shape[1] and pos < source.shape[1]:
-                        if blend_factor == 1.0:
-                            result[:, pos] = source[:, pos]
-                        else:
-                            result[:, pos] = (
-                                (1 - blend_factor) * tensor[:, pos] +
-                                blend_factor * source[:, pos]
-                            )
-
-            return result
 
     def _compute_effect_summary(
         self,

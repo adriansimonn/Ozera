@@ -10,6 +10,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from core.transformer.model_torch import TransformerLM
+from core.activation_limits import check_fits_context
 from core.tokenizer import get_tokenizer
 from inference.activation_store import get_activation_store
 
@@ -254,18 +255,21 @@ class TextGenerator:
 
         Returns:
             Dictionary with generated text, activation ID, and metadata
+
+        Raises:
+            ActivationLimitError: the prompt plus max_tokens doesn't fit the model's context window
         """
         # Encode prompt
         prompt_ids = self.tokenizer.encode(prompt)
+        # The whole sequence has to fit the context window for the capture to match the tokens
+        check_fits_context(self.model_name, len(prompt_ids), max_tokens, self.model.config.max_seq_len)
         input_ids = torch.tensor([prompt_ids], dtype=torch.long).to(self.device)
 
         self.model.eval()
 
         # Generate tokens (similar to generate_stream but without yielding)
         for _ in range(max_tokens):
-            idx_cond = input_ids if input_ids.size(1) <= self.model.config.max_seq_len else input_ids[:, -self.model.config.max_seq_len:]
-
-            logits, _, _ = self.model.forward(idx_cond, return_attention=False, capture_activations=False)
+            logits, _, _ = self.model.forward(input_ids, return_attention=False, capture_activations=False)
             logits = logits[:, -1, :]
 
             if temperature == 0.0:
@@ -292,9 +296,8 @@ class TextGenerator:
             next_token = torch.clamp(next_token, 0, self.tokenizer.vocab_size - 1)
             input_ids = torch.cat([input_ids, next_token], dim=1)
 
-        # Now do one final forward pass with activation capture
-        final_ids = input_ids if input_ids.size(1) <= self.model.config.max_seq_len else input_ids[:, -self.model.config.max_seq_len:]
-        _, _, activations = self.model.forward(final_ids, return_attention=True, capture_activations=True)
+        # Now do one final forward pass over the whole sequence with activation capture
+        _, _, activations = self.model.forward(input_ids, return_attention=True, capture_activations=True)
 
         # Decode generated text
         generated_text = self.tokenizer.decode(input_ids[0].cpu().tolist())

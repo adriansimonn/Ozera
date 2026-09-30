@@ -31,8 +31,9 @@ from inference import ModelLoader
 from inference.activation_store import get_activation_store
 from services.inference_router import get_inference_router
 from services.custom_models import list_custom_model_names, resolve_model
+from services.model_specs import model_specs
 from services.job_reconciler import run_training_job_reconciler
-from core.activation_limits import ActivationLimitError
+from core.activation_limits import ActivationLimitError, check_fits_context
 from core.open_source import OPEN_SOURCE_MODELS
 from services.credit_service import (
     calculate_inference_cost,
@@ -58,9 +59,8 @@ from api.settings import router as settings_router
 from api.streaming import SSE_HEADERS, billed_generation_stream
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
-from models.database import JobStatus, TrainingJob, TransactionType, UploadedModel, User
+from models.database import TransactionType, User
 from core.tokenizer import get_tokenizer
-from core.transformer.config import TransformerConfig, get_config
 from db import get_db, SessionLocal
 from api.error_utils import safe_detail
 
@@ -159,12 +159,13 @@ class GenerateResponse(BaseModel):
 
 
 class ModelInfo(BaseModel):
+    # Specs are None only for an uploaded model whose file couldn't be read (see services.model_specs)
     name: str
-    parameters: int
-    layers: int
-    heads: int
-    hidden_dim: int
-    vocab_size: int
+    parameters: Optional[int]
+    layers: Optional[int]
+    heads: Optional[int]
+    hidden_dim: Optional[int]
+    vocab_size: Optional[int]
 
 
 class HealthResponse(BaseModel):
@@ -305,83 +306,6 @@ async def list_models(
     return model_loader.list_available_models() + list_custom_model_names(db, current_user.id)
 
 
-# Base models' specs from their trained checkpoints (mirrors STATIC_BASE_MODEL_INFO in the frontend)
-BASE_MODEL_INFO = {
-    "nano": {"parameters": 12_412_608, "layers": 6, "heads": 6, "hidden_dim": 192, "vocab_size": 50257},
-    "mini": {"parameters": 51_197_440, "layers": 8, "heads": 8, "hidden_dim": 512, "vocab_size": 50257},
-}
-
-
-def _model_info_without_gpu(model_name: str, user_id: int, db: Session) -> Optional[dict]:
-    """
-    Model specs from the registries and database, so no GPU worker has to load the model.
-
-    Returns None for an uploaded model whose file didn't carry complete config metadata.
-    """
-    if model_name in BASE_MODEL_INFO:
-        return {"name": model_name, **BASE_MODEL_INFO[model_name]}
-
-    if model_name in OPEN_SOURCE_MODELS:
-        cfg = OPEN_SOURCE_MODELS[model_name]
-        return {
-            "name": model_name,
-            "parameters": cfg.parameters,
-            "layers": cfg.num_layers,
-            "heads": cfg.num_heads,
-            "hidden_dim": cfg.hidden_dim,
-            "vocab_size": cfg.vocab_size,
-        }
-
-    job = (
-        db.query(TrainingJob)
-        .filter(
-            TrainingJob.user_id == user_id,
-            TrainingJob.model_name == model_name,
-            TrainingJob.status == JobStatus.COMPLETED,
-        )
-        .order_by(TrainingJob.completed_at.desc())
-        .first()
-    )
-    if job:
-        # The config the worker rebuilds from the checkpoint's metadata (see training_logic.py)
-        base = get_config(job.model_config)
-        config = TransformerConfig(
-            vocab_size=get_tokenizer().vocab_size,
-            max_seq_len=job.seq_len,
-            d_model=base.d_model,
-            num_layers=base.num_layers,
-            num_heads=base.num_heads,
-            d_ff=base.d_ff,
-            dropout_rate=base.dropout_rate,
-        )
-        return {
-            "name": model_name,
-            "parameters": config.count_parameters(),
-            "layers": config.num_layers,
-            "heads": config.num_heads,
-            "hidden_dim": config.d_model,
-            "vocab_size": config.vocab_size,
-        }
-
-    uploaded = (
-        db.query(UploadedModel)
-        .filter(UploadedModel.user_id == user_id, UploadedModel.name == model_name)
-        .first()
-    )
-    if uploaded is None:
-        raise FileNotFoundError(f"Model '{model_name}' not found")
-    specs = {
-        "parameters": uploaded.num_parameters,
-        "layers": uploaded.num_layers,
-        "heads": uploaded.num_heads,
-        "hidden_dim": uploaded.hidden_dim,
-        "vocab_size": uploaded.vocab_size,
-    }
-    if None in specs.values():
-        return None
-    return {"name": model_name, **specs}
-
-
 @app.get("/models/{model_name}", response_model=ModelInfo)
 async def get_model_info(
     model_name: str,
@@ -391,9 +315,8 @@ async def get_model_info(
     """
     Get information about a specific model.
 
-    Answered from the model registries and database. Only an uploaded model without
-    complete config metadata needs a GPU worker to inspect it, which is charged as a
-    GPU request.
+    Answered from the model registries and database (an uploaded model's specs are read
+    from its file's header), so it's free and starts no GPU worker.
 
     Args:
         model_name: Name of the model ('nano', 'mini', or custom model name)
@@ -402,37 +325,18 @@ async def get_model_info(
         Model information
     """
     try:
-        info = _model_info_without_gpu(model_name, current_user.id, db)
-
-        if info is None:
-            model = resolve_model(db, current_user.id, model_name)
-            cost = min_gpu_request_charge(model_name)
-            if not check_sufficient_balance(db, current_user.id, cost):
-                raise HTTPException(status_code=402, detail="Insufficient credits.")
-            info = await inference_router.get_model_info(model)
-            charge_flat(db, current_user.id, cost, TransactionType.INFERENCE_CHARGE,
-                        f"Model inspection ({model_name})")
-
-        return ModelInfo(
-            name=info["name"],
-            parameters=info["parameters"],
-            layers=info["layers"],
-            heads=info["heads"],
-            hidden_dim=info["hidden_dim"],
-            vocab_size=info["vocab_size"]
-        )
-
-    except InsufficientBalanceError:
-        raise HTTPException(status_code=402, detail="Insufficient credits.")
-    except HTTPException:
-        raise
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid request"))
+        specs = await model_specs(db, current_user.id, model_name)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=safe_detail(e, "Resource not found"))
-    except Exception:
-        logger.exception("Unhandled error")
-        raise HTTPException(status_code=500, detail="Internal server error")
+
+    return ModelInfo(
+        name=specs.name,
+        parameters=specs.parameters,
+        layers=specs.layers,
+        heads=specs.heads,
+        hidden_dim=specs.hidden_dim,
+        vocab_size=specs.vocab_size,
+    )
 
 
 @app.post("/models/{model_name}/prepare")
@@ -471,16 +375,13 @@ async def prepare_model(
         charge_flat(db, current_user.id, cost, TransactionType.INFERENCE_CHARGE,
                     f"Model warmup ({model_name})")
 
-        # Get model info (the worker is warm now, so inspecting it adds no cold start)
-        model_info = _model_info_without_gpu(model_name, current_user.id, db)
-        if model_info is None:
-            model_info = await inference_router.get_model_info(model)
+        specs = await model_specs(db, current_user.id, model_name)
 
         return {
             "status": "ready",
             "model": model_name,
-            "parameters": model_info.get("parameters"),
-            "layers": model_info.get("layers"),
+            "parameters": specs.parameters,
+            "layers": specs.layers,
             "inference_mode": inference_router.get_inference_mode(),
         }
 
@@ -575,6 +476,16 @@ async def generate_with_activations(
     Requires authentication and charges user credits.
     """
     model = resolve_model(db, current_user.id, body.model)
+
+    # Ozera models are only visualized within their context window. The worker checks too;
+    # checking here first starts no GPU for a request that would fail.
+    if body.model not in OPEN_SOURCE_MODELS:
+        context_len = (await model_specs(db, current_user.id, body.model)).max_seq_len
+        if context_len is not None:
+            try:
+                check_fits_context(body.model, len(get_tokenizer().encode(body.prompt)), body.max_tokens, context_len)
+            except ActivationLimitError as e:
+                raise HTTPException(status_code=400, detail=str(e))
 
     # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
     estimated_cost = calculate_inference_cost(

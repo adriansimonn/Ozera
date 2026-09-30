@@ -12,6 +12,8 @@ interface PatchConfigPanelProps {
   modelId: string
   numLayers: number
   numHeads: number
+  /** Neurons per MLP layer (null if unknown) */
+  mlpNeurons: number | null
   patches: PatchSpec[]
   onAddPatch: (patch: PatchSpec) => void
   onRemovePatch: (index: number) => void
@@ -36,9 +38,15 @@ const INTERVENTION_TYPES: { value: InterventionType; label: string; description:
   { value: 'noise_ablate', label: 'Noise Ablation', description: 'Replace with Gaussian noise' },
 ]
 
+/** Parse a comma-separated list of indices ('' = null, meaning all) */
+function parseIndices(text: string): number[] | null {
+  return text.trim() ? text.split(',').map(p => parseInt(p.trim())).filter(n => !isNaN(n)) : null
+}
+
 export function PatchConfigPanel({
   numLayers,
   numHeads,
+  mlpNeurons,
   patches,
   onAddPatch,
   onRemovePatch,
@@ -51,6 +59,12 @@ export function PatchConfigPanel({
   const [blendFactor, setBlendFactor] = useState(1.0)
   const [positions, setPositions] = useState<string>('')
   const [heads, setHeads] = useState<string>('')
+  const [neurons, setNeurons] = useState<string>('')
+
+  // Heads can be chosen for attention patches, neurons for MLP patches
+  const isAttentionType = patchType === 'attention' || patchType === 'attn_output'
+  const isMlpType = patchType === 'mlp' || patchType === 'ff_output'
+  const isAblationType = interventionType !== 'patch'
 
   const handleAddPatch = () => {
     const patch: PatchSpec = {
@@ -58,17 +72,16 @@ export function PatchConfigPanel({
       patch_type: patchType,
       intervention_type: interventionType,
       blend_factor: blendFactor,
-      positions: positions.trim() ? positions.split(',').map(p => parseInt(p.trim())).filter(n => !isNaN(n)) : null,
-      heads: heads.trim() ? heads.split(',').map(h => parseInt(h.trim())).filter(n => !isNaN(n)) : null,
+      positions: parseIndices(positions),
+      heads: isAttentionType ? parseIndices(heads) : null,
+      neurons: isMlpType ? parseIndices(neurons) : null,
     }
     onAddPatch(patch)
     // Reset inputs
     setPositions('')
     setHeads('')
+    setNeurons('')
   }
-
-  const isAttentionType = patchType === 'attention' || patchType === 'attn_output'
-  const isAblationType = interventionType !== 'patch'
 
   return (
     <div className="patch-config-panel">
@@ -139,6 +152,19 @@ export function PatchConfigPanel({
               />
             </div>
           )}
+
+          {isMlpType && (
+            <div className="form-group">
+              <label>Neurons ({mlpNeurons !== null ? `0-${mlpNeurons - 1}, ` : ''}empty = all)</label>
+              <input
+                type="text"
+                value={neurons}
+                onChange={e => setNeurons(e.target.value)}
+                placeholder="e.g., 12,305 or leave empty"
+                disabled={disabled}
+              />
+            </div>
+          )}
         </div>
 
         <div className="form-row">
@@ -199,6 +225,9 @@ export function PatchConfigPanel({
                 )}
                 {patch.heads && (
                   <span className="patch-detail">heads: [{patch.heads.join(',')}]</span>
+                )}
+                {patch.neurons && (
+                  <span className="patch-detail">neurons: [{patch.neurons.join(',')}]</span>
                 )}
                 <span className="patch-blend">{(patch.blend_factor * 100).toFixed(0)}%</span>
               </div>

@@ -35,6 +35,53 @@ class PositionOffset:
         return decoder.register_forward_pre_hook(self._record, with_kwargs=True)
 
 
+class LayerInput:
+    """
+    The hidden states a decoder layer received in the current forward pass.
+
+    The residual stream after a layer's attention (post_attn) is no module's output: the
+    layer adds its attention branch's output to its input. Patching it means changing the
+    branch's output (see residual_stream_hook), which needs the layer's input.
+    """
+
+    def __init__(self):
+        self.hidden_states: Optional[torch.Tensor] = None
+
+    def _record(self, module, args, kwargs):
+        self.hidden_states = args[0] if args else kwargs["hidden_states"]
+
+    def attach(self, layer: torch.nn.Module):
+        """Record the inputs of a decoder layer. Returns the hook handle."""
+        return layer.register_forward_pre_hook(self._record, with_kwargs=True)
+
+
+def residual_stream_hook(hook: Callable, layer_input: LayerInput) -> Callable:
+    """
+    Adapt a hook that intervenes on the residual stream to a module whose output is added to it.
+
+    Hooked on a layer's attention branch, the adapted hook is given the stream after the
+    residual connection (layer input + branch output) and the branch's output is changed so
+    the sum becomes what the hook returns. Entries the hook doesn't change keep the branch's
+    exact output, so the rest of the stream is the same as in an unpatched pass.
+    """
+    def adapted(module, args, output):
+        if isinstance(output, tuple):
+            tensor, rest = output[0], output[1:]
+        else:
+            tensor, rest = output, None
+
+        residual = layer_input.hidden_states
+        stream = residual + tensor
+        patched = hook(module, args, stream)
+        new_output = torch.where(patched != stream, patched - residual, tensor)
+
+        if rest is not None:
+            return (new_output,) + rest
+        return new_output
+
+    return adapted
+
+
 def _in_chunk(
     source: Optional[torch.Tensor],
     positions: Optional[list[int]],
@@ -499,6 +546,72 @@ def create_zero_ablation_hook(
         if rest is not None:
             return (ablated,) + rest
         return ablated
+
+    return hook
+
+
+def create_unit_intervention_hook(
+    units: list[int],
+    unit_size: int,
+    intervention_type: Literal['patch', 'zero_ablate', 'mean_ablate', 'noise_ablate'],
+    source_input: Optional[torch.Tensor] = None,
+    positions: Optional[list[int]] = None,
+    blend_factor: float = 1.0,
+    offset: Optional[PositionOffset] = None,
+) -> Callable:
+    """
+    Create a forward pre-hook that intervenes on some units of a projection's input.
+
+    Attention heads are patched at the attention output projection, whose input holds the
+    heads' outputs side by side ([batch, seq, heads * head_dim]); MLP neurons at the MLP's
+    down projection, whose input is the neurons' activations ([batch, seq, d_ff]).
+
+    Args:
+        units: Heads or neurons to intervene on
+        unit_size: A unit's width in the input (head_dim for heads, 1 for neurons)
+        intervention_type: 'patch' (replace with source_input), or zero, mean or noise
+            ablation (mean and noise computed over the pass's positions)
+        source_input: The source prompt's input to the same projection [1, seq, width] (for 'patch')
+        positions: Positions to intervene on. None = all (for 'patch': all the source covers)
+        blend_factor: Interpolation factor (1.0 = full replacement)
+        offset: Where each forward pass starts in the sequence (see create_replacement_hook)
+
+    Returns:
+        Hook function compatible with register_forward_pre_hook.
+    """
+    dims = torch.tensor([unit * unit_size + i for unit in units for i in range(unit_size)])
+
+    def hook(module, args):
+        x = args[0]
+        source, chunk_positions = _in_chunk(source_input, positions, offset)
+
+        # Positions in this pass to change (a patch needs the source to cover them)
+        covered = x.shape[1] if source is None else min(x.shape[1], source.shape[1])
+        pos = range(covered) if chunk_positions is None else [p for p in chunk_positions if p < covered]
+        if not pos:
+            return None
+
+        pos_idx = torch.tensor(list(pos), device=x.device)[:, None]
+        dim_idx = dims.to(x.device)
+        current = x[:, pos_idx, dim_idx[None, :]]  # [batch, positions, dims]
+
+        if intervention_type == 'patch':
+            value = source.to(x.device, x.dtype)[:, pos_idx, dim_idx[None, :]]
+        elif intervention_type == 'zero_ablate':
+            value = torch.zeros_like(current)
+        elif intervention_type == 'mean_ablate':
+            value = x[:, :, dim_idx].mean(dim=1, keepdim=True).expand_as(current)
+        elif intervention_type == 'noise_ablate':
+            unit_values = x[:, :, dim_idx]
+            value = torch.randn_like(current) * unit_values.std() + unit_values.mean()
+        else:
+            raise ValueError(f"Unknown intervention type: {intervention_type}")
+
+        patched = x.clone()
+        patched[:, pos_idx, dim_idx[None, :]] = (
+            value if blend_factor == 1.0 else (1 - blend_factor) * current + blend_factor * value
+        )
+        return (patched,) + tuple(args[1:])
 
     return hook
 

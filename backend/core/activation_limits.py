@@ -1,5 +1,5 @@
 """
-Size limit for the activations captured from open-source models.
+Limits on the activations captured for visualizations and patching.
 
 A capture holds every layer's attention weights and hidden states over the whole sequence.
 Attention grows with the square of the sequence length, so a long generation on a large
@@ -7,7 +7,7 @@ model produces gigabytes (Qwen3-4B at 2000 tokens: ~9 GB of attention weights al
 than the worker's memory, the transfer to the backend and the backend's store can take.
 Captures are limited to the tokens whose activations fit in MAX_CAPTURE_BYTES.
 
-Ozera models aren't limited here: their captures cover at most their context window.
+Ozera models' visualizations are limited to their context window instead (check_fits_context).
 """
 
 import math
@@ -40,3 +40,27 @@ def max_capture_tokens(
     a = num_layers * num_heads * bytes_per_value
     b = (num_layers * HIDDEN_TENSORS_PER_LAYER + HIDDEN_TENSORS_OUTSIDE_LAYERS) * hidden_dim * bytes_per_value
     return int((-b + math.sqrt(b * b + 4 * a * max_bytes)) / (2 * a))
+
+
+def check_fits_context(model_name: str, prompt_tokens: int, max_new_tokens: int, context_len: int) -> None:
+    """
+    Raise ActivationLimitError unless a visualized generation fits an Ozera model's context.
+
+    An Ozera model attends over at most its last context_len tokens, and a visualization
+    captures one forward pass over the whole sequence. Past the context window that pass
+    would only cover the last context_len tokens, with different activations and predictions
+    than the ones that generated them, so it wouldn't line up with the tokens shown.
+    """
+    if prompt_tokens + max_new_tokens <= context_len:
+        return
+    limit = (
+        f"Visualizing {model_name} is limited to its context window of {context_len} tokens "
+        f"(prompt plus generated). "
+    )
+    if prompt_tokens >= context_len:
+        raise ActivationLimitError(
+            limit + f"This prompt has {prompt_tokens} tokens; shorten it to leave room for generated tokens."
+        )
+    raise ActivationLimitError(
+        limit + f"This prompt has {prompt_tokens}, so generate at most {context_len - prompt_tokens} tokens."
+    )

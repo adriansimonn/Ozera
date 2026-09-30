@@ -185,38 +185,18 @@ class _InferenceWorker:
 
     def _load_safetensors_model(self, checkpoint_path: str):
         """Load a model from safetensors format."""
-        import torch
         from safetensors.torch import load_file
         from safetensors import safe_open
 
         from core.transformer.model_torch import TransformerLM
-        from core.transformer.config import TransformerConfig
+        from core.transformer.checkpoint import config_from_checkpoint
 
-        # Load safetensors file
         state_dict = load_file(checkpoint_path)
+        with safe_open(checkpoint_path, framework="pt") as f:
+            metadata = f.metadata() or {}
 
-        # Try to get config from safetensors metadata first (for trained models)
-        config = None
-        try:
-            with safe_open(checkpoint_path, framework="pt") as f:
-                metadata = f.metadata()
-                if metadata and metadata.get("format") == "ozera" and "d_model" in metadata:
-                    config = TransformerConfig(
-                        vocab_size=int(metadata.get("vocab_size", 50257)),
-                        max_seq_len=int(metadata.get("max_seq_len", 256)),
-                        d_model=int(metadata["d_model"]),
-                        num_layers=int(metadata.get("num_layers", 6)),
-                        num_heads=int(metadata.get("num_heads", 6)),
-                        d_ff=int(metadata.get("d_ff", int(metadata["d_model"]) * 4)),
-                        dropout_rate=float(metadata.get("dropout_rate", 0.0)),
-                    )
-                    print(f"Loaded config from safetensors metadata")
-        except Exception as e:
-            print(f"Could not read safetensors metadata: {e}")
-
-        # Fall back to inferring config from state dict
-        if config is None:
-            config = self._infer_config_from_state_dict(state_dict)
+        # The backend reports the model's specs from the same config (see core.transformer.checkpoint)
+        config = config_from_checkpoint(metadata, {key: list(t.shape) for key, t in state_dict.items()})
 
         # Create model and load state dict
         model = TransformerLM(config).to("cuda")
@@ -226,65 +206,6 @@ class _InferenceWorker:
         model.load_state_dict(mapped_state_dict, strict=False)
 
         return model, config
-
-    def _infer_config_from_state_dict(self, state_dict: dict):
-        """Infer TransformerConfig from state dict tensor shapes."""
-        from core.transformer.config import TransformerConfig
-
-        # Default config (nano-like)
-        d_model = 192
-        num_layers = 6
-        num_heads = 6
-        vocab_size = 50257
-        max_seq_len = 256
-
-        # Try to infer from embedding layer
-        for key, tensor in state_dict.items():
-            if "embed" in key.lower() and "token" in key.lower():
-                if len(tensor.shape) == 2:
-                    vocab_size, d_model = tensor.shape
-                    break
-            elif "wte" in key.lower():  # GPT-style token embedding
-                if len(tensor.shape) == 2:
-                    vocab_size, d_model = tensor.shape
-                    break
-
-        # Try to count layers
-        layer_indices = set()
-        for key in state_dict.keys():
-            parts = key.split(".")
-            for i, part in enumerate(parts):
-                if part.isdigit():
-                    layer_indices.add(int(part))
-                elif part.startswith("layer"):
-                    try:
-                        idx = int(part.replace("layer", "").replace("_", ""))
-                        layer_indices.add(idx)
-                    except ValueError:
-                        pass
-        if layer_indices:
-            num_layers = max(layer_indices) + 1
-
-        # Try to infer num_heads from attention projections
-        for key, tensor in state_dict.items():
-            if "attn" in key.lower() and ("q_proj" in key.lower() or "query" in key.lower()):
-                if len(tensor.shape) == 2:
-                    # Assume d_model x d_model or d_model x (num_heads * head_dim)
-                    # Common head_dim is 64
-                    potential_heads = d_model // 64
-                    if potential_heads > 0:
-                        num_heads = min(potential_heads, 32)  # Cap at 32 heads
-                    break
-
-        return TransformerConfig(
-            vocab_size=vocab_size,
-            max_seq_len=max_seq_len,
-            d_model=d_model,
-            num_layers=num_layers,
-            num_heads=num_heads,
-            d_ff=d_model * 4,
-            dropout_rate=0.0,
-        )
 
     def _map_safetensors_state_dict(self, state_dict: dict, model) -> dict:
         """Map safetensors state dict keys to our model's expected keys."""
@@ -594,21 +515,19 @@ class _InferenceWorker:
             return result
 
         # Handle Ozera models
+        from core.activation_limits import check_fits_context
+
         model, config = self._get_model(model_id, owner_id, version)
 
         prompt_ids = self._tokenizer.encode(prompt)
+        # The whole sequence has to fit the context window for the capture to match the tokens
+        check_fits_context(model_id, len(prompt_ids), max_tokens, config.max_seq_len)
         input_ids = torch.tensor([prompt_ids], dtype=torch.long).to("cuda")
 
         # Generate tokens
         for _ in range(max_tokens):
-            idx_cond = (
-                input_ids
-                if input_ids.size(1) <= config.max_seq_len
-                else input_ids[:, -config.max_seq_len :]
-            )
-
             logits, _, _ = model.forward(
-                idx_cond, return_attention=False, capture_activations=False
+                input_ids, return_attention=False, capture_activations=False
             )
             logits = logits[:, -1, :]
 
@@ -642,14 +561,9 @@ class _InferenceWorker:
             next_token = torch.clamp(next_token, 0, self._tokenizer.vocab_size - 1)
             input_ids = torch.cat([input_ids, next_token], dim=1)
 
-        # Final forward pass with activations
-        final_ids = (
-            input_ids
-            if input_ids.size(1) <= config.max_seq_len
-            else input_ids[:, -config.max_seq_len :]
-        )
+        # Final forward pass with activations, over the whole sequence
         _, _, activations = model.forward(
-            final_ids, return_attention=True, capture_activations=True
+            input_ids, return_attention=True, capture_activations=True
         )
 
         generated_text = self._tokenizer.decode(input_ids[0].cpu().tolist())
@@ -746,45 +660,6 @@ class _InferenceWorker:
             "decoded_tokens": decoded_tokens,
             "k": actual_k,
             "seq_len": seq_len,
-        }
-
-    @modal.method()
-    def get_model_info(
-        self,
-        model_id: str,
-        owner_id: Optional[int] = None,
-        version: Optional[str] = None,
-    ) -> dict:
-        """Get model configuration info (Ozera or open-source)."""
-        # Handle open-source models
-        if self._is_open_source_model(model_id):
-            from core.open_source import OPEN_SOURCE_MODELS
-            config = OPEN_SOURCE_MODELS[model_id]
-            return {
-                "name": model_id,
-                "display_name": config.display_name,
-                "family": config.family.value,
-                "parameters": config.parameters,
-                "layers": config.num_layers,
-                "heads": config.num_heads,
-                "hidden_dim": config.hidden_dim,
-                "vocab_size": config.vocab_size,
-                "max_seq_len": config.max_seq_len,
-                "type": "open_source",
-            }
-
-        # Handle Ozera models
-        model, config = self._get_model(model_id, owner_id, version)
-
-        return {
-            "name": model_id,
-            "parameters": config.count_parameters(),
-            "layers": config.num_layers,
-            "heads": config.num_heads,
-            "hidden_dim": config.d_model,
-            "vocab_size": config.vocab_size,
-            "max_seq_len": config.max_seq_len,
-            "type": "ozera",
         }
 
     @modal.method()

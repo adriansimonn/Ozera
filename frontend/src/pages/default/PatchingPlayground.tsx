@@ -249,15 +249,15 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
                   const groups: DropdownGroup[] = []
                   const ozera = models.filter(m => m.model_type === 'ozera' && (m.model_id === 'nano' || m.model_id === 'mini'))
                   if (ozera.length > 0) {
-                    groups.push({ label: 'Ozera Models', options: ozera.map(m => ({ value: m.model_id, label: `${m.display_name} · ${m.num_layers}L / ${m.num_heads}H` })) })
+                    groups.push({ label: 'Ozera Models', options: ozera.map(m => ({ value: m.model_id, label: `${m.display_name} · ${m.num_layers ?? '?'}L / ${m.num_heads ?? '?'}H` })) })
                   }
                   const os = models.filter(m => m.model_type === 'open_source')
                   if (os.length > 0) {
-                    groups.push({ label: 'Open Source', options: os.map(m => ({ value: m.model_id, label: `${m.display_name} · ${m.num_layers}L / ${m.num_heads}H` })) })
+                    groups.push({ label: 'Open Source', options: os.map(m => ({ value: m.model_id, label: `${m.display_name} · ${m.num_layers ?? '?'}L / ${m.num_heads ?? '?'}H` })) })
                   }
                   const custom = models.filter(m => m.model_type === 'custom')
                   if (custom.length > 0) {
-                    groups.push({ label: 'Custom Models', options: custom.map(m => ({ value: m.model_id, label: `${m.display_name} · ${m.num_layers}L / ${m.num_heads}H` })) })
+                    groups.push({ label: 'Custom Models', options: custom.map(m => ({ value: m.model_id, label: `${m.display_name} · ${m.num_layers ?? '?'}L / ${m.num_heads ?? '?'}H` })) })
                   }
                   return groups
                 })()}
@@ -425,6 +425,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
                 modelId={selectedModel}
                 numLayers={numLayers}
                 numHeads={numHeads}
+                mlpNeurons={modelInfo?.mlp_neurons ?? null}
                 patches={patches}
                 onAddPatch={handleAddPatch}
                 onRemovePatch={handleRemovePatch}

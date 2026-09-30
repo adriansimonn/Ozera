@@ -14,7 +14,7 @@ from typing import Optional
 
 from .base import OpenSourceModelLoader, get_hf_token
 from .registry import ModelFamily
-from .hooks import create_capture_hook, normalize_gqa_attention
+from .hooks import create_capture_hook, create_input_capture_hook, normalize_gqa_attention
 
 
 class GemmaLoader(OpenSourceModelLoader):
@@ -109,14 +109,17 @@ class GemmaLoader(OpenSourceModelLoader):
 
             # Pre-FFN norm - Gemma 2/3 have a separate pre_feedforward_layernorm
             # Fall back to post_attention_layernorm if pre_feedforward doesn't exist
-            if hasattr(layer, 'pre_feedforward_layernorm'):
-                hook = layer.pre_feedforward_layernorm.register_forward_hook(
-                    create_capture_hook(self._activations, f"layer_{i}_ff_input")
-                )
-            else:
-                hook = layer.post_attention_layernorm.register_forward_hook(
-                    create_capture_hook(self._activations, f"layer_{i}_ff_input")
-                )
+            pre_ffn_norm = getattr(layer, 'pre_feedforward_layernorm', layer.post_attention_layernorm)
+
+            # Post-attention residual (normed attention output + residual), the pre-FFN norm's input
+            hook = pre_ffn_norm.register_forward_pre_hook(
+                create_input_capture_hook(self._activations, f"layer_{i}_post_attn")
+            )
+            self._hooks.append(hook)
+
+            hook = pre_ffn_norm.register_forward_hook(
+                create_capture_hook(self._activations, f"layer_{i}_ff_input")
+            )
             self._hooks.append(hook)
 
             # FFN output

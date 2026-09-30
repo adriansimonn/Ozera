@@ -23,7 +23,9 @@ export interface PatchSpec {
   layer: number
   patch_type: PatchType
   positions?: number[] | null
+  /** Attention heads to patch (attention patch types only; null = all) */
   heads?: number[] | null
+  /** MLP neurons to patch (MLP patch types only; null = all) */
   neurons?: number[] | null
   blend_factor: number
   intervention_type: InterventionType
@@ -139,8 +141,9 @@ export interface PatchingModelInfo {
   model_id: string
   model_type: 'ozera' | 'open_source' | 'custom'
   display_name: string
-  num_layers: number
-  num_heads: number
+  // null only for an uploaded model whose file the backend couldn't read yet
+  num_layers: number | null
+  num_heads: number | null
 }
 
 /**
@@ -160,6 +163,8 @@ export interface ModelLayerInfo {
   model_type: 'ozera' | 'open_source'
   num_layers: number
   num_heads: number
+  /** Neurons per MLP layer (null if unknown) */
+  mlp_neurons: number | null
   layers: LayerPatchInfo[]
   patch_types: PatchType[]
 }

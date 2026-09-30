@@ -26,6 +26,22 @@ def create_capture_hook(storage: dict, key: str) -> Callable:
     return hook
 
 
+def create_input_capture_hook(storage: dict, key: str) -> Callable:
+    """
+    Create a forward pre-hook that captures a module's (first) input.
+
+    Args:
+        storage: Dictionary to store captured activations
+        key: Key to use in storage dict
+
+    Returns:
+        Hook function compatible with register_forward_pre_hook
+    """
+    def hook(module, args):
+        storage[key] = args[0].detach()
+    return hook
+
+
 def create_attention_hook(
     storage: dict,
     layer_idx: int,

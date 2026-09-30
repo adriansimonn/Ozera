@@ -67,7 +67,7 @@ class ModelLoader:
             from safetensors.torch import load_file as load_safetensors
             state_dict = load_safetensors(checkpoint_path)
 
-            # Try to load metadata from safetensors header or metadata.json
+            # Config from the file's metadata and tensor shapes
             config = self._load_config_for_safetensors(checkpoint_path)
 
             print(f"  Layers: {config.num_layers}")
@@ -105,54 +105,14 @@ class ModelLoader:
         return model, config
 
     def _load_config_for_safetensors(self, checkpoint_path: str) -> TransformerConfig:
-        """
-        Load config for a safetensors model.
-
-        First tries to read from safetensors metadata, then metadata.json,
-        then infers from state dict.
-        """
-        import json
+        """Config for a safetensors model, read the same way the Modal workers read it."""
         from safetensors import safe_open
+        from core.transformer.checkpoint import config_from_checkpoint
 
-        # Try to get config from safetensors metadata
-        try:
-            with safe_open(checkpoint_path, framework="pt") as f:
-                metadata = f.metadata()
-                if metadata and "d_model" in metadata:
-                    return TransformerConfig(
-                        vocab_size=int(metadata.get("vocab_size", 50257)),
-                        max_seq_len=int(metadata.get("max_seq_len", 256)),
-                        d_model=int(metadata["d_model"]),
-                        num_layers=int(metadata.get("num_layers", 6)),
-                        num_heads=int(metadata.get("num_heads", 6)),
-                        d_ff=int(metadata.get("d_ff", int(metadata["d_model"]) * 4)),
-                        dropout_rate=float(metadata.get("dropout_rate", 0.0)),
-                    )
-        except Exception as e:
-            print(f"Could not read safetensors metadata: {e}")
-
-        # Try metadata.json in same directory
-        metadata_path = os.path.join(os.path.dirname(checkpoint_path), 'metadata.json')
-        if os.path.exists(metadata_path):
-            try:
-                with open(metadata_path, 'r') as f:
-                    metadata = json.load(f)
-                # Get base config if specified
-                base_config = metadata.get('base_config', 'nano')
-                from core.transformer.config import get_config
-                config = get_config(base_config)
-                # Override with any specific values
-                if 'vocab_size' in metadata:
-                    config.vocab_size = metadata['vocab_size']
-                if 'seq_len' in metadata:
-                    config.max_seq_len = metadata['seq_len']
-                return config
-            except Exception as e:
-                print(f"Could not read metadata.json: {e}")
-
-        # Fall back to default nano config
-        from core.transformer.config import get_config
-        return get_config('nano')
+        with safe_open(checkpoint_path, framework="pt") as f:
+            metadata = f.metadata() or {}
+            shapes = {key: f.get_slice(key).get_shape() for key in f.keys()}
+        return config_from_checkpoint(metadata, shapes)
 
     def _ensure_custom_model_available(
         self, model_name: str, owner_id: int, version: Optional[str]

@@ -77,8 +77,10 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
     return family === 'ozera' && m !== 'nano' && m !== 'mini'
   })
 
-  const formatNumber = (num: number): string => {
-    if (num >= 1_000_000_000) {
+  const formatNumber = (num: number | null): string => {
+    if (num === null) {
+      return '—'
+    } else if (num >= 1_000_000_000) {
       return `${(num / 1_000_000_000).toFixed(1)}B`
     } else if (num >= 1_000_000) {
       return `${(num / 1_000_000).toFixed(1)}M`
@@ -149,7 +151,7 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
                 </div>
                 <div className="info-details">
                   <span className="info-label">Layers</span>
-                  <span className="info-value">{dynamicInfo.layers}</span>
+                  <span className="info-value">{dynamicInfo.layers ?? '—'}</span>
                 </div>
               </div>
 
@@ -159,7 +161,7 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
                 </div>
                 <div className="info-details">
                   <span className="info-label">Attention Heads</span>
-                  <span className="info-value">{dynamicInfo.heads}</span>
+                  <span className="info-value">{dynamicInfo.heads ?? '—'}</span>
                 </div>
               </div>
 
@@ -169,7 +171,7 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
                 </div>
                 <div className="info-details">
                   <span className="info-label">Hidden Dimension</span>
-                  <span className="info-value">{dynamicInfo.hidden_dim}</span>
+                  <span className="info-value">{dynamicInfo.hidden_dim ?? '—'}</span>
                 </div>
               </div>
 

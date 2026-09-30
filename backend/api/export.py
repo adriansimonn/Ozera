@@ -1,8 +1,8 @@
 """
 Export API endpoints for paper-ready figure generation.
 
-Provides endpoints for exporting attention heatmaps, activation histograms,
-and patching results in publication-quality formats (PNG, PDF, SVG).
+Provides endpoints for exporting attention heatmaps and activation histograms
+in publication-quality formats (PNG, PDF, SVG).
 """
 
 import re
@@ -18,7 +18,6 @@ import zipfile
 from core.export import (
     AttentionHeatmapExporter,
     ActivationHistogramExporter,
-    PatchingResultExporter,
     PUBLICATION_PRESETS,
 )
 from core.patching import get_patching_engine
@@ -81,15 +80,6 @@ class ActivationHistogramRequest(BaseModel):
     bins: int = Field(default=50, description="Number of histogram bins")
     show_stats: bool = Field(default=True, description="Show statistics box")
     log_scale: bool = Field(default=False, description="Use log scale for y-axis")
-
-
-class PatchingComparisonRequest(BaseModel):
-    """Request to export patching comparison figure."""
-    experiment_ids: list[str] = Field(..., description="List of experiment IDs to compare")
-    metric: str = Field(default="logit_diff", description="Metric to compare")
-    config: ExportConfig = Field(default_factory=ExportConfig)
-    title: Optional[str] = Field(default=None, description="Custom title")
-    chart_type: Literal["bar", "heatmap", "line"] = Field(default="bar", description="Chart type")
 
 
 class BatchExportRequest(BaseModel):
@@ -163,8 +153,8 @@ def get_attention_matrix(activation_id: str, layer: int, user_id: int) -> tuple[
             detail=f"Attention weights not found for layer {layer}"
         )
 
-    # Label with the decoded tokens. If the attention covers fewer positions (an Ozera model
-    # only attends over its last max_seq_len tokens), it covers the last ones.
+    # Label with the decoded tokens (the attention covers them all; fall back to positions
+    # if they don't match)
     seq_len = attn_weights.shape[-1]
     tokens = summary["metadata"].get("decoded_tokens") or []
     if len(tokens) >= seq_len:
@@ -458,94 +448,6 @@ async def export_activation_histogram(
         media_type=media_types[request.config.format],
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"'
-        }
-    )
-
-
-@router.post("/patching-comparison")
-async def export_patching_comparison(
-    request: PatchingComparisonRequest,
-    current_user: User = Depends(get_current_user),
-) -> Response:
-    """
-    Export patching comparison figure.
-
-    Args:
-        request: PatchingComparisonRequest with experiment IDs and config
-
-    Returns:
-        Image file in requested format
-    """
-    engine = get_patching_engine()
-
-    # Collect results from experiments
-    values = []
-    labels = []
-
-    for exp_id in request.experiment_ids:
-        result = engine.get_experiment_result(exp_id)
-        if result is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Experiment not found: {exp_id}"
-            )
-
-        # Extract metric
-        if request.metric in result:
-            values.append(result[request.metric])
-        elif "metrics" in result and request.metric in result["metrics"]:
-            values.append(result["metrics"][request.metric])
-        else:
-            values.append(0.0)
-
-        labels.append(result.get("name", exp_id[:8]))
-
-    # Create exporter and figure
-    exporter = PatchingResultExporter(
-        preset=request.config.preset,
-        width=request.config.width,
-        height=request.config.height,
-        dpi=request.config.dpi,
-    )
-
-    if request.chart_type == "bar":
-        fig = exporter.create_comparison_bar(
-            values=values,
-            labels=labels,
-            title=request.title or f"Patching Comparison: {request.metric}",
-            ylabel=request.metric.replace("_", " ").title(),
-        )
-    elif request.chart_type == "line":
-        fig = exporter.create_layer_effect_line(
-            effects_by_layer=values,
-            title=request.title or f"Effect by Layer: {request.metric}",
-            ylabel=request.metric.replace("_", " ").title(),
-        )
-    else:
-        # For heatmap, we need 2D data - reshape if possible
-        raise HTTPException(
-            status_code=400,
-            detail="Heatmap chart type requires 2D effect data"
-        )
-
-    # Export
-    image_bytes = exporter.export(
-        fig,
-        format=request.config.format,
-        transparent=request.config.transparent,
-    )
-
-    media_types = {
-        "png": "image/png",
-        "pdf": "application/pdf",
-        "svg": "image/svg+xml",
-    }
-
-    return Response(
-        content=image_bytes,
-        media_type=media_types[request.config.format],
-        headers={
-            "Content-Disposition": f"attachment; filename=patching_comparison.{request.config.format}"
         }
     )
 

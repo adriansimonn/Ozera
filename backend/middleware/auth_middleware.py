@@ -7,7 +7,7 @@ supabase_user_id bridge column.
 import logging
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -63,11 +63,15 @@ def _get_or_create_user(db: Session, supabase_user_id: str, email: str, full_nam
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
     """
     Dependency: verify Supabase token → resolve to local User.
+
+    Records the user on request.state, where the rate limiter reads it (see
+    middleware.rate_limit).
 
     Raises 401 if token is invalid, 403 if user is inactive.
     """
@@ -103,6 +107,7 @@ def get_current_user(
             detail="User account is inactive",
         )
 
+    request.state.user_id = user.id
     return user
 
 

@@ -33,6 +33,7 @@ from api.schemas.training import (
     CustomModelCount,
 )
 from core.model_names import is_valid_model_name, model_folder
+from core.transformer.checkpoint import InvalidCheckpointError, read_safetensors_header
 from core.open_source import OPEN_SOURCE_MODELS
 from services.inference_router import BASE_MODELS
 from services.modal_volumes import read_dataset_metadata_from_volume
@@ -49,6 +50,7 @@ from services.job_orchestrator import (
 )
 from services.credit_service import GPU_PRICING, check_sufficient_balance
 from services.custom_models import delete_replaced_models, remove_replaced_model_files
+from services.model_specs import uploaded_model_fields
 
 
 router = APIRouter(prefix="/training", tags=["training"])
@@ -773,70 +775,13 @@ async def upload_model(
             detail="File too small. Model files should be at least 1KB"
         )
 
-    # Validate safetensors format (basic header check)
-    # Safetensors files start with a little-endian uint64 header size
-    if len(content) < 8:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid safetensors file: too small"
-        )
-
-    # Parse header size (first 8 bytes as little-endian uint64)
-    import struct
-    header_size = struct.unpack("<Q", content[:8])[0]
-
-    if header_size > len(content) - 8 or header_size > 100 * 1024 * 1024:  # Header shouldn't be > 100MB
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid safetensors file: invalid header size"
-        )
-
-    # Try to parse the header JSON to extract model info
-    num_parameters = None
-    num_layers = None
-    num_heads = None
-    hidden_dim = None
-    vocab_size = None
-    max_seq_len = None
-
+    # Read the model's specs from the header the same way the inference workers build the
+    # model from it, so they're known without loading the model on a GPU
     try:
-        header_json = content[8:8 + header_size].decode("utf-8")
-        header = json.loads(header_json)
-
-        # Try to extract model metadata if present
-        metadata = header.get("__metadata__", {})
-        if metadata:
-            # Common metadata fields in safetensors
-            if "parameters" in metadata:
-                num_parameters = int(metadata["parameters"])
-            if "num_layers" in metadata:
-                num_layers = int(metadata["num_layers"])
-            if "num_heads" in metadata:
-                num_heads = int(metadata["num_heads"])
-            if "hidden_dim" in metadata:
-                hidden_dim = int(metadata["hidden_dim"])
-            if "vocab_size" in metadata:
-                vocab_size = int(metadata["vocab_size"])
-            if "max_seq_len" in metadata:
-                max_seq_len = int(metadata["max_seq_len"])
-
-        # Count parameters from tensor shapes if not in metadata
-        if num_parameters is None:
-            total_params = 0
-            for key, tensor_info in header.items():
-                if key != "__metadata__" and isinstance(tensor_info, dict):
-                    shape = tensor_info.get("shape", [])
-                    if shape:
-                        param_count = 1
-                        for dim in shape:
-                            param_count *= dim
-                        total_params += param_count
-            if total_params > 0:
-                num_parameters = total_params
-
-    except Exception as e:
-        print(f"Warning: Could not parse safetensors header metadata: {e}")
-        # Continue anyway - we can still upload the file
+        metadata, shapes = read_safetensors_header(content)
+        specs = uploaded_model_fields(metadata, shapes)
+    except InvalidCheckpointError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid model file: {e}")
 
     # Save to temporary file and upload to Modal volume
     # Use model_name as model_id since that's the folder name on the volume
@@ -868,12 +813,7 @@ async def upload_model(
         user_id=current_user.id,
         name=model_name,
         file_size_bytes=file_size,
-        num_parameters=num_parameters,
-        num_layers=num_layers,
-        num_heads=num_heads,
-        hidden_dim=hidden_dim,
-        vocab_size=vocab_size,
-        max_seq_len=max_seq_len,
+        **specs,
     )
     db.add(uploaded_model)
     db.commit()
@@ -885,8 +825,8 @@ async def upload_model(
         model_id=model_id,
         name=model_name,
         file_size_bytes=file_size,
-        num_parameters=num_parameters,
-        num_layers=num_layers,
+        num_parameters=specs["num_parameters"],
+        num_layers=specs["num_layers"],
         status="uploaded",
     )
 

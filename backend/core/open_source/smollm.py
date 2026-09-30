@@ -11,7 +11,7 @@ from typing import Optional
 
 from .base import OpenSourceModelLoader, get_hf_token
 from .registry import ModelFamily
-from .hooks import create_capture_hook, create_attention_hook, normalize_gqa_attention
+from .hooks import create_capture_hook, create_input_capture_hook, normalize_gqa_attention
 
 
 class SmolLMLoader(OpenSourceModelLoader):
@@ -75,7 +75,8 @@ class SmolLMLoader(OpenSourceModelLoader):
         - model.embed_tokens: Token embeddings
         - model.layers[i].input_layernorm: Pre-attention norm (attn_input)
         - model.layers[i].self_attn: Attention output and weights
-        - model.layers[i].post_attention_layernorm: Pre-FFN norm (ff_input)
+        - model.layers[i].post_attention_layernorm: Pre-FFN norm (its input is post_attn,
+          its output ff_input)
         - model.layers[i].mlp: FFN output
         - model.layers[i]: Full layer output (post_ff with residual)
         - model.norm: Final layer norm
@@ -109,10 +110,9 @@ class SmolLMLoader(OpenSourceModelLoader):
             )
             self._hooks.append(hook)
 
-            # Post-attention residual (before FFN)
-            # This captures the state after attention + residual connection
-            hook = layer.register_forward_hook(
-                self._create_post_attn_hook(i)
+            # Post-attention residual (attention output + residual), the pre-FFN norm's input
+            hook = layer.post_attention_layernorm.register_forward_pre_hook(
+                create_input_capture_hook(self._activations, f"layer_{i}_post_attn")
             )
             self._hooks.append(hook)
 
@@ -172,20 +172,6 @@ class SmolLMLoader(OpenSourceModelLoader):
             else:
                 self._activations[f"layer_{layer_idx}_attn_output"] = output.detach()
 
-        return hook
-
-    def _create_post_attn_hook(self, layer_idx: int):
-        """
-        Create hook to capture post-attention state (after residual).
-
-        This is a partial hook that only captures the post-attention state,
-        not the full layer output.
-        """
-        def hook(module, input, output):
-            # We'll compute this differently - capturing intermediate state
-            # The layer output includes both attention and FFN, so we need
-            # to capture the intermediate state
-            pass
         return hook
 
     def _create_layer_output_hook(self, layer_idx: int):

@@ -15,7 +15,7 @@ from typing import Optional
 from core.activation_limits import ActivationLimitError
 from core.open_source import OPEN_SOURCE_MODELS, OpenSourceModelLoader, get_gpu_tier, get_loader_for_model
 from core.patching import get_patching_engine, PatchConfig
-from core.patching.engine import CaptureTooLargeError, patch_activation_key
+from core.patching.engine import CaptureTooLargeError, PatchError, patch_activation_key, validate_patches
 from core.tensor_codec import encode_tensor, is_tensor_entry, to_float32
 from api.schemas.patching import (
     CaptureActivationsRequest,
@@ -31,8 +31,9 @@ from api.schemas.patching import (
 )
 from middleware.auth_middleware import get_optional_current_user, get_current_user
 from services.credit_service import InsufficientBalanceError
-from services.custom_models import resolve_model
-from models.database import User, TrainingJob, TransactionType, UploadedModel, JobStatus
+from services.custom_models import list_custom_model_names, resolve_model
+from services.model_specs import BASE_MODEL_CONFIGS, model_specs
+from models.database import User, TransactionType
 from db import get_db
 from services.credit_service import (
     estimate_patching_cost,
@@ -100,6 +101,33 @@ def _patch_spec_to_config(spec: PatchSpec) -> PatchConfig:
         blend_factor=spec.blend_factor,
         intervention_type=spec.intervention_type,
     )
+
+
+async def _check_patches(
+    db: Session,
+    user_id: int,
+    model_id: str,
+    patches: list[PatchSpec],
+    source_tokens: Optional[int] = None,
+) -> None:
+    """
+    Reject (400) patches the model can't apply, before starting a GPU for them.
+
+    The worker checks again with everything it knows (e.g. the prompts' token counts).
+    """
+    specs = await model_specs(db, user_id, model_id)
+    if specs.layers is None or specs.heads is None:
+        return
+    try:
+        validate_patches(
+            [_patch_spec_to_config(p) for p in patches],
+            num_layers=specs.layers,
+            num_heads=specs.heads,
+            mlp_neurons=specs.mlp_neurons,
+            source_tokens=source_tokens,
+        )
+    except PatchError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # Activation capture endpoints
@@ -320,6 +348,8 @@ async def run_patching_experiment(
             detail="source_prompt is required when using 'patch' intervention type. Use ablation types (zero_ablate, mean_ablate, noise_ablate) or provide a source prompt."
         )
 
+    await _check_patches(db, current_user.id, request.model, request.patches)
+
     # Check credits before running experiment
     source_prompt_length = len(request.source_prompt) if request.source_prompt else 0
     estimated_cost = estimate_patching_cost(
@@ -384,8 +414,8 @@ async def run_patching_experiment(
 
     except InsufficientBalanceError:
         raise HTTPException(status_code=402, detail="Insufficient credits.")
-    except ActivationLimitError as e:
-        # The source prompt is too long to capture on this model
+    except (ActivationLimitError, PatchError) as e:
+        # The source prompt is too long to capture on this model, or a patch can't be applied
         raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid patching request"))
@@ -435,6 +465,7 @@ async def run_patching_with_captured(
         )
 
     model = resolve_model(db, current_user.id, request.model)
+    await _check_patches(db, current_user.id, request.model, request.patches, len(captured.tokens))
 
     # Check credits before running experiment
     estimated_cost = estimate_patching_cost(
@@ -516,6 +547,8 @@ async def run_patching_with_captured(
 
     except InsufficientBalanceError:
         raise HTTPException(status_code=402, detail="Insufficient credits.")
+    except PatchError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=safe_detail(e, "Invalid patching request"))
     except HTTPException:
@@ -604,71 +637,31 @@ async def list_available_models(
     Returns Ozera base models, open-source models, and user's custom models
     (trained and uploaded) that support activation patching.
     """
-    models = []
+    def entry(specs, model_type: str, display_name: str) -> dict:
+        return {
+            "model_id": specs.name,
+            "model_type": model_type,
+            "display_name": display_name,
+            "num_layers": specs.layers,
+            "num_heads": specs.heads,
+        }
 
-    # Add Ozera base models
-    for model_id in BASE_MODELS:
-        config = BASE_MODEL_CONFIGS.get(model_id, {"num_layers": 6, "num_heads": 6})
-        models.append({
-            "model_id": model_id,
-            "model_type": "ozera",
-            "display_name": f"Ozera {model_id.title()}",
-            "num_layers": config["num_layers"],
-            "num_heads": config["num_heads"],
-        })
+    user_id = current_user.id if current_user else None
+    models = [
+        entry(await model_specs(db, user_id, model_id), "ozera", f"Ozera {model_id.title()}")
+        for model_id in BASE_MODEL_CONFIGS
+    ]
+    models += [
+        entry(await model_specs(db, user_id, model_id), "open_source", config.display_name)
+        for model_id, config in OPEN_SOURCE_MODELS.items()
+    ]
 
-    # Add open-source models
-    for model_id, config in OPEN_SOURCE_MODELS.items():
-        models.append({
-            "model_id": model_id,
-            "model_type": "open_source",
-            "display_name": config.display_name,
-            "num_layers": config.num_layers,
-            "num_heads": config.num_heads,
-        })
-
-    # Add user's custom models if authenticated
+    # Add user's custom models (trained and uploaded) if authenticated
     if current_user:
-        # Add completed training jobs (custom trained models)
-        trained_models = db.query(TrainingJob).filter(
-            TrainingJob.user_id == current_user.id,
-            TrainingJob.status == JobStatus.COMPLETED,
-        ).all()
-
-        for job in trained_models:
-            # Get layer/head info from base model config
-            base_config = BASE_MODEL_CONFIGS.get(job.model_config, {"num_layers": 6, "num_heads": 6})
-            models.append({
-                "model_id": job.model_name,
-                "model_type": "custom",
-                "display_name": job.model_name,
-                "num_layers": base_config["num_layers"],
-                "num_heads": base_config["num_heads"],
-                "base_model": job.model_config,
-            })
-
-        # Add uploaded models
-        uploaded_models = db.query(UploadedModel).filter(
-            UploadedModel.user_id == current_user.id,
-        ).all()
-
-        for uploaded in uploaded_models:
-            models.append({
-                "model_id": uploaded.name,
-                "model_type": "custom",
-                "display_name": uploaded.name,
-                "num_layers": uploaded.num_layers or 6,
-                "num_heads": uploaded.num_heads or 6,
-            })
+        for name in list_custom_model_names(db, current_user.id):
+            models.append(entry(await model_specs(db, current_user.id, name), "custom", name))
 
     return models
-
-
-# Base model configurations (avoid loading model just for config)
-BASE_MODEL_CONFIGS = {
-    "nano": {"num_layers": 6, "num_heads": 6},
-    "mini": {"num_layers": 8, "num_heads": 8},
-}
 
 
 @router.get("/models/{model_id}/layers")
@@ -680,69 +673,36 @@ async def get_model_layers(
     """
     Get layer information for a model.
 
-    Returns the number of layers and available patch points for each layer.
+    Returns the number of layers and heads, the neurons per MLP layer (null if unknown),
+    and the patch points of each layer. Every patch type applies to every model; heads can be
+    chosen for attention patches, neurons for MLP patches.
     """
-    model_type = _get_model_type(model_id)
-
-    if model_type == "open_source":
-        if model_id not in OPEN_SOURCE_MODELS:
-            raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
-        config = OPEN_SOURCE_MODELS[model_id]
-        num_layers = config.num_layers
-        num_heads = config.num_heads
-    elif model_id in BASE_MODEL_CONFIGS:
-        # Use hardcoded config for base models (avoid loading model on CPU)
-        config = BASE_MODEL_CONFIGS[model_id]
-        num_layers = config["num_layers"]
-        num_heads = config["num_heads"]
-    else:
-        # Custom models - check database for config
-        num_layers = None
-        num_heads = None
-
-        if current_user:
-            # Check trained models
-            trained_model = db.query(TrainingJob).filter(
-                TrainingJob.user_id == current_user.id,
-                TrainingJob.model_name == model_id,
-                TrainingJob.status == JobStatus.COMPLETED,
-            ).first()
-
-            if trained_model:
-                # Use base model config for trained models
-                base_config = BASE_MODEL_CONFIGS.get(trained_model.model_config, {"num_layers": 6, "num_heads": 6})
-                num_layers = base_config["num_layers"]
-                num_heads = base_config["num_heads"]
-            else:
-                # Check uploaded models
-                uploaded_model = db.query(UploadedModel).filter(
-                    UploadedModel.user_id == current_user.id,
-                    UploadedModel.name == model_id,
-                ).first()
-
-                if uploaded_model:
-                    num_layers = uploaded_model.num_layers or 6
-                    num_heads = uploaded_model.num_heads or 6
-
-        if num_layers is None:
-            raise HTTPException(status_code=404, detail=f"Model not found: {model_id}")
+    if current_user is None and model_id not in BASE_MODEL_CONFIGS and model_id not in OPEN_SOURCE_MODELS:
+        raise HTTPException(status_code=404, detail=f"Model not found: {model_id}")
+    try:
+        specs = await model_specs(db, current_user.id if current_user else None, model_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Model not found: {model_id}")
+    if specs.layers is None or specs.heads is None:
+        raise HTTPException(status_code=503, detail="Couldn't read the model's file, please try again")
 
     # Available patch types at each layer
     patch_types = ['attention', 'mlp', 'residual', 'attn_output', 'ff_output', 'post_attn', 'post_ff']
 
     layers = []
-    for i in range(num_layers):
+    for i in range(specs.layers):
         layers.append({
             "index": i,
             "patch_types": patch_types,
-            "num_heads": num_heads,
+            "num_heads": specs.heads,
         })
 
     return {
         "model_id": model_id,
-        "model_type": model_type,
-        "num_layers": num_layers,
-        "num_heads": num_heads,
+        "model_type": _get_model_type(model_id),
+        "num_layers": specs.layers,
+        "num_heads": specs.heads,
+        "mlp_neurons": specs.mlp_neurons,
         "layers": layers,
         "patch_types": patch_types,
     }

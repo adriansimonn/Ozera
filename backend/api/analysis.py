@@ -10,13 +10,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from api.patching import BASE_MODEL_CONFIGS
 from core.open_source import OPEN_SOURCE_MODELS
 from core.patching import CapturedActivations, get_patching_engine
 from core.analysis import HeadClassifier, PatternMiner, HeadType
 from middleware.auth_middleware import get_current_user
 from models.database import User
 from db import get_db
+from services.model_specs import BASE_MODEL_CONFIGS
 from services.credit_service import (
     InsufficientBalanceError,
     estimate_analysis_cost,
@@ -44,7 +44,7 @@ def _num_heads(captured: CapturedActivations) -> int:
 
     if captured.model_id in OPEN_SOURCE_MODELS:
         return OPEN_SOURCE_MODELS[captured.model_id].num_heads
-    return BASE_MODEL_CONFIGS.get(captured.model_id, BASE_MODEL_CONFIGS["nano"])["num_heads"]
+    return BASE_MODEL_CONFIGS.get(captured.model_id, BASE_MODEL_CONFIGS["nano"]).num_heads
 
 
 def _check_analysis_balance(

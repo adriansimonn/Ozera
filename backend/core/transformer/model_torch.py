@@ -399,7 +399,7 @@ class TransformerLM(nn.Module):
 
         Args:
             input_ids: Token IDs (batch_size, seq_len)
-            patches: Dict mapping activation keys to patch info:
+            patches: Dict mapping activation keys to patch info (or a list of them, applied in order):
                 {
                     "layer_0_attn_output": {
                         "source": tensor,  # Source activation to patch in
@@ -577,7 +577,7 @@ class TransformerLM(nn.Module):
 
         Args:
             tensor: Original activation tensor [batch, seq_len, d_model]
-            patch_info: Dict with:
+            patch_info: Dict with (or a list of such dicts, applied in order):
                 - source: Source tensor to patch in (optional for ablation types)
                 - positions: Optional list of positions to patch
                 - blend_factor: Interpolation factor (1.0 = full replacement)
@@ -586,6 +586,12 @@ class TransformerLM(nn.Module):
         Returns:
             Patched tensor
         """
+        if isinstance(patch_info, list):
+            # Several patches of the same activation, applied in order
+            for info in patch_info:
+                tensor = self._apply_patch(tensor, info)
+            return tensor
+
         intervention_type = patch_info.get('intervention_type', 'patch')
         positions = patch_info.get('positions')
         blend_factor = patch_info.get('blend_factor', 1.0)
@@ -697,7 +703,7 @@ class TransformerLM(nn.Module):
 
         Args:
             input_ids: Starting token IDs (batch_size, prompt_len)
-            patches: Dict mapping activation keys to patch info
+            patches: Dict mapping activation keys to patch info (or lists of them)
             max_new_tokens: Number of tokens to generate
             temperature: Sampling temperature
             top_k: Top-k sampling
