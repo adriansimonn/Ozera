@@ -31,6 +31,9 @@ interface ExternalSAELoaderProps {
 
 type LoaderTab = 'huggingface' | 'upload' | 'loaded'
 
+// The SAE service's upload limit
+const MAX_UPLOAD_BYTES = 500 * 1024 * 1024
+
 // Common HuggingFace SAE repositories for quick access
 const SUGGESTED_REPOS = [
   {
@@ -175,14 +178,18 @@ export function ExternalSAELoader({
     setShowReplaceWarning(false)
 
     try {
-      // Read file as base64
-      const arrayBuffer = await uploadFile.arrayBuffer()
-      const bytes = new Uint8Array(arrayBuffer)
-      let binary = ''
-      for (let i = 0; i < bytes.length; i++) {
-        binary += String.fromCharCode(bytes[i])
+      if (uploadFile.size > MAX_UPLOAD_BYTES) {
+        throw new Error('File too large. Maximum 500MB.')
       }
-      const base64 = btoa(binary)
+
+      // Read file as base64 (the browser encodes a data URL natively: "data:<type>;base64,<data>")
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'))
+        reader.readAsDataURL(uploadFile)
+      })
+      const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
 
       const result = await saeClient.uploadSAE({
         name: uploadName.trim(),

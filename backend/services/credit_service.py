@@ -6,10 +6,12 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional, List, Tuple
 
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from core.open_source import get_gpu_tier
-from models.database import CreditBalance, Transaction, TransactionType, User
+from models.database import CreditBalance, TrainingJob, Transaction, TransactionType, User
 from services.modal_inference import SCALEDOWN_WINDOW_SECONDS as INFERENCE_SCALEDOWN_SECONDS
 
 
@@ -113,7 +115,14 @@ def get_credit_balance(db: Session, user_id: int) -> Optional[CreditBalance]:
 
 
 def get_credit_balance_for_update(db: Session, user_id: int) -> Optional[CreditBalance]:
-    """Get user's credit balance with a row-level lock for safe read-modify-write."""
+    """
+    Get user's credit balance with a row-level lock for safe read-modify-write.
+
+    Callers must commit with no await in between: endpoints run on the event loop with a
+    synchronous session, so a lock held across an await makes the next request for the same
+    row block the whole server. The lock timeout turns any such wait into an error instead.
+    """
+    db.execute(text("SET LOCAL lock_timeout = '5s'"))
     return (
         db.query(CreditBalance)
         .filter(CreditBalance.user_id == user_id)
@@ -136,15 +145,28 @@ def get_user_transactions(
     return transactions, total
 
 
+def _payment_already_credited(db: Session, stripe_payment_intent_id: str) -> bool:
+    """Whether a transaction already records this Stripe payment."""
+    return (
+        db.query(Transaction.id)
+        .filter(Transaction.stripe_payment_intent_id == stripe_payment_intent_id)
+        .first()
+        is not None
+    )
+
+
 def add_credits(
     db: Session,
     user_id: int,
     amount_usd: float,
     stripe_payment_intent_id: Optional[str] = None,
     description: Optional[str] = None,
-) -> Transaction:
+) -> Optional[Transaction]:
     """
     Add credits to user's balance (e.g., from a Stripe payment).
+
+    Idempotent per Stripe payment: the webhook and the frontend's confirm call both credit
+    the same payment, usually within a second of each other.
 
     Args:
         db: Database session
@@ -154,31 +176,43 @@ def add_credits(
         description: Optional description
 
     Returns:
-        Created transaction record
+        Created transaction record, or None if the payment was already credited
     """
-    # Get or create credit balance with row lock for safe concurrent access
-    credit_balance = get_credit_balance_for_update(db, user_id)
-    if not credit_balance:
-        credit_balance = CreditBalance(user_id=user_id, balance_usd=0.0, reserved_usd=0.0)
-        db.add(credit_balance)
-        db.flush()
+    try:
+        # Get or create credit balance with row lock for safe concurrent access. A concurrent
+        # credit of the same payment waits here, then sees the first one's transaction below.
+        credit_balance = get_credit_balance_for_update(db, user_id)
+        if not credit_balance:
+            credit_balance = CreditBalance(user_id=user_id, balance_usd=0.0, reserved_usd=0.0)
+            db.add(credit_balance)
+            db.flush()
 
-    # Update balance
-    credit_balance.balance_usd += _to_decimal(amount_usd)
-    credit_balance.updated_at = datetime.utcnow()
+        if stripe_payment_intent_id and _payment_already_credited(db, stripe_payment_intent_id):
+            db.rollback()
+            return None
 
-    # Create transaction record
-    transaction = Transaction(
-        user_id=user_id,
-        amount_usd=_to_decimal(amount_usd),
-        transaction_type=TransactionType.CREDIT_PURCHASE,
-        stripe_payment_intent_id=stripe_payment_intent_id,
-        description=description or f"Credit purchase: ${amount_usd:.2f}",
-    )
-    db.add(transaction)
-    db.commit()
+        # Update balance
+        credit_balance.balance_usd += _to_decimal(amount_usd)
+        credit_balance.updated_at = datetime.utcnow()
+
+        # Create transaction record
+        transaction = Transaction(
+            user_id=user_id,
+            amount_usd=_to_decimal(amount_usd),
+            transaction_type=TransactionType.CREDIT_PURCHASE,
+            stripe_payment_intent_id=stripe_payment_intent_id,
+            description=description or f"Credit purchase: ${amount_usd:.2f}",
+        )
+        db.add(transaction)
+        db.commit()
+    except IntegrityError:
+        # The unique index on stripe_payment_intent_id rejected a second credit of the payment
+        db.rollback()
+        if stripe_payment_intent_id and _payment_already_credited(db, stripe_payment_intent_id):
+            return None
+        raise
+
     db.refresh(transaction)
-
     return transaction
 
 
@@ -188,6 +222,9 @@ def reserve_credits(
     """
     Reserve credits for a training job.
 
+    Commits together with the session's pending changes, so the new job row and its
+    reservation are saved in one transaction (a reservation is only released through its job).
+
     Args:
         db: Database session
         user_id: User ID
@@ -195,7 +232,7 @@ def reserve_credits(
         job_id: Training job ID
 
     Returns:
-        True if reservation successful, False if insufficient balance
+        True if reservation successful, False if insufficient balance (nothing is committed)
     """
     # Lock the row to prevent concurrent read-modify-write races
     credit_balance = get_credit_balance_for_update(db, user_id)
@@ -212,6 +249,23 @@ def reserve_credits(
     return True
 
 
+def _claim_reservation_release(db: Session, job_id: str) -> bool:
+    """
+    Mark a training job's credit reservation as released, if it wasn't already.
+
+    Returns False when the reservation was already released (e.g. a failed submission's
+    job being cancelled, or a cancelled job reporting completion), so it is never released
+    twice. The conditional update locks the job row until commit, so a concurrent claim
+    waits and then finds nothing to claim.
+    """
+    claimed = (
+        db.query(TrainingJob)
+        .filter(TrainingJob.job_id == job_id, TrainingJob.reservation_released.is_(False))
+        .update({TrainingJob.reservation_released: True}, synchronize_session=False)
+    )
+    return claimed == 1
+
+
 def charge_credits(
     db: Session,
     user_id: int,
@@ -219,7 +273,7 @@ def charge_credits(
     reserved_amount: float,
     job_id: str,
     description: Optional[str] = None,
-) -> Transaction:
+) -> Optional[Transaction]:
     """
     Charge credits for a completed training job and release reservation.
 
@@ -232,8 +286,12 @@ def charge_credits(
         description: Optional description
 
     Returns:
-        Created transaction record
+        Created transaction record, or None if the job's reservation was already released
+        (the job was already settled; nothing is charged)
     """
+    if not _claim_reservation_release(db, job_id):
+        return None
+
     # Lock the row to prevent concurrent read-modify-write races
     credit_balance = get_credit_balance_for_update(db, user_id)
 
@@ -280,7 +338,7 @@ def refund_credits(
     reserved_amount: float,
     job_id: str,
     description: Optional[str] = None,
-) -> Transaction:
+) -> Optional[Transaction]:
     """
     Refund credits for a cancelled/failed training job.
 
@@ -293,8 +351,12 @@ def refund_credits(
         description: Optional description
 
     Returns:
-        Created transaction record
+        Created transaction record, or None if the job's reservation was already released
+        (the job was already settled; nothing is charged or refunded)
     """
+    if not _claim_reservation_release(db, job_id):
+        return None
+
     # Lock the row to prevent concurrent read-modify-write races
     credit_balance = get_credit_balance_for_update(db, user_id)
 
@@ -349,15 +411,17 @@ def validate_purchase_amount(amount_usd: float) -> bool:
 
 
 def check_sufficient_balance(db: Session, user_id: int, required_amount: float) -> bool:
-    """Check if user has sufficient available balance.
-
-    Uses FOR UPDATE row lock to prevent TOCTOU races when called
-    within the same session/transaction that will later charge.
     """
-    credit_balance = get_credit_balance_for_update(db, user_id)
-    if not credit_balance:
-        return False
-    return credit_balance.available_balance >= required_amount
+    Check if user has sufficient available balance.
+
+    A plain read, after which the session's transaction is ended (committed) so nothing is
+    held open across the GPU call that usually follows. The charge_* functions lock the row
+    and re-check the balance when they charge.
+    """
+    credit_balance = get_credit_balance(db, user_id)
+    available = credit_balance.available_balance if credit_balance else None
+    db.commit()
+    return available is not None and available >= required_amount
 
 
 # Base inference pricing (per 1000 tokens, 30% markup on Modal GPU costs)

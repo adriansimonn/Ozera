@@ -17,7 +17,6 @@ from services.credit_service import (
     reserve_credits,
     charge_credits,
     refund_credits,
-    check_sufficient_balance,
 )
 from services.modal_volumes import (
     datasets_volume,
@@ -137,68 +136,55 @@ async def submit_training_job(
         num_tokens, model_config, epochs, gpu_type
     )
 
-    # Calculate reservation amount (with buffer)
-    reservation_amount = estimated_cost * RESERVATION_BUFFER
+    # Calculate reservation amount (with buffer), in whole cents so it releases exactly
+    reservation_amount = round(estimated_cost * RESERVATION_BUFFER, 2)
 
-    # Check if user has sufficient balance
-    if not check_sufficient_balance(db, user_id, reservation_amount):
-        return None, f"Insufficient credits. Required: ${reservation_amount:.2f}"
+    # Verify the dataset before reserving anything - generic datasets are already in the
+    # volume, user datasets must have been uploaded
+    is_generic, actual_dataset_id = parse_dataset_id(dataset_id)
+    if is_generic:
+        if not await check_generic_dataset_exists(actual_dataset_id):
+            return None, f"Generic dataset not found: {actual_dataset_id}"
+    elif not await check_dataset_exists(user_id, dataset_id):
+        return None, f"Dataset not found in storage: {dataset_id}"
 
-    # Generate job ID
     job_id = generate_job_id()
 
-    # Reserve credits
-    if not reserve_credits(db, user_id, reservation_amount, job_id):
-        return None, "Failed to reserve credits"
+    # Create the job as QUEUED: the worker stops if it doesn't see QUEUED or RUNNING, and it
+    # can start before the RUNNING update below is committed
+    job = TrainingJob(
+        job_id=job_id,
+        user_id=user_id,
+        dataset_id=dataset_id,
+        dataset_name=dataset_name,
+        model_config=model_config,
+        model_name=model_name,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        seq_len=seq_len,
+        gpu_type=gpu_type,
+        status=JobStatus.QUEUED,
+        estimated_cost_usd=estimated_cost,
+        estimated_minutes=estimated_minutes,
+        reserved_credits_usd=reservation_amount,
+        total_epochs=epochs,
+        created_at=datetime.utcnow(),
+    )
+    db.add(job)
 
+    # Saves the job and its reservation in one transaction (or neither)
     try:
-        # Create job record in database
-        job = TrainingJob(
-            job_id=job_id,
-            user_id=user_id,
-            dataset_id=dataset_id,
-            dataset_name=dataset_name,
-            model_config=model_config,
-            model_name=model_name,
-            epochs=epochs,
-            batch_size=batch_size,
-            learning_rate=learning_rate,
-            seq_len=seq_len,
-            gpu_type=gpu_type,
-            status=JobStatus.PENDING,
-            estimated_cost_usd=estimated_cost,
-            estimated_minutes=estimated_minutes,
-            reserved_credits_usd=reservation_amount,
-            total_epochs=epochs,
-            created_at=datetime.utcnow(),
-        )
-        db.add(job)
-        db.commit()
-        db.refresh(job)
+        reserved = reserve_credits(db, user_id, reservation_amount, job_id)
+    except Exception as e:
+        db.rollback()
+        return None, f"Failed to submit job: {str(e)}"
+    if not reserved:
+        db.rollback()
+        return None, f"Insufficient credits. Required: ${reservation_amount:.2f}"
 
-        # Handle dataset - generic datasets are already in the volume, user datasets need upload
-        is_generic, actual_dataset_id = parse_dataset_id(dataset_id)
-
-        if is_generic:
-            # Generic dataset - verify it exists in the volume
-            if not await check_generic_dataset_exists(actual_dataset_id):
-                refund_credits(db, user_id, 0, reservation_amount, job_id,
-                               f"Generic dataset not found: {actual_dataset_id}")
-                db.rollback()
-                return None, f"Generic dataset not found: {actual_dataset_id}"
-        else:
-            # User-uploaded dataset - verify it exists in Modal volume
-            dataset_exists = await check_dataset_exists(user_id, dataset_id)
-            if not dataset_exists:
-                refund_credits(db, user_id, 0, reservation_amount, job_id,
-                               f"Dataset not found in storage: {dataset_id}")
-                db.rollback()
-                return None, f"Dataset not found in storage: {dataset_id}"
-
-        # Update status to queued
-        job.status = JobStatus.QUEUED
-        db.commit()
-
+    modal_call_id = None
+    try:
         # Submit to Modal (asynchronously)
         modal_call_id = await _spawn_modal_job(
             job_id=job_id,
@@ -223,11 +209,31 @@ async def submit_training_job(
         return job, None
 
     except Exception as e:
-        # Refund credits on failure
-        refund_credits(db, user_id, 0, reservation_amount, job_id,
-                       f"Job submission failed: {str(e)}")
         db.rollback()
+        if modal_call_id:
+            # Spawned but not recorded as running: stop it rather than leave it running unbilled
+            try:
+                import modal
+                await modal.FunctionCall.from_id(modal_call_id).cancel.aio(terminate_containers=True)
+            except Exception:
+                pass
+        _fail_job_submission(db, job_id, f"Job submission failed: {str(e)}")
         return None, f"Failed to submit job: {str(e)}"
+
+
+def _fail_job_submission(db: Session, job_id: str, error_message: str) -> None:
+    """
+    Mark a job whose submission failed as FAILED and release its reservation.
+
+    Both are committed in one transaction, so the job can't be left QUEUED with its
+    reservation already released (cancelling it would then release it again).
+    """
+    job = db.query(TrainingJob).filter(TrainingJob.job_id == job_id).first()
+    job.status = JobStatus.FAILED
+    job.error_message = error_message
+    job.completed_at = datetime.utcnow()
+    refund_credits(db, job.user_id, 0, job.reserved_credits_usd, job_id, error_message[:500])
+    db.commit()
 
 
 async def _spawn_modal_job(

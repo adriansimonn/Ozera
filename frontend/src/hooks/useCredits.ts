@@ -202,8 +202,9 @@ export function usePayment() {
   }, []);
 
   const confirmPayment = useCallback(async (paymentIntentId: string) => {
-    // Call backend to confirm payment and add credits
-    // This is used instead of webhooks for local development
+    // Call backend to confirm payment and add credits, so the balance updates without waiting
+    // for the Stripe webhook (and works without webhooks locally). The backend credits each
+    // payment once, whichever of this call and the webhook arrives first.
     try {
       const response = await axiosClient.post(`/payments/confirm/${paymentIntentId}`);
       return response.data;

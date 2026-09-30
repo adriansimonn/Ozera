@@ -109,11 +109,11 @@ class PresetInfo(BaseModel):
 
 # ============= Helper Functions =============
 
-def get_attention_matrix(activation_id: str, layer: int) -> tuple[np.ndarray, list[str]]:
-    """Get attention matrix from stored activations."""
+def get_attention_matrix(activation_id: str, layer: int, user_id: int) -> tuple[np.ndarray, list[str]]:
+    """Get attention matrix from the user's stored activations."""
     # Try patching engine first (for captured activations)
     engine = get_patching_engine()
-    captured = engine.get_captured_activations(activation_id)
+    captured = engine.get_captured_activations(activation_id, user_id)
 
     if captured is not None:
         # Look for attention weights in captured activations
@@ -137,7 +137,7 @@ def get_attention_matrix(activation_id: str, layer: int) -> tuple[np.ndarray, li
         return attn_weights, tokens
 
     # Try activation store
-    stored = activation_store.get_activations(activation_id)
+    stored = activation_store.get_activations(activation_id, user_id)
     if stored is None:
         raise HTTPException(
             status_code=404,
@@ -188,12 +188,13 @@ def get_attention_matrix(activation_id: str, layer: int) -> tuple[np.ndarray, li
 def get_activations_for_histogram(
     activation_id: str,
     layer: Optional[int],
-    activation_type: str
+    activation_type: str,
+    user_id: int,
 ) -> np.ndarray:
-    """Get activations for histogram from stored data."""
+    """Get activations for histogram from the user's stored data."""
     # Try patching engine first
     engine = get_patching_engine()
-    captured = engine.get_captured_activations(activation_id)
+    captured = engine.get_captured_activations(activation_id, user_id)
 
     all_activations = []
 
@@ -219,7 +220,7 @@ def get_activations_for_histogram(
                     all_activations.append(value)
     else:
         # Try activation store
-        stored = activation_store.get_activations(activation_id)
+        stored = activation_store.get_activations(activation_id, user_id)
         if stored is None:
             raise HTTPException(
                 status_code=404,
@@ -323,7 +324,7 @@ async def export_attention_heatmap(
         Image file in requested format
     """
     # Get attention matrix
-    attn_weights, tokens = get_attention_matrix(request.activation_id, request.layer)
+    attn_weights, tokens = get_attention_matrix(request.activation_id, request.layer, current_user.id)
 
     # Extract specific head
     # Shape could be [batch, heads, seq, seq] or [heads, seq, seq]
@@ -393,7 +394,7 @@ async def export_multi_head_heatmap(
         Image file in requested format
     """
     # Get attention matrix
-    attn_weights, tokens = get_attention_matrix(request.activation_id, request.layer)
+    attn_weights, tokens = get_attention_matrix(request.activation_id, request.layer, current_user.id)
 
     # Extract all heads
     if len(attn_weights.shape) == 4:
@@ -465,6 +466,7 @@ async def export_activation_histogram(
         request.activation_id,
         request.layer,
         request.activation_type,
+        current_user.id,
     )
 
     # Build title
@@ -628,7 +630,7 @@ async def export_batch(
             try:
                 if export_type == "attention-heatmap":
                     req = AttentionHeatmapRequest(**export_req)
-                    attn_weights, tokens = get_attention_matrix(req.activation_id, req.layer)
+                    attn_weights, tokens = get_attention_matrix(req.activation_id, req.layer, current_user.id)
 
                     if len(attn_weights.shape) == 4:
                         attn_matrix = attn_weights[0, req.head]
@@ -664,6 +666,7 @@ async def export_batch(
                         req.activation_id,
                         req.layer,
                         req.activation_type,
+                        current_user.id,
                     )
 
                     exporter = ActivationHistogramExporter(

@@ -12,11 +12,14 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     JSON,
     Numeric,
     String,
     Text,
+    false,
+    text,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -107,6 +110,15 @@ class Transaction(Base):
     """Transaction history model."""
 
     __tablename__ = "transactions"
+    __table_args__ = (
+        # A Stripe payment can only be credited once (the webhook and confirm endpoint race)
+        Index(
+            "ix_transactions_stripe_payment_intent_id",
+            "stripe_payment_intent_id",
+            unique=True,
+            postgresql_where=text("stripe_payment_intent_id IS NOT NULL"),
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
@@ -115,9 +127,7 @@ class Transaction(Base):
     )  # Positive = credit added, Negative = credit deducted
     transaction_type = Column(Enum(TransactionType), nullable=False)
     description = Column(String(500), nullable=True)
-    stripe_payment_intent_id = Column(
-        String(255), nullable=True, index=True
-    )  # For refunds/reconciliation
+    stripe_payment_intent_id = Column(String(255), nullable=True)  # For refunds/reconciliation
     training_job_id = Column(
         String(50), ForeignKey("training_jobs.job_id"), nullable=True
     )
@@ -175,6 +185,9 @@ class TrainingJob(Base):
     reserved_credits_usd = Column(
         Numeric(precision=10, scale=4), nullable=False
     )  # Amount reserved upfront (with buffer)
+    reservation_released = Column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )  # Set once the reservation is charged or refunded, so it's never released twice
     actual_cost_usd = Column(Numeric(precision=10, scale=4), nullable=True)  # Final cost after completion
     actual_minutes = Column(Float, nullable=True)  # Actual duration
 

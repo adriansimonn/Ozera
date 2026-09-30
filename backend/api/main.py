@@ -601,11 +601,13 @@ async def generate_with_activations(
             temperature=body.temperature,
             top_k=body.top_k,
             top_p=body.top_p,
+            user_id=current_user.id,
         )
 
         # If Modal mode returned inline activations, store them locally
         if 'activations' in result and 'activation_id' not in result:
             activation_id = activation_store.store_activations(
+                user_id=current_user.id,
                 activations=result['activations'],
                 tokens=result.get('tokens', []),
                 prompt=result['prompt'],
@@ -675,7 +677,7 @@ def get_activations(
     current_user: User = Depends(get_current_user),
 ):
     """Retrieve stored activations by ID. Requires authentication."""
-    activations = activation_store.get_activations(activation_id)
+    activations = activation_store.get_activations(activation_id, current_user.id)
 
     if activations is None:
         raise HTTPException(status_code=404, detail=f"Activations not found: {activation_id}")
@@ -689,7 +691,7 @@ async def get_activation_summary(
     current_user: User = Depends(get_current_user),
 ):
     """Get metadata summary for activations without full tensors. Requires authentication."""
-    summary = activation_store.get_activation_summary(activation_id)
+    summary = activation_store.get_activation_summary(activation_id, current_user.id)
 
     if summary is None:
         raise HTTPException(status_code=404, detail=f"Activations not found: {activation_id}")
@@ -730,8 +732,8 @@ async def decode_tokens(request: dict):
 async def list_activations(
     current_user: User = Depends(get_current_user),
 ):
-    """List all stored activations (summaries only). Requires authentication."""
-    return activation_store.list_activations()
+    """List the user's stored activations (summaries only). Requires authentication."""
+    return activation_store.list_activations(current_user.id)
 
 
 @app.get("/activations/{activation_id}/layer/{layer_idx}")
@@ -755,7 +757,7 @@ def get_layer_activations(
     Returns:
         Layer activation data including attention weights, hidden states, etc.
     """
-    result = activation_store.get_layer_activations(activation_id, layer_idx)
+    result = activation_store.get_layer_activations(activation_id, layer_idx, current_user.id)
 
     if result is None:
         raise HTTPException(
@@ -780,7 +782,7 @@ def get_flow_activations(
     (and of the input embeddings), with statistics of the full tensors, instead of
     every layer's full activations.
     """
-    result = activation_store.get_flow_activations(activation_id, dims)
+    result = activation_store.get_flow_activations(activation_id, dims, current_user.id)
 
     if result is None:
         raise HTTPException(status_code=404, detail=f"Activations not found: {activation_id}")
@@ -821,7 +823,7 @@ def get_tensor_activation(
             detail=f"Invalid tensor name: {tensor_name}. Valid options: {valid_tensors}"
         )
 
-    result = activation_store.get_tensor_activation(activation_id, tensor_name)
+    result = activation_store.get_tensor_activation(activation_id, tensor_name, current_user.id)
 
     if result is None:
         raise HTTPException(
@@ -846,7 +848,7 @@ async def delete_activations(
     Returns:
         Success status
     """
-    success = activation_store.delete_activations(activation_id)
+    success = activation_store.delete_activations(activation_id, current_user.id)
 
     if not success:
         raise HTTPException(status_code=404, detail=f"Activations not found: {activation_id}")

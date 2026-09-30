@@ -75,6 +75,7 @@ class CapturedActivations:
     model_type: Literal['ozera', 'open_source']
     model_id: str
     num_layers: int
+    user_id: Optional[int] = None  # Owner, on the backend (the Modal worker doesn't track users)
 
     def get_layer_activation(self, layer: int, key: str) -> Optional[torch.Tensor]:
         """Get a specific activation from a layer."""
@@ -925,12 +926,25 @@ class PatchingEngine:
             'patched_length': len(patched_tokens),
         }
 
-    def get_captured_activations(self, activation_id: str) -> Optional[CapturedActivations]:
-        """Retrieve captured activations by ID."""
-        return self._captured_activations.get(activation_id)
+    # The store is shared by every user of the process. The backend passes user_id to every
+    # method below, which then only sees that user's activations; other users' IDs behave as
+    # if they don't exist.
 
-    def list_captured_activations(self) -> list[dict]:
-        """List all captured activation summaries."""
+    def add_captured_activations(self, captured: CapturedActivations) -> None:
+        """Store captured activations under their ID."""
+        self._captured_activations[captured.id] = captured
+
+    def get_captured_activations(
+        self, activation_id: str, user_id: Optional[int] = None
+    ) -> Optional[CapturedActivations]:
+        """Retrieve captured activations by ID."""
+        captured = self._captured_activations.get(activation_id)
+        if captured is None or (user_id is not None and captured.user_id != user_id):
+            return None
+        return captured
+
+    def list_captured_activations(self, user_id: Optional[int] = None) -> list[dict]:
+        """List captured activation summaries."""
         return [
             {
                 'id': act.id,
@@ -941,18 +955,23 @@ class PatchingEngine:
                 'num_layers': act.num_layers,
             }
             for act in self._captured_activations.values()
+            if user_id is None or act.user_id == user_id
         ]
 
-    def delete_captured_activations(self, activation_id: str) -> bool:
+    def delete_captured_activations(self, activation_id: str, user_id: Optional[int] = None) -> bool:
         """Delete captured activations."""
-        if activation_id in self._captured_activations:
-            del self._captured_activations[activation_id]
-            return True
-        return False
+        if self.get_captured_activations(activation_id, user_id) is None:
+            return False
+        del self._captured_activations[activation_id]
+        return True
 
-    def clear_all_activations(self):
-        """Clear all captured activations."""
-        self._captured_activations.clear()
+    def clear_all_activations(self, user_id: Optional[int] = None):
+        """Clear captured activations (all of them, or only the user's)."""
+        if user_id is None:
+            self._captured_activations.clear()
+            return
+        for activation_id in [k for k, v in self._captured_activations.items() if v.user_id == user_id]:
+            del self._captured_activations[activation_id]
 
 
 # Global patching engine instance

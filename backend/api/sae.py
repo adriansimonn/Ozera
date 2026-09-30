@@ -3,6 +3,7 @@ SAE API endpoints.
 
 Proxy endpoints to Modal SAE inference service with authentication and credit deduction.
 """
+import math
 import os
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -43,6 +44,27 @@ def _require_sae_request_balance(db: Session, user: User) -> None:
 def _charge_sae_request(db: Session, user: User, description: str) -> None:
     """Charge MIN_SAE_CHARGE for a call to the SAE GPU service not priced by tokens."""
     charge_flat(db, user.id, MIN_SAE_CHARGE, TransactionType.SAE_CHARGE, description)
+
+
+def _owned_external_sae_ids(db: Session, user: User) -> set[str]:
+    """IDs of the external SAEs in the user's list."""
+    return {sae_id for (sae_id,) in db.query(UserExternalSAE.sae_id).filter_by(user_id=user.id)}
+
+
+def _require_owned_external_saes(db: Session, user: User, *sae_ids: Optional[str]) -> None:
+    """
+    404 unless every given external SAE ID is in the user's list.
+
+    The weights live in one volume shared by all users, so without this check users could
+    use (and read features of) each other's uploaded SAEs by ID.
+    """
+    owned = _owned_external_sae_ids(db, user)
+    for sae_id in sae_ids:
+        if sae_id and sae_id not in owned:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="SAE not found in your list",
+            )
 
 
 def _sae_client(timeout: float, follow_redirects: bool = False) -> httpx.AsyncClient:
@@ -103,12 +125,21 @@ async def list_saes(
     List available SAEs.
 
     Requires auth and charges MIN_SAE_CHARGE, since it starts the SAE GPU service.
+    External SAEs are limited to the ones in the user's list.
     """
     _require_sae_request_balance(db, user)
     async with _sae_client(timeout=30.0) as client:
         response = await client.get(f"{SAE_API_URL}/sae/list")
         response.raise_for_status()
         result = response.json()
+
+    # The SAE service lists every user's external SAEs
+    if "external_saes" in result:
+        owned = _owned_external_sae_ids(db, user)
+        visible = [sae for sae in result["external_saes"] if sae.get("id") in owned]
+        result["total_saes"] = result.get("total_saes", 0) - len(result["external_saes"]) + len(visible)
+        result["external_saes"] = visible
+
     _charge_sae_request(db, user, "SAE list")
     return result
 
@@ -328,6 +359,8 @@ async def compare_saes(
     Requires authentication. Charges 2x cost (processing two SAEs).
     Supports external SAEs via external_id_a/external_id_b fields.
     """
+    _require_owned_external_saes(db, user, request.external_id_a, request.external_id_b)
+
     # Estimate cost (2x for comparing two SAEs)
     model_for_cost = "external" if (request.external_id_a or request.external_id_b) else request.model_a
     estimated_cost = estimate_sae_cost(
@@ -401,6 +434,8 @@ async def compare_layers(
 
     Requires authentication. Charges 3x cost (most intensive operation).
     """
+    _require_owned_external_saes(db, user, request.external_id_a, request.external_id_b)
+
     # Estimate cost (3x for layer-by-layer comparison)
     # Use "mini" as cost basis for external SAEs (conservative estimate)
     cost_model = request.model_a if not request.external_id_a else "mini"
@@ -486,24 +521,32 @@ async def health(
     return result
 
 
+# These mirror the SAE service's request models (services/modal_sae_inference.py).
+# The service picks the loader (Gemma Scope or generic HuggingFace) from the repo ID itself.
+
+# A HuggingFace repo ID ("org/name"). Anything else would reach the service's loader for
+# local .safetensors paths.
+HF_REPO_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$"
+
+# The SAE service rejects uploads over 500MB; this is that limit in base64 characters
+MAX_SAE_UPLOAD_BYTES = 500 * 1024 * 1024
+MAX_SAE_UPLOAD_BASE64_CHARS = 4 * math.ceil(MAX_SAE_UPLOAD_BYTES / 3)
+
+
 class ExternalSAELoadRequest(BaseModel):
-    source: str = Field(..., description="Source type: 'huggingface' or 'gemma_scope'")
-    repo_id: str = Field(..., min_length=1, max_length=200, description="HuggingFace repo ID or Gemma Scope ID")
-    hookpoint: Optional[str] = Field(None, max_length=200, description="Hookpoint name")
-    device: Optional[str] = Field(None, max_length=20, description="Device to load on")
+    repo_id: str = Field(..., max_length=200, pattern=HF_REPO_ID_PATTERN, description="HuggingFace or Gemma Scope repo ID")
+    hookpoint: Optional[str] = Field(None, max_length=200, description="Hookpoint within the repo")
+    name: Optional[str] = Field(None, min_length=1, max_length=200, description="Custom display name")
 
 
 class ExternalSAEListSourcesRequest(BaseModel):
-    source: str = Field(..., description="Source type: 'huggingface' or 'gemma_scope'")
-    repo_id: str = Field(..., min_length=1, max_length=200, description="HuggingFace repo ID or Gemma Scope ID")
+    repo_id: str = Field(..., max_length=200, pattern=HF_REPO_ID_PATTERN, description="HuggingFace or Gemma Scope repo ID")
 
 
 class SAEUploadRequest(BaseModel):
-    name: str = Field(..., min_length=1, max_length=200, description="SAE name")
-    encoder_weights: List[List[float]] = Field(..., description="Encoder weight matrix")
-    decoder_weights: List[List[float]] = Field(..., description="Decoder weight matrix")
-    encoder_bias: Optional[List[float]] = Field(None, description="Encoder bias")
-    decoder_bias: Optional[List[float]] = Field(None, description="Decoder bias")
+    name: str = Field(..., min_length=1, max_length=200, description="SAE display name")
+    weights_base64: str = Field(..., min_length=1, max_length=MAX_SAE_UPLOAD_BASE64_CHARS, description="Base64-encoded .safetensors file")
+    config: Optional[dict] = Field(None, description="Optional SAE config (e.g. model, hookpoint, k)")
 
 
 class ExternalSAEAnalyzeRequest(BaseModel):
@@ -525,6 +568,8 @@ async def analyze_external_sae(
     and runs through the external SAE.
     Requires authentication. Charges credits based on token count.
     """
+    _require_owned_external_saes(db, user, request.sae_id)
+
     estimated_cost = estimate_sae_cost(
         text_length=len(request.text),
         model_id="external",
@@ -621,13 +666,16 @@ async def load_external_sae(
 
     # Check if user already has this SAE referenced
     existing = db.query(UserExternalSAE).filter_by(user_id=user.id, sae_id=sae_id).first()
-    if not existing:
+    if existing:
+        if request.name:
+            existing.display_name = request.name
+    else:
         user_sae = UserExternalSAE(
             user_id=user.id,
             sae_id=sae_id,
-            source=result.get("source", request.source),
+            source=result.get("source") or "huggingface",
             source_id=result.get("source_id", request.repo_id),
-            display_name=result.get("display_name", sae_id),
+            display_name=request.name or result.get("display_name") or sae_id,
             base_model=result.get("base_model"),
             hookpoint=result.get("hookpoint"),
             activation_type=result.get("activation_type"),
@@ -635,8 +683,8 @@ async def load_external_sae(
             d_hidden=result.get("d_hidden"),
         )
         db.add(user_sae)
-        db.commit()
 
+    # Commits the list entry together with the charge
     _charge_sae_request(db, user, f"External SAE load ({sae_id})")
     return result
 
@@ -728,6 +776,8 @@ async def get_external_feature_info(
     user: User = Depends(get_current_user),
 ):
     """Get feature info for an external SAE."""
+    _require_owned_external_saes(db, user, sae_id)
+
     # Charge minimal fee
     min_cost = MIN_SAE_CHARGE  # Feature lookups are charged at least this
     if not check_sufficient_balance(db, user.id, min_cost):
@@ -783,44 +833,41 @@ async def upload_sae(
     """
     _require_sae_request_balance(db, user)
 
-    # Check for existing upload and remove reference if present
-    existing_upload = (
-        db.query(UserExternalSAE)
-        .filter_by(user_id=user.id, source="user_upload")
-        .first()
-    )
-    if existing_upload:
-        db.delete(existing_upload)
-        db.flush()
+    # The service stores uploads by name in a volume shared by all users; prefix the user's
+    # ID so two users' uploads with the same name don't overwrite each other
+    payload = request.model_dump(exclude_none=True)
+    payload["name"] = f"u{user.id}-{request.name}"
 
     # Forward to Modal to store the weights
     async with _sae_client(timeout=300.0) as client:
         try:
-            response = await client.post(
-                f"{SAE_API_URL}/sae/upload",
-                json=request.model_dump(exclude_none=True),
-            )
+            response = await client.post(f"{SAE_API_URL}/sae/upload", json=payload)
             response.raise_for_status()
             result = response.json()
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="SAE upload timed out. Please try again.",
+            )
         except httpx.HTTPError:
-            db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="SAE service error",
             )
 
     if "error" in result:
-        db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
+    result["display_name"] = request.name
 
-    # Create the user reference
+    # Replace the user's previous upload reference with the new one (committed with the charge)
     sae_id = result.get("sae_id", "")
+    db.query(UserExternalSAE).filter_by(user_id=user.id, source="user_upload").delete()
     user_sae = UserExternalSAE(
         user_id=user.id,
         sae_id=sae_id,
         source="user_upload",
         source_id=None,
-        display_name=result.get("display_name", request.name),
+        display_name=request.name,
         base_model=result.get("base_model"),
         hookpoint=result.get("hookpoint"),
         activation_type=result.get("activation_type"),
@@ -828,7 +875,6 @@ async def upload_sae(
         d_hidden=result.get("d_hidden"),
     )
     db.add(user_sae)
-    db.commit()
 
     _charge_sae_request(db, user, f"SAE upload ({sae_id})")
     return result

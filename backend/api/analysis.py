@@ -10,12 +10,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from core.patching import get_patching_engine
+from api.patching import BASE_MODEL_CONFIGS
+from core.open_source import OPEN_SOURCE_MODELS
+from core.patching import CapturedActivations, get_patching_engine
 from core.analysis import HeadClassifier, PatternMiner, HeadType
 from middleware.auth_middleware import get_current_user
 from models.database import User
 from db import get_db
 from services.credit_service import (
+    InsufficientBalanceError,
     estimate_analysis_cost,
     charge_analysis,
     check_sufficient_balance,
@@ -23,6 +26,69 @@ from services.credit_service import (
 
 
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
+
+
+# ============= Pricing =============
+
+def _num_heads(captured: CapturedActivations) -> int:
+    """
+    Attention heads per layer of the model the activations came from.
+
+    Read from the captured attention weights ([batch, heads, seq, seq]), else from the
+    model's config.
+    """
+    for layer in range(captured.num_layers):
+        weights = captured.activations.get(f"layer_{layer}_attn_weights")
+        if weights is not None and weights.dim() == 4:
+            return weights.shape[1]
+
+    if captured.model_id in OPEN_SOURCE_MODELS:
+        return OPEN_SOURCE_MODELS[captured.model_id].num_heads
+    return BASE_MODEL_CONFIGS.get(captured.model_id, BASE_MODEL_CONFIGS["nano"])["num_heads"]
+
+
+def _check_analysis_balance(
+    db: Session, user_id: int, analysis_type: str, captured: CapturedActivations, num_tokens: int
+) -> None:
+    """Raise 402 unless the user can pay for the analysis."""
+    estimated_cost = estimate_analysis_cost(
+        analysis_type=analysis_type,
+        num_layers=captured.num_layers,
+        num_heads=_num_heads(captured),
+        num_tokens=num_tokens,
+        model_id=captured.model_id,
+    )
+    if not check_sufficient_balance(db, user_id, estimated_cost):
+        raise HTTPException(status_code=402, detail="INSUFFICIENT_CREDITS")
+
+
+def _charge_analysis(
+    db: Session, user_id: int, analysis_type: str, captured: CapturedActivations, num_tokens: int
+) -> None:
+    """Charge for a finished analysis. A failed charge fails the request, so no analysis is free."""
+    try:
+        charge_analysis(
+            db=db,
+            user_id=user_id,
+            analysis_type=analysis_type,
+            num_layers=captured.num_layers,
+            num_heads=_num_heads(captured),
+            num_tokens=num_tokens,
+            model_name=captured.model_id,
+        )
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="INSUFFICIENT_CREDITS")
+
+
+def _get_captured(activation_id: str, user: User) -> CapturedActivations:
+    """The user's captured activations, or 404 (also for other users' IDs)."""
+    captured = get_patching_engine().get_captured_activations(activation_id, user.id)
+    if captured is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Captured activations not found: {activation_id}"
+        )
+    return captured
 
 
 # ============= Request/Response Models =============
@@ -146,7 +212,7 @@ class HeadImportanceListResponse(BaseModel):
 # ============= API Endpoints =============
 
 @router.post("/attention/classify-heads", response_model=ClassifyHeadsResponse)
-async def classify_heads(
+def classify_heads(
     request: ClassifyHeadsRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -168,40 +234,11 @@ async def classify_heads(
     Returns:
         ClassifyHeadsResponse with classification results for all heads
     """
-    engine = get_patching_engine()
-    captured = engine.get_captured_activations(request.activation_id)
-
-    if captured is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Captured activations not found: {request.activation_id}"
-        )
-
-    # Get model info for pricing
-    num_layers = captured.num_layers
-    # Estimate num_heads from activations (attention key has shape including heads)
-    num_heads = 6  # Default
-    for key in captured.activations:
-        if 'attention' in key or 'attn' in key:
-            tensor = captured.activations[key]
-            if len(tensor.shape) >= 3:
-                num_heads = tensor.shape[1] if tensor.shape[1] < 100 else tensor.shape[2]
-                break
+    captured = _get_captured(request.activation_id, current_user)
     num_tokens = len(captured.tokens)
 
     # Check balance before running
-    estimated_cost = estimate_analysis_cost(
-        analysis_type="classify",
-        num_layers=num_layers,
-        num_heads=num_heads,
-        num_tokens=num_tokens,
-        model_id=captured.model_id,
-    )
-    if not check_sufficient_balance(db, current_user.id, estimated_cost):
-        raise HTTPException(
-            status_code=402,
-            detail="INSUFFICIENT_CREDITS"
-        )
+    _check_analysis_balance(db, current_user.id, "classify", captured, num_tokens)
 
     # Run head classification
     classifier = HeadClassifier()
@@ -216,18 +253,7 @@ async def classify_heads(
     )
 
     # Charge credits after successful classification
-    try:
-        charge_analysis(
-            db=db,
-            user_id=current_user.id,
-            analysis_type="classify",
-            num_layers=num_layers,
-            num_heads=result.num_heads,
-            num_tokens=num_tokens,
-            model_name=captured.model_id,
-        )
-    except Exception as charge_error:
-        print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+    _charge_analysis(db, current_user.id, "classify", captured, num_tokens)
 
     # Convert to response format
     classifications = [
@@ -260,7 +286,7 @@ async def classify_heads(
 
 
 @router.post("/attention/compare", response_model=CompareAttentionResponse)
-async def compare_attention(
+def compare_attention(
     request: CompareAttentionRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -279,22 +305,8 @@ async def compare_attention(
     Returns:
         CompareAttentionResponse with similarity and difference analysis
     """
-    engine = get_patching_engine()
-
-    captured1 = engine.get_captured_activations(request.activation_id_1)
-    captured2 = engine.get_captured_activations(request.activation_id_2)
-
-    if captured1 is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Captured activations not found: {request.activation_id_1}"
-        )
-
-    if captured2 is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Captured activations not found: {request.activation_id_2}"
-        )
+    captured1 = _get_captured(request.activation_id_1, current_user)
+    captured2 = _get_captured(request.activation_id_2, current_user)
 
     if captured1.model_id != captured2.model_id:
         raise HTTPException(
@@ -302,30 +314,11 @@ async def compare_attention(
             detail=f"Cannot compare activations from different models: {captured1.model_id} vs {captured2.model_id}"
         )
 
-    # Get model info for pricing (use combined token count)
-    num_layers = captured1.num_layers
-    num_heads = 6  # Default
-    for key in captured1.activations:
-        if 'attention' in key or 'attn' in key:
-            tensor = captured1.activations[key]
-            if len(tensor.shape) >= 3:
-                num_heads = tensor.shape[1] if tensor.shape[1] < 100 else tensor.shape[2]
-                break
+    # Priced on the combined token count
     num_tokens = len(captured1.tokens) + len(captured2.tokens)
 
     # Check balance before running
-    estimated_cost = estimate_analysis_cost(
-        analysis_type="compare",
-        num_layers=num_layers,
-        num_heads=num_heads,
-        num_tokens=num_tokens,
-        model_id=captured1.model_id,
-    )
-    if not check_sufficient_balance(db, current_user.id, estimated_cost):
-        raise HTTPException(
-            status_code=402,
-            detail="INSUFFICIENT_CREDITS"
-        )
+    _check_analysis_balance(db, current_user.id, "compare", captured1, num_tokens)
 
     # Run comparison
     miner = PatternMiner()
@@ -342,18 +335,7 @@ async def compare_attention(
     )
 
     # Charge credits after successful comparison
-    try:
-        charge_analysis(
-            db=db,
-            user_id=current_user.id,
-            analysis_type="compare",
-            num_layers=num_layers,
-            num_heads=num_heads,
-            num_tokens=num_tokens,
-            model_name=captured1.model_id,
-        )
-    except Exception as charge_error:
-        print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+    _charge_analysis(db, current_user.id, "compare", captured1, num_tokens)
 
     return CompareAttentionResponse(
         prompt1=comparison.prompt1,
@@ -372,7 +354,7 @@ async def compare_attention(
 
 
 @router.post("/attention/mine-patterns", response_model=MinePatternResponse)
-async def mine_patterns(
+def mine_patterns(
     request: MinePatternRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -394,39 +376,11 @@ async def mine_patterns(
     Returns:
         MinePatternResponse with complete pattern mining results
     """
-    engine = get_patching_engine()
-    captured = engine.get_captured_activations(request.activation_id)
-
-    if captured is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Captured activations not found: {request.activation_id}"
-        )
-
-    # Get model info for pricing
-    num_layers = captured.num_layers
-    num_heads = 6  # Default
-    for key in captured.activations:
-        if 'attention' in key or 'attn' in key:
-            tensor = captured.activations[key]
-            if len(tensor.shape) >= 3:
-                num_heads = tensor.shape[1] if tensor.shape[1] < 100 else tensor.shape[2]
-                break
+    captured = _get_captured(request.activation_id, current_user)
     num_tokens = len(captured.tokens)
 
     # Check balance before running
-    estimated_cost = estimate_analysis_cost(
-        analysis_type="mine",
-        num_layers=num_layers,
-        num_heads=num_heads,
-        num_tokens=num_tokens,
-        model_id=captured.model_id,
-    )
-    if not check_sufficient_balance(db, current_user.id, estimated_cost):
-        raise HTTPException(
-            status_code=402,
-            detail="INSUFFICIENT_CREDITS"
-        )
+    _check_analysis_balance(db, current_user.id, "mine", captured, num_tokens)
 
     # Run pattern mining
     miner = PatternMiner()
@@ -441,18 +395,7 @@ async def mine_patterns(
     )
 
     # Charge credits after successful mining
-    try:
-        charge_analysis(
-            db=db,
-            user_id=current_user.id,
-            analysis_type="mine",
-            num_layers=num_layers,
-            num_heads=num_heads,
-            num_tokens=num_tokens,
-            model_name=captured.model_id,
-        )
-    except Exception as charge_error:
-        print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+    _charge_analysis(db, current_user.id, "mine", captured, num_tokens)
 
     return MinePatternResponse(
         model_id=result.model_id,
@@ -487,7 +430,7 @@ async def mine_patterns(
 
 
 @router.post("/attention/head-importance", response_model=HeadImportanceListResponse)
-async def get_head_importance(
+def get_head_importance(
     request: HeadImportanceRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -508,39 +451,11 @@ async def get_head_importance(
     Returns:
         HeadImportanceListResponse with importance scores
     """
-    engine = get_patching_engine()
-    captured = engine.get_captured_activations(request.activation_id)
-
-    if captured is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Captured activations not found: {request.activation_id}"
-        )
-
-    # Get model info for pricing
-    num_layers = captured.num_layers
-    num_heads = 6  # Default
-    for key in captured.activations:
-        if 'attention' in key or 'attn' in key:
-            tensor = captured.activations[key]
-            if len(tensor.shape) >= 3:
-                num_heads = tensor.shape[1] if tensor.shape[1] < 100 else tensor.shape[2]
-                break
+    captured = _get_captured(request.activation_id, current_user)
     num_tokens = len(captured.tokens)
 
     # Check balance before running
-    estimated_cost = estimate_analysis_cost(
-        analysis_type="importance",
-        num_layers=num_layers,
-        num_heads=num_heads,
-        num_tokens=num_tokens,
-        model_id=captured.model_id,
-    )
-    if not check_sufficient_balance(db, current_user.id, estimated_cost):
-        raise HTTPException(
-            status_code=402,
-            detail="INSUFFICIENT_CREDITS"
-        )
+    _check_analysis_balance(db, current_user.id, "importance", captured, num_tokens)
 
     # Compute importance scores
     classifier = HeadClassifier()
@@ -550,18 +465,7 @@ async def get_head_importance(
     )
 
     # Charge credits after successful computation
-    try:
-        charge_analysis(
-            db=db,
-            user_id=current_user.id,
-            analysis_type="importance",
-            num_layers=num_layers,
-            num_heads=num_heads,
-            num_tokens=num_tokens,
-            model_name=captured.model_id,
-        )
-    except Exception as charge_error:
-        print(f"Warning: Failed to charge user {current_user.id}: {charge_error}")
+    _charge_analysis(db, current_user.id, "importance", captured, num_tokens)
 
     return HeadImportanceListResponse(
         activation_id=captured.id,

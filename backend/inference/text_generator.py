@@ -229,7 +229,8 @@ class TextGenerator:
         max_tokens: int = 200,
         temperature: float = 0.8,
         top_k: Optional[int] = 40,
-        top_p: Optional[float] = None
+        top_p: Optional[float] = None,
+        user_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Generate text and capture activations from the final forward pass.
@@ -240,6 +241,7 @@ class TextGenerator:
             temperature: Sampling temperature
             top_k: Top-k sampling parameter
             top_p: Nucleus sampling parameter
+            user_id: User the stored activations belong to
 
         Returns:
             Dictionary with generated text, activation ID, and metadata
@@ -294,6 +296,7 @@ class TextGenerator:
 
         # Store activations
         activation_id = self.activation_store.store_activations(
+            user_id=user_id,
             activations=activations,
             tokens=input_ids[0].cpu().tolist(),
             prompt=prompt,

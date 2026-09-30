@@ -550,6 +550,7 @@ async def generate_with_activations(
         # Store activations and return ID
         if 'activations' in result:
             activation_id = activation_store.store_activations(
+                user_id=current_user.id,
                 activations=result['activations'],
                 tokens=result.get('tokens', []),
                 prompt=result['prompt'],

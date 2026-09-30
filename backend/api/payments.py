@@ -4,6 +4,7 @@ Payment API endpoints for Stripe integration.
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from db import get_db
@@ -107,25 +108,19 @@ async def stripe_webhook(
             payment_intent_id = metadata["payment_intent_id"]
 
             if user_id and credits_usd:
-                # Idempotency check: skip if already processed
-                from models.database import Transaction
-                existing = db.query(Transaction).filter(
-                    Transaction.stripe_payment_intent_id == payment_intent_id
-                ).first()
-
-                if existing:
+                # Idempotent: the confirm endpoint may already have credited this payment
+                transaction = add_credits(
+                    db=db,
+                    user_id=user_id,
+                    amount_usd=credits_usd,
+                    stripe_payment_intent_id=payment_intent_id,
+                    description=f"Credit purchase: ${credits_usd:.2f}",
+                )
+                if transaction is None:
                     logger.info(
                         f"Webhook already processed for payment {payment_intent_id}, skipping"
                     )
                 else:
-                    # Add credits to user's account
-                    add_credits(
-                        db=db,
-                        user_id=user_id,
-                        amount_usd=credits_usd,
-                        stripe_payment_intent_id=payment_intent_id,
-                        description=f"Credit purchase: ${credits_usd:.2f}",
-                    )
                     logger.info(
                         f"Added ${credits_usd:.2f} credits to user {user_id} "
                         f"(payment: {payment_intent_id})"
@@ -137,8 +132,9 @@ async def stripe_webhook(
 
         except Exception as e:
             logger.error(f"Failed to process payment webhook: {e}")
-            # Don't raise - we want to acknowledge receipt to Stripe
-            # The transaction can be reconciled manually if needed
+            # Stripe retries failed deliveries, and crediting is idempotent, so a retry
+            # can't credit the payment twice
+            raise HTTPException(status_code=500, detail="Failed to process payment")
 
     elif event_type == "payment_intent.payment_failed":
         payment_intent = event.data.object
@@ -160,17 +156,11 @@ async def confirm_payment(
     """
     Confirm a payment and add credits to user's account.
 
-    This is an alternative to webhooks for local development.
-    The frontend calls this after Stripe confirms the payment succeeded.
+    The frontend calls this after Stripe confirms the payment succeeded, so credits show up
+    without waiting for the webhook (and without webhooks in local development). It races
+    the webhook for the same payment; add_credits credits the payment only once.
     """
-    # Check if credits were already added (idempotency)
-    from models.database import Transaction
-    existing = db.query(Transaction).filter(
-        Transaction.stripe_payment_intent_id == payment_intent_id
-    ).first()
-
-    if existing:
-        # Already processed
+    def already_processed():
         credit_balance = get_credit_balance(db, current_user.id)
         return {
             "success": True,
@@ -179,8 +169,18 @@ async def confirm_payment(
             "new_balance": credit_balance.balance_usd if credit_balance else 0,
         }
 
-    # Retrieve payment intent from Stripe
-    payment_intent = get_payment_intent(payment_intent_id)
+    # Skip the Stripe lookup when the webhook got here first
+    from models.database import Transaction
+    existing = db.query(Transaction).filter(
+        Transaction.stripe_payment_intent_id == payment_intent_id
+    ).first()
+    db.commit()  # Don't hold the read transaction open across the Stripe call
+
+    if existing:
+        return already_processed()
+
+    # Retrieve payment intent from Stripe (a blocking HTTP call, so off the event loop)
+    payment_intent = await run_in_threadpool(get_payment_intent, payment_intent_id)
 
     if not payment_intent:
         raise HTTPException(status_code=404, detail="Payment not found")
@@ -201,13 +201,15 @@ async def confirm_payment(
     credits_usd = float(metadata.get("credits_usd", 0))
     amount_received = payment_intent.amount_received / 100
 
-    add_credits(
+    transaction = add_credits(
         db=db,
         user_id=current_user.id,
         amount_usd=credits_usd,
         stripe_payment_intent_id=payment_intent_id,
         description=f"Credit purchase: ${credits_usd:.2f}",
     )
+    if transaction is None:
+        return already_processed()
 
     credit_balance = get_credit_balance(db, current_user.id)
 

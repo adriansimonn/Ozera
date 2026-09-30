@@ -186,8 +186,9 @@ async def capture_activations(
             model_type=result['model_type'],
             model_id=result['model_id'],
             num_layers=result['num_layers'],
+            user_id=current_user.id,
         )
-        engine._captured_activations[captured.id] = captured
+        engine.add_captured_activations(captured)
 
         charge_flat(db, current_user.id, cost, TransactionType.PATCHING_CHARGE,
                     f"Activation capture ({request.model}): {len(captured.tokens)} tokens")
@@ -213,12 +214,12 @@ async def list_captured_activations(
     current_user: User = Depends(get_current_user),
 ):
     """
-    List all captured activations.
+    List the user's captured activations.
 
-    Returns summaries of all captured activation sets currently stored in memory.
+    Returns summaries of the user's captured activation sets currently stored in memory.
     """
     engine = get_patching_engine()
-    activations = engine.list_captured_activations()
+    activations = engine.list_captured_activations(current_user.id)
 
     return [
         CapturedActivationSummary(
@@ -244,7 +245,7 @@ async def get_captured_activation(
     Returns full metadata including token information.
     """
     engine = get_patching_engine()
-    captured = engine.get_captured_activations(activation_id)
+    captured = engine.get_captured_activations(activation_id, current_user.id)
 
     if captured is None:
         raise HTTPException(status_code=404, detail=f"Activations not found: {activation_id}")
@@ -273,7 +274,7 @@ async def delete_captured_activation(
     Frees memory by removing stored activations.
     """
     engine = get_patching_engine()
-    success = engine.delete_captured_activations(activation_id)
+    success = engine.delete_captured_activations(activation_id, current_user.id)
 
     if not success:
         raise HTTPException(status_code=404, detail=f"Activations not found: {activation_id}")
@@ -286,12 +287,12 @@ async def clear_all_activations(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Clear all captured activations.
+    Clear the user's captured activations.
 
-    Frees all memory used by stored activations.
+    Frees the memory used by the user's stored activations.
     """
     engine = get_patching_engine()
-    engine.clear_all_activations()
+    engine.clear_all_activations(current_user.id)
     return {"status": "cleared"}
 
 
@@ -430,7 +431,7 @@ async def run_patching_with_captured(
     engine = get_patching_engine()
 
     # Verify activations exist
-    captured = engine.get_captured_activations(request.source_activation_id)
+    captured = engine.get_captured_activations(request.source_activation_id, current_user.id)
     if captured is None:
         raise HTTPException(
             status_code=404,

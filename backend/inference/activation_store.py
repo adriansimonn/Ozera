@@ -21,6 +21,10 @@ class ActivationStore:
     Stores activations with metadata and provides retrieval and cleanup.
     Tensors are kept in the compact encoding from core.tensor_codec and only
     expanded to the base64 float32 wire format when they are read.
+
+    The store is shared by all users, so each entry records the user it belongs to, and
+    every read and delete takes the caller's user_id. Other users' entries behave as if
+    they don't exist.
     """
 
     def __init__(self, max_entries: int = 100):
@@ -32,6 +36,7 @@ class ActivationStore:
         """
         self.max_entries = max_entries
         self._store: Dict[str, Dict[str, Any]] = {}
+        self._owners: Dict[str, Optional[int]] = {}
         self._access_times: Dict[str, datetime] = {}
 
     def store_activations(
@@ -40,7 +45,8 @@ class ActivationStore:
         tokens: List[int],
         prompt: str,
         model_name: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        user_id: Optional[int] = None,
     ) -> str:
         """
         Store activations from a forward pass.
@@ -51,6 +57,7 @@ class ActivationStore:
             prompt: Original prompt text
             model_name: Name of model used
             metadata: Optional additional metadata
+            user_id: User the activations belong to (None only outside the API, e.g. scripts)
 
         Returns:
             Activation ID for later retrieval
@@ -75,48 +82,57 @@ class ActivationStore:
             'timestamp': datetime.now().isoformat(),
             'metadata': metadata or {}
         }
+        self._owners[activation_id] = user_id
 
         self._access_times[activation_id] = datetime.now()
 
         return activation_id
 
-    def get_activations(self, activation_id: str) -> Optional[Dict[str, Any]]:
+    def _get_owned(self, activation_id: str, user_id: int) -> Optional[Dict[str, Any]]:
+        """The stored entry if it exists and belongs to the user, else None."""
+        if activation_id not in self._store or self._owners.get(activation_id) != user_id:
+            return None
+        return self._store[activation_id]
+
+    def get_activations(self, activation_id: str, user_id: int) -> Optional[Dict[str, Any]]:
         """
         Retrieve stored activations by ID.
 
         Args:
             activation_id: ID of activations to retrieve
+            user_id: Requesting user
 
         Returns:
             Activation data dictionary or None if not found
         """
-        if activation_id not in self._store:
+        data = self._get_owned(activation_id, user_id)
+        if data is None:
             return None
 
         # Update access time
         self._access_times[activation_id] = datetime.now()
 
-        data = self._store[activation_id]
         activations = {
             key: [{k: to_wire(v) for k, v in layer.items()} for layer in value] if key == 'layers' else to_wire(value)
             for key, value in data['activations'].items()
         }
         return {**data, 'activations': activations}
 
-    def get_activation_summary(self, activation_id: str) -> Optional[Dict[str, Any]]:
+    def get_activation_summary(self, activation_id: str, user_id: int) -> Optional[Dict[str, Any]]:
         """
         Get metadata summary without full activation tensors.
 
         Args:
             activation_id: ID of activations
+            user_id: Requesting user
 
         Returns:
             Summary dictionary or None if not found
         """
-        if activation_id not in self._store:
+        data = self._get_owned(activation_id, user_id)
+        if data is None:
             return None
 
-        data = self._store[activation_id]
         activations = data['activations']
 
         # Build layer info with shapes but no values
@@ -168,21 +184,22 @@ class ActivationStore:
             'tensor_info': tensor_info,
         }
 
-    def get_layer_activations(self, activation_id: str, layer_idx: int) -> Optional[Dict[str, Any]]:
+    def get_layer_activations(self, activation_id: str, layer_idx: int, user_id: int) -> Optional[Dict[str, Any]]:
         """
         Get activations for a specific layer.
 
         Args:
             activation_id: ID of activations
             layer_idx: Layer index to retrieve
+            user_id: Requesting user
 
         Returns:
             Layer activation data or None if not found
         """
-        if activation_id not in self._store:
+        data = self._get_owned(activation_id, user_id)
+        if data is None:
             return None
 
-        data = self._store[activation_id]
         layers = data['activations'].get('layers', [])
 
         if layer_idx < 0 or layer_idx >= len(layers):
@@ -196,7 +213,7 @@ class ActivationStore:
             'activations': {k: to_wire(v) for k, v in layers[layer_idx].items()}
         }
 
-    def get_flow_activations(self, activation_id: str, dims: int) -> Optional[Dict[str, Any]]:
+    def get_flow_activations(self, activation_id: str, dims: int, user_id: int) -> Optional[Dict[str, Any]]:
         """
         Get the slice of activations the generation flow visualization reads.
 
@@ -208,17 +225,19 @@ class ActivationStore:
         Args:
             activation_id: ID of activations
             dims: Number of leading hidden dimensions to include
+            user_id: Requesting user
 
         Returns:
             Dict with per-layer and embedding slices, or None if not found
         """
-        if activation_id not in self._store:
+        data = self._get_owned(activation_id, user_id)
+        if data is None:
             return None
 
         # Update access time
         self._access_times[activation_id] = datetime.now()
 
-        activations = self._store[activation_id]['activations']
+        activations = data['activations']
 
         def pick(source: Dict[str, Any], *keys: str) -> Dict[str, Any]:
             for key in keys:
@@ -231,21 +250,22 @@ class ActivationStore:
             **pick(activations, 'combined_embeddings', 'token_embeddings'),
         }
 
-    def get_tensor_activation(self, activation_id: str, tensor_name: str) -> Optional[Dict[str, Any]]:
+    def get_tensor_activation(self, activation_id: str, tensor_name: str, user_id: int) -> Optional[Dict[str, Any]]:
         """
         Get a specific top-level tensor activation (embeddings, logits, etc).
 
         Args:
             activation_id: ID of activations
             tensor_name: Name of tensor to retrieve
+            user_id: Requesting user
 
         Returns:
             Tensor data or None if not found
         """
-        if activation_id not in self._store:
+        data = self._get_owned(activation_id, user_id)
+        if data is None:
             return None
 
-        data = self._store[activation_id]
         activations = data['activations']
 
         valid_tensors = ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits', 'top_k_logits']
@@ -264,38 +284,49 @@ class ActivationStore:
             'data': to_wire(tensor_data)
         }
 
-    def list_activations(self) -> List[Dict[str, Any]]:
+    def list_activations(self, user_id: int) -> List[Dict[str, Any]]:
         """
-        List all stored activations (summaries only).
+        List the user's stored activations (summaries only).
+
+        Args:
+            user_id: Requesting user
 
         Returns:
             List of activation summaries
         """
         return [
-            self.get_activation_summary(act_id)
-            for act_id in self._store.keys()
+            self.get_activation_summary(act_id, user_id)
+            for act_id, owner in self._owners.items()
+            if owner == user_id
         ]
 
-    def delete_activations(self, activation_id: str) -> bool:
+    def delete_activations(self, activation_id: str, user_id: int) -> bool:
         """
         Delete stored activations.
 
         Args:
             activation_id: ID of activations to delete
+            user_id: Requesting user
 
         Returns:
             True if deleted, False if not found
         """
-        if activation_id in self._store:
-            del self._store[activation_id]
-            del self._access_times[activation_id]
-            return True
-        return False
+        if self._get_owned(activation_id, user_id) is None:
+            return False
+        self._remove(activation_id)
+        return True
 
     def clear_all(self):
         """Clear all stored activations."""
         self._store.clear()
+        self._owners.clear()
         self._access_times.clear()
+
+    def _remove(self, activation_id: str):
+        """Remove an entry."""
+        del self._store[activation_id]
+        del self._owners[activation_id]
+        del self._access_times[activation_id]
 
     def _process_activations(self, activations: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -346,8 +377,7 @@ class ActivationStore:
         oldest_id = min(self._access_times.items(), key=lambda x: x[1])[0]
 
         # Remove it
-        del self._store[oldest_id]
-        del self._access_times[oldest_id]
+        self._remove(oldest_id)
 
 
 # Global activation store instance

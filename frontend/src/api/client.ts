@@ -322,6 +322,12 @@ export interface StreamToken {
 
 const DEFAULT_TIMEOUT_MS = 30_000
 const GENERATION_TIMEOUT_MS = 180_000
+// External SAE calls wait at least as long as the backend waits for the SAE service (plus
+// margin), so the browser doesn't give up on a request that still completes and is charged.
+// Uploads also include sending up to ~670MB of base64 to the backend.
+const SAE_LIST_SOURCES_TIMEOUT_MS = 75_000
+const SAE_LOAD_TIMEOUT_MS = 615_000
+const SAE_UPLOAD_TIMEOUT_MS = 900_000
 
 async function fetchWithTimeout(
   input: string,
@@ -2110,7 +2116,7 @@ class SAEAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, SAE_LOAD_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
@@ -2132,10 +2138,15 @@ class SAEAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify({ repo_id: repoId }),
-    })
+    }, SAE_LIST_SOURCES_TIMEOUT_MS)
 
     if (!response.ok) {
-      throw new Error(`Failed to list external SAE sources: ${response.statusText}`)
+      const error = await response.json().catch(() => ({}))
+      // A 422 (e.g. not an "org/name" repo ID) has a list of validation errors as its detail
+      if (response.status === 422) {
+        throw new Error('Enter a repository ID in the form org/repo-name')
+      }
+      throw new Error(error.detail || `Failed to list external SAE sources: ${response.statusText}`)
     }
 
     notifyCreditsChanged()
@@ -2241,7 +2252,7 @@ class SAEAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, SAE_UPLOAD_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))

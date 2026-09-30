@@ -257,6 +257,7 @@ class InferenceRouter:
         temperature: float = 0.8,
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
+        user_id: Optional[int] = None,
     ) -> dict:
         """
         Generate text with activation capture.
@@ -271,6 +272,7 @@ class InferenceRouter:
             temperature: Sampling temperature
             top_k: Top-k sampling
             top_p: Nucleus sampling
+            user_id: Owner of the stored activations (local mode stores them here)
 
         Returns:
             Generation result with activations or activation_id
@@ -281,7 +283,7 @@ class InferenceRouter:
             )
         else:
             return self._generate_with_activations_local(
-                model_id, prompt, max_tokens, temperature, top_k, top_p
+                model_id, prompt, max_tokens, temperature, top_k, top_p, user_id
             )
 
     def _generate_with_activations_local(
@@ -292,6 +294,7 @@ class InferenceRouter:
         temperature: float,
         top_k: Optional[int],
         top_p: Optional[float],
+        user_id: Optional[int],
     ) -> dict:
         """Generate with activations using local inference."""
         generator = self._get_local_generator(model_id)
@@ -301,6 +304,7 @@ class InferenceRouter:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            user_id=user_id,
         )
         result["model"] = model_id
         return result
