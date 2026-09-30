@@ -267,9 +267,14 @@ class HeadClassifier:
         """
         Compute induction head score.
 
-        Induction heads implement the A...B...A -> B pattern:
-        - They attend to the token that followed a previous occurrence of the current token.
-        - For repeated bigrams tokens[i:i+2] == tokens[j:j+2], check if attn[j+1, i+1] is high.
+        Induction heads implement the A B ... A -> B pattern: at a token A, they attend to
+        the token that followed an earlier occurrence of A. So a query at position q has a
+        target p + 1 for every earlier p with tokens[p] == tokens[q]. (Attending to p itself
+        is duplicate-token attention, which the copying score measures.) The target q, from a
+        token repeated back to back, is skipped since attending to it is self-attention.
+
+        The score is the attention each query puts on its targets, averaged over the queries
+        that have any.
 
         Args:
             attn: Attention weights [seq_len, seq_len].
@@ -279,28 +284,24 @@ class HeadClassifier:
         Returns:
             Induction score between 0 and 1.
         """
-        seq_len = len(tokens)
+        seq_len = min(len(tokens), attn.shape[0])
         if seq_len < 4:
             return 0.0
 
-        induction_scores = []
+        target_attention = []
+        positions = {}  # token -> positions it occurred at so far
 
-        # Find repeated tokens and check induction pattern
-        for j in range(2, seq_len):
-            current_token = tokens[j - 1]
+        for q in range(seq_len):
+            earlier = positions.setdefault(tokens[q], [])
+            targets = [p + 1 for p in earlier if p + 1 != q]
+            if targets:
+                target_attention.append(attn[q, targets].sum())
+            earlier.append(q)
 
-            # Find earlier occurrences of the same token
-            for i in range(1, j - 1):
-                if tokens[i - 1] == current_token:
-                    # Check if head attends to position i (token after earlier occurrence)
-                    if i < seq_len and j < seq_len:
-                        attention_value = attn[j, i]
-                        induction_scores.append(attention_value)
-
-        if not induction_scores:
+        if not target_attention:
             return 0.0
 
-        return float(np.mean(induction_scores))
+        return float(np.mean(target_attention))
 
     def _compute_previous_token_score(self, attn: np.ndarray) -> float:
         """

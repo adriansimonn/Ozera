@@ -109,6 +109,17 @@ class PresetInfo(BaseModel):
 
 # ============= Helper Functions =============
 
+def _stored_summary(activation_id: str, user_id: int) -> dict:
+    """Summary (no tensors) of the user's stored activations, or 404."""
+    summary = activation_store.get_activation_summary(activation_id, user_id)
+    if summary is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Activations not found: {activation_id}"
+        )
+    return summary
+
+
 def get_attention_matrix(activation_id: str, layer: int, user_id: int) -> tuple[np.ndarray, list[str]]:
     """Get attention matrix from the user's stored activations."""
     # Try patching engine first (for captured activations)
@@ -136,53 +147,32 @@ def get_attention_matrix(activation_id: str, layer: int, user_id: int) -> tuple[
         tokens = captured.decoded_tokens or [f"t{i}" for i in range(attn_weights.shape[-1])]
         return attn_weights, tokens
 
-    # Try activation store
-    stored = activation_store.get_activations(activation_id, user_id)
-    if stored is None:
+    # Try activation store (activations from a generation)
+    summary = _stored_summary(activation_id, user_id)
+    num_layers = summary["num_layers"]
+    if layer < 0 or layer >= num_layers:
         raise HTTPException(
             status_code=404,
-            detail=f"Activations not found: {activation_id}"
+            detail=f"Layer {layer} not found (have {num_layers} layers)"
         )
 
-    # Get activations data - layers are stored inside 'activations' key
-    activations_data = stored.get("activations", stored)
-    layers = activations_data.get("layers", [])
-
-    # Layers can be a list or dict
-    if isinstance(layers, list):
-        if layer < 0 or layer >= len(layers):
-            raise HTTPException(
-                status_code=404,
-                detail=f"Layer {layer} not found (have {len(layers)} layers)"
-            )
-        layer_data = layers[layer]
-    else:
-        layer_data = layers.get(str(layer), {})
-
-    attn_weights = layer_data.get("attn_weights", {}).get("values")
-
+    attn_weights = activation_store.get_layer_array(activation_id, layer, "attn_weights", user_id)
     if attn_weights is None:
         raise HTTPException(
             status_code=404,
             detail=f"Attention weights not found for layer {layer}"
         )
 
-    # Get decoded tokens - check multiple possible locations
-    tokens = (
-        stored.get("decoded_tokens") or
-        stored.get("metadata", {}).get("decoded_tokens") or
-        stored.get("tokens", [])
-    )
-
-    # If tokens are integers (token IDs), generate placeholder labels
-    seq_len = np.array(attn_weights).shape[-1]
-    if not tokens:
-        tokens = [f"t{i}" for i in range(seq_len)]
-    elif tokens and isinstance(tokens[0], int):
-        # Token IDs, not decoded strings - use position indices
+    # Label with the decoded tokens. If the attention covers fewer positions (an Ozera model
+    # only attends over its last max_seq_len tokens), it covers the last ones.
+    seq_len = attn_weights.shape[-1]
+    tokens = summary["metadata"].get("decoded_tokens") or []
+    if len(tokens) >= seq_len:
+        tokens = tokens[len(tokens) - seq_len:]
+    else:
         tokens = [f"t{i}" for i in range(seq_len)]
 
-    return np.array(attn_weights), tokens
+    return attn_weights, tokens
 
 
 def get_activations_for_histogram(
@@ -219,63 +209,16 @@ def get_activations_for_histogram(
                 elif activation_type in key:
                     all_activations.append(value)
     else:
-        # Try activation store
-        stored = activation_store.get_activations(activation_id, user_id)
-        if stored is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Activations not found: {activation_id}"
-            )
+        # Try activation store (activations from a generation)
+        summary = _stored_summary(activation_id, user_id)
+        layer_indices = [layer] if layer is not None else range(summary["num_layers"])
+        keys = ["attn_output", "ff_output"] if activation_type == "all" else [activation_type]
 
-        # Get activations data - layers are stored inside 'activations' key
-        activations_data = stored.get("activations", stored)
-        layers = activations_data.get("layers", [])
-
-        # Handle both list and dict formats
-        if isinstance(layers, list):
-            if layer is not None:
-                if layer >= 0 and layer < len(layers):
-                    layer_data = layers[layer]
-                    if activation_type in ["attn_output", "all"]:
-                        attn = layer_data.get("attn_output", {}).get("values")
-                        if attn is not None:
-                            all_activations.append(np.array(attn))
-                    if activation_type in ["ff_output", "all"]:
-                        ff = layer_data.get("ff_output", {}).get("values")
-                        if ff is not None:
-                            all_activations.append(np.array(ff))
-            else:
-                for layer_data in layers:
-                    if activation_type in ["attn_output", "all"]:
-                        attn = layer_data.get("attn_output", {}).get("values")
-                        if attn is not None:
-                            all_activations.append(np.array(attn))
-                    if activation_type in ["ff_output", "all"]:
-                        ff = layer_data.get("ff_output", {}).get("values")
-                        if ff is not None:
-                            all_activations.append(np.array(ff))
-        else:
-            # Dict format (legacy)
-            if layer is not None:
-                layer_data = layers.get(str(layer), {})
-                if activation_type in ["attn_output", "all"]:
-                    attn = layer_data.get("attn_output", {}).get("values")
-                    if attn is not None:
-                        all_activations.append(np.array(attn))
-                if activation_type in ["ff_output", "all"]:
-                    ff = layer_data.get("ff_output", {}).get("values")
-                    if ff is not None:
-                        all_activations.append(np.array(ff))
-            else:
-                for layer_key, layer_data in layers.items():
-                    if activation_type in ["attn_output", "all"]:
-                        attn = layer_data.get("attn_output", {}).get("values")
-                        if attn is not None:
-                            all_activations.append(np.array(attn))
-                    if activation_type in ["ff_output", "all"]:
-                        ff = layer_data.get("ff_output", {}).get("values")
-                        if ff is not None:
-                            all_activations.append(np.array(ff))
+        for layer_idx in layer_indices:
+            for key in keys:
+                values = activation_store.get_layer_array(activation_id, layer_idx, key, user_id)
+                if values is not None:
+                    all_activations.append(values)
 
     if not all_activations:
         raise HTTPException(

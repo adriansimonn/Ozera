@@ -46,6 +46,7 @@ from services.job_orchestrator import (
     GPU_THROUGHPUT,
 )
 from services.credit_service import GPU_PRICING, check_sufficient_balance
+from services.custom_models import delete_replaced_models, remove_replaced_model_files
 
 
 router = APIRouter(prefix="/training", tags=["training"])
@@ -167,41 +168,14 @@ async def start_training_job(
     if gpu_type not in GPU_PRICING:
         raise HTTPException(status_code=400, detail=f"Invalid GPU type: {gpu_type}")
 
-    # Check if user already has a custom model (limit to 1 across trained + uploaded)
-    from services.modal_volumes import delete_model_from_volume
-
-    total_models = get_total_custom_model_count(db, current_user.id)
-
-    if total_models > 0:
-        if not request.overwrite_existing:
-            raise HTTPException(
-                status_code=409,
-                detail="You already have a custom model. Enable overwrite to replace it."
-            )
-        # Delete all existing trained models
-        existing_trained = (
-            db.query(TrainingJobModel)
-            .filter(
-                TrainingJobModel.user_id == current_user.id,
-                TrainingJobModel.status == DBJobStatus.COMPLETED,
-            )
-            .all()
+    # Check if user already has a custom model (limit to 1 across trained + uploaded). The
+    # existing models are replaced when the new job completes (see webhooks.py), so they're
+    # kept if it fails or is cancelled.
+    if get_total_custom_model_count(db, current_user.id) > 0 and not request.overwrite_existing:
+        raise HTTPException(
+            status_code=409,
+            detail="You already have a custom model. Enable overwrite to replace it."
         )
-        for model in existing_trained:
-            await delete_model_from_volume(current_user.id, model.model_name)
-            db.delete(model)
-
-        # Delete all existing uploaded models
-        existing_uploaded = (
-            db.query(UploadedModel)
-            .filter(UploadedModel.user_id == current_user.id)
-            .all()
-        )
-        for model in existing_uploaded:
-            await delete_model_from_volume(current_user.id, model.name)
-            db.delete(model)
-
-        db.commit()
 
     # Estimate cost
     estimated_minutes, estimated_cost = estimate_training_cost(
@@ -487,6 +461,31 @@ async def get_gpu_pricing():
 MAX_MODEL_FILE_SIZE = 500 * 1024 * 1024
 
 
+async def _delete_model_files(db: Session, user_id: int, model_name: str, deleting: list) -> None:
+    """
+    Delete a model's folder from the models volume, before deleting its records `deleting`.
+
+    Raises a 500 if that fails, so the records are kept and the delete can be retried. The
+    folder stays if another of the user's models with the same name (so the same folder)
+    isn't being deleted.
+    """
+    from services.modal_volumes import delete_model_from_volume
+
+    same_folder = [
+        *db.query(TrainingJobModel).filter(
+            TrainingJobModel.user_id == user_id,
+            TrainingJobModel.model_name == model_name,
+            TrainingJobModel.status == DBJobStatus.COMPLETED,
+        ),
+        *db.query(UploadedModel).filter(UploadedModel.user_id == user_id, UploadedModel.name == model_name),
+    ]
+    if any(model not in deleting for model in same_folder):
+        return
+
+    if not await delete_model_from_volume(user_id, model_name):
+        raise HTTPException(status_code=500, detail="Failed to delete the model's files, please try again")
+
+
 def get_total_custom_model_count(db: Session, user_id: int) -> int:
     """Get the total count of custom models (trained + uploaded) for a user."""
     trained_count = (
@@ -581,27 +580,28 @@ async def delete_custom_model(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Delete a custom trained model."""
-    # Find the job that created this model
-    job = (
+    """Delete a custom trained model: its weights on the models volume and its job record."""
+    # Find the job(s) that created this model; completed jobs with the same name all stored
+    # their model in the same folder
+    jobs = (
         db.query(TrainingJobModel)
         .filter(
             TrainingJobModel.user_id == current_user.id,
             TrainingJobModel.model_name == model_id,
             TrainingJobModel.status == DBJobStatus.COMPLETED,
         )
-        .first()
+        .all()
     )
 
-    if not job:
+    if not jobs:
         raise HTTPException(status_code=404, detail=f"Model not found: {model_id}")
 
-    # Delete from Modal volume (would need to implement)
-    # For now, just mark the job as deleted by updating status
-    # In production, you'd also delete the model files from Modal volume
+    # Delete the weights first (keeping the records if that fails)
+    await _delete_model_files(db, current_user.id, model_id, jobs)
 
-    # Delete the job record
-    db.delete(job)
+    # Delete the job records
+    for job in jobs:
+        db.delete(job)
     db.commit()
 
     return {"status": "deleted", "model_id": model_id}
@@ -695,7 +695,7 @@ async def upload_model(
     - Maximum file size: 500MB
     - Accepted formats: .safetensors
     """
-    from services.modal_volumes import upload_model_to_volume, delete_model_from_volume
+    from services.modal_volumes import upload_model_to_volume
 
     # Validate file extension
     if not file.filename or not file.filename.endswith(".safetensors"):
@@ -706,40 +706,13 @@ async def upload_model(
 
     _validate_model_name(model_name)
 
-    # Check if user already has a custom model (limit to 1)
-    total_models = get_total_custom_model_count(db, current_user.id)
-
-    if total_models > 0:
-        if not overwrite_existing:
-            raise HTTPException(
-                status_code=409,
-                detail="You already have a custom model. Enable overwrite to replace it."
-            )
-
-        # Delete existing trained models
-        existing_trained = (
-            db.query(TrainingJobModel)
-            .filter(
-                TrainingJobModel.user_id == current_user.id,
-                TrainingJobModel.status == DBJobStatus.COMPLETED,
-            )
-            .all()
+    # Check if user already has a custom model (limit to 1). The existing models are only
+    # replaced once the new file is validated and stored.
+    if get_total_custom_model_count(db, current_user.id) > 0 and not overwrite_existing:
+        raise HTTPException(
+            status_code=409,
+            detail="You already have a custom model. Enable overwrite to replace it."
         )
-        for model in existing_trained:
-            await delete_model_from_volume(current_user.id, model.model_name)
-            db.delete(model)
-
-        # Delete existing uploaded models
-        existing_uploaded = (
-            db.query(UploadedModel)
-            .filter(UploadedModel.user_id == current_user.id)
-            .all()
-        )
-        for model in existing_uploaded:
-            await delete_model_from_volume(current_user.id, model.name)
-            db.delete(model)
-
-        db.commit()
 
     # Read file content
     content = await file.read()
@@ -842,6 +815,11 @@ async def upload_model(
         # Clean up temp file
         tmp_path.unlink(missing_ok=True)
 
+    # Replace the existing models, now that the new one is stored
+    replaced_models = set()
+    if overwrite_existing:
+        replaced_models = delete_replaced_models(db, current_user.id)
+
     # Save to database
     uploaded_model = UploadedModel(
         model_id=model_id,
@@ -858,6 +836,8 @@ async def upload_model(
     db.add(uploaded_model)
     db.commit()
     db.refresh(uploaded_model)
+
+    await remove_replaced_model_files(current_user.id, replaced_models, model_name)
 
     return ModelUploadResponse(
         model_id=model_id,
@@ -910,8 +890,6 @@ async def delete_uploaded_model(
     db: Session = Depends(get_db),
 ):
     """Delete an uploaded model."""
-    from services.modal_volumes import delete_model_from_volume
-
     model = (
         db.query(UploadedModel)
         .filter(
@@ -924,8 +902,8 @@ async def delete_uploaded_model(
     if not model:
         raise HTTPException(status_code=404, detail=f"Uploaded model not found: {model_id}")
 
-    # Delete from Modal volume
-    await delete_model_from_volume(current_user.id, model.name)
+    # Delete from Modal volume (first, keeping the record if that fails)
+    await _delete_model_files(db, current_user.id, model.name, [model])
 
     # Delete from database
     db.delete(model)

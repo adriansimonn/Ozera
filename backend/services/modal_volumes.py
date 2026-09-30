@@ -457,14 +457,16 @@ async def delete_model_from_volume(user_id: int, model_name: str) -> bool:
         model_name: Model name
 
     Returns:
-        True if successful
+        True if the directory is gone (including if it didn't exist)
     """
     try:
         remote_dir = f"/{model_folder(user_id, model_name)}"
 
         # Delete the entire directory recursively
-        models_volume.remove_file(remote_dir, recursive=True)
+        await models_volume.remove_file.aio(remote_dir, recursive=True)
 
+        return True
+    except FileNotFoundError:
         return True
     except Exception as e:
         print(f"Error deleting model from Modal volume: {e}")

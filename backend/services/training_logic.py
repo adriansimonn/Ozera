@@ -253,8 +253,8 @@ def run_training(
 
         # Training loop
         best_val_loss = float('inf')
+        best_state = None
         output_dir = Path(config.model_output_path)
-        output_dir.mkdir(parents=True, exist_ok=True)
 
         for epoch in range(config.epochs):
             epoch_start = time.time()
@@ -295,11 +295,14 @@ def run_training(
                 print("Job was cancelled, stopping")
                 return "cancelled", (time.time() - start_time) / 60, None
 
-            # Save best model
+            # Keep the best model's weights (on the CPU). They're only written to the model
+            # folder once training finishes: retraining under an existing model's name writes
+            # to that model's folder, which must stay as it was if this job fails or is
+            # cancelled.
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                # Save model weights as safetensors with config metadata
-                metadata = {
+                best_state = {k: v.detach().to('cpu', copy=True) for k, v in model.state_dict().items()}
+                weights_metadata = {
                     "format": "ozera",
                     "epoch": str(epoch),
                     "train_loss": str(train_loss),
@@ -312,7 +315,14 @@ def run_training(
                     "d_ff": str(model_config.d_ff),
                     "dropout_rate": str(model_config.dropout_rate),
                 }
-                save_model(model, output_dir / 'model.safetensors', metadata=metadata)
+
+        if best_state is None:
+            raise RuntimeError("Training produced no usable model: the validation loss was never finite")
+
+        # Save the best model's weights as safetensors with config metadata
+        model.load_state_dict(best_state)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        save_model(model, output_dir / 'model.safetensors', metadata=weights_metadata)
 
         # Save model metadata
         metadata = {

@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import uuid
 
-from core.tensor_codec import encode_tensor, is_tensor_entry, slice_last_dim, to_wire
+from core.tensor_codec import encode_tensor, is_tensor_entry, slice_last_dim, to_float32, to_wire
 
 
 class ActivationStore:
@@ -212,6 +212,38 @@ class ActivationStore:
             'layer_idx': layer_idx,
             'activations': {k: to_wire(v) for k, v in layers[layer_idx].items()}
         }
+
+    def get_layer_array(self, activation_id: str, layer_idx: int, key: str, user_id: int) -> Optional[np.ndarray]:
+        """
+        Get one layer tensor (e.g. 'attn_weights') decoded to a float32 array, for work
+        done on the backend itself, like figure export.
+
+        Args:
+            activation_id: ID of activations
+            layer_idx: Layer index
+            key: Name of the tensor within the layer
+            user_id: Requesting user
+
+        Returns:
+            Read-only float32 array of the tensor's shape, or None if the activations,
+            layer or tensor don't exist
+        """
+        data = self._get_owned(activation_id, user_id)
+        if data is None:
+            return None
+
+        layers = data['activations'].get('layers', [])
+        if layer_idx < 0 or layer_idx >= len(layers):
+            return None
+
+        entry = layers[layer_idx].get(key)
+        if not is_tensor_entry(entry):
+            return None
+
+        # Update access time
+        self._access_times[activation_id] = datetime.now()
+
+        return to_float32(entry)
 
     def get_flow_activations(self, activation_id: str, dims: int, user_id: int) -> Optional[Dict[str, Any]]:
         """

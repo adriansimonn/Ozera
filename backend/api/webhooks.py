@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from db import get_db
 from models.database import TrainingJob, JobStatus
+from services.custom_models import delete_replaced_models, remove_replaced_model_files
 from services.job_orchestrator import settle_completed_job, handle_failed_job
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -90,6 +91,9 @@ async def receive_training_progress(
         db.rollback()
         return {"status": "ignored", "job_id": job_id}
 
+    user_id, model_name = job.user_id, job.model_name
+    replaced_models = set()
+
     # Update progress fields
     job.current_epoch = update.current_epoch
     job.total_epochs = update.total_epochs
@@ -109,6 +113,12 @@ async def receive_training_progress(
     if update.status == "completed":
         job.status = JobStatus.COMPLETED
         job.completed_at = datetime.utcnow()
+
+        # The new model replaces the models the user had when submitting the job (committed
+        # with the settlement below). They were kept until now in case the job failed.
+        replaced_models = delete_replaced_models(
+            db, user_id, existing_at=job.created_at, new_job_id=job_id
+        )
 
         # Settle the job (charge actual cost, refund difference)
         if update.actual_minutes is not None:
@@ -135,6 +145,8 @@ async def receive_training_progress(
                 job.started_at = datetime.utcnow()
 
     db.commit()
+
+    await remove_replaced_model_files(user_id, replaced_models, model_name)
 
     return {"status": "ok", "job_id": job_id}
 

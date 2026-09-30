@@ -746,7 +746,8 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
             </h3>
             <p style={{ color: tc.textSub, fontSize: '13px', margin: '0 0 20px 0', lineHeight: 1.5 }}>
               You already have a custom model. Ozera currently limits users to 1 custom model.
-              Training a new model will permanently delete your existing model.
+              Your existing model will be permanently deleted once the new model finishes
+              training. If training fails or is cancelled, your existing model is kept.
             </p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
               <button

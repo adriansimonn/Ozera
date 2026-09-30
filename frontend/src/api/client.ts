@@ -321,13 +321,22 @@ export interface StreamToken {
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000
-const GENERATION_TIMEOUT_MS = 180_000
-// External SAE calls wait at least as long as the backend waits for the SAE service (plus
-// margin), so the browser doesn't give up on a request that still completes and is charged.
-// Uploads also include sending up to ~670MB of base64 to the backend.
+// Slow calls wait at least as long as the backend can take to complete them (plus margin), so
+// the browser doesn't give up on a request that still completes and is charged.
+// GPU calls run on Modal inference workers, which may take up to 600s to start and 600s to
+// run (A10G); the backend waits for them without a limit of its own.
+const GPU_TIMEOUT_MS = 1_215_000
+// The backend waits up to 30s, 60s or 600s for the SAE service, depending on the call
+const SAE_QUICK_TIMEOUT_MS = 45_000
 const SAE_LIST_SOURCES_TIMEOUT_MS = 75_000
-const SAE_LOAD_TIMEOUT_MS = 615_000
-const SAE_UPLOAD_TIMEOUT_MS = 900_000
+const SAE_TIMEOUT_MS = 615_000
+// Attention analysis runs on the backend's CPU with no limit; it grows with prompt length and
+// model size (about 3s for 150 tokens on a 36-layer, 32-head model)
+const ANALYSIS_TIMEOUT_MS = 300_000
+// Uploads include sending the file (up to 500MB for models, ~670MB of base64 for SAEs)
+const UPLOAD_TIMEOUT_MS = 900_000
+// Starting training reads the dataset's metadata from storage and spawns the job on Modal
+const TRAINING_START_TIMEOUT_MS = 120_000
 
 async function fetchWithTimeout(
   input: string,
@@ -387,7 +396,7 @@ class OzeraAPIClient {
   async getModelInfo(modelName: string): Promise<ModelInfo> {
     const response = await fetchWithTimeout(`${this.baseUrl}/models/${modelName}`, {
       headers: getAuthHeaders(),
-    })
+    }, GPU_TIMEOUT_MS)
 
     if (!response.ok) {
       throw new Error(`Failed to get model info: ${response.statusText}`)
@@ -404,7 +413,7 @@ class OzeraAPIClient {
     const response = await fetchWithTimeout(`${this.baseUrl}/models/${modelName}/prepare`, {
       method: 'POST',
       headers: getAuthHeaders(),
-    })
+    }, GPU_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -426,7 +435,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    }, GENERATION_TIMEOUT_MS)
+    }, GPU_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -549,7 +558,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    }, GENERATION_TIMEOUT_MS)
+    }, GPU_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -689,7 +698,7 @@ class OzeraAPIClient {
       method: 'POST',
       headers: getAuthHeaders(),
       body: formData,
-    })
+    }, UPLOAD_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -787,7 +796,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, TRAINING_START_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1014,7 +1023,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: formData,
-    })
+    }, UPLOAD_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1150,7 +1159,7 @@ class OzeraAPIClient {
     const response = await fetchWithTimeout(`${this.baseUrl}/open-source/models/${modelId}/warmup`, {
       method: 'POST',
       headers: getAuthHeaders(),
-    })
+    }, GPU_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1172,7 +1181,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    }, GENERATION_TIMEOUT_MS)
+    }, GPU_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1286,7 +1295,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    }, GENERATION_TIMEOUT_MS)
+    }, GPU_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1313,7 +1322,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, GPU_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1397,7 +1406,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, GPU_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1422,7 +1431,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, GPU_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1483,7 +1492,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, ANALYSIS_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1509,7 +1518,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, ANALYSIS_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1535,7 +1544,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, ANALYSIS_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1561,7 +1570,7 @@ class OzeraAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, ANALYSIS_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json()
@@ -1909,7 +1918,7 @@ class SAEAPIClient {
   async listSAEs(): Promise<SAEListResponse> {
     const response = await fetchWithTimeout(`${this.baseUrl}/sae/list`, {
       headers: getAuthHeaders(),
-    })
+    }, SAE_QUICK_TIMEOUT_MS)
 
     if (!response.ok) {
       throw new Error(`Failed to list SAEs: ${response.statusText}`)
@@ -1930,7 +1939,7 @@ class SAEAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, SAE_TIMEOUT_MS)
 
     if (!response.ok) {
       // Check for insufficient credits (402 Payment Required)
@@ -1958,7 +1967,7 @@ class SAEAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, SAE_TIMEOUT_MS)
 
     if (!response.ok) {
       if (response.status === 402) {
@@ -1993,7 +2002,7 @@ class SAEAPIClient {
       headers: {
         ...getAuthHeaders(),
       },
-    })
+    }, SAE_QUICK_TIMEOUT_MS)
 
     if (!response.ok) {
       if (response.status === 402) {
@@ -2019,7 +2028,7 @@ class SAEAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, SAE_TIMEOUT_MS)
 
     if (!response.ok) {
       if (response.status === 402) {
@@ -2045,7 +2054,7 @@ class SAEAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, SAE_TIMEOUT_MS)
 
     if (!response.ok) {
       if (response.status === 402) {
@@ -2071,7 +2080,7 @@ class SAEAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    })
+    }, SAE_TIMEOUT_MS)
 
     if (!response.ok) {
       if (response.status === 402) {
@@ -2116,7 +2125,7 @@ class SAEAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    }, SAE_LOAD_TIMEOUT_MS)
+    }, SAE_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
@@ -2227,7 +2236,7 @@ class SAEAPIClient {
       headers: {
         ...getAuthHeaders(),
       },
-    })
+    }, SAE_QUICK_TIMEOUT_MS)
 
     if (!response.ok) {
       if (response.status === 402) {
@@ -2252,7 +2261,7 @@ class SAEAPIClient {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
-    }, SAE_UPLOAD_TIMEOUT_MS)
+    }, UPLOAD_TIMEOUT_MS)
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
