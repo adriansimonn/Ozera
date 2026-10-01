@@ -3,13 +3,14 @@ Text generation utilities for Ozera models.
 """
 
 import torch
-from typing import Optional, Dict, Any, Iterator
+from typing import Callable, Optional, Dict, Any, Iterator
 import sys
 import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from core.transformer.model_torch import TransformerLM
+from core.transformer.sampling import FINISH_EOS, FINISH_STOP, TextDeltas, TokenStream
 from core.activation_limits import check_fits_context
 from core.tokenizer import get_tokenizer
 from inference.activation_store import get_activation_store
@@ -34,7 +35,34 @@ class TextGenerator:
         self.model.eval()
         self.activation_store = get_activation_store()
 
-    @torch.no_grad()
+    def _token_stream(
+        self,
+        prompt_ids: list[int],
+        max_tokens: int,
+        temperature: float,
+        top_k: Optional[int],
+        top_p: Optional[float],
+        stop_at_eos: bool,
+        should_stop: Optional[Callable[[], bool]] = None,
+    ) -> TokenStream:
+        """A generation from the prompt (see core.transformer.sampling.TokenStream)."""
+        self.model.eval()
+        return TokenStream(
+            self.model,
+            torch.tensor([prompt_ids], dtype=torch.long).to(self.device),
+            max_new_tokens=max_tokens,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            vocab_size=self.tokenizer.vocab_size,
+            eos_token_id=self.tokenizer.eos_token_id if stop_at_eos else None,
+            should_stop=should_stop,
+        )
+
+    def _text(self, token_list: list[int], finish_reason: Optional[str]) -> str:
+        """A sequence's text, without the EOS that ended it."""
+        return self.tokenizer.decode(token_list[:-1] if finish_reason == FINISH_EOS else token_list)
+
     def generate(
         self,
         prompt: str,
@@ -42,7 +70,8 @@ class TextGenerator:
         temperature: float = 0.8,
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
-        return_metadata: bool = False
+        return_metadata: bool = False,
+        stop_at_eos: bool = False,
     ) -> str | Dict[str, Any]:
         """
         Generate text from a prompt.
@@ -54,40 +83,32 @@ class TextGenerator:
             top_k: Top-k sampling parameter
             top_p: Nucleus sampling parameter (top-p)
             return_metadata: If True, return dict with text and metadata
+            stop_at_eos: End at the end-of-sequence token; otherwise generate exactly max_tokens
 
         Returns:
             Generated text string, or dict with text and metadata
         """
-        # Encode prompt
         prompt_ids = self.tokenizer.encode(prompt)
         prompt_tokens = len(prompt_ids)
 
-        # Convert to tensor
-        input_ids = torch.tensor([prompt_ids], dtype=torch.long).to(self.device)
+        stream = self._token_stream(prompt_ids, max_tokens, temperature, top_k, top_p, stop_at_eos)
+        for _ in stream:
+            pass
 
-        # Generate
-        generated_ids, _ = self.model.generate(
-            input_ids,
-            max_new_tokens=max_tokens,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            return_attention=False
-        )
-
-        # Decode
-        generated_text = self.tokenizer.decode(generated_ids[0].cpu().tolist())
+        token_list = stream.input_ids[0].cpu().tolist()
+        generated_text = self._text(token_list, stream.finish_reason)
 
         if return_metadata:
             return {
                 'text': generated_text,
                 'prompt': prompt,
                 'prompt_tokens': prompt_tokens,
-                'generated_tokens': len(generated_ids[0]) - prompt_tokens,
-                'total_tokens': len(generated_ids[0]),
+                'generated_tokens': len(token_list) - prompt_tokens,
+                'total_tokens': len(token_list),
                 'temperature': temperature,
                 'top_k': top_k,
-                'top_p': top_p
+                'top_p': top_p,
+                'finish_reason': stream.finish_reason,
             }
 
         return generated_text
@@ -128,7 +149,6 @@ class TextGenerator:
 
         return results
 
-    @torch.no_grad()
     def generate_stream(
         self,
         prompt: str,
@@ -137,7 +157,9 @@ class TextGenerator:
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
         report_usage: bool = False,
-    ) -> Iterator[str | Dict[str, int]]:
+        stop_at_eos: bool = False,
+        should_stop: Optional[Callable[[], bool]] = None,
+    ) -> Iterator[str | Dict[str, Any]]:
         """
         Generate text from a prompt with streaming (yields tokens as generated).
 
@@ -148,76 +170,31 @@ class TextGenerator:
             top_k: Top-k sampling parameter
             top_p: Nucleus sampling parameter
             report_usage: Finish with a dict of the real token counts
-                ({"prompt_tokens", "generated_tokens"}), which requests are billed by
+                ({"prompt_tokens", "generated_tokens"}) and why generation ended
+                ("finish_reason"); requests are billed by it
+            stop_at_eos: End at the end-of-sequence token (not streamed); otherwise generate
+                exactly max_tokens
+            should_stop: Checked before each token; generation ends once it returns True
 
         Yields:
             Generated text token by token
         """
-        # Encode prompt
         prompt_ids = self.tokenizer.encode(prompt)
-        input_ids = torch.tensor([prompt_ids], dtype=torch.long).to(self.device)
+        stream = self._token_stream(prompt_ids, max_tokens, temperature, top_k, top_p, stop_at_eos, should_stop)
 
-        self.model.eval()
-
-        # Track the number of tokens we've already yielded text for
-        num_yielded_tokens = len(prompt_ids)
-
-        # Generate tokens one at a time
-        for _ in range(max_tokens):
-            # Get logits for current sequence
-            idx_cond = input_ids if input_ids.size(1) <= self.model.config.max_seq_len else input_ids[:, -self.model.config.max_seq_len:]
-
-            logits, _, _ = self.model.forward(idx_cond, return_attention=False, capture_activations=False)
-            logits = logits[:, -1, :]
-
-            # Handle temperature
-            if temperature == 0.0:
-                # Greedy decoding - just pick the argmax
-                next_token = torch.argmax(logits, dim=-1, keepdim=True)
-            else:
-                logits = logits / temperature
-
-                # Apply top-k filtering
-                if top_k is not None:
-                    v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                    logits[logits < v[:, [-1]]] = float('-inf')
-
-                # Apply top-p (nucleus) filtering
-                if top_p is not None:
-                    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-                    cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
-                    sorted_indices_to_remove = cumulative_probs > top_p
-                    sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[:, :-1].clone()
-                    sorted_indices_to_remove[:, 0] = 0
-                    indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
-                    logits[indices_to_remove] = float('-inf')
-
-                # Sample from distribution
-                probs = torch.softmax(logits, dim=-1)
-                next_token = torch.multinomial(probs, num_samples=1)
-
-            # Clamp token to valid range
-            next_token = torch.clamp(next_token, 0, self.tokenizer.vocab_size - 1)
-
-            # Append to sequence
-            input_ids = torch.cat([input_ids, next_token], dim=1)
-
-            # Decode only the new token(s) to get the delta text
-            # We decode from the last yielded position to handle multi-byte UTF-8 properly
-            current_ids = input_ids[0].cpu().tolist()
-            current_text = self.tokenizer.decode(current_ids)
-            previous_text = self.tokenizer.decode(current_ids[:num_yielded_tokens])
-
-            # Yield only the new text delta
-            new_text = current_text[len(previous_text):]
+        deltas = TextDeltas(self.tokenizer)
+        for token in stream:
+            if stream.eos_token_id is not None and token == stream.eos_token_id:
+                continue  # The EOS that ends the generation isn't part of its text
+            new_text = deltas.push(token)
             if new_text:
                 yield new_text
-                num_yielded_tokens = len(current_ids)
 
         if report_usage:
             yield {
                 'prompt_tokens': len(prompt_ids),
-                'generated_tokens': input_ids.size(1) - len(prompt_ids),
+                'generated_tokens': stream.input_ids.size(1) - len(prompt_ids),
+                'finish_reason': stream.finish_reason,
             }
 
     def count_tokens(self, text: str) -> int:
@@ -232,7 +209,6 @@ class TextGenerator:
         """
         return len(self.tokenizer.encode(text))
 
-    @torch.no_grad()
     def generate_with_activations(
         self,
         prompt: str,
@@ -241,9 +217,35 @@ class TextGenerator:
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
         user_id: Optional[int] = None,
+        stop_at_eos: bool = False,
+        fit_to_context: bool = False,
     ) -> Dict[str, Any]:
         """
         Generate text and capture activations from the final forward pass.
+
+        See generate_with_activations_stream; this returns only its result.
+        """
+        for item in self.generate_with_activations_stream(
+            prompt, max_tokens, temperature, top_k, top_p, user_id, stop_at_eos, fit_to_context,
+        ):
+            if isinstance(item, dict) and 'event' not in item:
+                return item
+        raise RuntimeError("Generation ended without a result")
+
+    def generate_with_activations_stream(
+        self,
+        prompt: str,
+        max_tokens: int = 200,
+        temperature: float = 0.8,
+        top_k: Optional[int] = 40,
+        top_p: Optional[float] = None,
+        user_id: Optional[int] = None,
+        stop_at_eos: bool = False,
+        fit_to_context: bool = False,
+        should_stop: Optional[Callable[[], bool]] = None,
+    ) -> Iterator[str | Dict[str, Any]]:
+        """
+        Generate text, streaming it, and capture activations from a final forward pass.
 
         Args:
             prompt: Text prompt to start generation
@@ -252,65 +254,68 @@ class TextGenerator:
             top_k: Top-k sampling parameter
             top_p: Nucleus sampling parameter
             user_id: User the stored activations belong to
+            stop_at_eos: End at the end-of-sequence token; otherwise generate exactly max_tokens
+            fit_to_context: Lower max_tokens to what fits the context window instead of
+                refusing the request
+            should_stop: Checked before each token; generation ends once it returns True,
+                and the tokens generated so far are captured
 
-        Returns:
-            Dictionary with generated text, activation ID, and metadata
+        Yields:
+            Text chunks, then {"event": "generated"} when the capture starts, then a dict
+            with the generated text, activation ID (none if stopped before generating
+            anything), and metadata
 
         Raises:
             ActivationLimitError: the prompt plus max_tokens doesn't fit the model's context window
         """
-        # Encode prompt
         prompt_ids = self.tokenizer.encode(prompt)
+        context_len = self.model.config.max_seq_len
+        if fit_to_context and len(prompt_ids) < context_len:
+            max_tokens = min(max_tokens, context_len - len(prompt_ids))
         # The whole sequence has to fit the context window for the capture to match the tokens
-        check_fits_context(self.model_name, len(prompt_ids), max_tokens, self.model.config.max_seq_len)
-        input_ids = torch.tensor([prompt_ids], dtype=torch.long).to(self.device)
+        check_fits_context(self.model_name, len(prompt_ids), max_tokens, context_len)
 
-        self.model.eval()
+        stream = self._token_stream(prompt_ids, max_tokens, temperature, top_k, top_p, stop_at_eos, should_stop)
+        deltas = TextDeltas(self.tokenizer)
+        for token in stream:
+            if stream.eos_token_id is not None and token == stream.eos_token_id:
+                continue  # The EOS that ends the generation isn't part of its text
+            new_text = deltas.push(token)
+            if new_text:
+                yield new_text
+        yield {'event': 'generated'}
 
-        # Generate tokens (similar to generate_stream but without yielding)
-        for _ in range(max_tokens):
-            logits, _, _ = self.model.forward(input_ids, return_attention=False, capture_activations=False)
-            logits = logits[:, -1, :]
-
-            if temperature == 0.0:
-                next_token = torch.argmax(logits, dim=-1, keepdim=True)
-            else:
-                logits = logits / temperature
-
-                if top_k is not None:
-                    v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                    logits[logits < v[:, [-1]]] = float('-inf')
-
-                if top_p is not None:
-                    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-                    cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
-                    sorted_indices_to_remove = cumulative_probs > top_p
-                    sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[:, :-1].clone()
-                    sorted_indices_to_remove[:, 0] = 0
-                    indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
-                    logits[indices_to_remove] = float('-inf')
-
-                probs = torch.softmax(logits, dim=-1)
-                next_token = torch.multinomial(probs, num_samples=1)
-
-            next_token = torch.clamp(next_token, 0, self.tokenizer.vocab_size - 1)
-            input_ids = torch.cat([input_ids, next_token], dim=1)
+        input_ids = stream.input_ids
+        token_list = input_ids[0].cpu().tolist()
+        generated_text = self._text(token_list, stream.finish_reason)
+        result = {
+            'text': generated_text,
+            'prompt': prompt,
+            'prompt_tokens': len(prompt_ids),
+            'generated_tokens': len(token_list) - len(prompt_ids),
+            'total_tokens': len(token_list),
+            'temperature': temperature,
+            'top_k': top_k,
+            'top_p': top_p,
+            'finish_reason': stream.finish_reason,
+        }
+        if stream.finish_reason == FINISH_STOP and len(token_list) == len(prompt_ids):
+            # Stopped before generating anything: nothing to capture
+            yield result
+            return
 
         # Now do one final forward pass over the whole sequence with activation capture
-        _, _, activations = self.model.forward(input_ids, return_attention=True, capture_activations=True)
-
-        # Decode generated text
-        generated_text = self.tokenizer.decode(input_ids[0].cpu().tolist())
+        with torch.no_grad():
+            _, _, activations = self.model.forward(input_ids, return_attention=True, capture_activations=True)
 
         # Decode individual tokens for visualization
-        token_list = input_ids[0].cpu().tolist()
         decoded_tokens = [self.tokenizer.decode([token_id]) for token_id in token_list]
 
         # Store activations
-        activation_id = self.activation_store.store_activations(
+        result['activation_id'] = self.activation_store.store_activations(
             user_id=user_id,
             activations=activations,
-            tokens=input_ids[0].cpu().tolist(),
+            tokens=token_list,
             prompt=prompt,
             model_name=self.model_name,
             metadata={
@@ -319,24 +324,13 @@ class TextGenerator:
                 'top_p': top_p,
                 'max_tokens': max_tokens,
                 'prompt_tokens': len(prompt_ids),
-                'generated_tokens': len(input_ids[0]) - len(prompt_ids),
-                'total_tokens': len(input_ids[0]),
+                'generated_tokens': len(token_list) - len(prompt_ids),
+                'total_tokens': len(token_list),
                 'generated_text': generated_text,
                 'decoded_tokens': decoded_tokens
             }
         )
-
-        return {
-            'text': generated_text,
-            'activation_id': activation_id,
-            'prompt': prompt,
-            'prompt_tokens': len(prompt_ids),
-            'generated_tokens': len(input_ids[0]) - len(prompt_ids),
-            'total_tokens': len(input_ids[0]),
-            'temperature': temperature,
-            'top_k': top_k,
-            'top_p': top_p
-        }
+        yield result
 
     @torch.no_grad()
     def generate_with_patches(

@@ -33,6 +33,9 @@ class OpenSourceModelConfig:
     vocab_size: int
     max_seq_len: int
     gpu_tier: str           # "l4" or "a10g"
+    # Tokens that end a generation, from each checkpoint's generation_config.json and
+    # tokenizer (instruct models end a turn with their chat template's end-of-turn token)
+    eos_tokens: tuple[str, ...]
     requires_auth: bool = False  # If HF token needed
     is_instruct: bool = False  # Prompts are wrapped in the tokenizer's chat template
     system_prompt: Optional[str] = None  # System message for the chat template (None = template default)
@@ -54,6 +57,7 @@ SMOLLM_135M = OpenSourceModelConfig(
     vocab_size=49152,
     max_seq_len=2048,
     gpu_tier="l4",
+    eos_tokens=("<|endoftext|>",),
 )
 
 SMOLLM_360M = OpenSourceModelConfig(
@@ -70,6 +74,7 @@ SMOLLM_360M = OpenSourceModelConfig(
     vocab_size=49152,
     max_seq_len=2048,
     gpu_tier="l4",
+    eos_tokens=("<|endoftext|>",),
 )
 
 # SmolLM3 - Llama-style layout with NoPE (no rotary embedding) on every 4th layer
@@ -88,6 +93,7 @@ SMOLLM3_3B = OpenSourceModelConfig(
     vocab_size=128256,
     max_seq_len=65536,
     gpu_tier="a10g",
+    eos_tokens=("<|end_of_text|>",),
 )
 
 # Gemma 3 models - GQA, GeGLU, 5:1 local (512-token sliding window) : global attention
@@ -106,6 +112,7 @@ GEMMA_3_270M = OpenSourceModelConfig(
     vocab_size=262144,
     max_seq_len=32768,
     gpu_tier="l4",
+    eos_tokens=("<eos>", "<end_of_turn>"),
     requires_auth=True,  # Gated: Gemma license must be accepted on HF
 )
 
@@ -123,6 +130,7 @@ GEMMA_3_1B = OpenSourceModelConfig(
     vocab_size=262144,
     max_seq_len=32768,
     gpu_tier="l4",
+    eos_tokens=("<eos>", "<end_of_turn>"),
     requires_auth=True,  # Gated: Gemma license must be accepted on HF
 )
 
@@ -142,6 +150,7 @@ QWEN3_0_6B = OpenSourceModelConfig(
     vocab_size=151936,
     max_seq_len=32768,
     gpu_tier="l4",
+    eos_tokens=("<|endoftext|>",),
 )
 
 QWEN3_1_7B = OpenSourceModelConfig(
@@ -158,6 +167,7 @@ QWEN3_1_7B = OpenSourceModelConfig(
     vocab_size=151936,
     max_seq_len=32768,
     gpu_tier="l4",
+    eos_tokens=("<|endoftext|>",),
 )
 
 QWEN3_4B = OpenSourceModelConfig(
@@ -174,6 +184,7 @@ QWEN3_4B = OpenSourceModelConfig(
     vocab_size=151936,
     max_seq_len=32768,
     gpu_tier="a10g",
+    eos_tokens=("<|endoftext|>",),
 )
 
 
@@ -182,6 +193,7 @@ QWEN3_4B = OpenSourceModelConfig(
 def _instruct(
     base: OpenSourceModelConfig,
     hf_id: str,
+    end_of_turn: str,
     max_seq_len: Optional[int] = None,
     system_prompt: Optional[str] = None,
 ) -> OpenSourceModelConfig:
@@ -191,26 +203,29 @@ def _instruct(
         hf_id=hf_id,
         display_name=f"{base.display_name} Instruct",
         max_seq_len=max_seq_len or base.max_seq_len,
+        # The chat template's end-of-turn token first; the base model's end of text still ends it
+        eos_tokens=tuple(dict.fromkeys((end_of_turn, *base.eos_tokens))),
         is_instruct=True,
         system_prompt=system_prompt,
     )
 
 
-SMOLLM_135M_IT = _instruct(SMOLLM_135M, "HuggingFaceTB/SmolLM2-135M-Instruct", max_seq_len=8192)
-SMOLLM_360M_IT = _instruct(SMOLLM_360M, "HuggingFaceTB/SmolLM2-360M-Instruct", max_seq_len=8192)
+SMOLLM_135M_IT = _instruct(SMOLLM_135M, "HuggingFaceTB/SmolLM2-135M-Instruct", "<|im_end|>", max_seq_len=8192)
+SMOLLM_360M_IT = _instruct(SMOLLM_360M, "HuggingFaceTB/SmolLM2-360M-Instruct", "<|im_end|>", max_seq_len=8192)
 # SmolLM3's default system prompt injects today's date; /system_override keeps the
 # default persona without it so the same prompt tokenizes identically every day.
 SMOLLM3_3B_IT = _instruct(
     SMOLLM3_3B,
     "HuggingFaceTB/SmolLM3-3B",
+    "<|im_end|>",
     system_prompt="You are a helpful AI assistant named SmolLM, trained by Hugging Face. /system_override",
 )
-GEMMA_3_270M_IT = _instruct(GEMMA_3_270M, "google/gemma-3-270m-it")
-GEMMA_3_1B_IT = _instruct(GEMMA_3_1B, "google/gemma-3-1b-it")
+GEMMA_3_270M_IT = _instruct(GEMMA_3_270M, "google/gemma-3-270m-it", "<end_of_turn>")
+GEMMA_3_1B_IT = _instruct(GEMMA_3_1B, "google/gemma-3-1b-it", "<end_of_turn>")
 # Qwen3 post-trained checkpoints (hybrid thinking; thinking is disabled when templating)
-QWEN3_0_6B_IT = _instruct(QWEN3_0_6B, "Qwen/Qwen3-0.6B", max_seq_len=40960)
-QWEN3_1_7B_IT = _instruct(QWEN3_1_7B, "Qwen/Qwen3-1.7B", max_seq_len=40960)
-QWEN3_4B_IT = _instruct(QWEN3_4B, "Qwen/Qwen3-4B", max_seq_len=40960)
+QWEN3_0_6B_IT = _instruct(QWEN3_0_6B, "Qwen/Qwen3-0.6B", "<|im_end|>", max_seq_len=40960)
+QWEN3_1_7B_IT = _instruct(QWEN3_1_7B, "Qwen/Qwen3-1.7B", "<|im_end|>", max_seq_len=40960)
+QWEN3_4B_IT = _instruct(QWEN3_4B, "Qwen/Qwen3-4B", "<|im_end|>", max_seq_len=40960)
 
 
 OPEN_SOURCE_MODELS: dict[str, OpenSourceModelConfig] = {

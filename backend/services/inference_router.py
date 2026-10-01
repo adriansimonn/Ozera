@@ -107,6 +107,7 @@ class InferenceRouter:
         temperature: float = 0.8,
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
+        stop_at_eos: bool = False,
     ) -> dict:
         """
         Generate text using the appropriate backend.
@@ -118,17 +119,19 @@ class InferenceRouter:
             temperature: Sampling temperature
             top_k: Top-k sampling
             top_p: Nucleus sampling
+            stop_at_eos: End at the model's end-of-sequence token; otherwise generate
+                exactly max_tokens
 
         Returns:
             Generation result dict
         """
         if self.is_modal_mode():
             return await self._generate_modal(
-                model, prompt, max_tokens, temperature, top_k, top_p
+                model, prompt, max_tokens, temperature, top_k, top_p, stop_at_eos
             )
         else:
             return self._generate_local(
-                model, prompt, max_tokens, temperature, top_k, top_p
+                model, prompt, max_tokens, temperature, top_k, top_p, stop_at_eos
             )
 
     def _generate_local(
@@ -139,6 +142,7 @@ class InferenceRouter:
         temperature: float,
         top_k: Optional[int],
         top_p: Optional[float],
+        stop_at_eos: bool,
     ) -> dict:
         """Generate using local inference."""
         generator = self._get_local_generator(model)
@@ -149,6 +153,7 @@ class InferenceRouter:
             top_k=top_k,
             top_p=top_p,
             return_metadata=True,
+            stop_at_eos=stop_at_eos,
         )
         result["model"] = model.name
         return result
@@ -161,6 +166,7 @@ class InferenceRouter:
         temperature: float,
         top_k: Optional[int],
         top_p: Optional[float],
+        stop_at_eos: bool,
     ) -> dict:
         """Generate using Modal inference."""
         from services.modal_inference import get_inference_worker
@@ -175,6 +181,7 @@ class InferenceRouter:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            stop_at_eos=stop_at_eos,
             **model.worker_kwargs(),
         )
         return result
@@ -187,6 +194,8 @@ class InferenceRouter:
         temperature: float = 0.8,
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
+        stop_at_eos: bool = False,
+        stop_key: Optional[str] = None,
     ) -> AsyncIterator[str | dict]:
         """
         Stream text generation.
@@ -198,68 +207,57 @@ class InferenceRouter:
             temperature: Sampling temperature
             top_k: Top-k sampling
             top_p: Nucleus sampling
+            stop_at_eos: End at the model's end-of-sequence token; otherwise generate
+                exactly max_tokens
+            stop_key: The generation ends early once this key is stopped
+                (services.generation_control)
 
         Yields:
             Generated text tokens, then a dict of the request's real token counts
-            ({"prompt_tokens", "generated_tokens"})
+            ({"prompt_tokens", "generated_tokens"}) and why it ended ("finish_reason")
         """
-        if self.is_modal_mode():
-            async for token in self._stream_modal(
-                model, prompt, max_tokens, temperature, top_k, top_p
-            ):
-                yield token
-        else:
-            for token in self._stream_local(
-                model, prompt, max_tokens, temperature, top_k, top_p
-            ):
-                yield token
-
-    def _stream_local(
-        self,
-        model: "ModelRef",
-        prompt: str,
-        max_tokens: int,
-        temperature: float,
-        top_k: Optional[int],
-        top_p: Optional[float],
-    ):
-        """Stream using local inference."""
-        generator = self._get_local_generator(model)
-        yield from generator.generate_stream(
-            prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            report_usage=True,
+        kwargs = dict(
+            prompt=prompt, max_tokens=max_tokens, temperature=temperature, top_k=top_k,
+            top_p=top_p, stop_at_eos=stop_at_eos,
         )
+        if self.is_modal_mode():
+            from services.modal_inference import get_inference_worker
 
-    async def _stream_modal(
-        self,
-        model: "ModelRef",
-        prompt: str,
-        max_tokens: int,
-        temperature: float,
-        top_k: Optional[int],
-        top_p: Optional[float],
-    ) -> AsyncIterator[str | dict]:
-        """Stream using Modal inference."""
-        from services.modal_inference import get_inference_worker
+            worker = get_inference_worker(self.get_gpu_tier(model.name))
+            async for item in worker().generate_stream.remote_gen.aio(
+                model_id=model.name, report_usage=True, stop_key=stop_key,
+                **kwargs, **model.worker_kwargs(),
+            ):
+                yield item
+        else:
+            generator = self._get_local_generator(model)
+            async for item in self._iterate_local(
+                lambda should_stop: generator.generate_stream(
+                    report_usage=True, should_stop=should_stop, **kwargs
+                ),
+                stop_key,
+            ):
+                yield item
 
-        gpu_tier = self.get_gpu_tier(model.name)
-        worker = get_inference_worker(gpu_tier)
+    async def _iterate_local(self, start, stop_key: Optional[str]) -> AsyncIterator:
+        """
+        Iterate a local generation in a worker thread, so the event loop (and stop
+        requests) keep running meanwhile.
 
-        async for token in worker().generate_stream.remote_gen.aio(
-            model_id=model.name,
-            prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            report_usage=True,
-            **model.worker_kwargs(),
-        ):
-            yield token
+        Args:
+            start: Called with the generation's should_stop check; returns its iterator
+            stop_key: Key the generation can be stopped by (None: it can't be)
+        """
+        from starlette.concurrency import iterate_in_threadpool
+
+        from services.generation_control import clear_local_stop, local_stop_check
+
+        should_stop = local_stop_check(stop_key) if stop_key else None
+        try:
+            async for item in iterate_in_threadpool(start(should_stop)):
+                yield item
+        finally:
+            clear_local_stop(stop_key)
 
     async def generate_with_activations(
         self,
@@ -270,6 +268,8 @@ class InferenceRouter:
         top_k: Optional[int] = 40,
         top_p: Optional[float] = None,
         user_id: Optional[int] = None,
+        stop_at_eos: bool = False,
+        fit_to_limit: bool = False,
     ) -> dict:
         """
         Generate text with activation capture.
@@ -285,30 +285,30 @@ class InferenceRouter:
             top_k: Top-k sampling
             top_p: Nucleus sampling
             user_id: Owner of the stored activations (local mode stores them here)
+            stop_at_eos: End at the model's end-of-sequence token; otherwise generate
+                exactly max_tokens
+            fit_to_limit: Lower max_tokens to what can be visualized instead of refusing
+                the request
 
         Returns:
             Generation result with activations or activation_id
         """
         if self.is_modal_mode():
-            return await self._generate_with_activations_modal(
-                model, prompt, max_tokens, temperature, top_k, top_p
-            )
-        else:
-            return self._generate_with_activations_local(
-                model, prompt, max_tokens, temperature, top_k, top_p, user_id
+            from services.modal_inference import get_inference_worker
+
+            worker = get_inference_worker(self.get_gpu_tier(model.name))
+            return await worker().generate_with_activations.remote.aio(
+                model_id=model.name,
+                prompt=prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                stop_at_eos=stop_at_eos,
+                fit_to_limit=fit_to_limit,
+                **model.worker_kwargs(),
             )
 
-    def _generate_with_activations_local(
-        self,
-        model: "ModelRef",
-        prompt: str,
-        max_tokens: int,
-        temperature: float,
-        top_k: Optional[int],
-        top_p: Optional[float],
-        user_id: Optional[int],
-    ) -> dict:
-        """Generate with activations using local inference."""
         generator = self._get_local_generator(model)
         result = generator.generate_with_activations(
             prompt=prompt,
@@ -317,35 +317,71 @@ class InferenceRouter:
             top_k=top_k,
             top_p=top_p,
             user_id=user_id,
+            stop_at_eos=stop_at_eos,
+            fit_to_context=fit_to_limit,
         )
         result["model"] = model.name
         return result
 
-    async def _generate_with_activations_modal(
+    async def generate_with_activations_stream(
         self,
         model: "ModelRef",
         prompt: str,
-        max_tokens: int,
-        temperature: float,
-        top_k: Optional[int],
-        top_p: Optional[float],
-    ) -> dict:
-        """Generate with activations using Modal inference."""
-        from services.modal_inference import get_inference_worker
+        max_tokens: int = 200,
+        temperature: float = 0.8,
+        top_k: Optional[int] = 40,
+        top_p: Optional[float] = None,
+        user_id: Optional[int] = None,
+        stop_at_eos: bool = False,
+        fit_to_limit: bool = False,
+        stop_key: Optional[str] = None,
+    ) -> AsyncIterator[str | dict]:
+        """
+        Generate text with activation capture, streaming the text as it's generated.
 
-        gpu_tier = self.get_gpu_tier(model.name)
-        worker = get_inference_worker(gpu_tier)
+        Arguments as for generate_with_activations, plus stop_key (as for generate_stream).
 
-        result = await worker().generate_with_activations.remote.aio(
-            model_id=model.name,
-            prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            **model.worker_kwargs(),
-        )
-        return result
+        Yields:
+            Text chunks, then {"event": "generated"} once generation is done and the
+            capture starts, then the result as generate_with_activations returns it
+        """
+        if self.is_modal_mode():
+            from services.modal_inference import get_inference_worker
+
+            worker = get_inference_worker(self.get_gpu_tier(model.name))
+            async for item in worker().generate_with_activations_stream.remote_gen.aio(
+                model_id=model.name,
+                prompt=prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                stop_at_eos=stop_at_eos,
+                fit_to_limit=fit_to_limit,
+                stop_key=stop_key,
+                **model.worker_kwargs(),
+            ):
+                yield item
+            return
+
+        generator = self._get_local_generator(model)
+        async for item in self._iterate_local(
+            lambda should_stop: generator.generate_with_activations_stream(
+                prompt=prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                user_id=user_id,
+                stop_at_eos=stop_at_eos,
+                fit_to_context=fit_to_limit,
+                should_stop=should_stop,
+            ),
+            stop_key,
+        ):
+            if isinstance(item, dict) and "event" not in item:
+                item["model"] = model.name
+            yield item
 
     async def list_models(self) -> list:
         """

@@ -42,6 +42,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 1536,
     vocab_size: 49152,
     max_seq_len: 2048,
+    is_instruct: false,
     gpu_tier: 'l4',
   },
   {
@@ -57,6 +58,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 1536,
     vocab_size: 49152,
     max_seq_len: 8192,
+    is_instruct: true,
     gpu_tier: 'l4',
   },
   {
@@ -72,6 +74,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 2560,
     vocab_size: 49152,
     max_seq_len: 2048,
+    is_instruct: false,
     gpu_tier: 'l4',
   },
   {
@@ -87,6 +90,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 2560,
     vocab_size: 49152,
     max_seq_len: 8192,
+    is_instruct: true,
     gpu_tier: 'l4',
   },
   {
@@ -102,6 +106,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 11008,
     vocab_size: 128256,
     max_seq_len: 65536,
+    is_instruct: false,
     gpu_tier: 'a10g',
   },
   {
@@ -117,6 +122,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 11008,
     vocab_size: 128256,
     max_seq_len: 65536,
+    is_instruct: true,
     gpu_tier: 'a10g',
   },
   {
@@ -132,6 +138,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 2048,
     vocab_size: 262144,
     max_seq_len: 32768,
+    is_instruct: false,
     gpu_tier: 'l4',
   },
   {
@@ -147,6 +154,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 2048,
     vocab_size: 262144,
     max_seq_len: 32768,
+    is_instruct: true,
     gpu_tier: 'l4',
   },
   {
@@ -162,6 +170,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 6912,
     vocab_size: 262144,
     max_seq_len: 32768,
+    is_instruct: false,
     gpu_tier: 'l4',
   },
   {
@@ -177,6 +186,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 6912,
     vocab_size: 262144,
     max_seq_len: 32768,
+    is_instruct: true,
     gpu_tier: 'l4',
   },
   {
@@ -192,6 +202,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 3072,
     vocab_size: 151936,
     max_seq_len: 32768,
+    is_instruct: false,
     gpu_tier: 'l4',
   },
   {
@@ -207,6 +218,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 3072,
     vocab_size: 151936,
     max_seq_len: 40960,
+    is_instruct: true,
     gpu_tier: 'l4',
   },
   {
@@ -222,6 +234,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 6144,
     vocab_size: 151936,
     max_seq_len: 32768,
+    is_instruct: false,
     gpu_tier: 'l4',
   },
   {
@@ -237,6 +250,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 6144,
     vocab_size: 151936,
     max_seq_len: 40960,
+    is_instruct: true,
     gpu_tier: 'l4',
   },
   {
@@ -252,6 +266,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 9728,
     vocab_size: 151936,
     max_seq_len: 32768,
+    is_instruct: false,
     gpu_tier: 'a10g',
   },
   {
@@ -267,6 +282,7 @@ export const STATIC_OPEN_SOURCE_MODELS: OpenSourceModelInfo[] = [
     intermediate_dim: 9728,
     vocab_size: 151936,
     max_seq_len: 40960,
+    is_instruct: true,
     gpu_tier: 'a10g',
   },
 ]

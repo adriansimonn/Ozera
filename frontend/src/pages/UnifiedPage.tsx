@@ -4,9 +4,10 @@
  * Uses lazy loading to fetch activation data on-demand for better performance.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import TextGenerator from '../components/model/TextGenerator'
+import type { GenerationStreamState } from '../components/model/TextGenerator'
 import ModelInfoBox from '../components/model/ModelInfoBox'
 import { AttentionHeatmap } from '../components/visualization/AttentionHeatmap'
 import { LayerActivationDisplay } from '../components/visualization/LayerActivationDisplay'
@@ -40,7 +41,9 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
   // Model info box state (independent from TextGenerator)
   const [infoBoxModel, setInfoBoxModel] = useState<string>('nano')
 
-  const [generating, setGenerating] = useState(false)
+  // The generation in progress, if any
+  const [stream, setStream] = useState<GenerationStreamState | null>(null)
+  const streamBoxRef = useRef<HTMLDivElement>(null)
 
   // Visualization controls
   const [selectedLayer, setSelectedLayer] = useState(0)
@@ -65,6 +68,14 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
     loadActivation(newActivationId)
   }
 
+  // Keep the newest streamed text in view, unless the user has scrolled up to read
+  useEffect(() => {
+    const el = streamBoxRef.current
+    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 48) {
+      el.scrollTop = el.scrollHeight
+    }
+  }, [stream?.text])
+
   const numLayers = activationData?.activations.layers?.length || summary?.num_layers || 0
   // Try loaded layer data first, then fall back to summary layer_info for head count
   const numHeads = activationData?.activations.layers?.[0]?.attn_weights?.shape[1]
@@ -80,12 +91,22 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
   ]
 
   const renderVisualization = () => {
-    if (generating) {
+    if (stream?.mode === 'visualize') {
       return (
         <div className="visualization-placeholder">
-          <div className="placeholder-content">
+          <div className="placeholder-content generating-content">
             <div className="spinner" />
-            <p className="placeholder-text">Generating and capturing activations...</p>
+            <p className="placeholder-text">
+              {stream.phase === 'capturing' ? 'Capturing activations...' :
+               stream.phase === 'stopping' ? 'Stopping generation...' :
+               'Generating and capturing activations...'}
+            </p>
+            {stream.text && (
+              <div ref={streamBoxRef} className="stream-box">
+                {stream.text}
+                {stream.phase === 'streaming' && <span className="stream-cursor">|</span>}
+              </div>
+            )}
           </div>
         </div>
       )
@@ -320,7 +341,7 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
             <TextGenerator
               defaultModel="nano"
               onActivationGenerated={handleActivationGenerated}
-              onGeneratingChange={setGenerating}
+              onStreamUpdate={setStream}
               onModelChange={setInfoBoxModel}
               onShowPurchaseCredits={onShowPurchaseCredits}
             />
@@ -747,6 +768,37 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
           font-size: 0.875rem;
         }
 
+        .generating-content {
+          width: 100%;
+          max-width: 720px;
+        }
+
+        .stream-box {
+          max-height: 45vh;
+          overflow-y: auto;
+          margin-top: 1.5rem;
+          padding: 1rem 1.25rem;
+          background: rgba(0, 0, 0, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+          text-align: left;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.85rem;
+          line-height: 1.7;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+
+        .stream-cursor {
+          margin-left: 2px;
+          animation: stream-blink 0.8s infinite;
+        }
+
+        @keyframes stream-blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
+
         .spinner {
           width: 40px;
           height: 40px;
@@ -822,6 +874,7 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
         [data-bg="light"] .placeholder-content { color: #1d1d1f; }
         [data-bg="light"] .placeholder-error { color: #1d1d1f; }
         [data-bg="light"] .spinner { border-color: rgba(0,0,0,0.15); border-top-color: #1d1d1f; }
+        [data-bg="light"] .stream-box { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); color: #1d1d1f; }
         [data-bg="light"] .metadata-card { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
         [data-bg="light"] .metadata-label { color: #1d1d1f; }
         [data-bg="light"] .metadata-value { color: #1d1d1f; }

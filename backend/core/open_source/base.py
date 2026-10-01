@@ -3,19 +3,40 @@ Abstract base class for open-source model loaders.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Callable, Optional
 import os
 import threading
 import torch
 
 from core.activation_limits import ActivationLimitError, max_capture_tokens
 from core.tensor_codec import encode_tensor
+from core.transformer.sampling import FINISH_EOS, FINISH_LENGTH, FINISH_STOP
 from .registry import OPEN_SOURCE_MODELS, OpenSourceModelConfig
 
 
 def get_hf_token() -> Optional[str]:
     """Get HuggingFace token from environment variables."""
     return os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN")
+
+
+def _stop_criteria(should_stop: Callable[[], bool]):
+    """
+    A generate() stopping criterion that ends generation once should_stop() returns True.
+
+    Its `fired` attribute says whether it did. (Defined here because transformers is only
+    installed on the GPU workers.)
+    """
+    from transformers import StoppingCriteria
+
+    class _ShouldStop(StoppingCriteria):
+        fired = False
+
+        def __call__(self, input_ids, scores, **kwargs):
+            if should_stop():
+                self.fired = True
+            return torch.full((input_ids.shape[0],), self.fired, dtype=torch.bool, device=input_ids.device)
+
+    return _ShouldStop()
 
 
 class OpenSourceModelLoader(ABC):
@@ -128,6 +149,105 @@ class OpenSourceModelLoader(ABC):
             return_tensors="pt",
         ).to(self.device)
 
+    @property
+    def eos_token_ids(self) -> list[int]:
+        """
+        IDs of the tokens that end a generation for this model.
+
+        The registry's EOS tokens, looked up in the model's own tokenizer, plus any the
+        checkpoint's generation config or tokenizer declares.
+        """
+        if getattr(self, "_eos_token_ids", None) is None:
+            ids: list[int] = []
+            unk_id = getattr(self.tokenizer, "unk_token_id", None)
+            for token in self.config.eos_tokens:
+                token_id = self.tokenizer.convert_tokens_to_ids(token)
+                if isinstance(token_id, int) and token_id != unk_id:
+                    ids.append(token_id)
+            declared = getattr(getattr(self.model, "generation_config", None), "eos_token_id", None)
+            if isinstance(declared, int):
+                declared = [declared]
+            ids.extend(declared or [])
+            if self.tokenizer.eos_token_id is not None:
+                ids.append(self.tokenizer.eos_token_id)
+            self._eos_token_ids = list(dict.fromkeys(ids))
+        return self._eos_token_ids
+
+    def _generate(
+        self,
+        inputs,
+        max_new_tokens: int,
+        temperature: float,
+        top_k: Optional[int],
+        top_p: Optional[float],
+        do_sample: bool,
+        stop_at_eos: bool,
+        should_stop: Optional[Callable[[], bool]],
+        streamer=None,
+        use_cache: bool = True,
+    ) -> tuple[torch.Tensor, str]:
+        """
+        Run model.generate() for one prompt (caller holds self.lock).
+
+        Args:
+            inputs: The prompt's BatchEncoding (from encode_prompt)
+            stop_at_eos: End at the model's EOS tokens; otherwise generate max_new_tokens
+                regardless of them
+            should_stop: Checked after each token; generation ends once it returns True
+            streamer: Optional transformers streamer that receives tokens as they're generated
+
+        Returns:
+            (the sequence's token IDs including the prompt, the finish reason)
+        """
+        # Temperature <= 0 or very close to 0 should use greedy decoding
+        if temperature <= 0.01:
+            temperature = 1.0
+            do_sample = False
+
+        gen_kwargs = {
+            "max_new_tokens": max_new_tokens,
+            "temperature": temperature,
+            "do_sample": do_sample,
+            "pad_token_id": self.tokenizer.eos_token_id,
+            "use_cache": use_cache,
+            # None overrides the checkpoint's generation config, so EOS doesn't end generation
+            "eos_token_id": self.eos_token_ids if stop_at_eos else None,
+        }
+
+        # Add attention mask to avoid unexpected behavior when pad_token == eos_token
+        if hasattr(inputs, "attention_mask"):
+            gen_kwargs["attention_mask"] = inputs.attention_mask
+
+        if top_k is not None:
+            gen_kwargs["top_k"] = top_k
+        if top_p is not None:
+            gen_kwargs["top_p"] = top_p
+        if streamer is not None:
+            gen_kwargs["streamer"] = streamer
+
+        stop = None
+        if should_stop is not None:
+            from transformers import StoppingCriteriaList
+
+            stop = _stop_criteria(should_stop)
+            gen_kwargs["stopping_criteria"] = StoppingCriteriaList([stop])
+
+        with torch.no_grad():
+            generated_ids = self.model.generate(inputs.input_ids, **gen_kwargs)[0]
+
+        prompt_tokens = inputs.input_ids.shape[1]
+        if stop is not None and stop.fired:
+            finish_reason = FINISH_STOP
+        elif (
+            stop_at_eos
+            and generated_ids.shape[0] > prompt_tokens
+            and generated_ids[-1].item() in self.eos_token_ids
+        ):
+            finish_reason = FINISH_EOS
+        else:
+            finish_reason = FINISH_LENGTH
+        return generated_ids, finish_reason
+
     def _remove_hooks(self) -> None:
         """Remove all registered hooks."""
         for hook in self._hooks:
@@ -143,6 +263,9 @@ class OpenSourceModelLoader(ABC):
         top_p: Optional[float] = None,
         do_sample: bool = True,
         use_cache: bool = True,
+        stop_at_eos: bool = True,
+        should_stop: Optional[Callable[[], bool]] = None,
+        streamer=None,
     ) -> dict:
         """
         Generate text from a prompt.
@@ -156,44 +279,32 @@ class OpenSourceModelLoader(ABC):
             do_sample: Whether to use sampling (False = greedy)
             use_cache: Whether to use the KV cache. Without it, every step recomputes the
                 whole sequence (slower; patching needs it for some interventions).
+            stop_at_eos: End at the model's EOS tokens (see eos_token_ids); otherwise
+                generate exactly max_new_tokens
+            should_stop: Checked before and during generation; generation ends once it
+                returns True
+            streamer: Optional transformers streamer that receives tokens as they're generated
 
         Returns:
-            Dict with generated text and token info
+            Dict with generated text, token info, and why generation ended ("finish_reason")
         """
         if self.model is None or self.tokenizer is None:
             raise RuntimeError("Model not loaded. Call load() first.")
 
         inputs = self.encode_prompt(prompt)
-
-        # Handle temperature edge cases
-        # Temperature <= 0 or very close to 0 should use greedy decoding
-        if temperature <= 0.01:
-            temperature = 1.0
-            do_sample = False
-
-        gen_kwargs = {
-            "max_new_tokens": max_new_tokens,
-            "temperature": temperature,
-            "do_sample": do_sample,
-            "pad_token_id": self.tokenizer.eos_token_id,
-            "use_cache": use_cache,
-        }
-
-        # Add attention mask to avoid unexpected behavior when pad_token == eos_token
-        if hasattr(inputs, "attention_mask"):
-            gen_kwargs["attention_mask"] = inputs.attention_mask
-
-        if top_k is not None:
-            gen_kwargs["top_k"] = top_k
-        if top_p is not None:
-            gen_kwargs["top_p"] = top_p
-
-        with self.lock, torch.no_grad():
-            outputs = self.model.generate(inputs.input_ids, **gen_kwargs)
-
-        generated_ids = outputs[0]
-        generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
         prompt_tokens = inputs.input_ids.shape[1]
+
+        with self.lock:
+            if should_stop is not None and should_stop():
+                # Stopped before it started (e.g. while the worker was starting up)
+                generated_ids, finish_reason = inputs.input_ids[0], FINISH_STOP
+            else:
+                generated_ids, finish_reason = self._generate(
+                    inputs, max_new_tokens, temperature, top_k, top_p, do_sample,
+                    stop_at_eos, should_stop, streamer=streamer, use_cache=use_cache,
+                )
+
+        generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
         total_tokens = generated_ids.shape[0]
 
         return {
@@ -203,6 +314,7 @@ class OpenSourceModelLoader(ABC):
             "generated_tokens": total_tokens - prompt_tokens,
             "total_tokens": total_tokens,
             "tokens": generated_ids.tolist(),
+            "finish_reason": finish_reason,
         }
 
     def generate_with_activations(
@@ -213,6 +325,10 @@ class OpenSourceModelLoader(ABC):
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
         do_sample: bool = True,
+        stop_at_eos: bool = True,
+        should_stop: Optional[Callable[[], bool]] = None,
+        streamer=None,
+        fit_to_capture_limit: bool = False,
     ) -> dict:
         """
         Generate text and capture activations for visualization.
@@ -228,9 +344,18 @@ class OpenSourceModelLoader(ABC):
             top_k: Top-k sampling parameter
             top_p: Nucleus sampling parameter
             do_sample: Whether to use sampling
+            stop_at_eos: End at the model's EOS tokens; otherwise generate max_new_tokens
+            should_stop: Checked before and during generation; generation ends once it
+                returns True, and the tokens generated so far are captured
+            streamer: Optional transformers streamer that receives tokens as they're generated
+            fit_to_capture_limit: Generate at most as many tokens as can be captured,
+                instead of refusing a max_new_tokens past the limit (for open-ended
+                generation, where max_new_tokens is only a cap)
 
         Returns:
-            Dict with generated text, token info, and activations
+            Dict with generated text, token info, activations, and why generation ended
+            ("finish_reason"). A request stopped before generating anything has no
+            "activations".
 
         Raises:
             ActivationLimitError: the prompt plus max_new_tokens would capture more
@@ -243,6 +368,8 @@ class OpenSourceModelLoader(ABC):
         prompt_tokens = inputs.input_ids.shape[1]
 
         token_limit = self._capture_token_limit()
+        if fit_to_capture_limit and prompt_tokens < token_limit:
+            max_new_tokens = min(max_new_tokens, token_limit - prompt_tokens)
         if prompt_tokens + max_new_tokens > token_limit:
             raise ActivationLimitError(
                 f"Visualizing {self.config.display_name} is limited to {token_limit} tokens "
@@ -250,30 +377,27 @@ class OpenSourceModelLoader(ABC):
                 f"{max(token_limit - prompt_tokens, 0)} tokens."
             )
 
-        # Handle temperature edge cases
-        if temperature <= 0.01:
-            temperature = 1.0
-            do_sample = False
-
-        gen_kwargs = {
-            "max_new_tokens": max_new_tokens,
-            "temperature": temperature,
-            "do_sample": do_sample,
-            "pad_token_id": self.tokenizer.eos_token_id,
+        base_result = {
+            "prompt": prompt,
+            "prompt_tokens": prompt_tokens,
         }
 
-        if hasattr(inputs, "attention_mask"):
-            gen_kwargs["attention_mask"] = inputs.attention_mask
-
-        if top_k is not None:
-            gen_kwargs["top_k"] = top_k
-        if top_p is not None:
-            gen_kwargs["top_p"] = top_p
-
         with self.lock:
+            if should_stop is not None and should_stop():
+                # Stopped before it started: nothing generated, so nothing to capture
+                return {
+                    **base_result,
+                    "text": "",
+                    "generated_tokens": 0,
+                    "total_tokens": prompt_tokens,
+                    "finish_reason": FINISH_STOP,
+                }
+
             # Step 1: Generate tokens.
-            with torch.no_grad():
-                generated_ids = self.model.generate(inputs.input_ids, **gen_kwargs)[0]
+            generated_ids, finish_reason = self._generate(
+                inputs, max_new_tokens, temperature, top_k, top_p, do_sample,
+                stop_at_eos, should_stop, streamer=streamer,
+            )
 
             total_tokens = generated_ids.shape[0]
             generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
@@ -290,9 +414,8 @@ class OpenSourceModelLoader(ABC):
 
             try:
                 result = {
+                    **base_result,
                     "text": generated_text,
-                    "prompt": prompt,
-                    "prompt_tokens": prompt_tokens,
                     "generated_tokens": total_tokens - prompt_tokens,
                     "total_tokens": total_tokens,
                     "tokens": generated_ids.tolist(),
@@ -300,6 +423,7 @@ class OpenSourceModelLoader(ABC):
                     "decoded_tokens": [
                         self.tokenizer.decode([tok]) for tok in generated_ids.tolist()
                     ],
+                    "finish_reason": finish_reason,
                 }
             finally:
                 # The result holds encoded copies; don't keep the GPU tensors until the next capture

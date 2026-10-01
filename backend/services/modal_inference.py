@@ -8,7 +8,8 @@ Separate from the training app to allow independent scaling and deployment.
 
 import os
 import threading
-from typing import Iterator, Optional
+import time
+from typing import Callable, Iterator, Optional
 
 import modal
 
@@ -56,11 +57,100 @@ SCALEDOWN_WINDOW_SECONDS = {
     "a10g": 120,
 }
 
+# Stop requests for running generations. The backend puts a generation's stop key here
+# (services.generation_control); the worker generating it polls for the key and ends early.
+# Entries expire after 7 days without reads or writes.
+STOP_SIGNALS_DICT_NAME = "ozera-generation-stops"
+stop_signals = modal.Dict.from_name(STOP_SIGNALS_DICT_NAME, create_if_missing=True)
+
 # Base model paths in volume
 BASE_MODEL_PATHS = {
     "nano": "/models/base/ozera-nano/model.pt",
     "mini": "/models/base/ozera-mini/model.pt",
 }
+
+
+class _StopWatcher:
+    """
+    Whether a generation has been asked to stop, for checking between tokens.
+
+    A background thread polls the stop-signal Dict for the generation's key, so checking
+    is free for the generation loop. Without a key, it never says stop.
+    """
+
+    POLL_SECONDS = 0.25
+    # Longest any request runs (the A10G worker's timeout), so a watcher that's never
+    # closed doesn't poll forever
+    MAX_WATCH_SECONDS = 600
+
+    def __init__(self, stop_key: Optional[str]):
+        self._key = stop_key
+        self._stopped = threading.Event()
+        self._closed = threading.Event()
+        if stop_key:
+            threading.Thread(target=self._poll, daemon=True).start()
+
+    def _poll(self):
+        deadline = time.monotonic() + self.MAX_WATCH_SECONDS
+        while time.monotonic() < deadline:
+            try:
+                if stop_signals.contains(self._key):
+                    self._stopped.set()
+                    stop_signals.pop(self._key, None)
+                    return
+            except Exception as e:
+                # A failed poll only delays the stop to the next one
+                print(f"Stop signal poll failed: {e}")
+            if self._closed.wait(self.POLL_SECONDS):
+                return
+
+    def __call__(self) -> bool:
+        return self._stopped.is_set()
+
+    def close(self):
+        self._closed.set()
+
+
+def _stream_open_source(run: Callable, tokenizer, skip_special_tokens: bool) -> Iterator[str | dict]:
+    """
+    Run an open-source loader's generation in a thread, yielding its text as it's generated.
+
+    Args:
+        run: Called with a streamer; runs the generation and returns its result dict
+        tokenizer: The model's tokenizer
+        skip_special_tokens: Leave special tokens (e.g. an EOS the generation ran past) out
+            of the streamed text
+
+    Yields:
+        Text chunks, then {"event": "generated"} once generation is done (run may still be
+        working, e.g. capturing activations), then run's result
+    """
+    from transformers import TextIteratorStreamer
+
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=skip_special_tokens)
+    outcome = {}
+
+    def run_and_end():
+        try:
+            outcome["result"] = run(streamer)
+        except BaseException as e:
+            outcome["error"] = e
+        finally:
+            # Ends the stream below also when run returns or fails without generating
+            streamer.end()
+
+    thread = threading.Thread(target=run_and_end)
+    thread.start()
+
+    for text in streamer:
+        if text:
+            yield text
+    yield {"event": "generated"}
+
+    thread.join()
+    if "error" in outcome:
+        raise outcome["error"]
+    yield outcome["result"]
 
 
 class _InferenceWorker:
@@ -267,6 +357,60 @@ class _InferenceWorker:
 
         raise FileNotFoundError(f"Model '{model_id}' not found")
 
+    def _ozera_tokens(
+        self,
+        model_id: str,
+        prompt: str,
+        max_tokens: int,
+        temperature: float,
+        top_k: Optional[int],
+        top_p: Optional[float],
+        owner_id: Optional[int],
+        version: Optional[str],
+        stop_at_eos: bool,
+        should_stop: Optional[Callable[[], bool]] = None,
+        for_capture: bool = False,
+        fit_to_context: bool = False,
+    ):
+        """
+        Set up an Ozera model's generation.
+
+        Args:
+            for_capture: Activations of the whole sequence will be captured, so it has to
+                fit the model's context window (raises ActivationLimitError otherwise)
+            fit_to_context: With for_capture, lower max_tokens to what fits the context
+                window instead of refusing the request
+
+        Returns:
+            (model, prompt token IDs, TokenStream to iterate)
+        """
+        import torch
+        from core.transformer.sampling import TokenStream
+
+        model, config = self._get_model(model_id, owner_id, version)
+        prompt_ids = self._tokenizer.encode(prompt)
+
+        if for_capture:
+            from core.activation_limits import check_fits_context
+
+            if fit_to_context and len(prompt_ids) < config.max_seq_len:
+                max_tokens = min(max_tokens, config.max_seq_len - len(prompt_ids))
+            # The whole sequence has to fit the context window for the capture to match the tokens
+            check_fits_context(model_id, len(prompt_ids), max_tokens, config.max_seq_len)
+
+        stream = TokenStream(
+            model,
+            torch.tensor([prompt_ids], dtype=torch.long).to("cuda"),
+            max_new_tokens=max_tokens,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            vocab_size=self._tokenizer.vocab_size,
+            eos_token_id=self._tokenizer.eos_token_id if stop_at_eos else None,
+            should_stop=should_stop,
+        )
+        return model, prompt_ids, stream
+
     @modal.method()
     def generate(
         self,
@@ -278,10 +422,14 @@ class _InferenceWorker:
         top_p: Optional[float] = None,
         owner_id: Optional[int] = None,
         version: Optional[str] = None,
+        stop_at_eos: bool = False,
     ) -> dict:
-        """Generate text from a model (Ozera or open-source)."""
-        import torch
+        """
+        Generate text from a model (Ozera or open-source).
 
+        With stop_at_eos, generation ends at the model's end-of-sequence token (or after
+        max_tokens); otherwise it generates exactly max_tokens.
+        """
         # Handle open-source models
         if self._is_open_source_model(model_id):
             loader = self._get_open_source_loader(model_id)
@@ -292,6 +440,7 @@ class _InferenceWorker:
                 top_k=top_k,
                 top_p=top_p,
                 do_sample=temperature > 0,
+                stop_at_eos=stop_at_eos,
             )
             result["model"] = model_id
             result["top_k"] = top_k
@@ -300,33 +449,35 @@ class _InferenceWorker:
             return result
 
         # Handle Ozera models
-        model, config = self._get_model(model_id, owner_id, version)
-
-        prompt_ids = self._tokenizer.encode(prompt)
-        input_ids = torch.tensor([prompt_ids], dtype=torch.long).to("cuda")
-
-        generated_ids, _ = model.generate(
-            input_ids,
-            max_new_tokens=max_tokens,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            return_attention=False,
+        _, prompt_ids, stream = self._ozera_tokens(
+            model_id, prompt, max_tokens, temperature, top_k, top_p, owner_id, version,
+            stop_at_eos,
         )
+        for _ in stream:
+            pass
 
-        generated_text = self._tokenizer.decode(generated_ids[0].cpu().tolist())
+        token_list = stream.input_ids[0].cpu().tolist()
+        generated_text = self._tokenizer.decode(self._text_ids(token_list, stream.finish_reason))
 
         return {
             "text": generated_text,
             "prompt": prompt,
             "model": model_id,
             "prompt_tokens": len(prompt_ids),
-            "generated_tokens": len(generated_ids[0]) - len(prompt_ids),
-            "total_tokens": len(generated_ids[0]),
+            "generated_tokens": len(token_list) - len(prompt_ids),
+            "total_tokens": len(token_list),
             "temperature": temperature,
             "top_k": top_k,
             "top_p": top_p,
+            "finish_reason": stream.finish_reason,
         }
+
+    @staticmethod
+    def _text_ids(token_list: list[int], finish_reason: Optional[str]) -> list[int]:
+        """An Ozera sequence's token IDs to show as text: without the EOS that ended it."""
+        from core.transformer.sampling import FINISH_EOS
+
+        return token_list[:-1] if finish_reason == FINISH_EOS else token_list
 
     @modal.method()
     def decode_tokens(self, model_id: str, token_ids: list[int]) -> list[str]:
@@ -349,138 +500,73 @@ class _InferenceWorker:
         owner_id: Optional[int] = None,
         version: Optional[str] = None,
         report_usage: bool = False,
+        stop_at_eos: bool = False,
+        stop_key: Optional[str] = None,
     ) -> Iterator[str | dict]:
         """
         Stream text generation token by token.
 
         Yields text chunks. With report_usage, the last item is instead a dict of the
-        request's real token counts ({"prompt_tokens", "generated_tokens"}), which the
-        backend bills by.
+        request's real token counts ({"prompt_tokens", "generated_tokens"}) and why it
+        ended ("finish_reason"), which the backend bills by.
+
+        With stop_at_eos, generation ends at the model's end-of-sequence token (which isn't
+        streamed); otherwise it generates exactly max_tokens, streaming any EOS it runs past.
+        With a stop_key, it also ends once the backend puts that key in the stop signals.
         """
-        import torch
+        should_stop = _StopWatcher(stop_key)
+        try:
+            # Handle open-source models with HuggingFace streamer
+            if self._is_open_source_model(model_id):
+                loader = self._get_open_source_loader(model_id)
 
-        # Handle open-source models with HuggingFace streamer
-        if self._is_open_source_model(model_id):
-            loader = self._get_open_source_loader(model_id)
+                def run(streamer):
+                    return loader.generate(
+                        prompt=prompt,
+                        max_new_tokens=max_tokens,
+                        temperature=temperature,
+                        top_k=top_k,
+                        top_p=top_p,
+                        do_sample=temperature > 0,
+                        stop_at_eos=stop_at_eos,
+                        should_stop=should_stop,
+                        streamer=streamer,
+                    )
 
-            from transformers import TextIteratorStreamer
-            from threading import Thread
+                for item in _stream_open_source(run, loader.tokenizer, skip_special_tokens=stop_at_eos):
+                    if isinstance(item, str):
+                        yield item
+                    elif "event" not in item and report_usage:
+                        yield {
+                            "prompt_tokens": item["prompt_tokens"],
+                            "generated_tokens": item["generated_tokens"],
+                            "finish_reason": item["finish_reason"],
+                        }
+                return
 
-            inputs = loader.encode_prompt(prompt)
-            streamer = TextIteratorStreamer(
-                loader.tokenizer,
-                skip_prompt=True,
-                skip_special_tokens=True
+            # Handle Ozera models
+            from core.transformer.sampling import TextDeltas
+
+            _, prompt_ids, stream = self._ozera_tokens(
+                model_id, prompt, max_tokens, temperature, top_k, top_p, owner_id, version,
+                stop_at_eos, should_stop,
             )
-
-            gen_kwargs = {
-                "input_ids": inputs.input_ids,
-                "max_new_tokens": max_tokens,
-                "temperature": temperature,
-                "do_sample": temperature > 0,
-                "streamer": streamer,
-                "pad_token_id": loader.tokenizer.eos_token_id,
-            }
-            if top_k is not None:
-                gen_kwargs["top_k"] = top_k
-            if top_p is not None:
-                gen_kwargs["top_p"] = top_p
-
-            generation = {}
-
-            def generate_locked():
-                try:
-                    with loader.lock:
-                        generation["ids"] = loader.model.generate(**gen_kwargs)
-                except BaseException as e:
-                    # Stop the stream below (it would otherwise wait forever), then re-raise
-                    generation["error"] = e
-                    streamer.end()
-
-            # Run generation in a thread so we can stream
-            thread = Thread(target=generate_locked)
-            thread.start()
-
-            for text in streamer:
-                if text:
-                    yield text
-
-            thread.join()
-            if "error" in generation:
-                raise generation["error"]
+            deltas = TextDeltas(self._tokenizer)
+            for token in stream:
+                if stream.eos_token_id is not None and token == stream.eos_token_id:
+                    continue  # The EOS that ends the generation isn't part of its text
+                new_text = deltas.push(token)
+                if new_text:
+                    yield new_text
 
             if report_usage:
-                prompt_tokens = inputs.input_ids.shape[1]
                 yield {
-                    "prompt_tokens": prompt_tokens,
-                    "generated_tokens": generation["ids"].shape[1] - prompt_tokens,
+                    "prompt_tokens": len(prompt_ids),
+                    "generated_tokens": stream.input_ids.size(1) - len(prompt_ids),
+                    "finish_reason": stream.finish_reason,
                 }
-            return
-
-        # Handle Ozera models
-        model, config = self._get_model(model_id, owner_id, version)
-
-        prompt_ids = self._tokenizer.encode(prompt)
-        input_ids = torch.tensor([prompt_ids], dtype=torch.long).to("cuda")
-
-        num_yielded_tokens = len(prompt_ids)
-
-        for _ in range(max_tokens):
-            idx_cond = (
-                input_ids
-                if input_ids.size(1) <= config.max_seq_len
-                else input_ids[:, -config.max_seq_len :]
-            )
-
-            logits, _, _ = model.forward(
-                idx_cond, return_attention=False, capture_activations=False
-            )
-            logits = logits[:, -1, :]
-
-            if temperature == 0.0:
-                next_token = torch.argmax(logits, dim=-1, keepdim=True)
-            else:
-                logits = logits / temperature
-
-                if top_k is not None:
-                    v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                    logits[logits < v[:, [-1]]] = float("-inf")
-
-                if top_p is not None:
-                    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-                    cumulative_probs = torch.cumsum(
-                        torch.softmax(sorted_logits, dim=-1), dim=-1
-                    )
-                    sorted_indices_to_remove = cumulative_probs > top_p
-                    sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[
-                        :, :-1
-                    ].clone()
-                    sorted_indices_to_remove[:, 0] = 0
-                    indices_to_remove = sorted_indices_to_remove.scatter(
-                        1, sorted_indices, sorted_indices_to_remove
-                    )
-                    logits[indices_to_remove] = float("-inf")
-
-                probs = torch.softmax(logits, dim=-1)
-                next_token = torch.multinomial(probs, num_samples=1)
-
-            next_token = torch.clamp(next_token, 0, self._tokenizer.vocab_size - 1)
-            input_ids = torch.cat([input_ids, next_token], dim=1)
-
-            current_ids = input_ids[0].cpu().tolist()
-            current_text = self._tokenizer.decode(current_ids)
-            previous_text = self._tokenizer.decode(current_ids[:num_yielded_tokens])
-
-            new_text = current_text[len(previous_text) :]
-            if new_text:
-                yield new_text
-                num_yielded_tokens = len(current_ids)
-
-        if report_usage:
-            yield {
-                "prompt_tokens": len(prompt_ids),
-                "generated_tokens": input_ids.size(1) - len(prompt_ids),
-            }
+        finally:
+            should_stop.close()
 
     @modal.method()
     def generate_with_activations(
@@ -493,107 +579,156 @@ class _InferenceWorker:
         top_p: Optional[float] = None,
         owner_id: Optional[int] = None,
         version: Optional[str] = None,
+        stop_at_eos: bool = False,
+        fit_to_limit: bool = False,
     ) -> dict:
         """Generate text and return activations for visualization (Ozera or open-source)."""
-        import torch
+        for item in self._generate_with_activations(
+            model_id, prompt, max_tokens, temperature, top_k, top_p, owner_id, version,
+            stop_at_eos, fit_to_limit, stop_key=None,
+        ):
+            if isinstance(item, dict) and "event" not in item:
+                return item
+        raise RuntimeError("Generation ended without a result")
 
-        # Handle open-source models
-        if self._is_open_source_model(model_id):
-            loader = self._get_open_source_loader(model_id)
-            result = loader.generate_with_activations(
-                prompt=prompt,
-                max_new_tokens=max_tokens,
-                temperature=temperature,
-                top_k=top_k,
-                top_p=top_p,
-                do_sample=temperature > 0,
-            )
-            result["model"] = model_id
-            result["top_k"] = top_k
-            result["top_p"] = top_p
-            result["temperature"] = temperature
-            return result
+    @modal.method()
+    def generate_with_activations_stream(
+        self,
+        model_id: str,
+        prompt: str,
+        max_tokens: int = 200,
+        temperature: float = 0.8,
+        top_k: Optional[int] = 40,
+        top_p: Optional[float] = None,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+        stop_at_eos: bool = False,
+        fit_to_limit: bool = False,
+        stop_key: Optional[str] = None,
+    ) -> Iterator[str | dict]:
+        """
+        Generate text with activation capture, streaming the text as it's generated.
 
-        # Handle Ozera models
-        from core.activation_limits import check_fits_context
-
-        model, config = self._get_model(model_id, owner_id, version)
-
-        prompt_ids = self._tokenizer.encode(prompt)
-        # The whole sequence has to fit the context window for the capture to match the tokens
-        check_fits_context(model_id, len(prompt_ids), max_tokens, config.max_seq_len)
-        input_ids = torch.tensor([prompt_ids], dtype=torch.long).to("cuda")
-
-        # Generate tokens
-        for _ in range(max_tokens):
-            logits, _, _ = model.forward(
-                input_ids, return_attention=False, capture_activations=False
-            )
-            logits = logits[:, -1, :]
-
-            if temperature == 0.0:
-                next_token = torch.argmax(logits, dim=-1, keepdim=True)
-            else:
-                logits = logits / temperature
-
-                if top_k is not None:
-                    v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                    logits[logits < v[:, [-1]]] = float("-inf")
-
-                if top_p is not None:
-                    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-                    cumulative_probs = torch.cumsum(
-                        torch.softmax(sorted_logits, dim=-1), dim=-1
-                    )
-                    sorted_indices_to_remove = cumulative_probs > top_p
-                    sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[
-                        :, :-1
-                    ].clone()
-                    sorted_indices_to_remove[:, 0] = 0
-                    indices_to_remove = sorted_indices_to_remove.scatter(
-                        1, sorted_indices, sorted_indices_to_remove
-                    )
-                    logits[indices_to_remove] = float("-inf")
-
-                probs = torch.softmax(logits, dim=-1)
-                next_token = torch.multinomial(probs, num_samples=1)
-
-            next_token = torch.clamp(next_token, 0, self._tokenizer.vocab_size - 1)
-            input_ids = torch.cat([input_ids, next_token], dim=1)
-
-        # Final forward pass with activations, over the whole sequence
-        _, _, activations = model.forward(
-            input_ids, return_attention=True, capture_activations=True
+        Yields text chunks, then {"event": "generated"} when generation is done and the
+        capture starts, then the result (as generate_with_activations returns it).
+        A generation stopped (via stop_key) is captured as far as it got; one stopped before
+        generating anything has no "activations".
+        """
+        yield from self._generate_with_activations(
+            model_id, prompt, max_tokens, temperature, top_k, top_p, owner_id, version,
+            stop_at_eos, fit_to_limit, stop_key,
         )
 
-        generated_text = self._tokenizer.decode(input_ids[0].cpu().tolist())
-        token_list = input_ids[0].cpu().tolist()
-        decoded_tokens = [self._tokenizer.decode([t]) for t in token_list]
+    def _generate_with_activations(
+        self,
+        model_id: str,
+        prompt: str,
+        max_tokens: int,
+        temperature: float,
+        top_k: Optional[int],
+        top_p: Optional[float],
+        owner_id: Optional[int],
+        version: Optional[str],
+        stop_at_eos: bool,
+        fit_to_limit: bool,
+        stop_key: Optional[str],
+    ) -> Iterator[str | dict]:
+        """
+        Generate with activation capture: yields text chunks, {"event": "generated"}, then
+        the result dict.
 
-        # Extract logits for top-K computation before serializing other activations
-        logits_tensor = activations.pop("logits", None)
-        serialized_activations = self._serialize_value(activations)
+        With stop_at_eos, generation ends at the model's end-of-sequence token; otherwise it
+        generates exactly max_tokens. With fit_to_limit, max_tokens is lowered to what can
+        be visualized (the context window for Ozera models, the capture limit for open-source
+        ones) instead of the request being refused.
+        """
+        should_stop = _StopWatcher(stop_key)
+        try:
+            # Handle open-source models
+            if self._is_open_source_model(model_id):
+                loader = self._get_open_source_loader(model_id)
 
-        # Add compact top-K logits instead of full tensor
-        if logits_tensor is not None:
-            serialized_activations["top_k_logits"] = self._logits_to_topk_data(
-                logits_tensor, token_list, k=20
+                def run(streamer):
+                    return loader.generate_with_activations(
+                        prompt=prompt,
+                        max_new_tokens=max_tokens,
+                        temperature=temperature,
+                        top_k=top_k,
+                        top_p=top_p,
+                        do_sample=temperature > 0,
+                        stop_at_eos=stop_at_eos,
+                        should_stop=should_stop,
+                        streamer=streamer,
+                        fit_to_capture_limit=fit_to_limit,
+                    )
+
+                for item in _stream_open_source(run, loader.tokenizer, skip_special_tokens=stop_at_eos):
+                    if isinstance(item, dict) and "event" not in item:
+                        item["model"] = model_id
+                        item["top_k"] = top_k
+                        item["top_p"] = top_p
+                        item["temperature"] = temperature
+                    yield item
+                return
+
+            # Handle Ozera models
+            import torch
+            from core.transformer.sampling import FINISH_STOP, TextDeltas
+
+            model, prompt_ids, stream = self._ozera_tokens(
+                model_id, prompt, max_tokens, temperature, top_k, top_p, owner_id, version,
+                stop_at_eos, should_stop, for_capture=True, fit_to_context=fit_to_limit,
             )
+            deltas = TextDeltas(self._tokenizer)
+            for token in stream:
+                if stream.eos_token_id is not None and token == stream.eos_token_id:
+                    continue  # The EOS that ends the generation isn't part of its text
+                new_text = deltas.push(token)
+                if new_text:
+                    yield new_text
+            yield {"event": "generated"}
 
-        return {
-            "text": generated_text,
-            "prompt": prompt,
-            "model": model_id,
-            "prompt_tokens": len(prompt_ids),
-            "generated_tokens": len(input_ids[0]) - len(prompt_ids),
-            "total_tokens": len(input_ids[0]),
-            "temperature": temperature,
-            "top_k": top_k,
-            "top_p": top_p,
-            "tokens": token_list,
-            "decoded_tokens": decoded_tokens,
-            "activations": serialized_activations,
-        }
+            input_ids = stream.input_ids
+            token_list = input_ids[0].cpu().tolist()
+            result = {
+                "text": self._tokenizer.decode(self._text_ids(token_list, stream.finish_reason)),
+                "prompt": prompt,
+                "model": model_id,
+                "prompt_tokens": len(prompt_ids),
+                "generated_tokens": len(token_list) - len(prompt_ids),
+                "total_tokens": len(token_list),
+                "temperature": temperature,
+                "top_k": top_k,
+                "top_p": top_p,
+                "finish_reason": stream.finish_reason,
+            }
+            if stream.finish_reason == FINISH_STOP and len(token_list) == len(prompt_ids):
+                # Stopped before generating anything: nothing to capture
+                yield result
+                return
+
+            # Final forward pass with activations, over the whole sequence
+            with torch.no_grad():
+                _, _, activations = model.forward(
+                    input_ids, return_attention=True, capture_activations=True
+                )
+
+            # Extract logits for top-K computation before serializing other activations
+            logits_tensor = activations.pop("logits", None)
+            serialized_activations = self._serialize_value(activations)
+
+            # Add compact top-K logits instead of full tensor
+            if logits_tensor is not None:
+                serialized_activations["top_k_logits"] = self._logits_to_topk_data(
+                    logits_tensor, token_list, k=20
+                )
+
+            result["tokens"] = token_list
+            result["decoded_tokens"] = [self._tokenizer.decode([t]) for t in token_list]
+            result["activations"] = serialized_activations
+            yield result
+        finally:
+            should_stop.close()
 
     def _serialize_value(self, value):
         """Recursively encode tensors in a value for transport (see core.tensor_codec)."""

@@ -879,24 +879,24 @@ export const GenerationFlow = memo(function GenerationFlow({
           box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
         }
 
-        .control-group {
+        .generation-flow .control-group {
           display: flex;
           flex-direction: column;
           gap: 0.25rem;
           min-width: 150px;
         }
 
-        .control-group.speed-control {
+        .generation-flow .control-group.speed-control {
           min-width: 300px;
         }
 
-        .control-group label {
+        .generation-flow .control-group label {
           font-size: 0.75rem;
           color: #ffffff;
           font-weight: 600;
         }
 
-        .control-group input[type="range"] {
+        .generation-flow .control-group input[type="range"] {
           width: 100%;
           height: 4px;
           background: rgba(255, 255, 255, 0.1);
@@ -905,7 +905,7 @@ export const GenerationFlow = memo(function GenerationFlow({
           -webkit-appearance: none;
         }
 
-        .control-group input[type="range"]::-webkit-slider-thumb {
+        .generation-flow .control-group input[type="range"]::-webkit-slider-thumb {
           -webkit-appearance: none;
           width: 14px;
           height: 14px;
@@ -1084,7 +1084,7 @@ export const GenerationFlow = memo(function GenerationFlow({
           overflow: hidden;
         }
 
-        .output-header {
+        .generation-flow .output-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -1107,7 +1107,7 @@ export const GenerationFlow = memo(function GenerationFlow({
           font-weight: 400;
         }
 
-        .output-content {
+        .generation-flow .output-content {
           padding: 1rem;
           max-height: 200px;
           overflow-y: auto;
@@ -1148,20 +1148,20 @@ export const GenerationFlow = memo(function GenerationFlow({
           }
         }
 
-        .output-content::-webkit-scrollbar {
+        .generation-flow .output-content::-webkit-scrollbar {
           width: 8px;
         }
 
-        .output-content::-webkit-scrollbar-track {
+        .generation-flow .output-content::-webkit-scrollbar-track {
           background: rgba(15, 23, 42, 0.5);
           border-radius: 4px;
         }
 
-        .output-content::-webkit-scrollbar-thumb {
+        .generation-flow .output-content::-webkit-scrollbar-thumb {
           background: rgba(255, 255, 255, 0.15);
         }
 
-        .output-content::-webkit-scrollbar-thumb:hover {
+        .generation-flow .output-content::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.25);
         }
 
@@ -1290,11 +1290,15 @@ export const GenerationFlow = memo(function GenerationFlow({
           box-shadow: 0 0 10px rgba(0, 0, 0, 0.06);
         }
 
-        [data-bg="light"] .control-group input[type="range"] {
+        [data-bg="light"] .generation-flow .control-group label {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .generation-flow .control-group input[type="range"] {
           background: rgba(0, 0, 0, 0.1);
         }
 
-        [data-bg="light"] .control-group input[type="range"]::-webkit-slider-thumb {
+        [data-bg="light"] .generation-flow .control-group input[type="range"]::-webkit-slider-thumb {
           background: #1d1d1f;
           box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
         }
@@ -1367,7 +1371,7 @@ export const GenerationFlow = memo(function GenerationFlow({
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.05);
         }
 
-        [data-bg="light"] .output-header {
+        [data-bg="light"] .generation-flow .output-header {
           border-bottom: 1px solid rgba(0, 0, 0, 0.1);
         }
 
@@ -1387,15 +1391,15 @@ export const GenerationFlow = memo(function GenerationFlow({
           background: rgba(0, 0, 0, 0.04);
         }
 
-        [data-bg="light"] .output-content::-webkit-scrollbar-track {
+        [data-bg="light"] .generation-flow .output-content::-webkit-scrollbar-track {
           background: rgba(0, 0, 0, 0.03);
         }
 
-        [data-bg="light"] .output-content::-webkit-scrollbar-thumb {
+        [data-bg="light"] .generation-flow .output-content::-webkit-scrollbar-thumb {
           background: rgba(0, 0, 0, 0.12);
         }
 
-        [data-bg="light"] .output-content::-webkit-scrollbar-thumb:hover {
+        [data-bg="light"] .generation-flow .output-content::-webkit-scrollbar-thumb:hover {
           background: rgba(0, 0, 0, 0.2);
         }
 

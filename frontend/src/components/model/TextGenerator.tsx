@@ -5,20 +5,34 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Square } from 'lucide-react'
 import { useStreamingGeneration } from '../../hooks/useGeneration'
 import { useModels } from '../../hooks/useModels'
-import { apiClient } from '../../api/client'
+import type { FinishReason } from '../../api/client'
 import { useAuthStore } from '../../stores/authStore'
 import { Dropdown, type DropdownGroup } from '../common/Dropdown'
+
+export type GenerationMode = 'visualize' | 'tokens'
 
 export interface PlainGenerationResult {
   text: string
   prompt: string
   model: string
+  modelName: string
   maxTokens: number
   temperature: number
   topK: number
+  untilEos: boolean
+  generatedTokens: number | null
+  finishReason: FinishReason | null
+  activationId?: string
+}
+
+// A generation in progress, for showing its text as it streams in
+export interface GenerationStreamState {
+  mode: GenerationMode
+  phase: 'waiting' | 'streaming' | 'capturing' | 'stopping'
+  text: string
 }
 
 interface TextGeneratorProps {
@@ -26,10 +40,10 @@ interface TextGeneratorProps {
   defaultPrompt?: string
   onGenerate?: (text: string) => void
   onActivationGenerated?: (activationId: string) => void
-  onGeneratingChange?: (isGenerating: boolean) => void
   onModelChange?: (model: string) => void
   onPlainTextGenerated?: (result: PlainGenerationResult) => void
-  onStreamingText?: (text: string, streaming: boolean) => void
+  // Called as a generation progresses, and with null once it has ended
+  onStreamUpdate?: (stream: GenerationStreamState | null) => void
   externalModel?: string
   onShowPurchaseCredits?: () => void
 }
@@ -37,15 +51,18 @@ interface TextGeneratorProps {
 // Cold start threshold - show "warming up" message after this delay
 const COLD_START_THRESHOLD_MS = 3000
 
+// Token slider range, and the cap when generating until the end-of-sequence token
+const MAX_TOKENS_SLIDER = 300
+const EOS_MAX_TOKENS = 1000
+
 export const TextGenerator: React.FC<TextGeneratorProps> = ({
   defaultModel = 'nano',
   defaultPrompt = '',
   onGenerate,
   onActivationGenerated,
-  onGeneratingChange,
   onModelChange,
   onPlainTextGenerated,
-  onStreamingText,
+  onStreamUpdate,
   externalModel,
   onShowPurchaseCredits,
 }) => {
@@ -62,21 +79,29 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
     onModelChange?.(newModel)
   }
   const [maxTokens, setMaxTokens] = useState(100)
+  const [untilEos, setUntilEos] = useState(false)
   const [temperature, setTemperature] = useState(0.7)
   const [topK, setTopK] = useState(40)
-  const [capturingActivations, setCapturingActivations] = useState(false)
   const [isWarmingUp, setIsWarmingUp] = useState(false)
   const warmupTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Generation mode dropdown state
-  type GenerationMode = 'visualize' | 'tokens'
   const [generationMode, setGenerationMode] = useState<GenerationMode>('visualize')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const { models, modelNames, modelFamilies, loading: modelsLoading, error: modelsError } = useModels()
-  const { text, loading, streaming, error, insufficientCredits, generate, reset, clearInsufficientCredits } = useStreamingGeneration()
-  const [activationInsufficientCredits, setActivationInsufficientCredits] = useState(false)
+  const { models, modelNames, modelFamilies, openSourceModels, loading: modelsLoading, error: modelsError } = useModels()
+  const {
+    text, loading, streaming, capturing, stopping, error, insufficientCredits,
+    generate, stop, reset, clearInsufficientCredits,
+  } = useStreamingGeneration()
+  const busy = loading || streaming || capturing || stopping
+
+  // Instruct models generate until their end-of-turn token by default, as chat models do
+  const isInstruct = openSourceModels.find(m => m.id === model)?.is_instruct ?? false
+  useEffect(() => {
+    setUntilEos(isInstruct)
+  }, [model, isInstruct])
 
   // Clear warmup timer on unmount
   useEffect(() => {
@@ -87,12 +112,15 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
     }
   }, [])
 
-  // Forward streaming text to parent for token-by-token display
+  // Report the running generation's progress to the parent (the latest callback, without
+  // re-reporting whenever the parent re-renders)
+  const onStreamUpdateRef = useRef(onStreamUpdate)
+  onStreamUpdateRef.current = onStreamUpdate
+  const phase: GenerationStreamState['phase'] =
+    stopping ? 'stopping' : capturing ? 'capturing' : streaming ? 'streaming' : 'waiting'
   useEffect(() => {
-    if (onStreamingText && generationMode === 'tokens' && (loading || streaming || text)) {
-      onStreamingText(text, loading || streaming)
-    }
-  }, [text, loading, streaming, generationMode, onStreamingText])
+    onStreamUpdateRef.current?.(busy ? { mode: generationMode, phase, text } : null)
+  }, [busy, phase, text, generationMode])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -110,6 +138,16 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       return
     }
 
+    const settings = {
+      prompt: prompt.trim(),
+      model,
+      modelName: modelNames[model] || model,
+      maxTokens: untilEos ? EOS_MAX_TOKENS : maxTokens,
+      temperature,
+      topK,
+      untilEos,
+    }
+
     reset()
     setIsWarmingUp(false)
 
@@ -119,26 +157,33 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
     }, COLD_START_THRESHOLD_MS)
 
     try {
-      const finalText = await generate({
-        prompt: prompt.trim(),
+      const result = await generate({
+        prompt: settings.prompt,
         model,
-        max_tokens: maxTokens,
+        max_tokens: settings.maxTokens,
         temperature,
         top_k: topK,
-      })
+        stop_at_eos: untilEos,
+      }, { withActivations: generationMode === 'visualize' })
 
-      if (onGenerate) {
-        onGenerate(finalText)
+      if (!result) {
+        return
       }
 
-      if (onPlainTextGenerated && finalText) {
-        onPlainTextGenerated({
-          text: finalText,
-          prompt: prompt.trim(),
-          model,
-          maxTokens,
-          temperature,
-          topK,
+      onGenerate?.(result.text)
+
+      if (result.activationId) {
+        onActivationGenerated?.(result.activationId)
+      }
+
+      // Stopped before generating anything: nothing to keep
+      if (result.text || result.generatedTokens) {
+        onPlainTextGenerated?.({
+          ...settings,
+          text: result.text,
+          generatedTokens: result.generatedTokens,
+          finishReason: result.finishReason,
+          activationId: result.activationId ?? undefined,
         })
       }
     } catch (err) {
@@ -158,76 +203,12 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
     setPrompt('')
   }
 
-  const handleGenerateWithActivations = async () => {
-    if (!prompt.trim()) {
-      return
-    }
-
-    setIsWarmingUp(false)
-    setActivationInsufficientCredits(false)
-
-    // Start warmup timer
-    warmupTimerRef.current = setTimeout(() => {
-      setIsWarmingUp(true)
-    }, COLD_START_THRESHOLD_MS)
-
-    try {
-      setCapturingActivations(true)
-      onGeneratingChange?.(true)
-      const result = await apiClient.generateWithActivations({
-        prompt: prompt.trim(),
-        model,
-        max_tokens: maxTokens,
-        temperature,
-        top_k: topK,
-      })
-
-      // Call callback with activation ID if provided
-      if (onActivationGenerated) {
-        onActivationGenerated(result.activation_id)
-      }
-
-      // Also store the generated text in outputs
-      if (onPlainTextGenerated && result.text) {
-        onPlainTextGenerated({
-          text: result.text,
-          prompt: prompt.trim(),
-          model,
-          maxTokens,
-          temperature,
-          topK,
-        })
-      }
-    } catch (err) {
-      console.error('Activation generation error:', err)
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-      if (errorMessage === 'INSUFFICIENT_CREDITS') {
-        setActivationInsufficientCredits(true)
-      } else {
-        alert('Failed to generate activations: ' + errorMessage)
-      }
-    } finally {
-      // Clear warmup timer
-      if (warmupTimerRef.current) {
-        clearTimeout(warmupTimerRef.current)
-        warmupTimerRef.current = null
-      }
-      setIsWarmingUp(false)
-      setCapturingActivations(false)
-      onGeneratingChange?.(false)
-    }
-  }
-
   const handleGenerateClick = () => {
     if (!isAuthenticated) {
       navigate('/auth')
       return
     }
-    if (generationMode === 'visualize') {
-      handleGenerateWithActivations()
-    } else {
-      handleGenerate()
-    }
+    handleGenerate()
   }
 
   return (
@@ -245,7 +226,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
             id="model-select"
             value={model}
             onChange={handleModelChange}
-            disabled={loading || streaming || modelsLoading || models.length === 0}
+            disabled={busy || modelsLoading || models.length === 0}
             groups={(() => {
               const groups: DropdownGroup[] = []
               const base = models.filter(m => m === 'nano' || m === 'mini')
@@ -270,32 +251,41 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
 
         <div className="control-group">
           <label htmlFor="max-tokens">
-            Tokens: <span className="control-value-display">{maxTokens}</span>
+            Tokens: <span className="control-value-display">{untilEos ? `up to ${EOS_MAX_TOKENS}` : maxTokens}</span>
           </label>
           <div className="control-row">
             <input
               id="max-tokens"
               type="range"
               min="1"
-              max="300"
+              max={MAX_TOKENS_SLIDER}
               step="1"
-              value={maxTokens}
+              value={untilEos ? MAX_TOKENS_SLIDER : maxTokens}
               onChange={(e) => setMaxTokens(parseInt(e.target.value))}
-              disabled={loading || streaming}
+              disabled={busy || untilEos}
             />
             <input
               type="number"
               className="control-number-input"
               min={1}
-              max={300}
-              value={maxTokens}
+              max={MAX_TOKENS_SLIDER}
+              value={untilEos ? EOS_MAX_TOKENS : maxTokens}
               onChange={(e) => {
                 const v = parseInt(e.target.value)
-                if (!isNaN(v)) setMaxTokens(Math.max(1, Math.min(300, v)))
+                if (!isNaN(v)) setMaxTokens(Math.max(1, Math.min(MAX_TOKENS_SLIDER, v)))
               }}
-              disabled={loading || streaming}
+              disabled={busy || untilEos}
             />
           </div>
+          <label className={`eos-toggle ${busy ? 'disabled' : ''}`}>
+            <input
+              type="checkbox"
+              checked={untilEos}
+              onChange={(e) => setUntilEos(e.target.checked)}
+              disabled={busy}
+            />
+            <span className="eos-toggle-title">Generate until EOS</span>
+          </label>
         </div>
       </div>
 
@@ -313,7 +303,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
               step="0.01"
               value={temperature}
               onChange={(e) => setTemperature(parseFloat(e.target.value))}
-              disabled={loading || streaming}
+              disabled={busy}
             />
             <input
               type="number"
@@ -326,7 +316,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
                 const v = parseFloat(e.target.value)
                 if (!isNaN(v)) setTemperature(Math.max(0, Math.min(2, v)))
               }}
-              disabled={loading || streaming}
+              disabled={busy}
             />
           </div>
         </div>
@@ -344,7 +334,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
               step="1"
               value={topK}
               onChange={(e) => setTopK(parseInt(e.target.value))}
-              disabled={loading || streaming}
+              disabled={busy}
             />
             <input
               type="number"
@@ -356,7 +346,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
                 const v = parseInt(e.target.value)
                 if (!isNaN(v)) setTopK(Math.max(1, Math.min(100, v)))
               }}
-              disabled={loading || streaming}
+              disabled={busy}
             />
           </div>
         </div>
@@ -370,73 +360,83 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Enter your prompt here..."
           rows={6}
-          disabled={loading || streaming}
+          disabled={busy}
         />
       </div>
 
       <div className="actions">
-        <div className="generate-dropdown" ref={dropdownRef}>
+        {busy ? (
           <button
-            onClick={handleGenerateClick}
-            disabled={loading || streaming || capturingActivations || !prompt.trim()}
-            className="btn-generate-main"
+            onClick={stop}
+            disabled={stopping || capturing}
+            className="btn-stop"
+            title={capturing ? 'Generation is done; capturing activations' : 'Stop generating'}
           >
-            {loading && isWarmingUp ? 'Warming up model...' :
-             loading ? 'Loading...' :
-             streaming ? 'Generating...' :
-             capturingActivations && isWarmingUp ? 'Warming up...' :
-             capturingActivations ? 'Capturing...' :
-             generationMode === 'visualize' ? 'Generate + Visualize' : 'Generate'}
+            {stopping ? 'Stopping...' : capturing ? 'Capturing...' : (
+              <>
+                <Square size={11} fill="currentColor" />
+                Stop
+              </>
+            )}
           </button>
-          <button
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            disabled={loading || streaming || capturingActivations}
-            className="btn-generate-toggle"
-          >
-            <ChevronDown size={16} className={dropdownOpen ? 'chevron-up' : ''} />
-          </button>
-          {dropdownOpen && (
-            <div className="generate-dropdown-menu">
-              <button
-                onClick={() => {
-                  setGenerationMode('visualize')
-                  setDropdownOpen(false)
-                }}
-                className={`dropdown-item ${generationMode === 'visualize' ? 'active' : ''}`}
-              >
-                Generate + Visualize
-                <span className="dropdown-item-desc">Generate tokens and capture activations for visualization</span>
-              </button>
-              <button
-                onClick={() => {
-                  setGenerationMode('tokens')
-                  setDropdownOpen(false)
-                }}
-                className={`dropdown-item ${generationMode === 'tokens' ? 'active' : ''}`}
-              >
-                Generate
-                <span className="dropdown-item-desc">Generate tokens without visualization</span>
-              </button>
-            </div>
-          )}
-        </div>
+        ) : (
+          <div className="generate-dropdown" ref={dropdownRef}>
+            <button
+              onClick={handleGenerateClick}
+              disabled={!prompt.trim()}
+              className="btn-generate-main"
+            >
+              {generationMode === 'visualize' ? 'Generate + Visualize' : 'Generate'}
+            </button>
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="btn-generate-toggle"
+            >
+              <ChevronDown size={16} className={dropdownOpen ? 'chevron-up' : ''} />
+            </button>
+            {dropdownOpen && (
+              <div className="generate-dropdown-menu">
+                <button
+                  onClick={() => {
+                    setGenerationMode('visualize')
+                    setDropdownOpen(false)
+                  }}
+                  className={`dropdown-item ${generationMode === 'visualize' ? 'active' : ''}`}
+                >
+                  Generate + Visualize
+                  <span className="dropdown-item-desc">Generate tokens and capture activations for visualization</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setGenerationMode('tokens')
+                    setDropdownOpen(false)
+                  }}
+                  className={`dropdown-item ${generationMode === 'tokens' ? 'active' : ''}`}
+                >
+                  Generate
+                  <span className="dropdown-item-desc">Generate tokens without visualization</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <button
           onClick={handleReset}
-          disabled={loading || streaming || capturingActivations}
+          disabled={busy}
           className="btn-secondary"
         >
           Reset
         </button>
       </div>
 
-      {isWarmingUp && (loading || capturingActivations) && (
+      {isWarmingUp && loading && (
         <div className="warmup-message">
           <span className="warmup-spinner"></span>
           <span>Model is warming up. This may take 10-30 seconds on first request...</span>
         </div>
       )}
 
-      {(insufficientCredits || activationInsufficientCredits) && (
+      {insufficientCredits && (
         <div className="insufficient-credits-message">
           <div className="insufficient-credits-content">
             <strong>Insufficient Credits</strong>
@@ -446,7 +446,6 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
                 className="add-credits-button"
                 onClick={() => {
                   clearInsufficientCredits()
-                  setActivationInsufficientCredits(false)
                   onShowPurchaseCredits()
                 }}
               >
@@ -467,7 +466,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         <div className="output-area">
           <div className="output-header">
             <h3>Generated Text</h3>
-            {streaming && <span className="streaming-indicator">●</span>}
+            {(streaming || capturing) && <span className="streaming-indicator">●</span>}
           </div>
           <div className="output-content">
             {text}
@@ -603,6 +602,81 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
             0 0 12px rgba(255, 255, 255, 0.3);
         }
 
+        .control-group input[type="range"]:disabled {
+          opacity: 0.35;
+          cursor: not-allowed;
+        }
+
+        .control-group input[type="range"]:disabled::-webkit-slider-thumb {
+          cursor: not-allowed;
+        }
+
+        .control-group label.eos-toggle {
+          display: flex;
+          align-items: center;
+          gap: 0.625rem;
+          cursor: pointer;
+          text-transform: none;
+          letter-spacing: normal;
+          font-weight: 400;
+        }
+
+        .control-group label.eos-toggle.disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
+
+        .eos-toggle input[type="checkbox"] {
+          -webkit-appearance: none;
+          appearance: none;
+          flex-shrink: 0;
+          width: 14px;
+          height: 14px;
+          margin: 0;
+          display: grid;
+          place-content: center;
+          background: rgba(0, 0, 0, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.35);
+          cursor: inherit;
+          transition: background 0.15s, border-color 0.15s;
+        }
+
+        .eos-toggle input[type="checkbox"]::after {
+          content: '';
+          width: 8px;
+          height: 8px;
+          background: #0a0a0a;
+          clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+          transform: scale(0);
+          transition: transform 0.12s ease-out;
+        }
+
+        .eos-toggle input[type="checkbox"]:checked {
+          background: #ffffff;
+          border-color: #ffffff;
+        }
+
+        .eos-toggle input[type="checkbox"]:checked::after {
+          transform: scale(1);
+        }
+
+        .eos-toggle:not(.disabled):hover input[type="checkbox"]:not(:checked) {
+          border-color: rgba(255, 255, 255, 0.6);
+        }
+
+        .eos-toggle input[type="checkbox"]:focus-visible {
+          outline: 1px solid rgba(255, 255, 255, 0.6);
+          outline-offset: 2px;
+        }
+
+        .eos-toggle-title {
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: #ffffff;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+        }
+
         .prompt-area {
           margin-bottom: 2rem;
         }
@@ -686,6 +760,36 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         .btn-generate-main:disabled {
           opacity: 0.3;
           cursor: not-allowed;
+        }
+
+        .btn-stop {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          min-width: 12rem;
+          padding: 1rem 1.5rem;
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.35);
+          color: #fca5a5;
+          font-size: 0.9rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+        }
+
+        .btn-stop:hover:not(:disabled) {
+          background: rgba(239, 68, 68, 0.18);
+          border-color: rgba(239, 68, 68, 0.5);
+        }
+
+        .btn-stop:disabled {
+          background: rgba(255, 255, 255, 0.05);
+          border-color: rgba(255, 255, 255, 0.12);
+          color: rgba(255, 255, 255, 0.6);
+          cursor: default;
         }
 
         .btn-generate-toggle {
@@ -1016,6 +1120,49 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           background: rgba(0, 0, 0, 0.1);
         }
 
+        [data-bg="light"] .btn-stop {
+          background: rgba(220, 38, 38, 0.06);
+          border-color: rgba(220, 38, 38, 0.3);
+          color: #dc2626;
+        }
+
+        [data-bg="light"] .btn-stop:hover:not(:disabled) {
+          background: rgba(220, 38, 38, 0.1);
+          border-color: rgba(220, 38, 38, 0.45);
+        }
+
+        [data-bg="light"] .btn-stop:disabled {
+          background: rgba(0, 0, 0, 0.03);
+          border-color: rgba(0, 0, 0, 0.1);
+          color: rgba(29, 29, 31, 0.6);
+        }
+
+        [data-bg="light"] .eos-toggle input[type="checkbox"] {
+          background: rgba(0, 0, 0, 0.03);
+          border-color: rgba(0, 0, 0, 0.3);
+        }
+
+        [data-bg="light"] .eos-toggle input[type="checkbox"]::after {
+          background: #ffffff;
+        }
+
+        [data-bg="light"] .eos-toggle input[type="checkbox"]:checked {
+          background: #1d1d1f;
+          border-color: #1d1d1f;
+        }
+
+        [data-bg="light"] .eos-toggle:not(.disabled):hover input[type="checkbox"]:not(:checked) {
+          border-color: rgba(0, 0, 0, 0.55);
+        }
+
+        [data-bg="light"] .eos-toggle input[type="checkbox"]:focus-visible {
+          outline-color: rgba(0, 0, 0, 0.5);
+        }
+
+        [data-bg="light"] .eos-toggle-title {
+          color: #1d1d1f;
+        }
+
         [data-bg="light"] .btn-generate-toggle {
           background: rgba(0, 0, 0, 0.06);
           border-color: rgba(0, 0, 0, 0.12);
@@ -1142,6 +1289,11 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         [data-interface="default"] .btn-secondary {
           width: 100%;
           padding: 0.625rem 2rem;
+        }
+
+        [data-interface="default"] .btn-stop {
+          width: 100%;
+          padding: 0.625rem 1.5rem;
         }
 
         [data-interface="default"] .control-row {

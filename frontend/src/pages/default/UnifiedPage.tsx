@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import TextGenerator from '../../components/model/TextGenerator'
-import type { PlainGenerationResult } from '../../components/model/TextGenerator'
-import ModelInfoBox from '../../components/model/ModelInfoBox'
+import type { GenerationStreamState, PlainGenerationResult } from '../../components/model/TextGenerator'
+import type { FinishReason } from '../../api/client'
+import ModelInfoBox, { ModelDetails } from '../../components/model/ModelInfoBox'
 import { AttentionHeatmap } from '../../components/visualization/AttentionHeatmap'
 import { LayerActivationDisplay } from '../../components/visualization/LayerActivationDisplay'
 import { EmbeddingJourney } from '../../components/visualization/EmbeddingJourney'
@@ -10,7 +11,7 @@ import { TransformationFlow } from '../../components/visualization/Transformatio
 import { GenerationFlow } from '../../components/visualization/GenerationFlow'
 import { NavBar } from '../../components/common/NavBar'
 import { useActivationData, type VisualizationType } from '../../hooks/useActivationData'
-import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, Copy, Check, BarChart3, FileText, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, Copy, Check, BarChart3, FileText, Trash2, Info, Maximize2, MessageSquare, X } from 'lucide-react'
 import { Dropdown } from '../../components/common/Dropdown'
 import { useTheme } from '../../hooks/useTheme'
 
@@ -22,8 +23,34 @@ interface GeneratedOutput extends PlainGenerationResult {
   activationId?: string
 }
 
+// An output's prompt or model card, shown in a popup
+interface OutputDetail {
+  kind: 'prompt' | 'model'
+  output: GeneratedOutput
+}
+
 interface UnifiedPageProps {
   onShowPurchaseCredits?: () => void
+}
+
+const FINISH_REASON_LABELS: Record<FinishReason, string> = {
+  eos: 'EOS token',
+  length: 'Token limit',
+  stop: 'Stopped',
+}
+
+const STREAM_PHASE_MESSAGES: Record<GenerationStreamState['phase'], string> = {
+  waiting: 'Generating and capturing activations...',
+  streaming: 'Generating and capturing activations...',
+  capturing: 'Capturing activations...',
+  stopping: 'Stopping generation...',
+}
+
+const STREAM_PHASE_LABELS: Record<GenerationStreamState['phase'], string> = {
+  waiting: 'Waiting for the model',
+  streaming: 'Generating',
+  capturing: 'Capturing activations',
+  stopping: 'Stopping',
 }
 
 export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
@@ -36,14 +63,15 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
   const [infoBoxModel, setInfoBoxModel] = useState<string>('nano')
   const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>('visualizations')
   const [generatedOutputs, setGeneratedOutputs] = useState<GeneratedOutput[]>([])
-  const [streamingText, setStreamingText] = useState('')
-  const [isStreaming, setIsStreaming] = useState(false)
-  const [copiedId, setCopiedId] = useState<number | null>(null)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const outputIdCounter = useRef(0)
-  const [pendingActivationId, setPendingActivationId] = useState<string | null>(null)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [outputDetail, setOutputDetail] = useState<OutputDetail | null>(null)
 
-  const [generating, setGenerating] = useState(false)
+  // The generation in progress, if any
+  const [stream, setStream] = useState<GenerationStreamState | null>(null)
+  const streamActiveRef = useRef(false)
+  const streamBoxRef = useRef<HTMLDivElement>(null)
 
   const [selectedLayer, setSelectedLayer] = useState(0)
   const [selectedHead, setSelectedHead] = useState(0)
@@ -63,17 +91,17 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
   const handleActivationGenerated = (newActivationId: string) => {
     setCurrentActivationId(newActivationId)
-    setPendingActivationId(newActivationId)
     setRightPanelMode('visualizations')
     loadActivation(newActivationId)
   }
 
-  const handleStreamingText = (text: string, streaming: boolean) => {
-    setStreamingText(text)
-    setIsStreaming(streaming)
-    if (streaming || text) {
-      setRightPanelMode('outputs')
+  const handleStreamUpdate = (next: GenerationStreamState | null) => {
+    // A generation starting: show the view its text streams into (both show it)
+    if (next && !streamActiveRef.current) {
+      setRightPanelMode(next.mode === 'visualize' ? 'visualizations' : 'outputs')
     }
+    streamActiveRef.current = next !== null
+    setStream(next)
   }
 
   const handlePlainTextGenerated = (result: PlainGenerationResult) => {
@@ -81,13 +109,20 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
       ...result,
       id: outputIdCounter.current++,
       timestamp: new Date(),
-      activationId: pendingActivationId ?? undefined,
     }
-    setPendingActivationId(null)
     setGeneratedOutputs(prev => [output, ...prev])
-    setStreamingText('')
-    setIsStreaming(false)
+    // Replace the live output with the finished one in the same render
+    streamActiveRef.current = false
+    setStream(null)
   }
+
+  // Keep the newest streamed text in view, unless the user has scrolled up to read
+  useEffect(() => {
+    const el = streamBoxRef.current
+    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 48) {
+      el.scrollTop = el.scrollHeight
+    }
+  }, [stream?.text])
 
   const handleVisualizeOutput = (activationId: string) => {
     setCurrentActivationId(activationId)
@@ -97,16 +132,23 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
   const handleClearOutputs = () => {
     setGeneratedOutputs([])
-    setStreamingText('')
-    setIsStreaming(false)
     setShowClearConfirm(false)
   }
 
-  const handleCopy = (id: number, text: string) => {
+  const handleCopy = (key: string, text: string) => {
     navigator.clipboard.writeText(text)
-    setCopiedId(id)
-    setTimeout(() => setCopiedId(null), 2000)
+    setCopiedKey(key)
+    setTimeout(() => setCopiedKey(null), 2000)
   }
+
+  useEffect(() => {
+    if (!outputDetail) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOutputDetail(null)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [outputDetail])
 
   const numLayers = activationData?.activations.layers?.length || summary?.num_layers || 0
   const numHeads = activationData?.activations.layers?.[0]?.attn_weights?.shape[1]
@@ -141,6 +183,9 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
     spinnerHead: isLight ? '#1d1d1f' : '#ffffff',
   }
 
+  const settingLabelStyle = { fontSize: '0.6rem', color: c.textSub, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 } as const
+  const settingValueStyle = { fontSize: '0.75rem', color: c.textMid, fontFamily: 'monospace' } as const
+
   const renderLayerLoading = (message: string) => (
     <div className="df-placeholder">
       <div className="df-placeholder-inner">
@@ -151,12 +196,22 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
   )
 
   const renderVisualization = () => {
-    if (generating) {
+    if (stream?.mode === 'visualize') {
       return (
         <div className="df-placeholder">
-          <div className="df-placeholder-inner">
+          <div className="df-placeholder-inner df-generating">
             <div className="df-spinner" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
-            <p style={{ color: c.textSub }}>Generating and capturing activations...</p>
+            <p style={{ color: c.textSub }}>{STREAM_PHASE_MESSAGES[stream.phase]}</p>
+            {stream.text && (
+              <div
+                ref={streamBoxRef}
+                className="df-stream-box"
+                style={{ background: c.panelBg, borderColor: c.panelBorder, color: c.text }}
+              >
+                {stream.text}
+                {stream.phase === 'streaming' && <span className="df-cursor" style={{ color: c.textMid }}>|</span>}
+              </div>
+            )}
           </div>
         </div>
       )
@@ -239,10 +294,9 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
               <TextGenerator
                 defaultModel="nano"
                 onActivationGenerated={handleActivationGenerated}
-                onGeneratingChange={setGenerating}
                 onModelChange={setInfoBoxModel}
                 onPlainTextGenerated={handlePlainTextGenerated}
-                onStreamingText={handleStreamingText}
+                onStreamUpdate={handleStreamUpdate}
                 onShowPurchaseCredits={onShowPurchaseCredits}
               />
             </div>
@@ -501,7 +555,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
               {/* Outputs list */}
               <div className="df-canvas df-outputs-scroll">
-                {generatedOutputs.length === 0 && !isStreaming ? (
+                {generatedOutputs.length === 0 && !stream ? (
                   <div className="df-placeholder">
                     <div className="df-placeholder-inner">
                       <p style={{ color: c.textSub }}>Generate text to see outputs here</p>
@@ -509,11 +563,22 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                   </div>
                 ) : (
                   <div className="df-outputs-list">
-                    {isStreaming && (
+                    {stream && (
                       <div className="df-output-card" style={{ background: c.panelBg, borderColor: c.panelBorder }}>
                         <div className="df-output-text" style={{ color: c.text }}>
-                          {streamingText}
-                          <span className="df-cursor" style={{ color: c.textMid }}>|</span>
+                          {stream.text || (
+                            <span style={{ color: c.textSub, opacity: 0.5 }}>Waiting for the first token...</span>
+                          )}
+                          {stream.phase === 'streaming' && <span className="df-cursor" style={{ color: c.textMid }}>|</span>}
+                        </div>
+                        <div className="df-output-settings" style={{ borderTop: `1px solid ${c.divider}` }}>
+                          <div className="df-output-setting df-output-live">
+                            <span className="df-live-dot" style={{ background: c.text }} />
+                            <span style={settingLabelStyle}>
+                              {STREAM_PHASE_LABELS[stream.phase]}
+                              {stream.mode === 'visualize' && stream.phase !== 'capturing' && ' · with visualization'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -537,32 +602,116 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                             )}
                             <button
                               className="df-copy-btn"
-                              onClick={() => handleCopy(output.id, output.text)}
+                              onClick={() => handleCopy(`text-${output.id}`, output.text)}
                               title="Copy to clipboard"
-                              style={{ color: copiedId === output.id ? c.text : c.textSub, background: c.controlBg, borderColor: c.controlBorder }}
+                              style={{ color: copiedKey === `text-${output.id}` ? c.text : c.textSub, background: c.controlBg, borderColor: c.controlBorder }}
                             >
-                              {copiedId === output.id ? <Check style={{ width: 14, height: 14 }} /> : <Copy style={{ width: 14, height: 14 }} />}
+                              {copiedKey === `text-${output.id}` ? <Check style={{ width: 14, height: 14 }} /> : <Copy style={{ width: 14, height: 14 }} />}
                             </button>
                           </div>
                         </div>
                         <div className="df-output-settings" style={{ borderTop: `1px solid ${c.divider}` }}>
-                          {[
-                            { label: 'Model', value: output.model },
-                            { label: 'Tokens', value: output.maxTokens },
-                            { label: 'Temp', value: output.temperature.toFixed(2) },
-                            { label: 'Top-K', value: output.topK },
-                            { label: 'Prompt', value: output.prompt.length > 60 ? output.prompt.slice(0, 60) + '...' : output.prompt },
-                          ].map((s) => (
-                            <div key={s.label} className="df-output-setting">
-                              <span style={{ fontSize: '0.6rem', color: c.textSub, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>{s.label}</span>
-                              <span style={{ fontSize: '0.75rem', color: c.textMid, fontFamily: 'monospace' }}>{s.value}</span>
-                            </div>
-                          ))}
+                          <button
+                            className="df-output-detail df-output-detail-model"
+                            onClick={() => setOutputDetail({ kind: 'model', output })}
+                            title="Show model card"
+                            style={{ borderRight: `1px solid ${c.divider}` }}
+                          >
+                            <span className="df-output-detail-label" style={settingLabelStyle}>
+                              Model
+                              <Info className="df-output-detail-icon" style={{ width: 10, height: 10 }} />
+                            </span>
+                            <span className="df-output-detail-value" style={settingValueStyle}>{output.model}</span>
+                          </button>
+                          <div className="df-output-stats">
+                            {[
+                              { label: 'Tokens', value: output.generatedTokens ?? output.maxTokens },
+                              ...(output.finishReason ? [{ label: 'Ended', value: FINISH_REASON_LABELS[output.finishReason] }] : []),
+                              { label: 'Temp', value: output.temperature.toFixed(2) },
+                              { label: 'Top-K', value: output.topK },
+                            ].map((s) => (
+                              <div key={s.label} className="df-output-setting">
+                                <span style={settingLabelStyle}>{s.label}</span>
+                                <span style={settingValueStyle}>{s.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <button
+                            className="df-output-detail df-output-detail-prompt"
+                            onClick={() => setOutputDetail({ kind: 'prompt', output })}
+                            title="Show full prompt"
+                            style={{ borderLeft: `1px solid ${c.divider}` }}
+                          >
+                            <span className="df-output-detail-label" style={settingLabelStyle}>
+                              Prompt
+                              <Maximize2 className="df-output-detail-icon" style={{ width: 10, height: 10 }} />
+                            </span>
+                            <span className="df-output-detail-value" style={settingValueStyle}>{output.prompt}</span>
+                          </button>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Output prompt / model card popup */}
+          {outputDetail && (
+            <div className="df-modal-overlay" onClick={() => setOutputDetail(null)}>
+              <div
+                className={`df-modal df-detail-modal ${outputDetail.kind === 'model' ? 'df-detail-modal-model' : ''}`}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="df-detail-title"
+                style={{ background: c.panelBg, borderColor: c.panelBorder }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="df-detail-header" style={{ borderBottom: `1px solid ${c.divider}` }}>
+                  {outputDetail.kind === 'prompt'
+                    ? <MessageSquare style={{ width: 18, height: 18, color: c.text, flexShrink: 0 }} />
+                    : <Info style={{ width: 18, height: 18, color: c.text, flexShrink: 0 }} />}
+                  <h3 id="df-detail-title" style={{ color: c.text }}>
+                    {outputDetail.kind === 'prompt' ? 'Prompt' : outputDetail.output.modelName}
+                  </h3>
+                  <div className="df-detail-actions">
+                    {outputDetail.kind === 'prompt' && (
+                      <button
+                        className="df-copy-btn"
+                        onClick={() => handleCopy(`prompt-${outputDetail.output.id}`, outputDetail.output.prompt)}
+                        title="Copy prompt"
+                        style={{
+                          color: copiedKey === `prompt-${outputDetail.output.id}` ? c.text : c.textSub,
+                          background: c.controlBg,
+                          borderColor: c.controlBorder,
+                        }}
+                      >
+                        {copiedKey === `prompt-${outputDetail.output.id}`
+                          ? <Check style={{ width: 14, height: 14 }} />
+                          : <Copy style={{ width: 14, height: 14 }} />}
+                      </button>
+                    )}
+                    <button
+                      className="df-copy-btn"
+                      onClick={() => setOutputDetail(null)}
+                      title="Close"
+                      aria-label="Close"
+                      style={{ color: c.textSub, background: c.controlBg, borderColor: c.controlBorder }}
+                    >
+                      <X style={{ width: 14, height: 14 }} />
+                    </button>
+                  </div>
+                </div>
+                <div className="df-detail-body">
+                  {outputDetail.kind === 'prompt' ? (
+                    <div className="df-detail-prompt" style={{ color: c.text, background: c.metaBg, borderColor: c.metaBorder }}>
+                      {outputDetail.output.prompt}
+                    </div>
+                  ) : (
+                    <ModelDetails modelId={outputDetail.output.model} />
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -773,6 +922,44 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           margin: 0;
         }
 
+        .df-generating {
+          width: 100%;
+          max-width: 720px;
+        }
+
+        .df-stream-box {
+          width: 100%;
+          max-height: 45vh;
+          overflow-y: auto;
+          margin-top: 1.25rem;
+          padding: 1rem 1.25rem;
+          border: 1px solid;
+          text-align: left;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.8rem;
+          line-height: 1.7;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+
+        .df-output-live {
+          flex-direction: row !important;
+          align-items: center;
+          gap: 0.5rem !important;
+        }
+
+        .df-live-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          animation: df-pulse 1.2s ease-in-out infinite;
+        }
+
+        @keyframes df-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.25; }
+        }
+
         .df-spinner {
           width: 32px;
           height: 32px;
@@ -882,8 +1069,75 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
         .df-output-settings {
           display: flex;
+          align-items: stretch;
+        }
+
+        .df-output-stats {
+          display: flex;
           flex-wrap: wrap;
-          gap: 0;
+          align-content: center;
+          min-width: 0;
+        }
+
+        /* Model and prompt: open their popup; span the full height of the settings bar */
+        .df-output-detail {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 0.2rem;
+          min-width: 0;
+          padding: 0.5rem 0.875rem;
+          background: none;
+          border: none;
+          font: inherit;
+          text-align: left;
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+
+        .df-output-detail:hover {
+          background: rgba(255, 255, 255, 0.05);
+        }
+
+        [data-bg="light"] .df-output-detail:hover {
+          background: rgba(0, 0, 0, 0.04);
+        }
+
+        .df-output-detail:focus-visible {
+          outline: 1px solid currentColor;
+          outline-offset: -2px;
+        }
+
+        .df-output-detail-model {
+          flex-shrink: 0;
+          max-width: 240px;
+        }
+
+        .df-output-detail-prompt {
+          flex: 1;
+          min-width: 120px;
+        }
+
+        .df-output-detail-label {
+          display: flex;
+          align-items: center;
+          gap: 0.3rem;
+        }
+
+        .df-output-detail-icon {
+          opacity: 0.45;
+          transition: opacity 0.15s;
+        }
+
+        .df-output-detail:hover .df-output-detail-icon {
+          opacity: 1;
+        }
+
+        .df-output-detail-value {
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .df-output-setting {
@@ -902,11 +1156,6 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
         @keyframes df-blink {
           0%, 50% { opacity: 1; }
           51%, 100% { opacity: 0; }
-        }
-
-        .df-output-setting:last-child {
-          flex: 1;
-          min-width: 120px;
         }
 
         .df-switch-group {
@@ -1004,6 +1253,61 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           border: 1px solid;
           min-width: 300px;
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+        }
+
+        .df-detail-modal {
+          display: flex;
+          flex-direction: column;
+          width: min(640px, calc(100vw - 2rem));
+          max-height: 100vh;
+          padding: 0;
+        }
+
+        /* Fits the spec cards three to a row */
+        .df-detail-modal-model {
+          width: min(560px, calc(100vw - 2rem));
+        }
+
+        .df-detail-header {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 1rem 1rem 1rem 1.5rem;
+          flex-shrink: 0;
+        }
+
+        .df-detail-header h3 {
+          flex: 1;
+          min-width: 0;
+          margin: 0;
+          font-size: 1rem;
+          font-weight: 600;
+          letter-spacing: -0.01em;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .df-detail-actions {
+          display: flex;
+          gap: 0.375rem;
+          flex-shrink: 0;
+        }
+
+        .df-detail-body {
+          padding: 1.5rem;
+          overflow-y: auto;
+          min-height: 0;
+        }
+
+        .df-detail-prompt {
+          padding: 1rem 1.25rem;
+          border: 1px solid;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.85rem;
+          line-height: 1.7;
+          white-space: pre-wrap;
+          word-wrap: break-word;
         }
 
         .df-modal-actions {

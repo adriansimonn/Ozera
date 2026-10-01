@@ -35,6 +35,7 @@ from services.credit_service import (
 )
 from inference.activation_store import get_activation_store
 from api.streaming import SSE_HEADERS, billed_generation_stream
+from services.generation_control import GENERATION_ID_PATTERN, new_generation_id, stop_key
 
 router = APIRouter(prefix="/open-source", tags=["Open Source Models"])
 
@@ -58,6 +59,7 @@ class OpenSourceModelInfo(BaseModel):
     vocab_size: int
     max_seq_len: int
     gpu_tier: str
+    is_instruct: bool  # Prompts are wrapped in the model's chat template
 
 
 class ModelCacheStatus(BaseModel):
@@ -88,6 +90,17 @@ class GenerateRequest(BaseModel):
     temperature: float = Field(default=0.8, ge=0.0, le=2.0, description="Sampling temperature")
     top_k: Optional[int] = Field(default=40, ge=1, le=100, description="Top-k sampling")
     top_p: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Nucleus sampling")
+    stop_at_eos: bool = Field(
+        default=False,
+        description="End at the model's end-of-sequence token, with max_tokens as a cap; "
+                    "otherwise generate exactly max_tokens",
+    )
+    generation_id: Optional[str] = Field(
+        default=None,
+        pattern=GENERATION_ID_PATTERN,
+        description="Streaming only: ID to stop the generation by (POST /generate/{id}/stop); "
+                    "assigned if not given",
+    )
 
 
 # Helper Functions
@@ -139,6 +152,7 @@ async def list_models():
             vocab_size=cfg.vocab_size,
             max_seq_len=cfg.max_seq_len,
             gpu_tier=cfg.gpu_tier,
+            is_instruct=cfg.is_instruct,
         )
         for cfg in OPEN_SOURCE_MODELS.values()
     ]
@@ -173,6 +187,7 @@ async def get_model_info(model_id: str):
         vocab_size=cfg.vocab_size,
         max_seq_len=cfg.max_seq_len,
         gpu_tier=cfg.gpu_tier,
+        is_instruct=cfg.is_instruct,
     )
 
 
@@ -396,6 +411,7 @@ async def generate(
             temperature=body.temperature,
             top_k=body.top_k,
             top_p=body.top_p,
+            stop_at_eos=body.stop_at_eos,
         )
 
         # Charge user — fail if charge fails
@@ -465,6 +481,8 @@ async def generate_stream(
         logger.exception("Failed to charge credits before streaming")
         raise HTTPException(status_code=500, detail="Failed to reserve credits for generation")
 
+    generation_id = body.generation_id or new_generation_id()
+
     async def chunks():
         worker = _get_inference_worker(body.model)
         async for chunk in worker().generate_stream.remote_gen.aio(
@@ -475,12 +493,15 @@ async def generate_stream(
             top_k=body.top_k,
             top_p=body.top_p,
             report_usage=True,
+            stop_at_eos=body.stop_at_eos,
+            stop_key=stop_key(current_user.id, generation_id),
         ):
             yield chunk
 
     return StreamingResponse(
         billed_generation_stream(
-            chunks(), body.prompt, current_user.id, body.model, charged_usd=-float(transaction.amount_usd)
+            chunks(), body.prompt, current_user.id, body.model,
+            charged_usd=-float(transaction.amount_usd), generation_id=generation_id,
         ),
         media_type="text/event-stream; charset=utf-8",
         headers=SSE_HEADERS,
@@ -525,6 +546,8 @@ async def generate_with_activations(
             temperature=body.temperature,
             top_k=body.top_k,
             top_p=body.top_p,
+            stop_at_eos=body.stop_at_eos,
+            fit_to_limit=body.stop_at_eos,
         )
 
         # Store activations and return ID

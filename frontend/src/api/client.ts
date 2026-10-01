@@ -284,6 +284,10 @@ export interface GenerateRequest {
   temperature?: number
   top_k?: number
   top_p?: number
+  // End at the model's end-of-sequence token, with max_tokens as a cap (otherwise exactly max_tokens)
+  stop_at_eos?: boolean
+  // Streaming only: ID to stop the generation by (see stopGeneration)
+  generation_id?: string
 }
 
 export interface GenerateResponse {
@@ -313,11 +317,34 @@ export interface HealthResponse {
   available_models: string[]
 }
 
-export interface StreamToken {
-  type: 'start' | 'token' | 'done' | 'error'
+// Why a generation ended: its end-of-sequence token, max_tokens, or a stop request
+export type FinishReason = 'eos' | 'length' | 'stop'
+
+export interface GenerationDone {
+  prompt_tokens?: number
+  generated_tokens?: number
+  finish_reason?: FinishReason | null
+  charged_usd?: number
+  // Streams with activations: none if stopped before any tokens were generated
+  activation_id?: string | null
+}
+
+interface StreamEvent extends GenerationDone {
+  type: 'start' | 'token' | 'status' | 'done' | 'error'
   text?: string
   prompt?: string
+  generation_id?: string
+  status?: 'capturing'
   message?: string
+}
+
+export interface GenerationStreamHandlers {
+  onToken: (text: string) => void
+  onStart?: (generationId: string) => void
+  // Generation is done and activations are being captured (streams with activations)
+  onCapturing?: () => void
+  onDone?: (done: GenerationDone) => void
+  onError?: (message: string) => void
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000
@@ -451,31 +478,58 @@ class OzeraAPIClient {
 
   /**
    * Generate text with streaming (Server-Sent Events).
-   *
-   * @param request Generation request
-   * @param onToken Callback for each token
-   * @param onStart Callback when generation starts
-   * @param onDone Callback when generation completes
-   * @param onError Callback on error
+   * Charged for max_tokens up front and settled to the tokens used when the stream ends.
    */
-  async generateStream(
+  generateStream(request: GenerateRequest, handlers: GenerationStreamHandlers, signal?: AbortSignal): Promise<void> {
+    return this.streamGeneration('/generate/stream', request, handlers, signal)
+  }
+
+  /**
+   * Generate text with activation capture, streaming the text as it's generated.
+   * The done event carries the activation ID.
+   */
+  generateWithActivationsStream(request: GenerateRequest, handlers: GenerationStreamHandlers, signal?: AbortSignal): Promise<void> {
+    return this.streamGeneration('/generate/with-activations/stream', request, handlers, signal)
+  }
+
+  /**
+   * Stop a streaming generation. Its stream then ends with a done event (finish_reason
+   * 'stop'), charged for the tokens generated so far.
+   */
+  async stopGeneration(generationId: string): Promise<void> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/generate/${encodeURIComponent(generationId)}/stop`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to stop generation: ${response.statusText}`)
+    }
+  }
+
+  /**
+   * POST a generation request and dispatch its Server-Sent Events to the handlers.
+   * Resolves when the stream ends; aborting the signal closes it (the backend then stops
+   * the generation), rejecting with an AbortError.
+   */
+  private async streamGeneration(
+    path: string,
     request: GenerateRequest,
-    onToken: (token: string) => void,
-    onStart?: (prompt: string) => void,
-    onDone?: () => void,
-    onError?: (error: string) => void
+    handlers: GenerationStreamHandlers,
+    signal?: AbortSignal,
   ): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/generate/stream`, {
+    const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
+      signal,
     })
 
     if (!response.ok) {
-      const error = await response.json()
+      const error = await response.json().catch(() => ({}))
       // Check for insufficient credits (402 Payment Required)
       if (response.status === 402) {
         throw new Error('INSUFFICIENT_CREDITS')
@@ -490,6 +544,7 @@ class OzeraAPIClient {
 
     const decoder = new TextDecoder('utf-8')
     let buffer = ''
+    let ended = false
 
     try {
       while (true) {
@@ -504,40 +559,34 @@ class OzeraAPIClient {
         buffer = lines.pop() || ''
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
+          if (!line.startsWith('data: ')) continue
 
-            try {
-              const event: StreamToken = JSON.parse(data)
+          let event: StreamEvent
+          try {
+            event = JSON.parse(line.slice(6))
+          } catch (e) {
+            console.error('Failed to parse SSE data:', e)
+            continue
+          }
 
-              switch (event.type) {
-                case 'start':
-                  if (onStart && event.prompt) {
-                    onStart(event.prompt)
-                  }
-                  break
-
-                case 'token':
-                  if (event.text) {
-                    onToken(event.text)
-                  }
-                  break
-
-                case 'done':
-                  if (onDone) {
-                    onDone()
-                  }
-                  break
-
-                case 'error':
-                  if (onError && event.message) {
-                    onError(event.message)
-                  }
-                  break
-              }
-            } catch (e) {
-              console.error('Failed to parse SSE data:', e)
-            }
+          switch (event.type) {
+            case 'start':
+              if (event.generation_id) handlers.onStart?.(event.generation_id)
+              break
+            case 'token':
+              if (event.text) handlers.onToken(event.text)
+              break
+            case 'status':
+              if (event.status === 'capturing') handlers.onCapturing?.()
+              break
+            case 'done':
+              ended = true
+              handlers.onDone?.(event)
+              break
+            case 'error':
+              ended = true
+              handlers.onError?.(event.message || 'Generation failed')
+              break
           }
         }
       }
@@ -545,32 +594,10 @@ class OzeraAPIClient {
       reader.releaseLock()
       notifyCreditsChanged()
     }
-  }
 
-  /**
-   * Generate text with activation capture for visualization.
-   */
-  async generateWithActivations(request: GenerateRequest): Promise<GenerateWithActivationsResponse> {
-    const response = await fetchWithTimeout(`${this.baseUrl}/generate/with-activations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(request),
-    }, GPU_TIMEOUT_MS)
-
-    if (!response.ok) {
-      const error = await response.json()
-      // Check for insufficient credits (402 Payment Required)
-      if (response.status === 402) {
-        throw new Error('INSUFFICIENT_CREDITS')
-      }
-      throw new Error(error.detail || `Generation with activations failed: ${response.statusText}`)
+    if (!ended) {
+      handlers.onError?.('The connection was lost before generation finished.')
     }
-
-    notifyCreditsChanged()
-    return response.json()
   }
 
   /**
@@ -1245,7 +1272,7 @@ class OzeraAPIClient {
             const data = line.slice(6)
 
             try {
-              const event: StreamToken = JSON.parse(data)
+              const event: StreamEvent = JSON.parse(data)
 
               switch (event.type) {
                 case 'start':

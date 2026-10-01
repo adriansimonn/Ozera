@@ -2,8 +2,8 @@
  * React hooks for text generation.
  */
 
-import { useState, useCallback } from 'react'
-import { apiClient, GenerateRequest, GenerateResponse } from '../api/client'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { apiClient, GenerateRequest, GenerateResponse, FinishReason, GenerationDone } from '../api/client'
 
 export interface GenerationState {
   loading: boolean
@@ -12,11 +12,37 @@ export interface GenerationState {
 }
 
 export interface StreamingState {
-  loading: boolean
-  streaming: boolean
+  loading: boolean  // Request sent, no tokens yet (includes the model warming up)
+  streaming: boolean  // Tokens arriving
+  capturing: boolean  // Generation done, activations being captured
+  stopping: boolean  // Stop requested, waiting for the stream to end
   error: string | null
   text: string
   insufficientCredits: boolean
+}
+
+export interface StreamingResult {
+  text: string
+  generatedTokens: number | null
+  finishReason: FinishReason | null
+  activationId: string | null
+}
+
+const IDLE_STATE: StreamingState = {
+  loading: false,
+  streaming: false,
+  capturing: false,
+  stopping: false,
+  error: null,
+  text: '',
+  insufficientCredits: false,
+}
+
+function newGenerationId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
 }
 
 /**
@@ -55,69 +81,104 @@ export function useGeneration() {
 }
 
 /**
- * Hook for streaming text generation.
+ * Hook for streaming text generation, optionally with activation capture, that can be stopped.
  */
 export function useStreamingGeneration() {
-  const [state, setState] = useState<StreamingState>({
-    loading: false,
-    streaming: false,
-    error: null,
-    text: '',
-    insufficientCredits: false,
-  })
+  const [state, setState] = useState<StreamingState>(IDLE_STATE)
+  const generationIdRef = useRef<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
-  const generate = useCallback(async (request: GenerateRequest): Promise<string> => {
-    setState({ loading: true, streaming: false, error: null, text: '', insufficientCredits: false })
+  // Leaving the page closes the stream; the backend then stops the generation
+  useEffect(() => () => abortRef.current?.abort(), [])
+
+  /**
+   * Stream a generation. Resolves with its result, or null if it failed (the error is in
+   * state); rejects if the request is refused (e.g. INSUFFICIENT_CREDITS).
+   */
+  const generate = useCallback(async (
+    request: GenerateRequest,
+    options: { withActivations?: boolean } = {},
+  ): Promise<StreamingResult | null> => {
+    const generationId = newGenerationId()
+    const controller = new AbortController()
+    generationIdRef.current = generationId
+    abortRef.current = controller
+    setState({ ...IDLE_STATE, loading: true })
 
     let accumulated = ''
+    let done: GenerationDone | null = null
+    let failed = false
+    const stream = options.withActivations ? apiClient.generateWithActivationsStream : apiClient.generateStream
+
     try {
-      await apiClient.generateStream(
-        request,
-        // onToken
-        (token) => {
+      await stream.call(apiClient, { ...request, generation_id: generationId }, {
+        onToken: (token) => {
           accumulated += token
-          setState(prev => ({
-            ...prev,
-            loading: false,
-            streaming: true,
-            text: prev.text + token,
-          }))
+          setState(prev => ({ ...prev, loading: false, streaming: true, text: prev.text + token }))
         },
-        // onStart
-        () => {
-          setState(prev => ({ ...prev, loading: false, streaming: true }))
+        onCapturing: () => {
+          setState(prev => ({ ...prev, loading: false, streaming: false, capturing: true }))
         },
-        // onDone
-        () => {
-          setState(prev => ({ ...prev, streaming: false }))
+        onDone: (event) => {
+          done = event
         },
-        // onError
-        (error) => {
-          setState(prev => ({
-            ...prev,
-            loading: false,
-            streaming: false,
-            error,
-          }))
-        }
-      )
-      return accumulated
+        onError: (error) => {
+          failed = true
+          setState(prev => ({ ...prev, error }))
+        },
+      }, controller.signal)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      const isInsufficientCredits = errorMessage === 'INSUFFICIENT_CREDITS'
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        streaming: false,
-        error: isInsufficientCredits ? 'Insufficient credits. Please add more credits to continue.' : errorMessage,
-        insufficientCredits: isInsufficientCredits,
-      }))
-      throw error
+      if (controller.signal.aborted) {
+        // Closed by stop() after its request failed, or on unmount: the backend stopped it
+        failed = true
+        setState(prev => ({ ...prev, error: prev.error ?? 'Generation stopped before it could report its result.' }))
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        const isInsufficientCredits = errorMessage === 'INSUFFICIENT_CREDITS'
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          streaming: false,
+          capturing: false,
+          stopping: false,
+          error: isInsufficientCredits ? 'Insufficient credits. Please add more credits to continue.' : errorMessage,
+          insufficientCredits: isInsufficientCredits,
+        }))
+        throw error
+      }
+    } finally {
+      if (generationIdRef.current === generationId) {
+        generationIdRef.current = null
+        abortRef.current = null
+        setState(prev => ({ ...prev, loading: false, streaming: false, capturing: false, stopping: false }))
+      }
+    }
+
+    if (failed || !done) return null
+    const result: GenerationDone = done
+    return {
+      text: accumulated,
+      generatedTokens: result.generated_tokens ?? null,
+      finishReason: result.finish_reason ?? null,
+      activationId: result.activation_id ?? null,
     }
   }, [])
 
+  /**
+   * Stop the running generation. Its stream ends with what was generated so far (charged
+   * for those tokens). If the stop request fails, the stream is closed instead, which
+   * also stops it.
+   */
+  const stop = useCallback(() => {
+    const generationId = generationIdRef.current
+    if (!generationId) return
+    setState(prev => (prev.stopping ? prev : { ...prev, stopping: true }))
+    const controller = abortRef.current
+    apiClient.stopGeneration(generationId).catch(() => controller?.abort())
+  }, [])
+
   const reset = useCallback(() => {
-    setState({ loading: false, streaming: false, error: null, text: '', insufficientCredits: false })
+    setState(IDLE_STATE)
   }, [])
 
   const clearInsufficientCredits = useCallback(() => {
@@ -127,6 +188,7 @@ export function useStreamingGeneration() {
   return {
     ...state,
     generate,
+    stop,
     reset,
     clearInsufficientCredits,
   }

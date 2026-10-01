@@ -8,7 +8,7 @@ Supports both local and Modal cloud inference based on INFERENCE_MODE env var.
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Depends, Query, Request
+from fastapi import FastAPI, HTTPException, Depends, Path, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
@@ -57,6 +57,7 @@ from api.export import router as export_router
 from api.sae import router as sae_router
 from api.settings import router as settings_router
 from api.streaming import SSE_HEADERS, billed_generation_stream
+from services.generation_control import GENERATION_ID_PATTERN, new_generation_id, request_stop, stop_key
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from models.database import TransactionType, User
@@ -144,6 +145,17 @@ class GenerateRequest(BaseModel):
     temperature: float = Field(default=0.8, ge=0.0, le=2.0, description="Sampling temperature")
     top_k: Optional[int] = Field(default=40, ge=1, le=100, description="Top-k sampling")
     top_p: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Nucleus sampling")
+    stop_at_eos: bool = Field(
+        default=False,
+        description="End at the model's end-of-sequence token, with max_tokens as a cap; "
+                    "otherwise generate exactly max_tokens",
+    )
+    generation_id: Optional[str] = Field(
+        default=None,
+        pattern=GENERATION_ID_PATTERN,
+        description="Streaming only: ID to stop the generation by (POST /generate/{id}/stop); "
+                    "assigned if not given",
+    )
 
 
 class GenerateResponse(BaseModel):
@@ -156,6 +168,7 @@ class GenerateResponse(BaseModel):
     temperature: float
     top_k: Optional[int]
     top_p: Optional[float]
+    finish_reason: Optional[str] = None  # "eos", "length", or "stop"
 
 
 class ModelInfo(BaseModel):
@@ -261,6 +274,7 @@ async def generate(
             temperature=body.temperature,
             top_k=body.top_k,
             top_p=body.top_p,
+            stop_at_eos=body.stop_at_eos,
         )
 
         # Charge user — fail if charge fails
@@ -281,7 +295,8 @@ async def generate(
             total_tokens=result['total_tokens'],
             temperature=result['temperature'],
             top_k=result['top_k'],
-            top_p=result['top_p']
+            top_p=result['top_p'],
+            finish_reason=result.get('finish_reason'),
         )
 
     except InsufficientBalanceError:
@@ -398,6 +413,43 @@ async def prepare_model(
         raise HTTPException(status_code=500, detail="Failed to prepare model")
 
 
+def _charge_before_streaming(db: Session, user_id: int, body: GenerateRequest):
+    """
+    Charge a streaming generation for max_tokens before it starts (settled to the tokens it
+    actually uses when the stream ends, see api/streaming.py).
+
+    Returns:
+        (the transaction, the amount charged in USD)
+    """
+    prompt_token_estimate = len(body.prompt.split()) * 2  # Rough estimate
+    estimated_cost = calculate_inference_cost(
+        prompt_tokens=prompt_token_estimate,
+        generated_tokens=body.max_tokens,
+        model_id=body.model,
+    )
+    if not check_sufficient_balance(db, user_id, estimated_cost):
+        raise HTTPException(
+            status_code=402,
+            detail="Insufficient credits. Please add more credits to continue."
+        )
+
+    try:
+        transaction = charge_inference(
+            db=db,
+            user_id=user_id,
+            prompt_tokens=prompt_token_estimate,
+            generated_tokens=body.max_tokens,
+            model_name=body.model,
+        )
+    except InsufficientBalanceError:
+        raise HTTPException(status_code=402, detail="Insufficient credits.")
+    except Exception:
+        logger.exception("Failed to charge credits before streaming")
+        raise HTTPException(status_code=500, detail="Failed to reserve credits for generation")
+
+    return transaction, -float(transaction.amount_usd)
+
+
 @app.post("/generate/stream")
 @limiter.limit("10/minute")
 async def generate_stream(
@@ -411,38 +463,13 @@ async def generate_stream(
 
     Routes to local or Modal inference based on INFERENCE_MODE env var.
     Requires authentication and charges user credits: max_tokens up front, settled to the
-    tokens actually used when the stream ends (see api/streaming.py).
+    tokens actually used when the stream ends (see api/streaming.py). The generation can be
+    stopped by the generation_id in the "start" event (POST /generate/{id}/stop).
     """
     model = resolve_model(db, current_user.id, body.model)
+    _, charged_usd = _charge_before_streaming(db, current_user.id, body)
 
-    # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
-    prompt_token_estimate = len(body.prompt.split()) * 2  # Rough estimate
-    estimated_cost = calculate_inference_cost(
-        prompt_tokens=prompt_token_estimate,
-        generated_tokens=body.max_tokens,
-        model_id=body.model,
-    )
-    if not check_sufficient_balance(db, current_user.id, estimated_cost):
-        raise HTTPException(
-            status_code=402,
-            detail="Insufficient credits. Please add more credits to continue."
-        )
-
-    # Charge upfront based on estimated cost before streaming begins
-    try:
-        transaction = charge_inference(
-            db=db,
-            user_id=current_user.id,
-            prompt_tokens=prompt_token_estimate,
-            generated_tokens=body.max_tokens,
-            model_name=body.model,
-        )
-    except InsufficientBalanceError:
-        raise HTTPException(status_code=402, detail="Insufficient credits.")
-    except Exception:
-        logger.exception("Failed to charge credits before streaming")
-        raise HTTPException(status_code=500, detail="Failed to reserve credits for generation")
-
+    generation_id = body.generation_id or new_generation_id()
     chunks = inference_router.generate_stream(
         model=model,
         prompt=body.prompt,
@@ -450,14 +477,87 @@ async def generate_stream(
         temperature=body.temperature,
         top_k=body.top_k,
         top_p=body.top_p,
+        stop_at_eos=body.stop_at_eos,
+        stop_key=stop_key(current_user.id, generation_id),
     )
     return StreamingResponse(
         billed_generation_stream(
-            chunks, body.prompt, current_user.id, body.model, charged_usd=-float(transaction.amount_usd)
+            chunks, body.prompt, current_user.id, body.model, charged_usd, generation_id,
         ),
         media_type="text/event-stream; charset=utf-8",
         headers=SSE_HEADERS,
     )
+
+
+@app.post("/generate/{generation_id}/stop")
+@limiter.limit("30/minute")
+async def stop_generation(
+    request: Request,
+    generation_id: str = Path(..., pattern=GENERATION_ID_PATTERN),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Stop one of the user's streaming generations.
+
+    The generation ends within about a second and its stream finishes as usual, with a
+    "done" event whose finish_reason is "stop"; it's charged for the tokens it generated
+    (and a visualization captures those). Stopping a generation that has already ended
+    does nothing.
+    """
+    try:
+        await request_stop(current_user.id, generation_id)
+    except Exception:
+        logger.exception("Failed to stop generation %s", generation_id)
+        raise HTTPException(status_code=500, detail="Failed to stop generation")
+    return {"status": "stopping", "generation_id": generation_id}
+
+
+async def _check_visualizable(db: Session, user_id: int, body: GenerateRequest) -> None:
+    """
+    Refuse a visualization of an Ozera model that can't fit its context window.
+
+    Ozera models are only visualized within their context window. The worker checks too;
+    checking here first starts no GPU for a request that would fail. Open-ended generation
+    (stop_at_eos) is fitted to the window instead, so only the prompt has to leave room.
+    """
+    if body.model in OPEN_SOURCE_MODELS:
+        return
+    context_len = (await model_specs(db, user_id, body.model)).max_seq_len
+    if context_len is None:
+        return
+    prompt_tokens = len(get_tokenizer().encode(body.prompt))
+    max_tokens = min(body.max_tokens, max(context_len - prompt_tokens, 1)) if body.stop_at_eos else body.max_tokens
+    try:
+        check_fits_context(body.model, prompt_tokens, max_tokens, context_len)
+    except ActivationLimitError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+def _store_activations(result: dict, user_id: int, model_id: str) -> dict:
+    """
+    Keep a Modal worker's inline activations in the activation store, replacing them in
+    the result with their activation_id. (Local generation stores them itself.)
+    """
+    if 'activations' in result and 'activation_id' not in result:
+        result['activation_id'] = activation_store.store_activations(
+            user_id=user_id,
+            activations=result.pop('activations'),  # Don't send large activations to frontend
+            tokens=result.get('tokens', []),
+            prompt=result['prompt'],
+            model_name=result.get('model', model_id),
+            metadata={
+                'temperature': result['temperature'],
+                'top_k': result['top_k'],
+                'top_p': result['top_p'],
+                'prompt_tokens': result['prompt_tokens'],
+                'generated_tokens': result['generated_tokens'],
+                'total_tokens': result['total_tokens'],
+                'generated_text': result['text'],
+                'decoded_tokens': result.get('decoded_tokens', []),
+                'model_family': OPEN_SOURCE_MODELS[model_id].family.value if model_id in OPEN_SOURCE_MODELS else 'ozera',
+            }
+        )
+    return result
 
 
 @app.post("/generate/with-activations")
@@ -476,16 +576,7 @@ async def generate_with_activations(
     Requires authentication and charges user credits.
     """
     model = resolve_model(db, current_user.id, body.model)
-
-    # Ozera models are only visualized within their context window. The worker checks too;
-    # checking here first starts no GPU for a request that would fail.
-    if body.model not in OPEN_SOURCE_MODELS:
-        context_len = (await model_specs(db, current_user.id, body.model)).max_seq_len
-        if context_len is not None:
-            try:
-                check_fits_context(body.model, len(get_tokenizer().encode(body.prompt)), body.max_tokens, context_len)
-            except ActivationLimitError as e:
-                raise HTTPException(status_code=400, detail=str(e))
+    await _check_visualizable(db, current_user.id, body)
 
     # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
     estimated_cost = calculate_inference_cost(
@@ -508,30 +599,12 @@ async def generate_with_activations(
             top_k=body.top_k,
             top_p=body.top_p,
             user_id=current_user.id,
+            stop_at_eos=body.stop_at_eos,
+            fit_to_limit=body.stop_at_eos,
         )
 
         # If Modal mode returned inline activations, store them locally
-        if 'activations' in result and 'activation_id' not in result:
-            activation_id = activation_store.store_activations(
-                user_id=current_user.id,
-                activations=result['activations'],
-                tokens=result.get('tokens', []),
-                prompt=result['prompt'],
-                model_name=result.get('model', body.model),
-                metadata={
-                    'temperature': result['temperature'],
-                    'top_k': result['top_k'],
-                    'top_p': result['top_p'],
-                    'prompt_tokens': result['prompt_tokens'],
-                    'generated_tokens': result['generated_tokens'],
-                    'total_tokens': result['total_tokens'],
-                    'generated_text': result['text'],
-                    'decoded_tokens': result.get('decoded_tokens', []),
-                    'model_family': OPEN_SOURCE_MODELS[body.model].family.value if body.model in OPEN_SOURCE_MODELS else 'ozera',
-                }
-            )
-            result['activation_id'] = activation_id
-            del result['activations']  # Don't send large activations to frontend
+        _store_activations(result, current_user.id, body.model)
 
         # Charge user — fail if charge fails
         charge_inference(
@@ -559,6 +632,56 @@ async def generate_with_activations(
     except Exception:
         logger.exception("Unhandled error")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/generate/with-activations/stream")
+@limiter.limit("10/minute")
+async def generate_with_activations_stream(
+    request: Request,
+    body: GenerateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate text and capture activations for visualization, streaming the text (SSE).
+
+    Events as for /generate/stream, plus a "status" event ("capturing") when generation is
+    done and activations are being captured; the "done" event carries the activation_id.
+    A stopped generation is captured as far as it got (no activation_id if it was stopped
+    before generating anything). With stop_at_eos, max_tokens is lowered to what the model
+    can visualize instead of the request being refused.
+    Charged like /generate/stream: max_tokens up front, settled to the tokens used.
+    """
+    model = resolve_model(db, current_user.id, body.model)
+    await _check_visualizable(db, current_user.id, body)
+    _, charged_usd = _charge_before_streaming(db, current_user.id, body)
+
+    generation_id = body.generation_id or new_generation_id()
+    chunks = inference_router.generate_with_activations_stream(
+        model=model,
+        prompt=body.prompt,
+        max_tokens=body.max_tokens,
+        temperature=body.temperature,
+        top_k=body.top_k,
+        top_p=body.top_p,
+        user_id=current_user.id,
+        stop_at_eos=body.stop_at_eos,
+        fit_to_limit=body.stop_at_eos,
+        stop_key=stop_key(current_user.id, generation_id),
+    )
+
+    def finalize(result: dict) -> dict:
+        _store_activations(result, current_user.id, body.model)
+        return {"activation_id": result.get("activation_id")}
+
+    return StreamingResponse(
+        billed_generation_stream(
+            chunks, body.prompt, current_user.id, body.model, charged_usd, generation_id,
+            finalize=finalize,
+        ),
+        media_type="text/event-stream; charset=utf-8",
+        headers=SSE_HEADERS,
+    )
 
 
 def _tensor_json_response(request: Request, payload) -> Response:

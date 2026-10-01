@@ -24,6 +24,7 @@ export interface OpenSourceModelInfo {
   vocab_size: number
   max_seq_len: number
   gpu_tier: 'l4' | 'a10g'
+  is_instruct: boolean  // Instruction-tuned (prompts are wrapped in its chat template)
 }
 
 /**

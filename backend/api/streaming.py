@@ -6,17 +6,25 @@ whole request. The worker ends the stream with the request's real token counts, 
 charge is then settled to their cost: the unused part is refunded (or, if the prompt had
 more tokens than estimated, the rest is charged). A stream that fails is refunded in full,
 as failed requests aren't charged elsewhere either.
+
+A generation can be stopped while it runs (services.generation_control); it then ends early
+and is billed like any other for the tokens it generated. The generation runs in a task of
+its own, so if the client disconnects mid-stream it's stopped and still settled.
 """
 
+import asyncio
 import json
 import logging
-from typing import AsyncIterator
+from typing import AsyncIterator, Callable, Optional
 
 from fastapi.concurrency import run_in_threadpool
 
 from api.error_utils import safe_detail
+from core.activation_limits import ActivationLimitError
 from db import SessionLocal
+from core.transformer.sampling import FINISH_STOP
 from services.credit_service import calculate_inference_cost, settle_inference_charge
+from services.generation_control import request_stop
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +35,20 @@ SSE_HEADERS = {
     "Content-Type": "text/event-stream; charset=utf-8",
 }
 
+# Generations (and stop requests) running without a client; referenced so they aren't
+# garbage collected mid-run
+_background_tasks: set[asyncio.Task] = set()
+
 
 def _event(payload: dict) -> bytes:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8")
+
+
+def _in_background(coro) -> asyncio.Task:
+    task = asyncio.get_running_loop().create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
 
 
 def _settle(user_id: int, charged_usd: float, actual_usd: float, description: str) -> float:
@@ -50,54 +69,104 @@ async def _settle_or_keep_charge(user_id: int, charged_usd: float, actual_usd: f
         return 0.0
 
 
-async def billed_generation_stream(
+async def _stop_quietly(user_id: int, generation_id: str) -> None:
+    try:
+        await request_stop(user_id, generation_id)
+    except Exception:
+        logger.exception("Failed to stop generation %s for user %s", generation_id, user_id)
+
+
+async def _run_generation(
     chunks: AsyncIterator[str | dict],
-    prompt: str,
+    events: asyncio.Queue,
     user_id: int,
     model_id: str,
     charged_usd: float,
-) -> AsyncIterator[bytes]:
+    finalize: Optional[Callable[[dict], dict]],
+) -> None:
     """
-    SSE events for a generation stream that was charged `charged_usd` up front.
+    Consume a generation, putting its SSE events on `events` and settling its charge.
 
-    `chunks` yields text, then a dict of the real token counts
-    ({"prompt_tokens", "generated_tokens"}). If the client disconnects mid-stream, the
-    up-front charge stands: the generation may run on, and its length isn't known.
+    Ends with a "done" or "error" event.
     """
-    usage = None
+    result = None
     try:
-        yield _event({"type": "start", "prompt": prompt})
-
         async for chunk in chunks:
-            if isinstance(chunk, dict):
-                usage = chunk
+            if isinstance(chunk, str):
+                events.put_nowait({"type": "token", "text": chunk})
+            elif "event" in chunk:
+                # Generation is done; the worker is capturing activations
+                events.put_nowait({"type": "status", "status": "capturing"})
             else:
-                yield _event({"type": "token", "text": chunk})
+                result = chunk
+
+        extra = await run_in_threadpool(finalize, result) if finalize and result is not None else {}
 
     except Exception as e:
         logger.exception("Streaming generation failed")
         refunded = await _settle_or_keep_charge(
             user_id, charged_usd, 0.0, f"Inference ({model_id}) failed: charge refunded"
         )
-        yield _event({
-            "type": "error",
-            "message": safe_detail(e, "Generation failed"),
-            "refunded_usd": round(refunded, 4),
-        })
+        # Activation limits say how many tokens fit, which the user needs to know
+        message = str(e) if isinstance(e, ActivationLimitError) else safe_detail(e, "Generation failed")
+        events.put_nowait({"type": "error", "message": message, "refunded_usd": round(refunded, 4)})
         return
 
-    done = {"type": "done", "charged": True}
-    if usage is None:
+    done = {"type": "done", "charged": True, **extra}
+    if result is None:
         logger.warning("Stream for %s ended without token counts; keeping the charge for max_tokens", model_id)
     else:
-        prompt_tokens, generated_tokens = usage["prompt_tokens"], usage["generated_tokens"]
+        prompt_tokens, generated_tokens = result["prompt_tokens"], result["generated_tokens"]
         actual_usd = calculate_inference_cost(prompt_tokens, generated_tokens, model_id=model_id)
+        finish_reason = result.get("finish_reason")
+        stopped = " (stopped)" if finish_reason == FINISH_STOP else ""
         refunded = await _settle_or_keep_charge(
             user_id, charged_usd, actual_usd,
-            f"Inference ({model_id}) settled: {prompt_tokens} input + {generated_tokens} output tokens",
+            f"Inference ({model_id}) settled{stopped}: {prompt_tokens} input + {generated_tokens} output tokens",
         )
         charged_usd -= refunded
-        done.update(prompt_tokens=prompt_tokens, generated_tokens=generated_tokens)
+        done.update(prompt_tokens=prompt_tokens, generated_tokens=generated_tokens, finish_reason=finish_reason)
     done["charged_usd"] = round(charged_usd, 4)
 
-    yield _event(done)
+    events.put_nowait(done)
+
+
+async def billed_generation_stream(
+    chunks: AsyncIterator[str | dict],
+    prompt: str,
+    user_id: int,
+    model_id: str,
+    charged_usd: float,
+    generation_id: str,
+    finalize: Optional[Callable[[dict], dict]] = None,
+) -> AsyncIterator[bytes]:
+    """
+    SSE events for a generation stream that was charged `charged_usd` up front.
+
+    Events: "start" (with the generation_id to stop it by), "token"s, a "status" of
+    "capturing" when activations are being captured, then "done" (with the token counts,
+    why generation ended and what it cost) or "error".
+
+    Args:
+        chunks: The generation: text, optionally {"event": ...} markers, then a dict of its
+            result with the real token counts ({"prompt_tokens", "generated_tokens"}) and
+            "finish_reason"
+        generation_id: ID the generation is stopped by (with user_id)
+        finalize: Run (in a thread) on the result before settling; returns fields to add to
+            the "done" event. If it raises, the request fails and is refunded.
+    """
+    events: asyncio.Queue = asyncio.Queue()
+    generation = _in_background(_run_generation(chunks, events, user_id, model_id, charged_usd, finalize))
+    try:
+        yield _event({"type": "start", "prompt": prompt, "generation_id": generation_id})
+        while True:
+            event = await events.get()
+            yield _event(event)
+            if event["type"] in ("done", "error"):
+                return
+    finally:
+        if not generation.done():
+            # The client went away mid-stream. Stop the generation instead of letting it run
+            # to max_tokens; it's settled for what it generated when it ends. (No awaiting
+            # here: this may run inside the cancelled response.)
+            _in_background(_stop_quietly(user_id, generation_id))
