@@ -1,0 +1,1649 @@
+{
+ "id": "truth",
+ "order": 1,
+ "name": "True / false facts",
+ "category": "contrastive",
+ "description": "Statements about which country a city is in, each city once with the right country and once with a wrong one.",
+ "label_names": [
+  "False",
+  "True"
+ ],
+ "source": "Written for Ozera",
+ "rows": [
+  {
+   "text": "The city of Paris is in France.",
+   "label": 1,
+   "group": 0
+  },
+  {
+   "text": "The city of Paris is in Chile.",
+   "label": 0,
+   "group": 0
+  },
+  {
+   "text": "The city of Lyon is in France.",
+   "label": 1,
+   "group": 1
+  },
+  {
+   "text": "The city of Lyon is in Pakistan.",
+   "label": 0,
+   "group": 1
+  },
+  {
+   "text": "The city of Marseille is in France.",
+   "label": 1,
+   "group": 2
+  },
+  {
+   "text": "The city of Marseille is in Venezuela.",
+   "label": 0,
+   "group": 2
+  },
+  {
+   "text": "The city of Berlin is in Germany.",
+   "label": 1,
+   "group": 3
+  },
+  {
+   "text": "The city of Berlin is in Turkey.",
+   "label": 0,
+   "group": 3
+  },
+  {
+   "text": "The city of Munich is in Germany.",
+   "label": 1,
+   "group": 4
+  },
+  {
+   "text": "The city of Munich is in Sweden.",
+   "label": 0,
+   "group": 4
+  },
+  {
+   "text": "The city of Hamburg is in Germany.",
+   "label": 1,
+   "group": 5
+  },
+  {
+   "text": "The city of Hamburg is in Belgium.",
+   "label": 0,
+   "group": 5
+  },
+  {
+   "text": "The city of Madrid is in Spain.",
+   "label": 1,
+   "group": 6
+  },
+  {
+   "text": "The city of Madrid is in Ethiopia.",
+   "label": 0,
+   "group": 6
+  },
+  {
+   "text": "The city of Barcelona is in Spain.",
+   "label": 1,
+   "group": 7
+  },
+  {
+   "text": "The city of Barcelona is in Canada.",
+   "label": 0,
+   "group": 7
+  },
+  {
+   "text": "The city of Seville is in Spain.",
+   "label": 1,
+   "group": 8
+  },
+  {
+   "text": "The city of Seville is in Malaysia.",
+   "label": 0,
+   "group": 8
+  },
+  {
+   "text": "The city of Rome is in Italy.",
+   "label": 1,
+   "group": 9
+  },
+  {
+   "text": "The city of Rome is in Sweden.",
+   "label": 0,
+   "group": 9
+  },
+  {
+   "text": "The city of Milan is in Italy.",
+   "label": 1,
+   "group": 10
+  },
+  {
+   "text": "The city of Milan is in Japan.",
+   "label": 0,
+   "group": 10
+  },
+  {
+   "text": "The city of Naples is in Italy.",
+   "label": 1,
+   "group": 11
+  },
+  {
+   "text": "The city of Naples is in Malaysia.",
+   "label": 0,
+   "group": 11
+  },
+  {
+   "text": "The city of Lisbon is in Portugal.",
+   "label": 1,
+   "group": 12
+  },
+  {
+   "text": "The city of Lisbon is in Russia.",
+   "label": 0,
+   "group": 12
+  },
+  {
+   "text": "The city of Porto is in Portugal.",
+   "label": 1,
+   "group": 13
+  },
+  {
+   "text": "The city of Porto is in Indonesia.",
+   "label": 0,
+   "group": 13
+  },
+  {
+   "text": "The city of London is in the United Kingdom.",
+   "label": 1,
+   "group": 14
+  },
+  {
+   "text": "The city of London is in Switzerland.",
+   "label": 0,
+   "group": 14
+  },
+  {
+   "text": "The city of Manchester is in the United Kingdom.",
+   "label": 1,
+   "group": 15
+  },
+  {
+   "text": "The city of Manchester is in Denmark.",
+   "label": 0,
+   "group": 15
+  },
+  {
+   "text": "The city of Edinburgh is in the United Kingdom.",
+   "label": 1,
+   "group": 16
+  },
+  {
+   "text": "The city of Edinburgh is in Bulgaria.",
+   "label": 0,
+   "group": 16
+  },
+  {
+   "text": "The city of Dublin is in Ireland.",
+   "label": 1,
+   "group": 17
+  },
+  {
+   "text": "The city of Dublin is in Mexico.",
+   "label": 0,
+   "group": 17
+  },
+  {
+   "text": "The city of Amsterdam is in the Netherlands.",
+   "label": 1,
+   "group": 18
+  },
+  {
+   "text": "The city of Amsterdam is in Australia.",
+   "label": 0,
+   "group": 18
+  },
+  {
+   "text": "The city of Rotterdam is in the Netherlands.",
+   "label": 1,
+   "group": 19
+  },
+  {
+   "text": "The city of Rotterdam is in the Czech Republic.",
+   "label": 0,
+   "group": 19
+  },
+  {
+   "text": "The city of Brussels is in Belgium.",
+   "label": 1,
+   "group": 20
+  },
+  {
+   "text": "The city of Brussels is in Uruguay.",
+   "label": 0,
+   "group": 20
+  },
+  {
+   "text": "The city of Antwerp is in Belgium.",
+   "label": 1,
+   "group": 21
+  },
+  {
+   "text": "The city of Antwerp is in Iran.",
+   "label": 0,
+   "group": 21
+  },
+  {
+   "text": "The city of Vienna is in Austria.",
+   "label": 1,
+   "group": 22
+  },
+  {
+   "text": "The city of Vienna is in Italy.",
+   "label": 0,
+   "group": 22
+  },
+  {
+   "text": "The city of Zurich is in Switzerland.",
+   "label": 1,
+   "group": 23
+  },
+  {
+   "text": "The city of Zurich is in Peru.",
+   "label": 0,
+   "group": 23
+  },
+  {
+   "text": "The city of Geneva is in Switzerland.",
+   "label": 1,
+   "group": 24
+  },
+  {
+   "text": "The city of Geneva is in Spain.",
+   "label": 0,
+   "group": 24
+  },
+  {
+   "text": "The city of Stockholm is in Sweden.",
+   "label": 1,
+   "group": 25
+  },
+  {
+   "text": "The city of Stockholm is in Switzerland.",
+   "label": 0,
+   "group": 25
+  },
+  {
+   "text": "The city of Gothenburg is in Sweden.",
+   "label": 1,
+   "group": 26
+  },
+  {
+   "text": "The city of Gothenburg is in Argentina.",
+   "label": 0,
+   "group": 26
+  },
+  {
+   "text": "The city of Oslo is in Norway.",
+   "label": 1,
+   "group": 27
+  },
+  {
+   "text": "The city of Oslo is in Serbia.",
+   "label": 0,
+   "group": 27
+  },
+  {
+   "text": "The city of Bergen is in Norway.",
+   "label": 1,
+   "group": 28
+  },
+  {
+   "text": "The city of Bergen is in Italy.",
+   "label": 0,
+   "group": 28
+  },
+  {
+   "text": "The city of Copenhagen is in Denmark.",
+   "label": 1,
+   "group": 29
+  },
+  {
+   "text": "The city of Copenhagen is in France.",
+   "label": 0,
+   "group": 29
+  },
+  {
+   "text": "The city of Helsinki is in Finland.",
+   "label": 1,
+   "group": 30
+  },
+  {
+   "text": "The city of Helsinki is in South Korea.",
+   "label": 0,
+   "group": 30
+  },
+  {
+   "text": "The city of Warsaw is in Poland.",
+   "label": 1,
+   "group": 31
+  },
+  {
+   "text": "The city of Warsaw is in Turkey.",
+   "label": 0,
+   "group": 31
+  },
+  {
+   "text": "The city of Krakow is in Poland.",
+   "label": 1,
+   "group": 32
+  },
+  {
+   "text": "The city of Krakow is in Ecuador.",
+   "label": 0,
+   "group": 32
+  },
+  {
+   "text": "The city of Prague is in the Czech Republic.",
+   "label": 1,
+   "group": 33
+  },
+  {
+   "text": "The city of Prague is in Pakistan.",
+   "label": 0,
+   "group": 33
+  },
+  {
+   "text": "The city of Budapest is in Hungary.",
+   "label": 1,
+   "group": 34
+  },
+  {
+   "text": "The city of Budapest is in the United Kingdom.",
+   "label": 0,
+   "group": 34
+  },
+  {
+   "text": "The city of Athens is in Greece.",
+   "label": 1,
+   "group": 35
+  },
+  {
+   "text": "The city of Athens is in Bulgaria.",
+   "label": 0,
+   "group": 35
+  },
+  {
+   "text": "The city of Istanbul is in Turkey.",
+   "label": 1,
+   "group": 36
+  },
+  {
+   "text": "The city of Istanbul is in the Netherlands.",
+   "label": 0,
+   "group": 36
+  },
+  {
+   "text": "The city of Ankara is in Turkey.",
+   "label": 1,
+   "group": 37
+  },
+  {
+   "text": "The city of Ankara is in Ghana.",
+   "label": 0,
+   "group": 37
+  },
+  {
+   "text": "The city of Moscow is in Russia.",
+   "label": 1,
+   "group": 38
+  },
+  {
+   "text": "The city of Moscow is in Australia.",
+   "label": 0,
+   "group": 38
+  },
+  {
+   "text": "The city of Saint Petersburg is in Russia.",
+   "label": 1,
+   "group": 39
+  },
+  {
+   "text": "The city of Saint Petersburg is in Australia.",
+   "label": 0,
+   "group": 39
+  },
+  {
+   "text": "The city of Kyiv is in Ukraine.",
+   "label": 1,
+   "group": 40
+  },
+  {
+   "text": "The city of Kyiv is in Australia.",
+   "label": 0,
+   "group": 40
+  },
+  {
+   "text": "The city of Bucharest is in Romania.",
+   "label": 1,
+   "group": 41
+  },
+  {
+   "text": "The city of Bucharest is in Russia.",
+   "label": 0,
+   "group": 41
+  },
+  {
+   "text": "The city of Sofia is in Bulgaria.",
+   "label": 1,
+   "group": 42
+  },
+  {
+   "text": "The city of Sofia is in Nigeria.",
+   "label": 0,
+   "group": 42
+  },
+  {
+   "text": "The city of Belgrade is in Serbia.",
+   "label": 1,
+   "group": 43
+  },
+  {
+   "text": "The city of Belgrade is in Argentina.",
+   "label": 0,
+   "group": 43
+  },
+  {
+   "text": "The city of Zagreb is in Croatia.",
+   "label": 1,
+   "group": 44
+  },
+  {
+   "text": "The city of Zagreb is in the United Kingdom.",
+   "label": 0,
+   "group": 44
+  },
+  {
+   "text": "The city of Tokyo is in Japan.",
+   "label": 1,
+   "group": 45
+  },
+  {
+   "text": "The city of Tokyo is in the Czech Republic.",
+   "label": 0,
+   "group": 45
+  },
+  {
+   "text": "The city of Osaka is in Japan.",
+   "label": 1,
+   "group": 46
+  },
+  {
+   "text": "The city of Osaka is in Indonesia.",
+   "label": 0,
+   "group": 46
+  },
+  {
+   "text": "The city of Kyoto is in Japan.",
+   "label": 1,
+   "group": 47
+  },
+  {
+   "text": "The city of Kyoto is in Senegal.",
+   "label": 0,
+   "group": 47
+  },
+  {
+   "text": "The city of Seoul is in South Korea.",
+   "label": 1,
+   "group": 48
+  },
+  {
+   "text": "The city of Seoul is in Denmark.",
+   "label": 0,
+   "group": 48
+  },
+  {
+   "text": "The city of Busan is in South Korea.",
+   "label": 1,
+   "group": 49
+  },
+  {
+   "text": "The city of Busan is in Ireland.",
+   "label": 0,
+   "group": 49
+  },
+  {
+   "text": "The city of Beijing is in China.",
+   "label": 1,
+   "group": 50
+  },
+  {
+   "text": "The city of Beijing is in South Korea.",
+   "label": 0,
+   "group": 50
+  },
+  {
+   "text": "The city of Shanghai is in China.",
+   "label": 1,
+   "group": 51
+  },
+  {
+   "text": "The city of Shanghai is in Australia.",
+   "label": 0,
+   "group": 51
+  },
+  {
+   "text": "The city of Shenzhen is in China.",
+   "label": 1,
+   "group": 52
+  },
+  {
+   "text": "The city of Shenzhen is in New Zealand.",
+   "label": 0,
+   "group": 52
+  },
+  {
+   "text": "The city of Mumbai is in India.",
+   "label": 1,
+   "group": 53
+  },
+  {
+   "text": "The city of Mumbai is in Ecuador.",
+   "label": 0,
+   "group": 53
+  },
+  {
+   "text": "The city of Delhi is in India.",
+   "label": 1,
+   "group": 54
+  },
+  {
+   "text": "The city of Delhi is in Sweden.",
+   "label": 0,
+   "group": 54
+  },
+  {
+   "text": "The city of Bangalore is in India.",
+   "label": 1,
+   "group": 55
+  },
+  {
+   "text": "The city of Bangalore is in Japan.",
+   "label": 0,
+   "group": 55
+  },
+  {
+   "text": "The city of Kolkata is in India.",
+   "label": 1,
+   "group": 56
+  },
+  {
+   "text": "The city of Kolkata is in the United Kingdom.",
+   "label": 0,
+   "group": 56
+  },
+  {
+   "text": "The city of Karachi is in Pakistan.",
+   "label": 1,
+   "group": 57
+  },
+  {
+   "text": "The city of Karachi is in Malaysia.",
+   "label": 0,
+   "group": 57
+  },
+  {
+   "text": "The city of Lahore is in Pakistan.",
+   "label": 1,
+   "group": 58
+  },
+  {
+   "text": "The city of Lahore is in Nigeria.",
+   "label": 0,
+   "group": 58
+  },
+  {
+   "text": "The city of Dhaka is in Bangladesh.",
+   "label": 1,
+   "group": 59
+  },
+  {
+   "text": "The city of Dhaka is in Egypt.",
+   "label": 0,
+   "group": 59
+  },
+  {
+   "text": "The city of Bangkok is in Thailand.",
+   "label": 1,
+   "group": 60
+  },
+  {
+   "text": "The city of Bangkok is in Hungary.",
+   "label": 0,
+   "group": 60
+  },
+  {
+   "text": "The city of Hanoi is in Vietnam.",
+   "label": 1,
+   "group": 61
+  },
+  {
+   "text": "The city of Hanoi is in Ecuador.",
+   "label": 0,
+   "group": 61
+  },
+  {
+   "text": "The city of Jakarta is in Indonesia.",
+   "label": 1,
+   "group": 62
+  },
+  {
+   "text": "The city of Jakarta is in Senegal.",
+   "label": 0,
+   "group": 62
+  },
+  {
+   "text": "The city of Manila is in the Philippines.",
+   "label": 1,
+   "group": 63
+  },
+  {
+   "text": "The city of Manila is in Ecuador.",
+   "label": 0,
+   "group": 63
+  },
+  {
+   "text": "The city of Kuala Lumpur is in Malaysia.",
+   "label": 1,
+   "group": 64
+  },
+  {
+   "text": "The city of Kuala Lumpur is in Sweden.",
+   "label": 0,
+   "group": 64
+  },
+  {
+   "text": "The city of Tehran is in Iran.",
+   "label": 1,
+   "group": 65
+  },
+  {
+   "text": "The city of Tehran is in Kenya.",
+   "label": 0,
+   "group": 65
+  },
+  {
+   "text": "The city of Baghdad is in Iraq.",
+   "label": 1,
+   "group": 66
+  },
+  {
+   "text": "The city of Baghdad is in the United Kingdom.",
+   "label": 0,
+   "group": 66
+  },
+  {
+   "text": "The city of Riyadh is in Saudi Arabia.",
+   "label": 1,
+   "group": 67
+  },
+  {
+   "text": "The city of Riyadh is in France.",
+   "label": 0,
+   "group": 67
+  },
+  {
+   "text": "The city of Dubai is in the United Arab Emirates.",
+   "label": 1,
+   "group": 68
+  },
+  {
+   "text": "The city of Dubai is in the Philippines.",
+   "label": 0,
+   "group": 68
+  },
+  {
+   "text": "The city of Cairo is in Egypt.",
+   "label": 1,
+   "group": 69
+  },
+  {
+   "text": "The city of Cairo is in Australia.",
+   "label": 0,
+   "group": 69
+  },
+  {
+   "text": "The city of Alexandria is in Egypt.",
+   "label": 1,
+   "group": 70
+  },
+  {
+   "text": "The city of Alexandria is in Ireland.",
+   "label": 0,
+   "group": 70
+  },
+  {
+   "text": "The city of Lagos is in Nigeria.",
+   "label": 1,
+   "group": 71
+  },
+  {
+   "text": "The city of Lagos is in Uruguay.",
+   "label": 0,
+   "group": 71
+  },
+  {
+   "text": "The city of Nairobi is in Kenya.",
+   "label": 1,
+   "group": 72
+  },
+  {
+   "text": "The city of Nairobi is in the Philippines.",
+   "label": 0,
+   "group": 72
+  },
+  {
+   "text": "The city of Addis Ababa is in Ethiopia.",
+   "label": 1,
+   "group": 73
+  },
+  {
+   "text": "The city of Addis Ababa is in Norway.",
+   "label": 0,
+   "group": 73
+  },
+  {
+   "text": "The city of Johannesburg is in South Africa.",
+   "label": 1,
+   "group": 74
+  },
+  {
+   "text": "The city of Johannesburg is in the United Arab Emirates.",
+   "label": 0,
+   "group": 74
+  },
+  {
+   "text": "The city of Cape Town is in South Africa.",
+   "label": 1,
+   "group": 75
+  },
+  {
+   "text": "The city of Cape Town is in Romania.",
+   "label": 0,
+   "group": 75
+  },
+  {
+   "text": "The city of Casablanca is in Morocco.",
+   "label": 1,
+   "group": 76
+  },
+  {
+   "text": "The city of Casablanca is in Bulgaria.",
+   "label": 0,
+   "group": 76
+  },
+  {
+   "text": "The city of Accra is in Ghana.",
+   "label": 1,
+   "group": 77
+  },
+  {
+   "text": "The city of Accra is in Croatia.",
+   "label": 0,
+   "group": 77
+  },
+  {
+   "text": "The city of Dakar is in Senegal.",
+   "label": 1,
+   "group": 78
+  },
+  {
+   "text": "The city of Dakar is in Portugal.",
+   "label": 0,
+   "group": 78
+  },
+  {
+   "text": "The city of Toronto is in Canada.",
+   "label": 1,
+   "group": 79
+  },
+  {
+   "text": "The city of Toronto is in South Korea.",
+   "label": 0,
+   "group": 79
+  },
+  {
+   "text": "The city of Vancouver is in Canada.",
+   "label": 1,
+   "group": 80
+  },
+  {
+   "text": "The city of Vancouver is in Vietnam.",
+   "label": 0,
+   "group": 80
+  },
+  {
+   "text": "The city of Montreal is in Canada.",
+   "label": 1,
+   "group": 81
+  },
+  {
+   "text": "The city of Montreal is in Germany.",
+   "label": 0,
+   "group": 81
+  },
+  {
+   "text": "The city of New York is in the United States.",
+   "label": 1,
+   "group": 82
+  },
+  {
+   "text": "The city of New York is in Canada.",
+   "label": 0,
+   "group": 82
+  },
+  {
+   "text": "The city of Chicago is in the United States.",
+   "label": 1,
+   "group": 83
+  },
+  {
+   "text": "The city of Chicago is in South Korea.",
+   "label": 0,
+   "group": 83
+  },
+  {
+   "text": "The city of Los Angeles is in the United States.",
+   "label": 1,
+   "group": 84
+  },
+  {
+   "text": "The city of Los Angeles is in Greece.",
+   "label": 0,
+   "group": 84
+  },
+  {
+   "text": "The city of Houston is in the United States.",
+   "label": 1,
+   "group": 85
+  },
+  {
+   "text": "The city of Houston is in the Czech Republic.",
+   "label": 0,
+   "group": 85
+  },
+  {
+   "text": "The city of Mexico City is in Mexico.",
+   "label": 1,
+   "group": 86
+  },
+  {
+   "text": "The city of Mexico City is in South Korea.",
+   "label": 0,
+   "group": 86
+  },
+  {
+   "text": "The city of Guadalajara is in Mexico.",
+   "label": 1,
+   "group": 87
+  },
+  {
+   "text": "The city of Guadalajara is in South Africa.",
+   "label": 0,
+   "group": 87
+  },
+  {
+   "text": "The city of Havana is in Cuba.",
+   "label": 1,
+   "group": 88
+  },
+  {
+   "text": "The city of Havana is in Morocco.",
+   "label": 0,
+   "group": 88
+  },
+  {
+   "text": "The city of Bogota is in Colombia.",
+   "label": 1,
+   "group": 89
+  },
+  {
+   "text": "The city of Bogota is in the United Arab Emirates.",
+   "label": 0,
+   "group": 89
+  },
+  {
+   "text": "The city of Lima is in Peru.",
+   "label": 1,
+   "group": 90
+  },
+  {
+   "text": "The city of Lima is in the United States.",
+   "label": 0,
+   "group": 90
+  },
+  {
+   "text": "The city of Santiago is in Chile.",
+   "label": 1,
+   "group": 91
+  },
+  {
+   "text": "The city of Santiago is in Italy.",
+   "label": 0,
+   "group": 91
+  },
+  {
+   "text": "The city of Buenos Aires is in Argentina.",
+   "label": 1,
+   "group": 92
+  },
+  {
+   "text": "The city of Buenos Aires is in Morocco.",
+   "label": 0,
+   "group": 92
+  },
+  {
+   "text": "The city of Sao Paulo is in Brazil.",
+   "label": 1,
+   "group": 93
+  },
+  {
+   "text": "The city of Sao Paulo is in Uruguay.",
+   "label": 0,
+   "group": 93
+  },
+  {
+   "text": "The city of Rio de Janeiro is in Brazil.",
+   "label": 1,
+   "group": 94
+  },
+  {
+   "text": "The city of Rio de Janeiro is in the Philippines.",
+   "label": 0,
+   "group": 94
+  },
+  {
+   "text": "The city of Caracas is in Venezuela.",
+   "label": 1,
+   "group": 95
+  },
+  {
+   "text": "The city of Caracas is in Russia.",
+   "label": 0,
+   "group": 95
+  },
+  {
+   "text": "The city of Quito is in Ecuador.",
+   "label": 1,
+   "group": 96
+  },
+  {
+   "text": "The city of Quito is in Cuba.",
+   "label": 0,
+   "group": 96
+  },
+  {
+   "text": "The city of Montevideo is in Uruguay.",
+   "label": 1,
+   "group": 97
+  },
+  {
+   "text": "The city of Montevideo is in Germany.",
+   "label": 0,
+   "group": 97
+  },
+  {
+   "text": "The city of Sydney is in Australia.",
+   "label": 1,
+   "group": 98
+  },
+  {
+   "text": "The city of Sydney is in Germany.",
+   "label": 0,
+   "group": 98
+  },
+  {
+   "text": "The city of Melbourne is in Australia.",
+   "label": 1,
+   "group": 99
+  },
+  {
+   "text": "The city of Melbourne is in Peru.",
+   "label": 0,
+   "group": 99
+  },
+  {
+   "text": "The city of Perth is in Australia.",
+   "label": 1,
+   "group": 100
+  },
+  {
+   "text": "The city of Perth is in the Czech Republic.",
+   "label": 0,
+   "group": 100
+  },
+  {
+   "text": "The city of Auckland is in New Zealand.",
+   "label": 1,
+   "group": 101
+  },
+  {
+   "text": "The city of Auckland is in Malaysia.",
+   "label": 0,
+   "group": 101
+  },
+  {
+   "text": "The city of Wellington is in New Zealand.",
+   "label": 1,
+   "group": 102
+  },
+  {
+   "text": "The city of Wellington is in Venezuela.",
+   "label": 0,
+   "group": 102
+  }
+ ],
+ "ood": {
+  "description": "Numeric facts (comparisons and sums) instead of geography: does the probe find truth, or cities?",
+  "rows": [
+   {
+    "text": "The number 75 is larger than 61.",
+    "label": 1,
+    "group": 0
+   },
+   {
+    "text": "The number 61 is larger than 75.",
+    "label": 0,
+    "group": 0
+   },
+   {
+    "text": "The number 86 is larger than 15.",
+    "label": 1,
+    "group": 1
+   },
+   {
+    "text": "The number 15 is larger than 86.",
+    "label": 0,
+    "group": 1
+   },
+   {
+    "text": "The number 72 is larger than 42.",
+    "label": 1,
+    "group": 2
+   },
+   {
+    "text": "The number 42 is larger than 72.",
+    "label": 0,
+    "group": 2
+   },
+   {
+    "text": "The number 64 is larger than 62.",
+    "label": 1,
+    "group": 3
+   },
+   {
+    "text": "The number 62 is larger than 64.",
+    "label": 0,
+    "group": 3
+   },
+   {
+    "text": "The number 96 is larger than 33.",
+    "label": 1,
+    "group": 4
+   },
+   {
+    "text": "The number 33 is larger than 96.",
+    "label": 0,
+    "group": 4
+   },
+   {
+    "text": "The number 81 is larger than 57.",
+    "label": 1,
+    "group": 5
+   },
+   {
+    "text": "The number 57 is larger than 81.",
+    "label": 0,
+    "group": 5
+   },
+   {
+    "text": "The number 97 is larger than 58.",
+    "label": 1,
+    "group": 6
+   },
+   {
+    "text": "The number 58 is larger than 97.",
+    "label": 0,
+    "group": 6
+   },
+   {
+    "text": "The number 67 is larger than 22.",
+    "label": 1,
+    "group": 7
+   },
+   {
+    "text": "The number 22 is larger than 67.",
+    "label": 0,
+    "group": 7
+   },
+   {
+    "text": "The number 95 is larger than 76.",
+    "label": 1,
+    "group": 8
+   },
+   {
+    "text": "The number 76 is larger than 95.",
+    "label": 0,
+    "group": 8
+   },
+   {
+    "text": "The number 31 is larger than 24.",
+    "label": 1,
+    "group": 9
+   },
+   {
+    "text": "The number 24 is larger than 31.",
+    "label": 0,
+    "group": 9
+   },
+   {
+    "text": "The number 77 is larger than 61.",
+    "label": 1,
+    "group": 10
+   },
+   {
+    "text": "The number 61 is larger than 77.",
+    "label": 0,
+    "group": 10
+   },
+   {
+    "text": "The number 73 is larger than 58.",
+    "label": 1,
+    "group": 11
+   },
+   {
+    "text": "The number 58 is larger than 73.",
+    "label": 0,
+    "group": 11
+   },
+   {
+    "text": "The number 71 is larger than 14.",
+    "label": 1,
+    "group": 12
+   },
+   {
+    "text": "The number 14 is larger than 71.",
+    "label": 0,
+    "group": 12
+   },
+   {
+    "text": "The number 50 is larger than 16.",
+    "label": 1,
+    "group": 13
+   },
+   {
+    "text": "The number 16 is larger than 50.",
+    "label": 0,
+    "group": 13
+   },
+   {
+    "text": "The number 89 is larger than 86.",
+    "label": 1,
+    "group": 14
+   },
+   {
+    "text": "The number 86 is larger than 89.",
+    "label": 0,
+    "group": 14
+   },
+   {
+    "text": "The number 85 is larger than 61.",
+    "label": 1,
+    "group": 15
+   },
+   {
+    "text": "The number 61 is larger than 85.",
+    "label": 0,
+    "group": 15
+   },
+   {
+    "text": "The number 93 is larger than 32.",
+    "label": 1,
+    "group": 16
+   },
+   {
+    "text": "The number 32 is larger than 93.",
+    "label": 0,
+    "group": 16
+   },
+   {
+    "text": "The number 75 is larger than 32.",
+    "label": 1,
+    "group": 17
+   },
+   {
+    "text": "The number 32 is larger than 75.",
+    "label": 0,
+    "group": 17
+   },
+   {
+    "text": "The number 40 is larger than 12.",
+    "label": 1,
+    "group": 18
+   },
+   {
+    "text": "The number 12 is larger than 40.",
+    "label": 0,
+    "group": 18
+   },
+   {
+    "text": "The number 80 is larger than 36.",
+    "label": 1,
+    "group": 19
+   },
+   {
+    "text": "The number 36 is larger than 80.",
+    "label": 0,
+    "group": 19
+   },
+   {
+    "text": "The number 81 is larger than 40.",
+    "label": 1,
+    "group": 20
+   },
+   {
+    "text": "The number 40 is larger than 81.",
+    "label": 0,
+    "group": 20
+   },
+   {
+    "text": "The number 76 is larger than 62.",
+    "label": 1,
+    "group": 21
+   },
+   {
+    "text": "The number 62 is larger than 76.",
+    "label": 0,
+    "group": 21
+   },
+   {
+    "text": "The number 84 is larger than 55.",
+    "label": 1,
+    "group": 22
+   },
+   {
+    "text": "The number 55 is larger than 84.",
+    "label": 0,
+    "group": 22
+   },
+   {
+    "text": "The number 69 is larger than 56.",
+    "label": 1,
+    "group": 23
+   },
+   {
+    "text": "The number 56 is larger than 69.",
+    "label": 0,
+    "group": 23
+   },
+   {
+    "text": "The number 95 is larger than 45.",
+    "label": 1,
+    "group": 24
+   },
+   {
+    "text": "The number 45 is larger than 95.",
+    "label": 0,
+    "group": 24
+   },
+   {
+    "text": "The number 88 is larger than 81.",
+    "label": 1,
+    "group": 25
+   },
+   {
+    "text": "The number 81 is larger than 88.",
+    "label": 0,
+    "group": 25
+   },
+   {
+    "text": "The number 60 is larger than 11.",
+    "label": 1,
+    "group": 26
+   },
+   {
+    "text": "The number 11 is larger than 60.",
+    "label": 0,
+    "group": 26
+   },
+   {
+    "text": "The number 76 is larger than 27.",
+    "label": 1,
+    "group": 27
+   },
+   {
+    "text": "The number 27 is larger than 76.",
+    "label": 0,
+    "group": 27
+   },
+   {
+    "text": "The number 82 is larger than 77.",
+    "label": 1,
+    "group": 28
+   },
+   {
+    "text": "The number 77 is larger than 82.",
+    "label": 0,
+    "group": 28
+   },
+   {
+    "text": "The number 65 is larger than 37.",
+    "label": 1,
+    "group": 29
+   },
+   {
+    "text": "The number 37 is larger than 65.",
+    "label": 0,
+    "group": 29
+   },
+   {
+    "text": "One plus eight equals nine.",
+    "label": 1,
+    "group": 30
+   },
+   {
+    "text": "One plus eight equals ten.",
+    "label": 0,
+    "group": 30
+   },
+   {
+    "text": "Nine plus four equals thirteen.",
+    "label": 1,
+    "group": 31
+   },
+   {
+    "text": "Nine plus four equals fifteen.",
+    "label": 0,
+    "group": 31
+   },
+   {
+    "text": "Eight plus six equals fourteen.",
+    "label": 1,
+    "group": 32
+   },
+   {
+    "text": "Eight plus six equals sixteen.",
+    "label": 0,
+    "group": 32
+   },
+   {
+    "text": "Six plus one equals seven.",
+    "label": 1,
+    "group": 33
+   },
+   {
+    "text": "Six plus one equals eight.",
+    "label": 0,
+    "group": 33
+   },
+   {
+    "text": "Eight plus one equals nine.",
+    "label": 1,
+    "group": 34
+   },
+   {
+    "text": "Eight plus one equals eight.",
+    "label": 0,
+    "group": 34
+   },
+   {
+    "text": "Three plus nine equals twelve.",
+    "label": 1,
+    "group": 35
+   },
+   {
+    "text": "Three plus nine equals eleven.",
+    "label": 0,
+    "group": 35
+   },
+   {
+    "text": "Two plus nine equals eleven.",
+    "label": 1,
+    "group": 36
+   },
+   {
+    "text": "Two plus nine equals twelve.",
+    "label": 0,
+    "group": 36
+   },
+   {
+    "text": "One plus two equals three.",
+    "label": 1,
+    "group": 37
+   },
+   {
+    "text": "One plus two equals one.",
+    "label": 0,
+    "group": 37
+   },
+   {
+    "text": "One plus five equals six.",
+    "label": 1,
+    "group": 38
+   },
+   {
+    "text": "One plus five equals five.",
+    "label": 0,
+    "group": 38
+   },
+   {
+    "text": "Five plus two equals seven.",
+    "label": 1,
+    "group": 39
+   },
+   {
+    "text": "Five plus two equals six.",
+    "label": 0,
+    "group": 39
+   },
+   {
+    "text": "Six plus five equals eleven.",
+    "label": 1,
+    "group": 40
+   },
+   {
+    "text": "Six plus five equals nine.",
+    "label": 0,
+    "group": 40
+   },
+   {
+    "text": "Three plus three equals six.",
+    "label": 1,
+    "group": 41
+   },
+   {
+    "text": "Three plus three equals seven.",
+    "label": 0,
+    "group": 41
+   },
+   {
+    "text": "Nine plus three equals twelve.",
+    "label": 1,
+    "group": 42
+   },
+   {
+    "text": "Nine plus three equals thirteen.",
+    "label": 0,
+    "group": 42
+   },
+   {
+    "text": "Five plus eight equals thirteen.",
+    "label": 1,
+    "group": 43
+   },
+   {
+    "text": "Five plus eight equals fourteen.",
+    "label": 0,
+    "group": 43
+   },
+   {
+    "text": "Eight plus eight equals sixteen.",
+    "label": 1,
+    "group": 44
+   },
+   {
+    "text": "Eight plus eight equals fourteen.",
+    "label": 0,
+    "group": 44
+   },
+   {
+    "text": "Seven plus six equals thirteen.",
+    "label": 1,
+    "group": 45
+   },
+   {
+    "text": "Seven plus six equals fifteen.",
+    "label": 0,
+    "group": 45
+   },
+   {
+    "text": "Four plus five equals nine.",
+    "label": 1,
+    "group": 46
+   },
+   {
+    "text": "Four plus five equals seven.",
+    "label": 0,
+    "group": 46
+   },
+   {
+    "text": "Five plus nine equals fourteen.",
+    "label": 1,
+    "group": 47
+   },
+   {
+    "text": "Five plus nine equals thirteen.",
+    "label": 0,
+    "group": 47
+   },
+   {
+    "text": "Seven plus one equals eight.",
+    "label": 1,
+    "group": 48
+   },
+   {
+    "text": "Seven plus one equals seven.",
+    "label": 0,
+    "group": 48
+   },
+   {
+    "text": "One plus seven equals eight.",
+    "label": 1,
+    "group": 49
+   },
+   {
+    "text": "One plus seven equals seven.",
+    "label": 0,
+    "group": 49
+   },
+   {
+    "text": "One plus three equals four.",
+    "label": 1,
+    "group": 50
+   },
+   {
+    "text": "One plus three equals six.",
+    "label": 0,
+    "group": 50
+   },
+   {
+    "text": "Nine plus seven equals sixteen.",
+    "label": 1,
+    "group": 51
+   },
+   {
+    "text": "Nine plus seven equals fifteen.",
+    "label": 0,
+    "group": 51
+   },
+   {
+    "text": "Nine plus eight equals seventeen.",
+    "label": 1,
+    "group": 52
+   },
+   {
+    "text": "Nine plus eight equals sixteen.",
+    "label": 0,
+    "group": 52
+   },
+   {
+    "text": "Nine plus one equals ten.",
+    "label": 1,
+    "group": 53
+   },
+   {
+    "text": "Nine plus one equals twelve.",
+    "label": 0,
+    "group": 53
+   },
+   {
+    "text": "Six plus seven equals thirteen.",
+    "label": 1,
+    "group": 54
+   },
+   {
+    "text": "Six plus seven equals eleven.",
+    "label": 0,
+    "group": 54
+   },
+   {
+    "text": "Five plus three equals eight.",
+    "label": 1,
+    "group": 55
+   },
+   {
+    "text": "Five plus three equals seven.",
+    "label": 0,
+    "group": 55
+   },
+   {
+    "text": "Two plus two equals four.",
+    "label": 1,
+    "group": 56
+   },
+   {
+    "text": "Two plus two equals five.",
+    "label": 0,
+    "group": 56
+   },
+   {
+    "text": "Seven plus five equals twelve.",
+    "label": 1,
+    "group": 57
+   },
+   {
+    "text": "Seven plus five equals eleven.",
+    "label": 0,
+    "group": 57
+   },
+   {
+    "text": "One plus nine equals ten.",
+    "label": 1,
+    "group": 58
+   },
+   {
+    "text": "One plus nine equals eight.",
+    "label": 0,
+    "group": 58
+   },
+   {
+    "text": "Four plus eight equals twelve.",
+    "label": 1,
+    "group": 59
+   },
+   {
+    "text": "Four plus eight equals eleven.",
+    "label": 0,
+    "group": 59
+   }
+  ]
+ }
+}

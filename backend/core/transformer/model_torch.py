@@ -505,6 +505,11 @@ class TransformerLM(nn.Module):
         """Forward through a single block with patching support."""
         activations = {} if capture_activations else None
 
+        # The residual stream entering the block (steering and direction ablation only)
+        patch_key = f"layer_{layer_idx}_resid_pre"
+        if patch_key in patches:
+            x = self._apply_patch(x, patches[patch_key])
+
         # 1. Attention with residual
         attn_input = block.ln1(x)
         if capture_activations:
@@ -579,9 +584,13 @@ class TransformerLM(nn.Module):
             tensor: Original activation tensor [batch, seq_len, d_model]
             patch_info: Dict with (or a list of such dicts, applied in order):
                 - source: Source tensor to patch in (optional for ablation types)
+                - direction: [d_model] tensor, for 'steer' (the vector to add) and
+                  'ablate_direction' (the direction to project out)
                 - positions: Optional list of positions to patch
-                - blend_factor: Interpolation factor (1.0 = full replacement)
-                - intervention_type: 'patch', 'zero_ablate', 'mean_ablate', or 'noise_ablate'
+                - blend_factor: Interpolation factor (1.0 = full replacement); scales the
+                  vector added by 'steer' and the component removed by 'ablate_direction'
+                - intervention_type: 'patch', 'zero_ablate', 'mean_ablate', 'noise_ablate',
+                  'steer', or 'ablate_direction'
 
         Returns:
             Patched tensor
@@ -595,6 +604,20 @@ class TransformerLM(nn.Module):
         intervention_type = patch_info.get('intervention_type', 'patch')
         positions = patch_info.get('positions')
         blend_factor = patch_info.get('blend_factor', 1.0)
+
+        if intervention_type in ('steer', 'ablate_direction'):
+            direction = patch_info['direction'].to(tensor.device, tensor.dtype)
+            if intervention_type == 'steer':
+                change = (blend_factor * direction).expand_as(tensor)
+            else:
+                unit = direction / direction.norm()
+                change = -blend_factor * (tensor @ unit)[..., None] * unit
+            if positions is None:
+                return tensor + change
+            result = tensor.clone()
+            idx = [pos for pos in positions if pos < tensor.shape[1]]
+            result[:, idx] += change[:, idx]
+            return result
 
         result = tensor.clone()
 

@@ -1,0 +1,1119 @@
+{
+ "id": "language",
+ "order": 3,
+ "name": "Language (English vs French)",
+ "category": "contrastive",
+ "description": "English sentences and their French translations, so the two classes say the same things.",
+ "label_names": [
+  "English",
+  "French"
+ ],
+ "source": "Written for Ozera",
+ "rows": [
+  {
+   "text": "The weather is beautiful today.",
+   "label": 0,
+   "group": 0
+  },
+  {
+   "text": "Il fait beau aujourd'hui.",
+   "label": 1,
+   "group": 0
+  },
+  {
+   "text": "I would like a cup of coffee, please.",
+   "label": 0,
+   "group": 1
+  },
+  {
+   "text": "Je voudrais une tasse de café, s'il vous plaît.",
+   "label": 1,
+   "group": 1
+  },
+  {
+   "text": "Where is the train station?",
+   "label": 0,
+   "group": 2
+  },
+  {
+   "text": "Où est la gare ?",
+   "label": 1,
+   "group": 2
+  },
+  {
+   "text": "My brother lives in a small village.",
+   "label": 0,
+   "group": 3
+  },
+  {
+   "text": "Mon frère habite dans un petit village.",
+   "label": 1,
+   "group": 3
+  },
+  {
+   "text": "We are going to the beach this weekend.",
+   "label": 0,
+   "group": 4
+  },
+  {
+   "text": "Nous allons à la plage ce week-end.",
+   "label": 1,
+   "group": 4
+  },
+  {
+   "text": "The children are playing in the garden.",
+   "label": 0,
+   "group": 5
+  },
+  {
+   "text": "Les enfants jouent dans le jardin.",
+   "label": 1,
+   "group": 5
+  },
+  {
+   "text": "She reads a book every evening.",
+   "label": 0,
+   "group": 6
+  },
+  {
+   "text": "Elle lit un livre chaque soir.",
+   "label": 1,
+   "group": 6
+  },
+  {
+   "text": "This restaurant is very expensive.",
+   "label": 0,
+   "group": 7
+  },
+  {
+   "text": "Ce restaurant est très cher.",
+   "label": 1,
+   "group": 7
+  },
+  {
+   "text": "I don't understand the question.",
+   "label": 0,
+   "group": 8
+  },
+  {
+   "text": "Je ne comprends pas la question.",
+   "label": 1,
+   "group": 8
+  },
+  {
+   "text": "The museum opens at nine o'clock.",
+   "label": 0,
+   "group": 9
+  },
+  {
+   "text": "Le musée ouvre à neuf heures.",
+   "label": 1,
+   "group": 9
+  },
+  {
+   "text": "Can you help me carry this box?",
+   "label": 0,
+   "group": 10
+  },
+  {
+   "text": "Peux-tu m'aider à porter cette boîte ?",
+   "label": 1,
+   "group": 10
+  },
+  {
+   "text": "My grandmother makes the best soup.",
+   "label": 0,
+   "group": 11
+  },
+  {
+   "text": "Ma grand-mère fait la meilleure soupe.",
+   "label": 1,
+   "group": 11
+  },
+  {
+   "text": "The dog is sleeping under the table.",
+   "label": 0,
+   "group": 12
+  },
+  {
+   "text": "Le chien dort sous la table.",
+   "label": 1,
+   "group": 12
+  },
+  {
+   "text": "It is raining in the mountains.",
+   "label": 0,
+   "group": 13
+  },
+  {
+   "text": "Il pleut dans les montagnes.",
+   "label": 1,
+   "group": 13
+  },
+  {
+   "text": "I forgot my keys at the office.",
+   "label": 0,
+   "group": 14
+  },
+  {
+   "text": "J'ai oublié mes clés au bureau.",
+   "label": 1,
+   "group": 14
+  },
+  {
+   "text": "They bought a new car last month.",
+   "label": 0,
+   "group": 15
+  },
+  {
+   "text": "Ils ont acheté une nouvelle voiture le mois dernier.",
+   "label": 1,
+   "group": 15
+  },
+  {
+   "text": "The bread is still warm.",
+   "label": 0,
+   "group": 16
+  },
+  {
+   "text": "Le pain est encore chaud.",
+   "label": 1,
+   "group": 16
+  },
+  {
+   "text": "We need to leave before noon.",
+   "label": 0,
+   "group": 17
+  },
+  {
+   "text": "Nous devons partir avant midi.",
+   "label": 1,
+   "group": 17
+  },
+  {
+   "text": "He plays the guitar very well.",
+   "label": 0,
+   "group": 18
+  },
+  {
+   "text": "Il joue très bien de la guitare.",
+   "label": 1,
+   "group": 18
+  },
+  {
+   "text": "The library is closed on Sundays.",
+   "label": 0,
+   "group": 19
+  },
+  {
+   "text": "La bibliothèque est fermée le dimanche.",
+   "label": 1,
+   "group": 19
+  },
+  {
+   "text": "I am learning to cook.",
+   "label": 0,
+   "group": 20
+  },
+  {
+   "text": "J'apprends à cuisiner.",
+   "label": 1,
+   "group": 20
+  },
+  {
+   "text": "The river flows through the city.",
+   "label": 0,
+   "group": 21
+  },
+  {
+   "text": "La rivière traverse la ville.",
+   "label": 1,
+   "group": 21
+  },
+  {
+   "text": "Our teacher is very patient.",
+   "label": 0,
+   "group": 22
+  },
+  {
+   "text": "Notre professeur est très patient.",
+   "label": 1,
+   "group": 22
+  },
+  {
+   "text": "Do you want to come with us?",
+   "label": 0,
+   "group": 23
+  },
+  {
+   "text": "Veux-tu venir avec nous ?",
+   "label": 1,
+   "group": 23
+  },
+  {
+   "text": "The flowers smell wonderful.",
+   "label": 0,
+   "group": 24
+  },
+  {
+   "text": "Les fleurs sentent merveilleusement bon.",
+   "label": 1,
+   "group": 24
+  },
+  {
+   "text": "I have two sisters and one brother.",
+   "label": 0,
+   "group": 25
+  },
+  {
+   "text": "J'ai deux sœurs et un frère.",
+   "label": 1,
+   "group": 25
+  },
+  {
+   "text": "The meeting starts in ten minutes.",
+   "label": 0,
+   "group": 26
+  },
+  {
+   "text": "La réunion commence dans dix minutes.",
+   "label": 1,
+   "group": 26
+  },
+  {
+   "text": "She works at the hospital.",
+   "label": 0,
+   "group": 27
+  },
+  {
+   "text": "Elle travaille à l'hôpital.",
+   "label": 1,
+   "group": 27
+  },
+  {
+   "text": "This book is very interesting.",
+   "label": 0,
+   "group": 28
+  },
+  {
+   "text": "Ce livre est très intéressant.",
+   "label": 1,
+   "group": 28
+  },
+  {
+   "text": "The cat climbed onto the roof.",
+   "label": 0,
+   "group": 29
+  },
+  {
+   "text": "Le chat est monté sur le toit.",
+   "label": 1,
+   "group": 29
+  },
+  {
+   "text": "We watched a film last night.",
+   "label": 0,
+   "group": 30
+  },
+  {
+   "text": "Nous avons regardé un film hier soir.",
+   "label": 1,
+   "group": 30
+  },
+  {
+   "text": "The shop is around the corner.",
+   "label": 0,
+   "group": 31
+  },
+  {
+   "text": "Le magasin est au coin de la rue.",
+   "label": 1,
+   "group": 31
+  },
+  {
+   "text": "I prefer tea to coffee.",
+   "label": 0,
+   "group": 32
+  },
+  {
+   "text": "Je préfère le thé au café.",
+   "label": 1,
+   "group": 32
+  },
+  {
+   "text": "The baby is finally asleep.",
+   "label": 0,
+   "group": 33
+  },
+  {
+   "text": "Le bébé dort enfin.",
+   "label": 1,
+   "group": 33
+  },
+  {
+   "text": "My phone battery is empty.",
+   "label": 0,
+   "group": 34
+  },
+  {
+   "text": "La batterie de mon téléphone est vide.",
+   "label": 1,
+   "group": 34
+  },
+  {
+   "text": "The sea is calm this morning.",
+   "label": 0,
+   "group": 35
+  },
+  {
+   "text": "La mer est calme ce matin.",
+   "label": 1,
+   "group": 35
+  },
+  {
+   "text": "He is waiting for the bus.",
+   "label": 0,
+   "group": 36
+  },
+  {
+   "text": "Il attend le bus.",
+   "label": 1,
+   "group": 36
+  },
+  {
+   "text": "The soup needs more salt.",
+   "label": 0,
+   "group": 37
+  },
+  {
+   "text": "La soupe a besoin de plus de sel.",
+   "label": 1,
+   "group": 37
+  },
+  {
+   "text": "We painted the kitchen yellow.",
+   "label": 0,
+   "group": 38
+  },
+  {
+   "text": "Nous avons peint la cuisine en jaune.",
+   "label": 1,
+   "group": 38
+  },
+  {
+   "text": "The students are taking an exam.",
+   "label": 0,
+   "group": 39
+  },
+  {
+   "text": "Les étudiants passent un examen.",
+   "label": 1,
+   "group": 39
+  },
+  {
+   "text": "I lost my umbrella yesterday.",
+   "label": 0,
+   "group": 40
+  },
+  {
+   "text": "J'ai perdu mon parapluie hier.",
+   "label": 1,
+   "group": 40
+  },
+  {
+   "text": "The garden is full of birds.",
+   "label": 0,
+   "group": 41
+  },
+  {
+   "text": "Le jardin est plein d'oiseaux.",
+   "label": 1,
+   "group": 41
+  },
+  {
+   "text": "She speaks three languages.",
+   "label": 0,
+   "group": 42
+  },
+  {
+   "text": "Elle parle trois langues.",
+   "label": 1,
+   "group": 42
+  },
+  {
+   "text": "The window is open.",
+   "label": 0,
+   "group": 43
+  },
+  {
+   "text": "La fenêtre est ouverte.",
+   "label": 1,
+   "group": 43
+  },
+  {
+   "text": "Dinner is ready.",
+   "label": 0,
+   "group": 44
+  },
+  {
+   "text": "Le dîner est prêt.",
+   "label": 1,
+   "group": 44
+  },
+  {
+   "text": "My friends are coming tonight.",
+   "label": 0,
+   "group": 45
+  },
+  {
+   "text": "Mes amis viennent ce soir.",
+   "label": 1,
+   "group": 45
+  },
+  {
+   "text": "The road is very long.",
+   "label": 0,
+   "group": 46
+  },
+  {
+   "text": "La route est très longue.",
+   "label": 1,
+   "group": 46
+  },
+  {
+   "text": "I need a new pair of shoes.",
+   "label": 0,
+   "group": 47
+  },
+  {
+   "text": "J'ai besoin d'une nouvelle paire de chaussures.",
+   "label": 1,
+   "group": 47
+  },
+  {
+   "text": "The concert was amazing.",
+   "label": 0,
+   "group": 48
+  },
+  {
+   "text": "Le concert était incroyable.",
+   "label": 1,
+   "group": 48
+  },
+  {
+   "text": "He drinks water with every meal.",
+   "label": 0,
+   "group": 49
+  },
+  {
+   "text": "Il boit de l'eau à chaque repas.",
+   "label": 1,
+   "group": 49
+  },
+  {
+   "text": "The apples are on the kitchen table.",
+   "label": 0,
+   "group": 50
+  },
+  {
+   "text": "Les pommes sont sur la table de la cuisine.",
+   "label": 1,
+   "group": 50
+  },
+  {
+   "text": "We are tired after the long walk.",
+   "label": 0,
+   "group": 51
+  },
+  {
+   "text": "Nous sommes fatigués après la longue promenade.",
+   "label": 1,
+   "group": 51
+  },
+  {
+   "text": "The plane landed on time.",
+   "label": 0,
+   "group": 52
+  },
+  {
+   "text": "L'avion a atterri à l'heure.",
+   "label": 1,
+   "group": 52
+  },
+  {
+   "text": "I am writing a letter to my aunt.",
+   "label": 0,
+   "group": 53
+  },
+  {
+   "text": "J'écris une lettre à ma tante.",
+   "label": 1,
+   "group": 53
+  },
+  {
+   "text": "The park is quiet in the morning.",
+   "label": 0,
+   "group": 54
+  },
+  {
+   "text": "Le parc est calme le matin.",
+   "label": 1,
+   "group": 54
+  },
+  {
+   "text": "They live near the river.",
+   "label": 0,
+   "group": 55
+  },
+  {
+   "text": "Ils habitent près de la rivière.",
+   "label": 1,
+   "group": 55
+  },
+  {
+   "text": "My father fixed the bicycle.",
+   "label": 0,
+   "group": 56
+  },
+  {
+   "text": "Mon père a réparé le vélo.",
+   "label": 1,
+   "group": 56
+  },
+  {
+   "text": "The room is too small for us.",
+   "label": 0,
+   "group": 57
+  },
+  {
+   "text": "La chambre est trop petite pour nous.",
+   "label": 1,
+   "group": 57
+  },
+  {
+   "text": "She smiled at the old man.",
+   "label": 0,
+   "group": 58
+  },
+  {
+   "text": "Elle a souri au vieil homme.",
+   "label": 1,
+   "group": 58
+  },
+  {
+   "text": "The music is too loud.",
+   "label": 0,
+   "group": 59
+  },
+  {
+   "text": "La musique est trop forte.",
+   "label": 1,
+   "group": 59
+  },
+  {
+   "text": "We planted tomatoes in the spring.",
+   "label": 0,
+   "group": 60
+  },
+  {
+   "text": "Nous avons planté des tomates au printemps.",
+   "label": 1,
+   "group": 60
+  },
+  {
+   "text": "I can see the mountains from here.",
+   "label": 0,
+   "group": 61
+  },
+  {
+   "text": "Je vois les montagnes d'ici.",
+   "label": 1,
+   "group": 61
+  },
+  {
+   "text": "The doctor will see you now.",
+   "label": 0,
+   "group": 62
+  },
+  {
+   "text": "Le médecin va vous recevoir maintenant.",
+   "label": 1,
+   "group": 62
+  },
+  {
+   "text": "The cake is in the oven.",
+   "label": 0,
+   "group": 63
+  },
+  {
+   "text": "Le gâteau est dans le four.",
+   "label": 1,
+   "group": 63
+  },
+  {
+   "text": "He opened the door slowly.",
+   "label": 0,
+   "group": 64
+  },
+  {
+   "text": "Il a ouvert la porte lentement.",
+   "label": 1,
+   "group": 64
+  },
+  {
+   "text": "Winter is coming soon.",
+   "label": 0,
+   "group": 65
+  },
+  {
+   "text": "L'hiver arrive bientôt.",
+   "label": 1,
+   "group": 65
+  },
+  {
+   "text": "The train was very crowded.",
+   "label": 0,
+   "group": 66
+  },
+  {
+   "text": "Le train était très bondé.",
+   "label": 1,
+   "group": 66
+  },
+  {
+   "text": "I like walking by the lake.",
+   "label": 0,
+   "group": 67
+  },
+  {
+   "text": "J'aime me promener au bord du lac.",
+   "label": 1,
+   "group": 67
+  },
+  {
+   "text": "The teacher wrote on the board.",
+   "label": 0,
+   "group": 68
+  },
+  {
+   "text": "Le professeur a écrit au tableau.",
+   "label": 1,
+   "group": 68
+  },
+  {
+   "text": "Our house has a red door.",
+   "label": 0,
+   "group": 69
+  },
+  {
+   "text": "Notre maison a une porte rouge.",
+   "label": 1,
+   "group": 69
+  },
+  {
+   "text": "She is looking for her glasses.",
+   "label": 0,
+   "group": 70
+  },
+  {
+   "text": "Elle cherche ses lunettes.",
+   "label": 1,
+   "group": 70
+  },
+  {
+   "text": "The market sells fresh fish.",
+   "label": 0,
+   "group": 71
+  },
+  {
+   "text": "Le marché vend du poisson frais.",
+   "label": 1,
+   "group": 71
+  },
+  {
+   "text": "We arrived late because of the traffic.",
+   "label": 0,
+   "group": 72
+  },
+  {
+   "text": "Nous sommes arrivés en retard à cause de la circulation.",
+   "label": 1,
+   "group": 72
+  },
+  {
+   "text": "The moon is bright tonight.",
+   "label": 0,
+   "group": 73
+  },
+  {
+   "text": "La lune est brillante ce soir.",
+   "label": 1,
+   "group": 73
+  },
+  {
+   "text": "I will call you tomorrow.",
+   "label": 0,
+   "group": 74
+  },
+  {
+   "text": "Je t'appellerai demain.",
+   "label": 1,
+   "group": 74
+  },
+  {
+   "text": "The horse is running across the field.",
+   "label": 0,
+   "group": 75
+  },
+  {
+   "text": "Le cheval court à travers le champ.",
+   "label": 1,
+   "group": 75
+  },
+  {
+   "text": "My sister is a lawyer.",
+   "label": 0,
+   "group": 76
+  },
+  {
+   "text": "Ma sœur est avocate.",
+   "label": 1,
+   "group": 76
+  },
+  {
+   "text": "The coffee is too strong.",
+   "label": 0,
+   "group": 77
+  },
+  {
+   "text": "Le café est trop fort.",
+   "label": 1,
+   "group": 77
+  },
+  {
+   "text": "They are building a new bridge.",
+   "label": 0,
+   "group": 78
+  },
+  {
+   "text": "Ils construisent un nouveau pont.",
+   "label": 1,
+   "group": 78
+  },
+  {
+   "text": "I made a mistake.",
+   "label": 0,
+   "group": 79
+  },
+  {
+   "text": "J'ai fait une erreur.",
+   "label": 1,
+   "group": 79
+  }
+ ],
+ "ood": {
+  "description": "English vs Spanish: did the probe learn \"French\" or just \"not English\"?",
+  "rows": [
+   {
+    "text": "The kitchen is very clean.",
+    "label": 0,
+    "group": 0
+   },
+   {
+    "text": "La cocina está muy limpia.",
+    "label": 1,
+    "group": 0
+   },
+   {
+    "text": "I want to learn to swim.",
+    "label": 0,
+    "group": 1
+   },
+   {
+    "text": "Quiero aprender a nadar.",
+    "label": 1,
+    "group": 1
+   },
+   {
+    "text": "My mother works in a bank.",
+    "label": 0,
+    "group": 2
+   },
+   {
+    "text": "Mi madre trabaja en un banco.",
+    "label": 1,
+    "group": 2
+   },
+   {
+    "text": "The streets are empty at night.",
+    "label": 0,
+    "group": 3
+   },
+   {
+    "text": "Las calles están vacías por la noche.",
+    "label": 1,
+    "group": 3
+   },
+   {
+    "text": "We eat dinner at eight.",
+    "label": 0,
+    "group": 4
+   },
+   {
+    "text": "Cenamos a las ocho.",
+    "label": 1,
+    "group": 4
+   },
+   {
+    "text": "The boy found a coin.",
+    "label": 0,
+    "group": 5
+   },
+   {
+    "text": "El niño encontró una moneda.",
+    "label": 1,
+    "group": 5
+   },
+   {
+    "text": "Is there a pharmacy nearby?",
+    "label": 0,
+    "group": 6
+   },
+   {
+    "text": "¿Hay una farmacia cerca?",
+    "label": 1,
+    "group": 6
+   },
+   {
+    "text": "The sky is full of stars.",
+    "label": 0,
+    "group": 7
+   },
+   {
+    "text": "El cielo está lleno de estrellas.",
+    "label": 1,
+    "group": 7
+   },
+   {
+    "text": "She bought fresh bread.",
+    "label": 0,
+    "group": 8
+   },
+   {
+    "text": "Ella compró pan fresco.",
+    "label": 1,
+    "group": 8
+   },
+   {
+    "text": "I am very hungry.",
+    "label": 0,
+    "group": 9
+   },
+   {
+    "text": "Tengo mucha hambre.",
+    "label": 1,
+    "group": 9
+   },
+   {
+    "text": "The bus is late again.",
+    "label": 0,
+    "group": 10
+   },
+   {
+    "text": "El autobús llega tarde otra vez.",
+    "label": 1,
+    "group": 10
+   },
+   {
+    "text": "They are dancing in the square.",
+    "label": 0,
+    "group": 11
+   },
+   {
+    "text": "Están bailando en la plaza.",
+    "label": 1,
+    "group": 11
+   },
+   {
+    "text": "My uncle has a farm.",
+    "label": 0,
+    "group": 12
+   },
+   {
+    "text": "Mi tío tiene una granja.",
+    "label": 1,
+    "group": 12
+   },
+   {
+    "text": "The water is cold.",
+    "label": 0,
+    "group": 13
+   },
+   {
+    "text": "El agua está fría.",
+    "label": 1,
+    "group": 13
+   },
+   {
+    "text": "We visited the castle.",
+    "label": 0,
+    "group": 14
+   },
+   {
+    "text": "Visitamos el castillo.",
+    "label": 1,
+    "group": 14
+   },
+   {
+    "text": "He sings in the shower.",
+    "label": 0,
+    "group": 15
+   },
+   {
+    "text": "Él canta en la ducha.",
+    "label": 1,
+    "group": 15
+   },
+   {
+    "text": "The door is locked.",
+    "label": 0,
+    "group": 16
+   },
+   {
+    "text": "La puerta está cerrada con llave.",
+    "label": 1,
+    "group": 16
+   },
+   {
+    "text": "I need more time.",
+    "label": 0,
+    "group": 17
+   },
+   {
+    "text": "Necesito más tiempo.",
+    "label": 1,
+    "group": 17
+   },
+   {
+    "text": "The trees are green in summer.",
+    "label": 0,
+    "group": 18
+   },
+   {
+    "text": "Los árboles son verdes en verano.",
+    "label": 1,
+    "group": 18
+   },
+   {
+    "text": "Our neighbors are very kind.",
+    "label": 0,
+    "group": 19
+   },
+   {
+    "text": "Nuestros vecinos son muy amables.",
+    "label": 1,
+    "group": 19
+   },
+   {
+    "text": "The film starts at seven.",
+    "label": 0,
+    "group": 20
+   },
+   {
+    "text": "La película empieza a las siete.",
+    "label": 1,
+    "group": 20
+   },
+   {
+    "text": "She is reading the newspaper.",
+    "label": 0,
+    "group": 21
+   },
+   {
+    "text": "Ella está leyendo el periódico.",
+    "label": 1,
+    "group": 21
+   },
+   {
+    "text": "The hotel has a pool.",
+    "label": 0,
+    "group": 22
+   },
+   {
+    "text": "El hotel tiene una piscina.",
+    "label": 1,
+    "group": 22
+   },
+   {
+    "text": "I lost my wallet.",
+    "label": 0,
+    "group": 23
+   },
+   {
+    "text": "Perdí mi cartera.",
+    "label": 1,
+    "group": 23
+   },
+   {
+    "text": "The baby is laughing.",
+    "label": 0,
+    "group": 24
+   },
+   {
+    "text": "El bebé se está riendo.",
+    "label": 1,
+    "group": 24
+   },
+   {
+    "text": "We walked along the beach.",
+    "label": 0,
+    "group": 25
+   },
+   {
+    "text": "Caminamos por la playa.",
+    "label": 1,
+    "group": 25
+   },
+   {
+    "text": "The fruit is very sweet.",
+    "label": 0,
+    "group": 26
+   },
+   {
+    "text": "La fruta es muy dulce.",
+    "label": 1,
+    "group": 26
+   },
+   {
+    "text": "My car is in the garage.",
+    "label": 0,
+    "group": 27
+   },
+   {
+    "text": "Mi coche está en el garaje.",
+    "label": 1,
+    "group": 27
+   },
+   {
+    "text": "They speak quietly.",
+    "label": 0,
+    "group": 28
+   },
+   {
+    "text": "Ellos hablan en voz baja.",
+    "label": 1,
+    "group": 28
+   },
+   {
+    "text": "The city is beautiful in spring.",
+    "label": 0,
+    "group": 29
+   },
+   {
+    "text": "La ciudad es hermosa en primavera.",
+    "label": 1,
+    "group": 29
+   }
+  ]
+ }
+}

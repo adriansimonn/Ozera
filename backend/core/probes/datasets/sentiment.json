@@ -1,0 +1,899 @@
+{
+ "id": "sentiment",
+ "order": 2,
+ "name": "Sentiment",
+ "category": "contrastive",
+ "description": "Short positive and negative movie reviews.",
+ "label_names": [
+  "Negative",
+  "Positive"
+ ],
+ "source": "Written for Ozera",
+ "rows": [
+  {
+   "text": "An absolute joy from start to finish.",
+   "label": 1
+  },
+  {
+   "text": "The acting was superb and the story kept me hooked.",
+   "label": 1
+  },
+  {
+   "text": "I laughed the whole way through.",
+   "label": 1
+  },
+  {
+   "text": "A beautiful, moving film that stayed with me for days.",
+   "label": 1
+  },
+  {
+   "text": "One of the best movies I have seen this year.",
+   "label": 1
+  },
+  {
+   "text": "The soundtrack is gorgeous and the visuals are stunning.",
+   "label": 1
+  },
+  {
+   "text": "Clever, warm and genuinely funny.",
+   "label": 1
+  },
+  {
+   "text": "I would happily watch it again tomorrow.",
+   "label": 1
+  },
+  {
+   "text": "The lead gives a career-best performance.",
+   "label": 1
+  },
+  {
+   "text": "A smart thriller with a satisfying ending.",
+   "label": 1
+  },
+  {
+   "text": "Every scene felt carefully crafted.",
+   "label": 1
+  },
+  {
+   "text": "It made me cry in the best possible way.",
+   "label": 1
+  },
+  {
+   "text": "The dialogue is sharp and the pacing is perfect.",
+   "label": 1
+  },
+  {
+   "text": "A delightful surprise from a first-time director.",
+   "label": 1
+  },
+  {
+   "text": "My whole family loved it.",
+   "label": 1
+  },
+  {
+   "text": "Charming, heartfelt and beautifully shot.",
+   "label": 1
+  },
+  {
+   "text": "The plot twists actually worked for once.",
+   "label": 1
+  },
+  {
+   "text": "I left the theater smiling.",
+   "label": 1
+  },
+  {
+   "text": "A triumph of storytelling.",
+   "label": 1
+  },
+  {
+   "text": "The chemistry between the two leads is wonderful.",
+   "label": 1
+  },
+  {
+   "text": "Exciting, tense and very well made.",
+   "label": 1
+  },
+  {
+   "text": "This is how a sequel should be done.",
+   "label": 1
+  },
+  {
+   "text": "It is funny, kind and full of heart.",
+   "label": 1
+  },
+  {
+   "text": "The best animated film in years.",
+   "label": 1
+  },
+  {
+   "text": "A gripping documentary that taught me a lot.",
+   "label": 1
+  },
+  {
+   "text": "Brilliantly written and wonderfully acted.",
+   "label": 1
+  },
+  {
+   "text": "Two hours flew by.",
+   "label": 1
+  },
+  {
+   "text": "The ending was pitch perfect.",
+   "label": 1
+  },
+  {
+   "text": "Fresh, original and great fun.",
+   "label": 1
+  },
+  {
+   "text": "I recommend it to everyone I know.",
+   "label": 1
+  },
+  {
+   "text": "A masterpiece of quiet emotion.",
+   "label": 1
+  },
+  {
+   "text": "The action scenes are thrilling.",
+   "label": 1
+  },
+  {
+   "text": "Every performance in it is excellent.",
+   "label": 1
+  },
+  {
+   "text": "A heartwarming story told with real skill.",
+   "label": 1
+  },
+  {
+   "text": "It exceeded all of my expectations.",
+   "label": 1
+  },
+  {
+   "text": "Witty and wise, with a terrific cast.",
+   "label": 1
+  },
+  {
+   "text": "The director has outdone herself.",
+   "label": 1
+  },
+  {
+   "text": "Lovely to look at and lovely to think about.",
+   "label": 1
+  },
+  {
+   "text": "A real crowd pleaser.",
+   "label": 1
+  },
+  {
+   "text": "It deserves every award it won.",
+   "label": 1
+  },
+  {
+   "text": "Tender, honest and beautifully paced.",
+   "label": 1
+  },
+  {
+   "text": "I was on the edge of my seat.",
+   "label": 1
+  },
+  {
+   "text": "The script is a gem.",
+   "label": 1
+  },
+  {
+   "text": "A rich, rewarding film.",
+   "label": 1
+  },
+  {
+   "text": "Pure entertainment.",
+   "label": 1
+  },
+  {
+   "text": "The cinematography alone is worth the ticket.",
+   "label": 1
+  },
+  {
+   "text": "Funny, sweet and surprisingly deep.",
+   "label": 1
+  },
+  {
+   "text": "It is the kind of film that restores your faith in cinema.",
+   "label": 1
+  },
+  {
+   "text": "A wonderful cast in a wonderful story.",
+   "label": 1
+  },
+  {
+   "text": "I can't stop thinking about it.",
+   "label": 1
+  },
+  {
+   "text": "Bold, beautiful and unforgettable.",
+   "label": 1
+  },
+  {
+   "text": "A clever mystery that plays fair with the audience.",
+   "label": 1
+  },
+  {
+   "text": "The music swept me away.",
+   "label": 1
+  },
+  {
+   "text": "An inspiring true story, told well.",
+   "label": 1
+  },
+  {
+   "text": "Great fun for kids and adults alike.",
+   "label": 1
+  },
+  {
+   "text": "It got better with every scene.",
+   "label": 1
+  },
+  {
+   "text": "A confident, assured debut.",
+   "label": 1
+  },
+  {
+   "text": "The performances are natural and believable.",
+   "label": 1
+  },
+  {
+   "text": "Thoughtful and entertaining at the same time.",
+   "label": 1
+  },
+  {
+   "text": "A fantastic adventure.",
+   "label": 1
+  },
+  {
+   "text": "The humor lands every time.",
+   "label": 1
+  },
+  {
+   "text": "It is simply wonderful.",
+   "label": 1
+  },
+  {
+   "text": "A stylish and thrilling ride.",
+   "label": 1
+  },
+  {
+   "text": "The best performance of the actor's career.",
+   "label": 1
+  },
+  {
+   "text": "Emotionally powerful and expertly made.",
+   "label": 1
+  },
+  {
+   "text": "An instant classic.",
+   "label": 1
+  },
+  {
+   "text": "I enjoyed every minute.",
+   "label": 1
+  },
+  {
+   "text": "Gorgeous, haunting and wise.",
+   "label": 1
+  },
+  {
+   "text": "Smart writing and a strong cast make this a winner.",
+   "label": 1
+  },
+  {
+   "text": "A lovely little film.",
+   "label": 1
+  },
+  {
+   "text": "It is as good as everyone says.",
+   "label": 1
+  },
+  {
+   "text": "Moving without being sentimental.",
+   "label": 1
+  },
+  {
+   "text": "A thrilling ending to a great trilogy.",
+   "label": 1
+  },
+  {
+   "text": "Beautifully made and deeply felt.",
+   "label": 1
+  },
+  {
+   "text": "The story is engaging and the characters are memorable.",
+   "label": 1
+  },
+  {
+   "text": "A very entertaining evening at the movies.",
+   "label": 1
+  },
+  {
+   "text": "It made my week.",
+   "label": 1
+  },
+  {
+   "text": "Sharp, funny and full of surprises.",
+   "label": 1
+  },
+  {
+   "text": "The kind of movie you want to tell your friends about.",
+   "label": 1
+  },
+  {
+   "text": "A wonderful, generous film.",
+   "label": 1
+  },
+  {
+   "text": "A complete waste of two hours.",
+   "label": 0
+  },
+  {
+   "text": "The acting was wooden and the story made no sense.",
+   "label": 0
+  },
+  {
+   "text": "I was bored the whole way through.",
+   "label": 0
+  },
+  {
+   "text": "A dull, lifeless film that I forgot immediately.",
+   "label": 0
+  },
+  {
+   "text": "One of the worst movies I have seen this year.",
+   "label": 0
+  },
+  {
+   "text": "The soundtrack is grating and the visuals look cheap.",
+   "label": 0
+  },
+  {
+   "text": "Lazy, cold and painfully unfunny.",
+   "label": 0
+  },
+  {
+   "text": "I would not watch it again if you paid me.",
+   "label": 0
+  },
+  {
+   "text": "The lead gives a flat, lifeless performance.",
+   "label": 0
+  },
+  {
+   "text": "A predictable thriller with a ridiculous ending.",
+   "label": 0
+  },
+  {
+   "text": "Every scene felt rushed and careless.",
+   "label": 0
+  },
+  {
+   "text": "It made me cringe more than once.",
+   "label": 0
+  },
+  {
+   "text": "The dialogue is clumsy and the pacing is awful.",
+   "label": 0
+  },
+  {
+   "text": "A disappointing mess from an experienced director.",
+   "label": 0
+  },
+  {
+   "text": "My whole family hated it.",
+   "label": 0
+  },
+  {
+   "text": "Charmless, hollow and badly shot.",
+   "label": 0
+  },
+  {
+   "text": "The plot twists were obvious from the start.",
+   "label": 0
+  },
+  {
+   "text": "I left the theater angry.",
+   "label": 0
+  },
+  {
+   "text": "A failure of storytelling.",
+   "label": 0
+  },
+  {
+   "text": "There is no chemistry between the two leads.",
+   "label": 0
+  },
+  {
+   "text": "Boring, slow and very poorly made.",
+   "label": 0
+  },
+  {
+   "text": "This is how a sequel should not be done.",
+   "label": 0
+  },
+  {
+   "text": "It is mean, cynical and empty.",
+   "label": 0
+  },
+  {
+   "text": "The worst animated film in years.",
+   "label": 0
+  },
+  {
+   "text": "A confused documentary that taught me nothing.",
+   "label": 0
+  },
+  {
+   "text": "Badly written and terribly acted.",
+   "label": 0
+  },
+  {
+   "text": "Two hours dragged on forever.",
+   "label": 0
+  },
+  {
+   "text": "The ending was a disaster.",
+   "label": 0
+  },
+  {
+   "text": "Stale, derivative and no fun at all.",
+   "label": 0
+  },
+  {
+   "text": "I warn everyone I know to avoid it.",
+   "label": 0
+  },
+  {
+   "text": "A mess of fake emotion.",
+   "label": 0
+  },
+  {
+   "text": "The action scenes are confusing and dull.",
+   "label": 0
+  },
+  {
+   "text": "Every performance in it is weak.",
+   "label": 0
+  },
+  {
+   "text": "A sappy story told without any skill.",
+   "label": 0
+  },
+  {
+   "text": "It fell far below my expectations.",
+   "label": 0
+  },
+  {
+   "text": "Witless and shallow, with a wasted cast.",
+   "label": 0
+  },
+  {
+   "text": "The director should be embarrassed.",
+   "label": 0
+  },
+  {
+   "text": "Ugly to look at and tiresome to think about.",
+   "label": 0
+  },
+  {
+   "text": "A real chore to sit through.",
+   "label": 0
+  },
+  {
+   "text": "It deserves none of the hype.",
+   "label": 0
+  },
+  {
+   "text": "Clumsy, dishonest and badly paced.",
+   "label": 0
+  },
+  {
+   "text": "I nearly fell asleep.",
+   "label": 0
+  },
+  {
+   "text": "The script is a disaster.",
+   "label": 0
+  },
+  {
+   "text": "A thin, unrewarding film.",
+   "label": 0
+  },
+  {
+   "text": "Pure tedium.",
+   "label": 0
+  },
+  {
+   "text": "The cinematography is murky and ugly.",
+   "label": 0
+  },
+  {
+   "text": "Unfunny, sour and surprisingly shallow.",
+   "label": 0
+  },
+  {
+   "text": "It is the kind of film that makes you lose faith in cinema.",
+   "label": 0
+  },
+  {
+   "text": "A great cast wasted on a terrible story.",
+   "label": 0
+  },
+  {
+   "text": "I regret buying a ticket.",
+   "label": 0
+  },
+  {
+   "text": "Bland, ugly and forgettable.",
+   "label": 0
+  },
+  {
+   "text": "A lazy mystery that cheats the audience.",
+   "label": 0
+  },
+  {
+   "text": "The music was loud and annoying.",
+   "label": 0
+  },
+  {
+   "text": "An inspiring true story, told badly.",
+   "label": 0
+  },
+  {
+   "text": "Too boring for kids and too silly for adults.",
+   "label": 0
+  },
+  {
+   "text": "It got worse with every scene.",
+   "label": 0
+  },
+  {
+   "text": "A shaky, amateurish debut.",
+   "label": 0
+  },
+  {
+   "text": "The performances are stiff and unbelievable.",
+   "label": 0
+  },
+  {
+   "text": "Neither thoughtful nor entertaining.",
+   "label": 0
+  },
+  {
+   "text": "A tedious adventure.",
+   "label": 0
+  },
+  {
+   "text": "None of the jokes land.",
+   "label": 0
+  },
+  {
+   "text": "It is simply awful.",
+   "label": 0
+  },
+  {
+   "text": "A messy and tiresome ride.",
+   "label": 0
+  },
+  {
+   "text": "The worst performance of the actor's career.",
+   "label": 0
+  },
+  {
+   "text": "Emotionally empty and badly made.",
+   "label": 0
+  },
+  {
+   "text": "An instant flop.",
+   "label": 0
+  },
+  {
+   "text": "I hated every minute.",
+   "label": 0
+  },
+  {
+   "text": "Ugly, pointless and dull.",
+   "label": 0
+  },
+  {
+   "text": "Weak writing and a bored cast make this a loser.",
+   "label": 0
+  },
+  {
+   "text": "A forgettable little film.",
+   "label": 0
+  },
+  {
+   "text": "It is as bad as everyone says.",
+   "label": 0
+  },
+  {
+   "text": "Sentimental without being moving.",
+   "label": 0
+  },
+  {
+   "text": "A clumsy ending to a disappointing trilogy.",
+   "label": 0
+  },
+  {
+   "text": "Cheaply made and poorly thought out.",
+   "label": 0
+  },
+  {
+   "text": "The story is confusing and the characters are forgettable.",
+   "label": 0
+  },
+  {
+   "text": "A very boring evening at the movies.",
+   "label": 0
+  },
+  {
+   "text": "It ruined my week.",
+   "label": 0
+  },
+  {
+   "text": "Dull, unfunny and full of clichés.",
+   "label": 0
+  },
+  {
+   "text": "The kind of movie you warn your friends about.",
+   "label": 0
+  },
+  {
+   "text": "A miserable, mean-spirited film.",
+   "label": 0
+  }
+ ],
+ "ood": {
+  "description": "Restaurant and product reviews instead of movie reviews.",
+  "rows": [
+   {
+    "text": "The pasta was perfectly cooked and the staff were lovely.",
+    "label": 1
+   },
+   {
+    "text": "Best coffee in town, and the pastries are fresh.",
+    "label": 1
+   },
+   {
+    "text": "This blender is powerful, quiet and easy to clean.",
+    "label": 1
+   },
+   {
+    "text": "The hotel room was spotless and the view was amazing.",
+    "label": 1
+   },
+   {
+    "text": "Fast delivery, and the shoes fit perfectly.",
+    "label": 1
+   },
+   {
+    "text": "The waiter was attentive and the dessert was heavenly.",
+    "label": 1
+   },
+   {
+    "text": "My new headphones sound fantastic.",
+    "label": 1
+   },
+   {
+    "text": "The battery lasts for days, which I love.",
+    "label": 1
+   },
+   {
+    "text": "A cozy little restaurant with excellent soup.",
+    "label": 1
+   },
+   {
+    "text": "The customer service team solved my problem in minutes.",
+    "label": 1
+   },
+   {
+    "text": "This jacket is warm, light and well made.",
+    "label": 1
+   },
+   {
+    "text": "The pizza was crispy and full of flavor.",
+    "label": 1
+   },
+   {
+    "text": "I am thrilled with this laptop.",
+    "label": 1
+   },
+   {
+    "text": "The tour guide was friendly and knowledgeable.",
+    "label": 1
+   },
+   {
+    "text": "The bread here is the best I have ever had.",
+    "label": 1
+   },
+   {
+    "text": "Comfortable chair, easy to assemble, great value.",
+    "label": 1
+   },
+   {
+    "text": "Our server went above and beyond.",
+    "label": 1
+   },
+   {
+    "text": "The phone case is sturdy and looks great.",
+    "label": 1
+   },
+   {
+    "text": "Fresh ingredients and generous portions.",
+    "label": 1
+   },
+   {
+    "text": "The app is fast, simple and reliable.",
+    "label": 1
+   },
+   {
+    "text": "This vacuum picks up everything.",
+    "label": 1
+   },
+   {
+    "text": "The spa was relaxing and the staff were kind.",
+    "label": 1
+   },
+   {
+    "text": "The tea set arrived beautifully packaged.",
+    "label": 1
+   },
+   {
+    "text": "We had a wonderful anniversary dinner.",
+    "label": 1
+   },
+   {
+    "text": "The camera takes sharp, vivid photos.",
+    "label": 1
+   },
+   {
+    "text": "Great prices and friendly staff.",
+    "label": 1
+   },
+   {
+    "text": "The burger was juicy and the fries were perfect.",
+    "label": 1
+   },
+   {
+    "text": "This backpack has held up brilliantly.",
+    "label": 1
+   },
+   {
+    "text": "The flight crew were cheerful and helpful.",
+    "label": 1
+   },
+   {
+    "text": "I would buy this kettle again in a heartbeat.",
+    "label": 1
+   },
+   {
+    "text": "The pasta was overcooked and the staff were rude.",
+    "label": 0
+   },
+   {
+    "text": "Worst coffee in town, and the pastries are stale.",
+    "label": 0
+   },
+   {
+    "text": "This blender is weak, loud and hard to clean.",
+    "label": 0
+   },
+   {
+    "text": "The hotel room was dirty and the view was a wall.",
+    "label": 0
+   },
+   {
+    "text": "Late delivery, and the shoes do not fit.",
+    "label": 0
+   },
+   {
+    "text": "The waiter ignored us and the dessert was soggy.",
+    "label": 0
+   },
+   {
+    "text": "My new headphones sound tinny and cheap.",
+    "label": 0
+   },
+   {
+    "text": "The battery dies within hours, which is infuriating.",
+    "label": 0
+   },
+   {
+    "text": "A cramped little restaurant with watery soup.",
+    "label": 0
+   },
+   {
+    "text": "The customer service team never solved my problem.",
+    "label": 0
+   },
+   {
+    "text": "This jacket is thin, heavy and badly stitched.",
+    "label": 0
+   },
+   {
+    "text": "The pizza was soggy and tasteless.",
+    "label": 0
+   },
+   {
+    "text": "I am very disappointed with this laptop.",
+    "label": 0
+   },
+   {
+    "text": "The tour guide was bored and knew nothing.",
+    "label": 0
+   },
+   {
+    "text": "The bread here is stale and dry.",
+    "label": 0
+   },
+   {
+    "text": "Uncomfortable chair, impossible to assemble, poor value.",
+    "label": 0
+   },
+   {
+    "text": "Our server could not have cared less.",
+    "label": 0
+   },
+   {
+    "text": "The phone case cracked after a week.",
+    "label": 0
+   },
+   {
+    "text": "Frozen ingredients and tiny portions.",
+    "label": 0
+   },
+   {
+    "text": "The app is slow, confusing and crashes constantly.",
+    "label": 0
+   },
+   {
+    "text": "This vacuum barely picks up anything.",
+    "label": 0
+   },
+   {
+    "text": "The spa was noisy and the staff were unfriendly.",
+    "label": 0
+   },
+   {
+    "text": "The tea set arrived broken.",
+    "label": 0
+   },
+   {
+    "text": "We had a miserable anniversary dinner.",
+    "label": 0
+   },
+   {
+    "text": "The camera takes blurry, washed-out photos.",
+    "label": 0
+   },
+   {
+    "text": "High prices and unfriendly staff.",
+    "label": 0
+   },
+   {
+    "text": "The burger was dry and the fries were cold.",
+    "label": 0
+   },
+   {
+    "text": "This backpack fell apart in a month.",
+    "label": 0
+   },
+   {
+    "text": "The flight crew were short-tempered and unhelpful.",
+    "label": 0
+   },
+   {
+    "text": "I would never buy this kettle again.",
+    "label": 0
+   }
+  ]
+ }
+}

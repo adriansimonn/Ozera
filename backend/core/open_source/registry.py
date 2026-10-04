@@ -262,6 +262,36 @@ def get_gpu_tier(model_id: str) -> str:
     return DEFAULT_GPU_TIER
 
 
+def instruct_sibling(model_id: str) -> Optional[str]:
+    """
+    The other half of a model's base/instruct pair (same architecture and shapes), or None.
+
+    Args:
+        model_id: An open-source model ID (e.g. "qwen3-0.6b" or "qwen3-0.6b-it")
+    """
+    config = OPEN_SOURCE_MODELS.get(model_id)
+    if config is None:
+        return None
+    sibling = model_id[:-len("-it")] if config.is_instruct else f"{model_id}-it"
+    return sibling if sibling in OPEN_SOURCE_MODELS else None
+
+
+def model_for_hf_id(hf_id: str) -> Optional[str]:
+    """
+    The registered model with a HuggingFace ID (case-insensitive), or None.
+
+    Gemma Scope 2 names Gemma 3 270M's checkpoint "google/gemma-3-270m-pt", which doesn't
+    exist (the checkpoint is "google/gemma-3-270m"), so a "-pt" suffix is also tried without.
+    """
+    wanted = hf_id.strip().lower()
+    by_hf = {config.hf_id.lower(): model_id for model_id, config in OPEN_SOURCE_MODELS.items()}
+    if wanted in by_hf:
+        return by_hf[wanted]
+    if wanted.endswith("-pt"):
+        return by_hf.get(wanted[:-len("-pt")])
+    return None
+
+
 def get_loader_for_model(model_id: str) -> "OpenSourceModelLoader":
     """
     Get the appropriate loader class instance for a model.

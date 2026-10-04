@@ -82,6 +82,111 @@ def residual_stream_hook(hook: Callable, layer_input: LayerInput) -> Callable:
     return adapted
 
 
+def as_input_hook(hook: Callable) -> Callable:
+    """
+    Adapt a hook that edits a module's output hidden states into a forward pre-hook that edits
+    its input hidden states instead (register it with with_kwargs=True).
+
+    Hooked on a decoder layer, this intervenes on the residual stream entering the layer.
+    """
+    def pre_hook(module, args, kwargs):
+        hidden = args[0] if args else kwargs["hidden_states"]
+        new = hook(module, (), hidden)
+        if new is None:
+            return None
+        if args:
+            return (new,) + tuple(args[1:]), kwargs
+        return args, {**kwargs, "hidden_states": new}
+
+    return pre_hook
+
+
+def project_out(hidden: torch.Tensor, unit: torch.Tensor, blend_factor: float = 1.0) -> torch.Tensor:
+    """
+    Remove (blend_factor of) the component of hidden states along a unit direction.
+
+    Computed in float32, so low-precision activations keep as little of the direction as
+    their precision allows.
+    """
+    h = hidden.float()
+    d = unit.to(h.device, torch.float32)
+    return (h - blend_factor * (h @ d)[..., None] * d).to(hidden.dtype)
+
+
+def _split_output(output) -> tuple[torch.Tensor, Optional[tuple]]:
+    if isinstance(output, tuple):
+        return output[0], output[1:]
+    return output, None
+
+
+def _join_output(tensor: torch.Tensor, rest: Optional[tuple]):
+    return (tensor,) + rest if rest is not None else tensor
+
+
+def create_steering_hook(
+    vector: torch.Tensor,
+    positions: Optional[list[int]] = None,
+    offset: Optional[PositionOffset] = None,
+) -> Callable:
+    """
+    Create a forward hook that adds a vector to a module's output at chosen positions.
+
+    Hooked on a decoder layer, it steers the residual stream after the layer (activation
+    addition: Turner et al., 2023; Rimsky et al., 2024).
+
+    Args:
+        vector: [d_model] the vector to add
+        positions: Positions to add it at. None = all.
+        offset: Where each forward pass starts in the sequence (see create_replacement_hook)
+    """
+    def hook(module, args, output):
+        tensor, rest = _split_output(output)
+        _, chunk_positions = _in_chunk(None, positions, offset)
+        v = vector.to(tensor.device, tensor.dtype)
+        if chunk_positions is None:
+            return _join_output(tensor + v, rest)
+        idx = [pos for pos in chunk_positions if pos < tensor.shape[1]]
+        if not idx:
+            return None
+        patched = tensor.clone()
+        patched[:, idx] += v
+        return _join_output(patched, rest)
+
+    return hook
+
+
+def create_direction_ablation_hook(
+    direction: torch.Tensor,
+    positions: Optional[list[int]] = None,
+    blend_factor: float = 1.0,
+    offset: Optional[PositionOffset] = None,
+) -> Callable:
+    """
+    Create a forward hook that projects a direction out of a module's output at chosen positions.
+
+    Args:
+        direction: [d_model] the direction (any nonzero length)
+        positions: Positions to ablate it at. None = all.
+        blend_factor: Fraction of the component removed (1.0 = all of it)
+        offset: Where each forward pass starts in the sequence (see create_replacement_hook)
+    """
+    unit = direction.float() / direction.float().norm()
+
+    def hook(module, args, output):
+        tensor, rest = _split_output(output)
+        _, chunk_positions = _in_chunk(None, positions, offset)
+        if chunk_positions is None:
+            return _join_output(project_out(tensor, unit, blend_factor), rest)
+        idx = [pos for pos in chunk_positions if pos < tensor.shape[1]]
+        if not idx:
+            return None
+        patched = tensor.clone()
+        patched[:, idx] = project_out(tensor[:, idx], unit, blend_factor)
+        return _join_output(patched, rest)
+
+    return hook
+
+
 def _in_chunk(
     source: Optional[torch.Tensor],
     positions: Optional[list[int]],

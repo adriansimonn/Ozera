@@ -15,6 +15,7 @@ from sqlalchemy import (
     Index,
     Integer,
     JSON,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -61,6 +62,9 @@ class User(Base):
     external_saes = relationship(
         "UserExternalSAE", back_populates="user", cascade="all, delete-orphan"
     )
+    probes = relationship(
+        "Probe", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
@@ -105,6 +109,7 @@ class TransactionType(PyEnum):
     PATCHING_CHARGE = "patching_charge"
     ANALYSIS_CHARGE = "analysis_charge"
     SAE_CHARGE = "sae_charge"
+    PROBE_CHARGE = "probe_charge"
 
 
 class Transaction(Base):
@@ -292,3 +297,44 @@ class UserExternalSAE(Base):
 
     def __repr__(self):
         return f"<UserExternalSAE(id={self.id}, user_id={self.user_id}, sae_id={self.sae_id})>"
+
+
+class Probe(Base):
+    """
+    A linear probe a user saved from a probe training run.
+
+    The probe reads the residual stream after decoder layer `layer` of model `model_id`,
+    pooled over each text's read span. Its score is weights · activation + bias, with the
+    weights on raw activations (any standardization is folded in).
+    """
+
+    __tablename__ = "probes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    model_id = Column(String(255), nullable=False)
+    # A custom model's version when the probe was saved (it changes when the model is retrained
+    # or re-uploaded); None for shared models
+    model_version = Column(String(100), nullable=True)
+    layer = Column(Integer, nullable=False)
+    pooling = Column(String(20), nullable=False)  # 'last', 'mean', 'max'
+    method = Column(String(20), nullable=False)  # 'logreg', 'diff_means'
+    chat_template = Column(Boolean, default=False, server_default=false(), nullable=False)
+    read_span = Column(String(20), default="text", server_default="text", nullable=False)
+    hidden_dim = Column(Integer, nullable=False)
+    weights = Column(LargeBinary, nullable=False)  # hidden_dim little-endian float32 values
+    bias = Column(Float, nullable=False)
+    # Training-set score mean/std and activation norm at the probe's layer
+    normalization = Column(JSON, nullable=False, default=dict)
+    # The probe's metrics, and the layer sweep it was chosen from
+    metrics = Column(JSON, nullable=False, default=dict)
+    # What it was trained on: dataset name/ID, label names, split sizes, seed
+    dataset = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # Relationships
+    user = relationship("User", back_populates="probes")
+
+    def __repr__(self):
+        return f"<Probe(id={self.id}, user_id={self.user_id}, model={self.model_id}, layer={self.layer})>"

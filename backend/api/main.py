@@ -55,6 +55,7 @@ from api.patching import router as patching_router
 from api.analysis import router as analysis_router
 from api.export import router as export_router
 from api.sae import router as sae_router
+from api.probes import monitor_probe, router as probes_router
 from api.settings import router as settings_router
 from api.streaming import SSE_HEADERS, billed_generation_stream
 from services.generation_control import GENERATION_ID_PATTERN, new_generation_id, request_stop, stop_key
@@ -135,6 +136,7 @@ app.include_router(patching_router)
 app.include_router(analysis_router)
 app.include_router(export_router)
 app.include_router(sae_router)
+app.include_router(probes_router)
 app.include_router(settings_router)
 
 
@@ -155,6 +157,11 @@ class GenerateRequest(BaseModel):
         pattern=GENERATION_ID_PATTERN,
         description="Streaming only: ID to stop the generation by (POST /generate/{id}/stop); "
                     "assigned if not given",
+    )
+    probe_id: Optional[int] = Field(
+        default=None,
+        description="Streaming only: one of the user's saved probes (for this model) to score every "
+                    "token with as it's generated; the scores stream as \"probe\" events",
     )
 
 
@@ -464,9 +471,12 @@ async def generate_stream(
     Routes to local or Modal inference based on INFERENCE_MODE env var.
     Requires authentication and charges user credits: max_tokens up front, settled to the
     tokens actually used when the stream ends (see api/streaming.py). The generation can be
-    stopped by the generation_id in the "start" event (POST /generate/{id}/stop).
+    stopped by the generation_id in the "start" event (POST /generate/{id}/stop). With a
+    probe_id, a saved probe scores every token as it's generated ("probe" events), at no
+    extra charge.
     """
     model = resolve_model(db, current_user.id, body.model)
+    probe = await monitor_probe(db, current_user.id, body.probe_id, body.model) if body.probe_id is not None else None
     _, charged_usd = _charge_before_streaming(db, current_user.id, body)
 
     generation_id = body.generation_id or new_generation_id()
@@ -479,6 +489,7 @@ async def generate_stream(
         top_p=body.top_p,
         stop_at_eos=body.stop_at_eos,
         stop_key=stop_key(current_user.id, generation_id),
+        probe=probe,
     )
     return StreamingResponse(
         billed_generation_stream(
@@ -649,11 +660,13 @@ async def generate_with_activations_stream(
     done and activations are being captured; the "done" event carries the activation_id.
     A stopped generation is captured as far as it got (no activation_id if it was stopped
     before generating anything). With stop_at_eos, max_tokens is lowered to what the model
-    can visualize instead of the request being refused.
+    can visualize instead of the request being refused. A probe_id streams a saved probe's
+    scores as for /generate/stream.
     Charged like /generate/stream: max_tokens up front, settled to the tokens used.
     """
     model = resolve_model(db, current_user.id, body.model)
     await _check_visualizable(db, current_user.id, body)
+    probe = await monitor_probe(db, current_user.id, body.probe_id, body.model) if body.probe_id is not None else None
     _, charged_usd = _charge_before_streaming(db, current_user.id, body)
 
     generation_id = body.generation_id or new_generation_id()
@@ -668,6 +681,7 @@ async def generate_with_activations_stream(
         stop_at_eos=body.stop_at_eos,
         fit_to_limit=body.stop_at_eos,
         stop_key=stop_key(current_user.id, generation_id),
+        probe=probe,
     )
 
     def finalize(result: dict) -> dict:

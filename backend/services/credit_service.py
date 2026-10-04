@@ -11,6 +11,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from core.open_source import get_gpu_tier
+from core.probes.budget import estimate_ablation_seconds as estimate_probe_ablation_seconds
+from core.probes.budget import estimate_matrix_seconds as estimate_probe_matrix_seconds
+from core.probes.budget import estimate_run_seconds as estimate_probe_run_seconds
+from core.probes.budget import estimate_sae_seconds as estimate_probe_sae_seconds
 from models.database import CreditBalance, TrainingJob, Transaction, TransactionType, User
 from services.modal_inference import SCALEDOWN_WINDOW_SECONDS as INFERENCE_SCALEDOWN_SECONDS
 
@@ -758,6 +762,134 @@ def estimate_patching_cost(
         model_id=model_id,
         num_patches=num_patches,
     )
+
+
+def calculate_probe_cost(
+    model_id: str,
+    parameters: int,
+    num_layers: int,
+    hidden_dim: int,
+    num_examples: int,
+    total_tokens: int,
+) -> float:
+    """
+    Cost of a probe training run (a forward pass over every example, then probes fit at every layer).
+
+    Charged like a lone request to the model's inference worker (cold start, the run, and the
+    warm window after it), for the GPU time the run is estimated to take: that grows with
+    examples × tokens × model size (see core.probes.budget). At least min_gpu_request_charge.
+
+    Args:
+        model_id: Model the probes are trained on (picks the GPU tier)
+        parameters, num_layers, hidden_dim: The model's size
+        num_examples: All examples (train, test and out-of-distribution)
+        total_tokens: Tokens over all their sequences (estimated before the run, counted after)
+    """
+    tier = get_gpu_tier(model_id)
+    busy = estimate_probe_run_seconds(tier, parameters, num_layers, hidden_dim, num_examples, total_tokens)
+    return min_gpu_request_charge(model_id, {tier: max(busy, INFERENCE_BUSY_SECONDS[tier])})
+
+
+def calculate_probe_ablation_cost(
+    model_id: str,
+    parameters: int,
+    num_layers: int,
+    hidden_dim: int,
+    num_examples: int,
+    total_tokens: int,
+    method: str,
+) -> float:
+    """
+    Cost of a directional ablation run: three forward passes over the dataset with next-token
+    logits, and probes refit at every layer (see core.probes.budget.estimate_ablation_seconds).
+
+    Charged like calculate_probe_cost, for the GPU time the run is estimated to take.
+    """
+    tier = get_gpu_tier(model_id)
+    busy = estimate_probe_ablation_seconds(tier, parameters, num_layers, hidden_dim, num_examples, total_tokens, method)
+    return min_gpu_request_charge(model_id, {tier: max(busy, INFERENCE_BUSY_SECONDS[tier])})
+
+
+def calculate_probe_matrix_cost(
+    model_id: str,
+    parameters: int,
+    num_layers: int,
+    hidden_dim: int,
+    train_sizes: list[int],
+    num_models: int,
+    num_examples: int,
+    total_tokens: int,
+) -> float:
+    """
+    Cost of a generalization run: every dataset through every model (the model, and any
+    base/instruct sibling, loaded during the run), then probes fit on each model's copy of
+    each dataset (see core.probes.budget.estimate_matrix_seconds).
+
+    Charged like calculate_probe_cost, for the GPU time the run is estimated to take.
+
+    Args:
+        train_sizes: Each dataset's training examples
+        num_models: 1, or 2 with a sibling model
+        num_examples: Examples over all datasets
+        total_tokens: Tokens over every model's passes
+    """
+    tier = get_gpu_tier(model_id)
+    busy = estimate_probe_matrix_seconds(
+        tier, parameters, num_layers, hidden_dim, train_sizes, num_models, num_examples, total_tokens,
+    )
+    return min_gpu_request_charge(model_id, {tier: max(busy, INFERENCE_BUSY_SECONDS[tier])})
+
+
+def calculate_probe_sae_cost(
+    model_id: str,
+    parameters: int,
+    hidden_dim: int,
+    num_examples: int,
+    total_tokens: int,
+    sae_latents: int,
+) -> float:
+    """
+    Cost of an SAE run: loading the SAE, the dataset through the model and the SAE, and
+    probes fit at one layer (see core.probes.budget.estimate_sae_seconds).
+
+    Charged like calculate_probe_cost, for the GPU time the run is estimated to take.
+    """
+    tier = get_gpu_tier(model_id)
+    busy = estimate_probe_sae_seconds(tier, parameters, hidden_dim, num_examples, total_tokens, sae_latents)
+    return min_gpu_request_charge(model_id, {tier: max(busy, INFERENCE_BUSY_SECONDS[tier])})
+
+
+# Steering runs read every generation back through the model twice (the probe's score and
+# the text's perplexity), on top of generating it
+STEERING_MULTIPLIER = 1.5
+
+
+def calculate_steering_cost(
+    model_id: str,
+    prompt_tokens: int,
+    generated_tokens: int,
+    num_generations: int,
+) -> float:
+    """
+    Cost of a steering run: several generations from one prompt (the baseline, one per
+    steering strength, and optionally one with the direction ablated), each read back by the
+    unsteered model.
+
+    Priced per token like inference, and at least the minimum for a lone request that keeps
+    the GPU busy for one generation's worth of time per generation.
+
+    Args:
+        model_id: Model steered (size-based pricing and GPU tier)
+        prompt_tokens: Tokens in the prompt (processed once per generation)
+        generated_tokens: Tokens generated over all generations (max_tokens each, in estimates)
+        num_generations: Generations in the run
+    """
+    multiplier = get_inference_multiplier(model_id)
+    input_cost = (num_generations * prompt_tokens / 1000) * BASE_INFERENCE_PRICING["input"] * multiplier
+    output_cost = (generated_tokens / 1000) * BASE_INFERENCE_PRICING["output"] * multiplier
+    tier = get_gpu_tier(model_id)
+    minimum = min_gpu_request_charge(model_id, {tier: num_generations * INFERENCE_BUSY_SECONDS[tier]})
+    return max((input_cost + output_cost) * STEERING_MULTIPLIER, minimum)
 
 
 # Analysis pricing (attention pattern analysis)

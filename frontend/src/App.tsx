@@ -6,11 +6,13 @@ import TrainingPage from './pages/TrainingPage'
 import PatchingPlayground from './pages/PatchingPlayground'
 import AnalysisPage from './pages/AnalysisPage'
 import SAEPage from './pages/SAEPage'
+import ProbesPage from './pages/ProbesPage'
 import DefaultUnifiedPage from './pages/default/UnifiedPage'
 import DefaultTrainingPage from './pages/default/TrainingPage'
 import DefaultPatchingPlayground from './pages/default/PatchingPlayground'
 import DefaultAnalysisPage from './pages/default/AnalysisPage'
 import DefaultSAEPage from './pages/default/SAEPage'
+import DefaultProbesPage from './pages/default/ProbesPage'
 import SettingsPage from './pages/SettingsPage'
 import AuthPage from './pages/AuthPage'
 import { AnimatedBackground } from './components/common/AnimatedBackground'
@@ -104,6 +106,20 @@ function AppShell() {
                     />
                   ) : (
                     <SAEPage
+                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                    />
+                  )
+                }
+              />
+              <Route
+                path="/probes"
+                element={
+                  isDefault ? (
+                    <DefaultProbesPage
+                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                    />
+                  ) : (
+                    <ProbesPage
                       onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
                     />
                   )

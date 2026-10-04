@@ -8,9 +8,12 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronDown, Square } from 'lucide-react'
 import { useStreamingGeneration } from '../../hooks/useGeneration'
 import { useModels } from '../../hooks/useModels'
-import type { FinishReason } from '../../api/client'
+import { apiClient, type FinishReason } from '../../api/client'
 import { useAuthStore } from '../../stores/authStore'
+import type { MonitorProbeInfo, MonitorTrace, SavedProbe } from '../../types/probes'
 import { Dropdown, type DropdownGroup } from '../common/Dropdown'
+import { ProbeMonitor } from '../probes/ProbeMonitor'
+import { monitorProbeInfo } from '../probes/probeUtils'
 
 export type GenerationMode = 'visualize' | 'tokens'
 
@@ -26,6 +29,9 @@ export interface PlainGenerationResult {
   generatedTokens: number | null
   finishReason: FinishReason | null
   activationId?: string
+  // A probe's scores of every token, if one monitored the generation
+  monitor?: MonitorTrace | null
+  monitorProbe?: MonitorProbeInfo | null
 }
 
 // A generation in progress, for showing its text as it streams in
@@ -33,6 +39,8 @@ export interface GenerationStreamState {
   mode: GenerationMode
   phase: 'waiting' | 'streaming' | 'capturing' | 'stopping'
   text: string
+  monitor?: MonitorTrace | null
+  monitorProbe?: MonitorProbeInfo | null
 }
 
 interface TextGeneratorProps {
@@ -92,10 +100,36 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
 
   const { models, modelNames, modelFamilies, openSourceModels, loading: modelsLoading, error: modelsError } = useModels()
   const {
-    text, loading, streaming, capturing, stopping, error, insufficientCredits,
+    text, loading, streaming, capturing, stopping, error, insufficientCredits, monitor,
     generate, stop, reset, clearInsufficientCredits,
   } = useStreamingGeneration()
   const busy = loading || streaming || capturing || stopping
+
+  // Saved probes that can monitor this model's generations, the one chosen, and the one
+  // monitoring the latest generation
+  const [monitorProbes, setMonitorProbes] = useState<SavedProbe[]>([])
+  const [monitorId, setMonitorId] = useState('')
+  const [activeMonitor, setActiveMonitor] = useState<MonitorProbeInfo | null>(null)
+  useEffect(() => {
+    if (!isAuthenticated || !model) {
+      setMonitorProbes([])
+      return
+    }
+    let cancelled = false
+    apiClient
+      .listProbes(model)
+      .then((list) => {
+        if (cancelled) return
+        const usable = list.filter((p) => p.model_available)
+        setMonitorProbes(usable)
+        setMonitorId((current) => (usable.some((p) => String(p.id) === current) ? current : ''))
+      })
+      .catch(() => !cancelled && setMonitorProbes([]))
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated, model])
+  const monitorProbe = monitorProbes.find((p) => String(p.id) === monitorId) ?? null
 
   // Instruct models generate until their end-of-turn token by default, as chat models do
   const isInstruct = openSourceModels.find(m => m.id === model)?.is_instruct ?? false
@@ -119,8 +153,10 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   const phase: GenerationStreamState['phase'] =
     stopping ? 'stopping' : capturing ? 'capturing' : streaming ? 'streaming' : 'waiting'
   useEffect(() => {
-    onStreamUpdateRef.current?.(busy ? { mode: generationMode, phase, text } : null)
-  }, [busy, phase, text, generationMode])
+    onStreamUpdateRef.current?.(
+      busy ? { mode: generationMode, phase, text, monitor, monitorProbe: activeMonitor } : null,
+    )
+  }, [busy, phase, text, generationMode, monitor, activeMonitor])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -150,6 +186,8 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
 
     reset()
     setIsWarmingUp(false)
+    const monitorInfo = monitorProbe ? monitorProbeInfo(monitorProbe) : null
+    setActiveMonitor(monitorInfo)
 
     // Start a timer to show "warming up" message if response takes too long
     warmupTimerRef.current = setTimeout(() => {
@@ -164,6 +202,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         temperature,
         top_k: topK,
         stop_at_eos: untilEos,
+        probe_id: monitorProbe?.id,
       }, { withActivations: generationMode === 'visualize' })
 
       if (!result) {
@@ -184,6 +223,8 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           generatedTokens: result.generatedTokens,
           finishReason: result.finishReason,
           activationId: result.activationId ?? undefined,
+          monitor: result.monitor,
+          monitorProbe: monitorInfo,
         })
       }
     } catch (err) {
@@ -352,6 +393,36 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         </div>
       </div>
 
+      {isAuthenticated && (
+        <div className="controls">
+          <div className="control-group">
+            <label htmlFor="probe-monitor">Probe monitor:</label>
+            <Dropdown
+              id="probe-monitor"
+              value={monitorId}
+              onChange={setMonitorId}
+              disabled={busy || monitorProbes.length === 0}
+              options={[
+                { value: '', label: monitorProbes.length === 0 ? 'No saved probes for this model' : 'Off' },
+                ...monitorProbes.map((p) => ({ value: String(p.id), label: `${p.name} · layer ${p.layer}` })),
+              ]}
+            />
+            <span className="probe-monitor-hint">
+              {monitorProbes.length === 0 ? (
+                <>
+                  Score every token as it&apos;s generated with a probe.{' '}
+                  <button type="button" className="probe-monitor-link" onClick={() => navigate('/probes')}>
+                    Save one in the Probe Lab
+                  </button>
+                </>
+              ) : (
+                'Scores every token as the model reads it, at no extra cost.'
+              )}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="prompt-area">
         <label htmlFor="prompt">Prompt:</label>
         <textarea
@@ -475,10 +546,29 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         </div>
       )}
 
+      {monitor && activeMonitor && !onPlainTextGenerated && (
+        <ProbeMonitor trace={monitor} probe={activeMonitor} live={busy} />
+      )}
+
       <style>{`
         .text-generator {
           max-width: 100%;
           padding: 2.5rem;
+        }
+
+        .text-generator .probe-monitor-hint {
+          font-size: 0.72rem;
+          opacity: 0.75;
+          line-height: 1.4;
+        }
+        .text-generator .probe-monitor-link {
+          background: none;
+          border: none;
+          padding: 0;
+          color: inherit;
+          font: inherit;
+          text-decoration: underline;
+          cursor: pointer;
         }
 
         .generator-header {

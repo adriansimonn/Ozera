@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
+import { SaeDeepLinkNote } from '../../components/sae/SaeDeepLinkNote'
+import { useSaeDeepLink } from '../../hooks/useSaeDeepLink'
 import { NavBar } from '../../components/common/NavBar'
 import {
   SAESelector,
@@ -288,8 +290,10 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
   const { isLight } = useTheme()
 
   const [mode, setMode] = useState<SAEMode>('analyze')
-  const [saeSelection, setSaeSelection] = useState<SAESelection | null>(null)
-  const [inputText, setInputText] = useState('')
+  // A link from the Probe Lab picks the SAE, the text, and a feature to show once analyzed
+  const { link: deepLink, pendingFeature, clearPending } = useSaeDeepLink()
+  const [saeSelection, setSaeSelection] = useState<SAESelection | null>(deepLink?.selection ?? null)
+  const [inputText, setInputText] = useState(deepLink?.text ?? '')
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -445,6 +449,13 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
     })
   }, [])
 
+  useEffect(() => {
+    if (analyzeResponse && pendingFeature != null) {
+      handleFeatureSelect(pendingFeature)
+      clearPending()
+    }
+  }, [analyzeResponse, pendingFeature, handleFeatureSelect, clearPending])
+
   const handleComparisonFeatureSelect = useCallback((_saeId: string, featureIdx: number) => {
     setSelectedFeature(featureIdx)
   }, [])
@@ -563,6 +574,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
         {mode !== 'compare' && mode !== 'load' && (
           <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
             <div className="ds-section-label" style={{ color: c.textSub }}>Input Text</div>
+            {pendingFeature != null && <SaeDeepLinkNote feature={pendingFeature} />}
             <textarea
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}

@@ -272,6 +272,8 @@ class GemmaScopeLoader(SAELoader):
             use_encoder_bias=True,
             use_decoder_bias=True,
         )
+        # Gemma Scope encodes raw inputs: JumpReLU(x @ W_enc + b_enc)
+        config.apply_b_dec_to_input = False
 
         metadata = ExternalSAEMetadata(
             source=ExternalSAESource.GEMMA_SCOPE,
@@ -364,6 +366,8 @@ class GemmaScopeLoader(SAELoader):
             use_encoder_bias=True,
             use_decoder_bias=True,
         )
+        # Gemma Scope encodes raw inputs: JumpReLU(x @ W_enc + b_enc)
+        config.apply_b_dec_to_input = False
 
         site = path_info.get("site", config_data.get("hf_hook_point_in", ""))
         layer = path_info.get("layer")

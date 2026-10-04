@@ -135,19 +135,22 @@ class OpenSourceModelLoader(ABC):
         if not self.config.is_instruct:
             return self.tokenizer(prompt, return_tensors="pt").to(self.device)
 
-        messages = [{"role": "user", "content": prompt}]
-        if self.config.system_prompt:
-            messages.insert(0, {"role": "system", "content": self.config.system_prompt})
-
         # Tokenizing via the template avoids a duplicate BOS (Gemma's template includes it)
         return self.tokenizer.apply_chat_template(
-            messages,
+            self.chat_messages(prompt),
             add_generation_prompt=True,
             enable_thinking=False,  # Qwen3 / SmolLM3 reasoning mode; ignored by other templates
             tokenize=True,
             return_dict=True,
             return_tensors="pt",
         ).to(self.device)
+
+    def chat_messages(self, prompt: str) -> list[dict]:
+        """An instruct model's chat messages for a prompt: the prompt as a user message, after any system prompt."""
+        messages = [{"role": "user", "content": prompt}]
+        if self.config.system_prompt:
+            messages.insert(0, {"role": "system", "content": self.config.system_prompt})
+        return messages
 
     @property
     def eos_token_ids(self) -> list[int]:

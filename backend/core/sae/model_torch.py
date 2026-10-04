@@ -158,7 +158,7 @@ class SparseAutoencoderTorch(nn.Module):
             Hidden activations (batch_size, d_hidden)
         """
         # Center input
-        if self.b_dec is not None:
+        if self.b_dec is not None and self.config.apply_b_dec_to_input:
             x_centered = x - self.b_dec
         else:
             x_centered = x

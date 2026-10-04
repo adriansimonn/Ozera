@@ -40,6 +40,31 @@ import type {
   HeadImportanceResponse,
 } from '../types/analysis'
 import type {
+  AblateProbeRequest,
+  AblateProbeResponse,
+  GeneralizeRequest,
+  GeneralizeResponse,
+  ParsedProbeDataset,
+  ProbeDatasetDetail,
+  ProbeDatasetSummary,
+  ProbeEstimate,
+  ProbeMethod,
+  ProbeModelInfo,
+  ProbeRunResult,
+  ProbeSaeInfo,
+  SaeProbeRequest,
+  SaeProbeResponse,
+  SaeRef,
+  SaveProbeRequest,
+  SavedProbe,
+  ScoreProbeRequest,
+  ScoreProbeResponse,
+  SteeringEstimate,
+  SteerProbeRequest,
+  SteerProbeResponse,
+  TrainProbesRequest,
+} from '../types/probes'
+import type {
   PresetInfo,
   AttentionHeatmapExportRequest,
   MultiHeadHeatmapExportRequest,
@@ -288,6 +313,8 @@ export interface GenerateRequest {
   stop_at_eos?: boolean
   // Streaming only: ID to stop the generation by (see stopGeneration)
   generation_id?: string
+  // Streaming only: a saved probe (for this model) that scores every token as it's generated
+  probe_id?: number
 }
 
 export interface GenerateResponse {
@@ -330,12 +357,24 @@ export interface GenerationDone {
 }
 
 interface StreamEvent extends GenerationDone {
-  type: 'start' | 'token' | 'status' | 'done' | 'error'
+  type: 'start' | 'token' | 'status' | 'probe' | 'done' | 'error'
   text?: string
   prompt?: string
   generation_id?: string
   status?: 'capturing'
   message?: string
+  // Probe events
+  start?: number
+  tokens?: string[]
+  scores?: (number | null)[]
+}
+
+// A monitoring probe's scores of positions start.. (each position once, in order)
+export interface ProbeScoreChunk {
+  start: number
+  tokens: string[]
+  scores: (number | null)[]
+  prompt_tokens: number
 }
 
 export interface GenerationStreamHandlers {
@@ -343,6 +382,8 @@ export interface GenerationStreamHandlers {
   onStart?: (generationId: string) => void
   // Generation is done and activations are being captured (streams with activations)
   onCapturing?: () => void
+  // A monitoring probe scored more tokens (requests with a probe_id)
+  onProbe?: (chunk: ProbeScoreChunk) => void
   onDone?: (done: GenerationDone) => void
   onError?: (message: string) => void
 }
@@ -382,6 +423,22 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(id)
   }
+}
+
+/**
+ * A failed response's message: FastAPI's detail (a string, or a list of validation errors).
+ */
+async function responseError(response: Response, fallback: string): Promise<Error> {
+  if (response.status === 402) return new Error('INSUFFICIENT_CREDITS')
+  const body = await response.json().catch(() => ({}))
+  const detail = body?.detail
+  if (typeof detail === 'string') return new Error(detail)
+  if (Array.isArray(detail) && detail.length > 0) {
+    const first = detail[0]
+    const field = Array.isArray(first?.loc) ? first.loc.filter((part: unknown) => part !== 'body').join('.') : ''
+    return new Error(field ? `${field}: ${first?.msg ?? fallback}` : first?.msg ?? fallback)
+  }
+  return new Error(`${fallback}: ${response.statusText}`)
 }
 
 class OzeraAPIClient {
@@ -578,6 +635,14 @@ class OzeraAPIClient {
               break
             case 'status':
               if (event.status === 'capturing') handlers.onCapturing?.()
+              break
+            case 'probe':
+              handlers.onProbe?.({
+                start: event.start ?? 0,
+                tokens: event.tokens ?? [],
+                scores: event.scores ?? [],
+                prompt_tokens: event.prompt_tokens ?? 0,
+              })
               break
             case 'done':
               ended = true
@@ -1712,6 +1777,254 @@ class OzeraAPIClient {
     }
 
     return response.blob()
+  }
+
+  // ============= Probe Lab =============
+
+  /**
+   * List the built-in probe datasets (free).
+   */
+  async listProbeDatasets(): Promise<ProbeDatasetSummary[]> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/datasets`)
+    if (!response.ok) throw await responseError(response, 'Failed to list probe datasets')
+    return response.json()
+  }
+
+  /**
+   * Get a built-in probe dataset with its rows (free).
+   */
+  async getProbeDataset(datasetId: string): Promise<ProbeDatasetDetail> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/datasets/${encodeURIComponent(datasetId)}`)
+    if (!response.ok) throw await responseError(response, 'Failed to load the dataset')
+    return response.json()
+  }
+
+  /**
+   * Read an uploaded CSV/TSV/JSONL file into (text, label) rows. Nothing is stored (free).
+   */
+  async parseProbeDataset(file: File): Promise<ParsedProbeDataset> {
+    const form = new FormData()
+    form.append('file', file)
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/datasets/parse`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: form,
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to read the file')
+    return response.json()
+  }
+
+  /**
+   * List the models probes can be trained on (free).
+   */
+  async getProbeModels(): Promise<ProbeModelInfo[]> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/models`, {
+      headers: getAuthHeaders(),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to list models')
+    return response.json()
+  }
+
+  /**
+   * Estimate a probe training run's cost from its size (free).
+   */
+  async estimateProbeRun(request: {
+    model: string
+    num_examples: number
+    total_chars: number
+    chat_template: boolean
+    kind?: 'train' | 'ablate' | 'sae'
+    method?: ProbeMethod
+    sae?: SaeRef
+  }): Promise<ProbeEstimate> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/estimate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to estimate the run')
+    return response.json()
+  }
+
+  /**
+   * Train probes at every layer (one GPU call; charged).
+   */
+  async trainProbes(request: TrainProbesRequest): Promise<ProbeRunResult> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/train`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Probe training failed')
+    notifyCreditsChanged()
+    return decodeTensorData(await response.json())
+  }
+
+  /**
+   * Score texts token by token with a saved or inline probe (one GPU call; charged).
+   */
+  async scoreProbe(request: ScoreProbeRequest): Promise<ScoreProbeResponse> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/score`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Probe scoring failed')
+    notifyCreditsChanged()
+    return response.json()
+  }
+
+  /**
+   * Estimate a steering run's cost (free).
+   */
+  async estimateSteering(request: {
+    model: string
+    prompt_chars: number
+    num_alphas: number
+    ablate: boolean
+    max_tokens: number
+  }): Promise<SteeringEstimate> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/steer/estimate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to estimate steering')
+    return response.json()
+  }
+
+  /**
+   * Generate with a probe's direction added at several strengths, next to a baseline (one GPU call; charged).
+   */
+  async steerProbe(request: SteerProbeRequest): Promise<SteerProbeResponse> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/steer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Steering failed')
+    notifyCreditsChanged()
+    return response.json()
+  }
+
+  /**
+   * Ablate a probe's direction everywhere and test what changes over a dataset (one GPU call; charged).
+   */
+  async ablateProbe(request: AblateProbeRequest): Promise<AblateProbeResponse> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/ablate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Ablation failed')
+    notifyCreditsChanged()
+    return response.json()
+  }
+
+  /**
+   * Estimate a generalization run's cost from its datasets' sizes (free).
+   */
+  async estimateGeneralization(request: {
+    model: string
+    transfer_model?: string | null
+    datasets: { num_examples: number; total_chars: number }[]
+    chat_template: boolean
+    test_fraction: number
+  }): Promise<ProbeEstimate> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/generalize/estimate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to estimate the run')
+    return response.json()
+  }
+
+  /**
+   * Train probes on each dataset and test them on every other, optionally across a base/instruct pair (one GPU call; charged).
+   */
+  async generalizeProbes(request: GeneralizeRequest): Promise<GeneralizeResponse> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/generalize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Generalization run failed')
+    notifyCreditsChanged()
+    return response.json()
+  }
+
+  /**
+   * SAEs that read a model's residual stream: Ozera's (nano, mini) and ones the user loaded on the SAE page (free).
+   */
+  async listProbeSaes(model: string): Promise<ProbeSaeInfo[]> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/saes?model=${encodeURIComponent(model)}`, {
+      headers: getAuthHeaders(),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to list SAEs')
+    return response.json()
+  }
+
+  /**
+   * Compare a probe with an SAE at its layer: nearest features, and sparse vs dense probes (one GPU call; charged).
+   */
+  async saeProbe(request: SaeProbeRequest): Promise<SaeProbeResponse> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/sae`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'SAE comparison failed')
+    notifyCreditsChanged()
+    return response.json()
+  }
+
+  /**
+   * List the user's saved probes.
+   */
+  async listProbes(model?: string): Promise<SavedProbe[]> {
+    const query = model ? `?model=${encodeURIComponent(model)}` : ''
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes${query}`, {
+      headers: getAuthHeaders(),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to list saved probes')
+    return response.json()
+  }
+
+  /**
+   * Save a probe from a training run.
+   */
+  async saveProbe(request: SaveProbeRequest): Promise<SavedProbe> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to save the probe')
+    return response.json()
+  }
+
+  /**
+   * Get a saved probe, optionally with its weights (for exporting it).
+   */
+  async getProbe(probeId: number, includeWeights = false): Promise<SavedProbe> {
+    const response = await fetchWithTimeout(
+      `${this.baseUrl}/probes/${probeId}${includeWeights ? '?include_weights=true' : ''}`,
+      { headers: getAuthHeaders() },
+    )
+    if (!response.ok) throw await responseError(response, 'Failed to load the probe')
+    return response.json()
+  }
+
+  /**
+   * Delete a saved probe.
+   */
+  async deleteProbe(probeId: number): Promise<void> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/probes/${probeId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to delete the probe')
   }
 }
 

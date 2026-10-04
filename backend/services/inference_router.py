@@ -196,6 +196,7 @@ class InferenceRouter:
         top_p: Optional[float] = None,
         stop_at_eos: bool = False,
         stop_key: Optional[str] = None,
+        probe: Optional[dict] = None,
     ) -> AsyncIterator[str | dict]:
         """
         Stream text generation.
@@ -211,15 +212,19 @@ class InferenceRouter:
                 exactly max_tokens
             stop_key: The generation ends early once this key is stopped
                 (services.generation_control)
+            probe: {"layer", "weights", "bias"} of a probe to score each token with
 
         Yields:
-            Generated text tokens, then a dict of the request's real token counts
-            ({"prompt_tokens", "generated_tokens"}) and why it ended ("finish_reason")
+            Generated text tokens, the probe's {"event": "probe", ...} scores (with a probe),
+            then a dict of the request's real token counts ({"prompt_tokens",
+            "generated_tokens"}) and why it ended ("finish_reason")
         """
         kwargs = dict(
             prompt=prompt, max_tokens=max_tokens, temperature=temperature, top_k=top_k,
             top_p=top_p, stop_at_eos=stop_at_eos,
         )
+        if probe is not None:
+            kwargs["probe"] = probe
         if self.is_modal_mode():
             from services.modal_inference import get_inference_worker
 
@@ -335,16 +340,20 @@ class InferenceRouter:
         stop_at_eos: bool = False,
         fit_to_limit: bool = False,
         stop_key: Optional[str] = None,
+        probe: Optional[dict] = None,
     ) -> AsyncIterator[str | dict]:
         """
         Generate text with activation capture, streaming the text as it's generated.
 
-        Arguments as for generate_with_activations, plus stop_key (as for generate_stream).
+        Arguments as for generate_with_activations, plus stop_key and probe (as for
+        generate_stream).
 
         Yields:
             Text chunks, then {"event": "generated"} once generation is done and the
-            capture starts, then the result as generate_with_activations returns it
+            capture starts, then the result as generate_with_activations returns it (and
+            with a probe, its {"event": "probe", ...} scores along the way)
         """
+        probe_kwargs = {"probe": probe} if probe is not None else {}
         if self.is_modal_mode():
             from services.modal_inference import get_inference_worker
 
@@ -359,6 +368,7 @@ class InferenceRouter:
                 stop_at_eos=stop_at_eos,
                 fit_to_limit=fit_to_limit,
                 stop_key=stop_key,
+                **probe_kwargs,
                 **model.worker_kwargs(),
             ):
                 yield item
@@ -376,6 +386,7 @@ class InferenceRouter:
                 stop_at_eos=stop_at_eos,
                 fit_to_context=fit_to_limit,
                 should_stop=should_stop,
+                **probe_kwargs,
             ),
             stop_key,
         ):

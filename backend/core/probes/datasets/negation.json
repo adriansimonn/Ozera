@@ -1,0 +1,1119 @@
+{
+ "id": "negation",
+ "order": 6,
+ "name": "Negation",
+ "category": "minimal_pairs",
+ "description": "Minimal pairs that differ only by \"not\": \"The cat is on the mat.\" / \"The cat is not on the mat.\"",
+ "label_names": [
+  "Affirmative",
+  "Negated"
+ ],
+ "source": "Written for Ozera",
+ "rows": [
+  {
+   "text": "The cat is on the mat.",
+   "label": 0,
+   "group": 0
+  },
+  {
+   "text": "The cat is not on the mat.",
+   "label": 1,
+   "group": 0
+  },
+  {
+   "text": "The store is open on Sundays.",
+   "label": 0,
+   "group": 1
+  },
+  {
+   "text": "The store is not open on Sundays.",
+   "label": 1,
+   "group": 1
+  },
+  {
+   "text": "She likes spicy food.",
+   "label": 0,
+   "group": 2
+  },
+  {
+   "text": "She does not like spicy food.",
+   "label": 1,
+   "group": 2
+  },
+  {
+   "text": "They live in the city.",
+   "label": 0,
+   "group": 3
+  },
+  {
+   "text": "They do not live in the city.",
+   "label": 1,
+   "group": 3
+  },
+  {
+   "text": "The train was on time.",
+   "label": 0,
+   "group": 4
+  },
+  {
+   "text": "The train was not on time.",
+   "label": 1,
+   "group": 4
+  },
+  {
+   "text": "He can swim very well.",
+   "label": 0,
+   "group": 5
+  },
+  {
+   "text": "He cannot swim very well.",
+   "label": 1,
+   "group": 5
+  },
+  {
+   "text": "The water is safe to drink.",
+   "label": 0,
+   "group": 6
+  },
+  {
+   "text": "The water is not safe to drink.",
+   "label": 1,
+   "group": 6
+  },
+  {
+   "text": "We have enough chairs.",
+   "label": 0,
+   "group": 7
+  },
+  {
+   "text": "We do not have enough chairs.",
+   "label": 1,
+   "group": 7
+  },
+  {
+   "text": "The movie was long.",
+   "label": 0,
+   "group": 8
+  },
+  {
+   "text": "The movie was not long.",
+   "label": 1,
+   "group": 8
+  },
+  {
+   "text": "I remember his name.",
+   "label": 0,
+   "group": 9
+  },
+  {
+   "text": "I do not remember his name.",
+   "label": 1,
+   "group": 9
+  },
+  {
+   "text": "The bridge is safe.",
+   "label": 0,
+   "group": 10
+  },
+  {
+   "text": "The bridge is not safe.",
+   "label": 1,
+   "group": 10
+  },
+  {
+   "text": "My brother plays chess.",
+   "label": 0,
+   "group": 11
+  },
+  {
+   "text": "My brother does not play chess.",
+   "label": 1,
+   "group": 11
+  },
+  {
+   "text": "The soup is hot.",
+   "label": 0,
+   "group": 12
+  },
+  {
+   "text": "The soup is not hot.",
+   "label": 1,
+   "group": 12
+  },
+  {
+   "text": "The children were asleep.",
+   "label": 0,
+   "group": 13
+  },
+  {
+   "text": "The children were not asleep.",
+   "label": 1,
+   "group": 13
+  },
+  {
+   "text": "She will come to the party.",
+   "label": 0,
+   "group": 14
+  },
+  {
+   "text": "She will not come to the party.",
+   "label": 1,
+   "group": 14
+  },
+  {
+   "text": "The door was locked.",
+   "label": 0,
+   "group": 15
+  },
+  {
+   "text": "The door was not locked.",
+   "label": 1,
+   "group": 15
+  },
+  {
+   "text": "He knows the answer.",
+   "label": 0,
+   "group": 16
+  },
+  {
+   "text": "He does not know the answer.",
+   "label": 1,
+   "group": 16
+  },
+  {
+   "text": "The museum is crowded today.",
+   "label": 0,
+   "group": 17
+  },
+  {
+   "text": "The museum is not crowded today.",
+   "label": 1,
+   "group": 17
+  },
+  {
+   "text": "We should wait here.",
+   "label": 0,
+   "group": 18
+  },
+  {
+   "text": "We should not wait here.",
+   "label": 1,
+   "group": 18
+  },
+  {
+   "text": "The phone is charging.",
+   "label": 0,
+   "group": 19
+  },
+  {
+   "text": "The phone is not charging.",
+   "label": 1,
+   "group": 19
+  },
+  {
+   "text": "The test was difficult.",
+   "label": 0,
+   "group": 20
+  },
+  {
+   "text": "The test was not difficult.",
+   "label": 1,
+   "group": 20
+  },
+  {
+   "text": "They have finished the project.",
+   "label": 0,
+   "group": 21
+  },
+  {
+   "text": "They have not finished the project.",
+   "label": 1,
+   "group": 21
+  },
+  {
+   "text": "The milk is fresh.",
+   "label": 0,
+   "group": 22
+  },
+  {
+   "text": "The milk is not fresh.",
+   "label": 1,
+   "group": 22
+  },
+  {
+   "text": "I enjoy long walks.",
+   "label": 0,
+   "group": 23
+  },
+  {
+   "text": "I do not enjoy long walks.",
+   "label": 1,
+   "group": 23
+  },
+  {
+   "text": "The road is icy.",
+   "label": 0,
+   "group": 24
+  },
+  {
+   "text": "The road is not icy.",
+   "label": 1,
+   "group": 24
+  },
+  {
+   "text": "He was angry with us.",
+   "label": 0,
+   "group": 25
+  },
+  {
+   "text": "He was not angry with us.",
+   "label": 1,
+   "group": 25
+  },
+  {
+   "text": "The plants need water.",
+   "label": 0,
+   "group": 26
+  },
+  {
+   "text": "The plants do not need water.",
+   "label": 1,
+   "group": 26
+  },
+  {
+   "text": "The printer is working.",
+   "label": 0,
+   "group": 27
+  },
+  {
+   "text": "The printer is not working.",
+   "label": 1,
+   "group": 27
+  },
+  {
+   "text": "She has a car.",
+   "label": 0,
+   "group": 28
+  },
+  {
+   "text": "She does not have a car.",
+   "label": 1,
+   "group": 28
+  },
+  {
+   "text": "The lake is deep.",
+   "label": 0,
+   "group": 29
+  },
+  {
+   "text": "The lake is not deep.",
+   "label": 1,
+   "group": 29
+  },
+  {
+   "text": "We could see the stars.",
+   "label": 0,
+   "group": 30
+  },
+  {
+   "text": "We could not see the stars.",
+   "label": 1,
+   "group": 30
+  },
+  {
+   "text": "The tickets are expensive.",
+   "label": 0,
+   "group": 31
+  },
+  {
+   "text": "The tickets are not expensive.",
+   "label": 1,
+   "group": 31
+  },
+  {
+   "text": "The baby is hungry.",
+   "label": 0,
+   "group": 32
+  },
+  {
+   "text": "The baby is not hungry.",
+   "label": 1,
+   "group": 32
+  },
+  {
+   "text": "He wants to leave early.",
+   "label": 0,
+   "group": 33
+  },
+  {
+   "text": "He does not want to leave early.",
+   "label": 1,
+   "group": 33
+  },
+  {
+   "text": "The report was finished on time.",
+   "label": 0,
+   "group": 34
+  },
+  {
+   "text": "The report was not finished on time.",
+   "label": 1,
+   "group": 34
+  },
+  {
+   "text": "The bakery sells bread.",
+   "label": 0,
+   "group": 35
+  },
+  {
+   "text": "The bakery does not sell bread.",
+   "label": 1,
+   "group": 35
+  },
+  {
+   "text": "My parents are at home.",
+   "label": 0,
+   "group": 36
+  },
+  {
+   "text": "My parents are not at home.",
+   "label": 1,
+   "group": 36
+  },
+  {
+   "text": "The coffee is too sweet.",
+   "label": 0,
+   "group": 37
+  },
+  {
+   "text": "The coffee is not too sweet.",
+   "label": 1,
+   "group": 37
+  },
+  {
+   "text": "The team won the match.",
+   "label": 0,
+   "group": 38
+  },
+  {
+   "text": "The team did not win the match.",
+   "label": 1,
+   "group": 38
+  },
+  {
+   "text": "I can hear the music.",
+   "label": 0,
+   "group": 39
+  },
+  {
+   "text": "I cannot hear the music.",
+   "label": 1,
+   "group": 39
+  },
+  {
+   "text": "The shoes fit well.",
+   "label": 0,
+   "group": 40
+  },
+  {
+   "text": "The shoes do not fit well.",
+   "label": 1,
+   "group": 40
+  },
+  {
+   "text": "The window is broken.",
+   "label": 0,
+   "group": 41
+  },
+  {
+   "text": "The window is not broken.",
+   "label": 1,
+   "group": 41
+  },
+  {
+   "text": "She speaks Japanese.",
+   "label": 0,
+   "group": 42
+  },
+  {
+   "text": "She does not speak Japanese.",
+   "label": 1,
+   "group": 42
+  },
+  {
+   "text": "The meeting was useful.",
+   "label": 0,
+   "group": 43
+  },
+  {
+   "text": "The meeting was not useful.",
+   "label": 1,
+   "group": 43
+  },
+  {
+   "text": "The dog is friendly.",
+   "label": 0,
+   "group": 44
+  },
+  {
+   "text": "The dog is not friendly.",
+   "label": 1,
+   "group": 44
+  },
+  {
+   "text": "We are ready to go.",
+   "label": 0,
+   "group": 45
+  },
+  {
+   "text": "We are not ready to go.",
+   "label": 1,
+   "group": 45
+  },
+  {
+   "text": "The garden gets a lot of sun.",
+   "label": 0,
+   "group": 46
+  },
+  {
+   "text": "The garden does not get a lot of sun.",
+   "label": 1,
+   "group": 46
+  },
+  {
+   "text": "The answer is correct.",
+   "label": 0,
+   "group": 47
+  },
+  {
+   "text": "The answer is not correct.",
+   "label": 1,
+   "group": 47
+  },
+  {
+   "text": "He passed the exam.",
+   "label": 0,
+   "group": 48
+  },
+  {
+   "text": "He did not pass the exam.",
+   "label": 1,
+   "group": 48
+  },
+  {
+   "text": "The hotel has a pool.",
+   "label": 0,
+   "group": 49
+  },
+  {
+   "text": "The hotel does not have a pool.",
+   "label": 1,
+   "group": 49
+  },
+  {
+   "text": "The river is wide here.",
+   "label": 0,
+   "group": 50
+  },
+  {
+   "text": "The river is not wide here.",
+   "label": 1,
+   "group": 50
+  },
+  {
+   "text": "They were happy with the result.",
+   "label": 0,
+   "group": 51
+  },
+  {
+   "text": "They were not happy with the result.",
+   "label": 1,
+   "group": 51
+  },
+  {
+   "text": "The cake is ready.",
+   "label": 0,
+   "group": 52
+  },
+  {
+   "text": "The cake is not ready.",
+   "label": 1,
+   "group": 52
+  },
+  {
+   "text": "I trust the forecast.",
+   "label": 0,
+   "group": 53
+  },
+  {
+   "text": "I do not trust the forecast.",
+   "label": 1,
+   "group": 53
+  },
+  {
+   "text": "The bus stops here.",
+   "label": 0,
+   "group": 54
+  },
+  {
+   "text": "The bus does not stop here.",
+   "label": 1,
+   "group": 54
+  },
+  {
+   "text": "The room is warm.",
+   "label": 0,
+   "group": 55
+  },
+  {
+   "text": "The room is not warm.",
+   "label": 1,
+   "group": 55
+  },
+  {
+   "text": "She would agree with you.",
+   "label": 0,
+   "group": 56
+  },
+  {
+   "text": "She would not agree with you.",
+   "label": 1,
+   "group": 56
+  },
+  {
+   "text": "The computer is new.",
+   "label": 0,
+   "group": 57
+  },
+  {
+   "text": "The computer is not new.",
+   "label": 1,
+   "group": 57
+  },
+  {
+   "text": "We saw the parade.",
+   "label": 0,
+   "group": 58
+  },
+  {
+   "text": "We did not see the parade.",
+   "label": 1,
+   "group": 58
+  },
+  {
+   "text": "The path is easy to follow.",
+   "label": 0,
+   "group": 59
+  },
+  {
+   "text": "The path is not easy to follow.",
+   "label": 1,
+   "group": 59
+  },
+  {
+   "text": "The library has that book.",
+   "label": 0,
+   "group": 60
+  },
+  {
+   "text": "The library does not have that book.",
+   "label": 1,
+   "group": 60
+  },
+  {
+   "text": "The tea is cold.",
+   "label": 0,
+   "group": 61
+  },
+  {
+   "text": "The tea is not cold.",
+   "label": 1,
+   "group": 61
+  },
+  {
+   "text": "He is a good driver.",
+   "label": 0,
+   "group": 62
+  },
+  {
+   "text": "He is not a good driver.",
+   "label": 1,
+   "group": 62
+  },
+  {
+   "text": "The plan worked.",
+   "label": 0,
+   "group": 63
+  },
+  {
+   "text": "The plan did not work.",
+   "label": 1,
+   "group": 63
+  },
+  {
+   "text": "The streets are quiet.",
+   "label": 0,
+   "group": 64
+  },
+  {
+   "text": "The streets are not quiet.",
+   "label": 1,
+   "group": 64
+  },
+  {
+   "text": "My cousin eats meat.",
+   "label": 0,
+   "group": 65
+  },
+  {
+   "text": "My cousin does not eat meat.",
+   "label": 1,
+   "group": 65
+  },
+  {
+   "text": "The paint is dry.",
+   "label": 0,
+   "group": 66
+  },
+  {
+   "text": "The paint is not dry.",
+   "label": 1,
+   "group": 66
+  },
+  {
+   "text": "The guests have arrived.",
+   "label": 0,
+   "group": 67
+  },
+  {
+   "text": "The guests have not arrived.",
+   "label": 1,
+   "group": 67
+  },
+  {
+   "text": "The music is loud.",
+   "label": 0,
+   "group": 68
+  },
+  {
+   "text": "The music is not loud.",
+   "label": 1,
+   "group": 68
+  },
+  {
+   "text": "You must sign the form.",
+   "label": 0,
+   "group": 69
+  },
+  {
+   "text": "You must not sign the form.",
+   "label": 1,
+   "group": 69
+  },
+  {
+   "text": "The bread is stale.",
+   "label": 0,
+   "group": 70
+  },
+  {
+   "text": "The bread is not stale.",
+   "label": 1,
+   "group": 70
+  },
+  {
+   "text": "The birds sing in the morning.",
+   "label": 0,
+   "group": 71
+  },
+  {
+   "text": "The birds do not sing in the morning.",
+   "label": 1,
+   "group": 71
+  },
+  {
+   "text": "The car was expensive.",
+   "label": 0,
+   "group": 72
+  },
+  {
+   "text": "The car was not expensive.",
+   "label": 1,
+   "group": 72
+  },
+  {
+   "text": "She is tired.",
+   "label": 0,
+   "group": 73
+  },
+  {
+   "text": "She is not tired.",
+   "label": 1,
+   "group": 73
+  },
+  {
+   "text": "The keys are in the drawer.",
+   "label": 0,
+   "group": 74
+  },
+  {
+   "text": "The keys are not in the drawer.",
+   "label": 1,
+   "group": 74
+  },
+  {
+   "text": "He called his mother.",
+   "label": 0,
+   "group": 75
+  },
+  {
+   "text": "He did not call his mother.",
+   "label": 1,
+   "group": 75
+  },
+  {
+   "text": "The film is suitable for children.",
+   "label": 0,
+   "group": 76
+  },
+  {
+   "text": "The film is not suitable for children.",
+   "label": 1,
+   "group": 76
+  },
+  {
+   "text": "The shop accepts cards.",
+   "label": 0,
+   "group": 77
+  },
+  {
+   "text": "The shop does not accept cards.",
+   "label": 1,
+   "group": 77
+  },
+  {
+   "text": "The sky is clear tonight.",
+   "label": 0,
+   "group": 78
+  },
+  {
+   "text": "The sky is not clear tonight.",
+   "label": 1,
+   "group": 78
+  },
+  {
+   "text": "They understood the instructions.",
+   "label": 0,
+   "group": 79
+  },
+  {
+   "text": "They did not understand the instructions.",
+   "label": 1,
+   "group": 79
+  }
+ ],
+ "ood": {
+  "description": "Negation without \"not\" (never, no one, nothing, none): is it a negation probe, or a \"not\" detector?",
+  "rows": [
+   {
+    "text": "She has visited Rome.",
+    "label": 0,
+    "group": 80
+   },
+   {
+    "text": "She has never visited Rome.",
+    "label": 1,
+    "group": 80
+   },
+   {
+    "text": "Someone called this morning.",
+    "label": 0,
+    "group": 81
+   },
+   {
+    "text": "No one called this morning.",
+    "label": 1,
+    "group": 81
+   },
+   {
+    "text": "Everyone liked the film.",
+    "label": 0,
+    "group": 82
+   },
+   {
+    "text": "Nobody liked the film.",
+    "label": 1,
+    "group": 82
+   },
+   {
+    "text": "I heard something strange.",
+    "label": 0,
+    "group": 83
+   },
+   {
+    "text": "I heard nothing strange.",
+    "label": 1,
+    "group": 83
+   },
+   {
+    "text": "Some of the students passed.",
+    "label": 0,
+    "group": 84
+   },
+   {
+    "text": "None of the students passed.",
+    "label": 1,
+    "group": 84
+   },
+   {
+    "text": "He always eats breakfast.",
+    "label": 0,
+    "group": 85
+   },
+   {
+    "text": "He never eats breakfast.",
+    "label": 1,
+    "group": 85
+   },
+   {
+    "text": "There is milk in the fridge.",
+    "label": 0,
+    "group": 86
+   },
+   {
+    "text": "There is no milk in the fridge.",
+    "label": 1,
+    "group": 86
+   },
+   {
+    "text": "Somebody knows the answer.",
+    "label": 0,
+    "group": 87
+   },
+   {
+    "text": "Nobody knows the answer.",
+    "label": 1,
+    "group": 87
+   },
+   {
+    "text": "We found something useful.",
+    "label": 0,
+    "group": 88
+   },
+   {
+    "text": "We found nothing useful.",
+    "label": 1,
+    "group": 88
+   },
+   {
+    "text": "They often go to the beach.",
+    "label": 0,
+    "group": 89
+   },
+   {
+    "text": "They never go to the beach.",
+    "label": 1,
+    "group": 89
+   },
+   {
+    "text": "There are seats left.",
+    "label": 0,
+    "group": 90
+   },
+   {
+    "text": "There are no seats left.",
+    "label": 1,
+    "group": 90
+   },
+   {
+    "text": "Something moved in the dark.",
+    "label": 0,
+    "group": 91
+   },
+   {
+    "text": "Nothing moved in the dark.",
+    "label": 1,
+    "group": 91
+   },
+   {
+    "text": "All of the shops were open.",
+    "label": 0,
+    "group": 92
+   },
+   {
+    "text": "None of the shops were open.",
+    "label": 1,
+    "group": 92
+   },
+   {
+    "text": "He has been to Japan.",
+    "label": 0,
+    "group": 93
+   },
+   {
+    "text": "He has never been to Japan.",
+    "label": 1,
+    "group": 93
+   },
+   {
+    "text": "There was a reason to worry.",
+    "label": 0,
+    "group": 94
+   },
+   {
+    "text": "There was no reason to worry.",
+    "label": 1,
+    "group": 94
+   },
+   {
+    "text": "Someone left a message.",
+    "label": 0,
+    "group": 95
+   },
+   {
+    "text": "No one left a message.",
+    "label": 1,
+    "group": 95
+   },
+   {
+    "text": "I saw someone at the door.",
+    "label": 0,
+    "group": 96
+   },
+   {
+    "text": "I saw no one at the door.",
+    "label": 1,
+    "group": 96
+   },
+   {
+    "text": "She always remembers birthdays.",
+    "label": 0,
+    "group": 97
+   },
+   {
+    "text": "She never remembers birthdays.",
+    "label": 1,
+    "group": 97
+   },
+   {
+    "text": "Everybody came to the meeting.",
+    "label": 0,
+    "group": 98
+   },
+   {
+    "text": "Nobody came to the meeting.",
+    "label": 1,
+    "group": 98
+   },
+   {
+    "text": "There is time for questions.",
+    "label": 0,
+    "group": 99
+   },
+   {
+    "text": "There is no time for questions.",
+    "label": 1,
+    "group": 99
+   },
+   {
+    "text": "Some of the cookies are left.",
+    "label": 0,
+    "group": 100
+   },
+   {
+    "text": "None of the cookies are left.",
+    "label": 1,
+    "group": 100
+   },
+   {
+    "text": "He said something.",
+    "label": 0,
+    "group": 101
+   },
+   {
+    "text": "He said nothing.",
+    "label": 1,
+    "group": 101
+   },
+   {
+    "text": "The town has a hospital.",
+    "label": 0,
+    "group": 102
+   },
+   {
+    "text": "The town has no hospital.",
+    "label": 1,
+    "group": 102
+   },
+   {
+    "text": "They have met before.",
+    "label": 0,
+    "group": 103
+   },
+   {
+    "text": "They have never met before.",
+    "label": 1,
+    "group": 103
+   },
+   {
+    "text": "Something was wrong with the car.",
+    "label": 0,
+    "group": 104
+   },
+   {
+    "text": "Nothing was wrong with the car.",
+    "label": 1,
+    "group": 104
+   },
+   {
+    "text": "There were witnesses.",
+    "label": 0,
+    "group": 105
+   },
+   {
+    "text": "There were no witnesses.",
+    "label": 1,
+    "group": 105
+   },
+   {
+    "text": "Someone answered the phone.",
+    "label": 0,
+    "group": 106
+   },
+   {
+    "text": "Nobody answered the phone.",
+    "label": 1,
+    "group": 106
+   },
+   {
+    "text": "She has ridden a horse.",
+    "label": 0,
+    "group": 107
+   },
+   {
+    "text": "She has never ridden a horse.",
+    "label": 1,
+    "group": 107
+   },
+   {
+    "text": "Everything was ready.",
+    "label": 0,
+    "group": 108
+   },
+   {
+    "text": "Nothing was ready.",
+    "label": 1,
+    "group": 108
+   },
+   {
+    "text": "There is a good reason.",
+    "label": 0,
+    "group": 109
+   },
+   {
+    "text": "There is no good reason.",
+    "label": 1,
+    "group": 109
+   }
+  ]
+ }
+}

@@ -65,6 +65,10 @@ class SAEConfig:
     # Bias handling
     use_encoder_bias: bool = True
     use_decoder_bias: bool = True  # Pre-encoder bias for centering
+    # Subtract the decoder bias from inputs before encoding. Gemma Scope SAEs encode raw
+    # inputs (x @ W_enc + b_enc), so loading sets this False for them. Not saved in
+    # config.json: load_sae_checkpoint derives it from the checkpoint's metadata.
+    apply_b_dec_to_input: bool = True
 
     # Training source
     target_layer: int = 0  # Which layer to train on

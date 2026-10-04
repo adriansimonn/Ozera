@@ -4,6 +4,8 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { apiClient, GenerateRequest, GenerateResponse, FinishReason, GenerationDone } from '../api/client'
+import type { MonitorTrace } from '../types/probes'
+import { appendMonitorScores } from '../components/probes/probeUtils'
 
 export interface GenerationState {
   loading: boolean
@@ -19,6 +21,8 @@ export interface StreamingState {
   error: string | null
   text: string
   insufficientCredits: boolean
+  // A monitoring probe's scores so far (requests with a probe_id)
+  monitor: MonitorTrace | null
 }
 
 export interface StreamingResult {
@@ -26,6 +30,7 @@ export interface StreamingResult {
   generatedTokens: number | null
   finishReason: FinishReason | null
   activationId: string | null
+  monitor: MonitorTrace | null
 }
 
 const IDLE_STATE: StreamingState = {
@@ -36,6 +41,7 @@ const IDLE_STATE: StreamingState = {
   error: null,
   text: '',
   insufficientCredits: false,
+  monitor: null,
 }
 
 function newGenerationId(): string {
@@ -106,6 +112,7 @@ export function useStreamingGeneration() {
     setState({ ...IDLE_STATE, loading: true })
 
     let accumulated = ''
+    let monitor: MonitorTrace | null = null
     let done: GenerationDone | null = null
     let failed = false
     const stream = options.withActivations ? apiClient.generateWithActivationsStream : apiClient.generateStream
@@ -118,6 +125,11 @@ export function useStreamingGeneration() {
         },
         onCapturing: () => {
           setState(prev => ({ ...prev, loading: false, streaming: false, capturing: true }))
+        },
+        onProbe: (chunk) => {
+          monitor = appendMonitorScores(monitor, chunk)
+          const trace = monitor
+          setState(prev => ({ ...prev, monitor: trace }))
         },
         onDone: (event) => {
           done = event
@@ -161,6 +173,7 @@ export function useStreamingGeneration() {
       generatedTokens: result.generated_tokens ?? null,
       finishReason: result.finish_reason ?? null,
       activationId: result.activation_id ?? null,
+      monitor,
     }
   }, [])
 

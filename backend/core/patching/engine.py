@@ -6,7 +6,7 @@ and comparing baseline vs patched outputs.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Literal, Any
+from typing import Any, Literal, Optional, Sequence, Union
 import os
 import torch
 import uuid
@@ -15,16 +15,21 @@ from core.activation_limits import ActivationLimitError
 from .hooks import (
     LayerInput,
     PositionOffset,
+    as_input_hook,
     create_attention_patch_hook,
+    create_direction_ablation_hook,
     create_mlp_patch_hook,
     create_residual_patch_hook,
+    create_steering_hook,
     create_unit_intervention_hook,
     create_zero_ablation_hook,
     residual_stream_hook,
 )
 
 
-# Captured activation (per layer) that each patch type replaces
+# Captured activation (per layer) that each patch type replaces. 'resid_pre' is the residual
+# stream entering the layer (the embeddings, for layer 0); captures don't keep it, so only
+# direction interventions can use it.
 PATCH_TYPE_ACTIVATION_KEYS = {
     'attention': 'attn_output',
     'attn_output': 'attn_output',
@@ -33,7 +38,16 @@ PATCH_TYPE_ACTIVATION_KEYS = {
     'residual': 'post_ff',
     'post_attn': 'post_attn',
     'post_ff': 'post_ff',
+    'resid_pre': 'resid_pre',
 }
+
+# Patch types that are points on the residual stream
+RESIDUAL_PATCH_TYPES = ('residual', 'post_attn', 'post_ff', 'resid_pre')
+
+# Interventions along a direction of the residual stream (from a probe, say): adding a vector
+# to it ('steer'), or projecting a direction out of it ('ablate_direction'). Neither needs a
+# source prompt.
+DIRECTION_INTERVENTIONS = ('steer', 'ablate_direction')
 
 
 def patch_activation_key(patch_type: str, layer: int) -> str:
@@ -52,7 +66,7 @@ class PatchError(ValueError):
 
 # Interventions that only change the positions they're applied to. The rest (mean and
 # noise ablation) are computed from the whole sequence in each forward pass.
-POSITION_LOCAL_INTERVENTIONS = ('patch', 'zero_ablate')
+POSITION_LOCAL_INTERVENTIONS = ('patch', 'zero_ablate') + DIRECTION_INTERVENTIONS
 
 # Bounds on the captures kept with add_captured_activations (the backend's store for the
 # patching and analysis pages; Modal workers only hold a capture during its request).
@@ -81,15 +95,23 @@ class PatchConfig:
     to patch, and how to blend the patched values.
     """
     layer: int
-    patch_type: Literal['attention', 'mlp', 'residual', 'attn_output', 'ff_output', 'post_attn', 'post_ff']
+    patch_type: Literal['attention', 'mlp', 'residual', 'attn_output', 'ff_output', 'post_attn', 'post_ff', 'resid_pre']
     positions: Optional[list[int]] = None  # None = all positions
     heads: Optional[list[int]] = None  # None = all heads (for attention)
     neurons: Optional[list[int]] = None  # None = all neurons (for MLP)
-    blend_factor: float = 1.0  # 1.0 = full replacement
-    intervention_type: Literal['patch', 'zero_ablate', 'mean_ablate', 'noise_ablate'] = 'patch'
+    # 1.0 = full replacement. For 'steer', scales the vector added; for 'ablate_direction',
+    # the fraction of the direction's component removed.
+    blend_factor: float = 1.0
+    intervention_type: Literal['patch', 'zero_ablate', 'mean_ablate', 'noise_ablate', 'steer', 'ablate_direction'] = 'patch'
+    # Direction interventions only: the vector to add ('steer'), or the direction to project
+    # out ('ablate_direction', any nonzero length). [d_model] values or a tensor.
+    direction: Optional[Union[Sequence[float], torch.Tensor]] = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary for serialization."""
+        direction = self.direction
+        if isinstance(direction, torch.Tensor):
+            direction = direction.tolist()
         return {
             'layer': self.layer,
             'patch_type': self.patch_type,
@@ -98,6 +120,7 @@ class PatchConfig:
             'neurons': self.neurons,
             'blend_factor': self.blend_factor,
             'intervention_type': self.intervention_type,
+            'direction': list(direction) if direction is not None else None,
         }
 
     @classmethod
@@ -111,7 +134,19 @@ class PatchConfig:
             neurons=data.get('neurons'),
             blend_factor=data.get('blend_factor', 1.0),
             intervention_type=data.get('intervention_type', 'patch'),
+            direction=data.get('direction'),
         )
+
+
+def attention_branch_end(layer_module: torch.nn.Module) -> torch.nn.Module:
+    """
+    The module whose output an open-source decoder layer adds to the residual stream as its
+    attention branch: self_attn, or (Gemma, which normalizes the attention output and has a
+    separate pre-FFN norm) post_attention_layernorm.
+    """
+    if hasattr(layer_module, 'pre_feedforward_layernorm'):
+        return layer_module.post_attention_layernorm
+    return layer_module.self_attn
 
 
 def unit_projection_key(patch: PatchConfig) -> Optional[str]:
@@ -138,6 +173,27 @@ def _index_problem(indices: list[int], count: Optional[int], unit: str) -> Optio
     return None
 
 
+def _direction_problem(patch: PatchConfig, hidden_dim: Optional[int]) -> Optional[str]:
+    if patch.intervention_type not in DIRECTION_INTERVENTIONS:
+        if patch.direction is not None:
+            return "only steering and direction ablation take a direction"
+        if patch.patch_type == 'resid_pre':
+            return "the residual stream entering a layer can only be steered or have a direction ablated"
+        return None
+    if patch.direction is None:
+        return "steering and direction ablation need a direction"
+    if patch.patch_type not in RESIDUAL_PATCH_TYPES:
+        return "directions can only be added to or removed from the residual stream"
+    direction = torch.as_tensor(patch.direction, dtype=torch.float32)
+    if direction.dim() != 1 or (hidden_dim is not None and direction.numel() != hidden_dim):
+        return f"the direction has {direction.numel()} values, but the residual stream has {hidden_dim}"
+    if not bool(torch.isfinite(direction).all()):
+        return "the direction has values that aren't finite"
+    if patch.intervention_type == 'ablate_direction' and float(direction.norm()) == 0:
+        return "the direction to ablate is all zeros"
+    return None
+
+
 def _patch_problem(
     patch: PatchConfig,
     num_layers: int,
@@ -145,9 +201,14 @@ def _patch_problem(
     mlp_neurons: Optional[int],
     source_tokens: Optional[int],
     max_tokens: Optional[int],
+    hidden_dim: Optional[int] = None,
 ) -> Optional[str]:
     if not 0 <= patch.layer < num_layers:
         return f"the model has layers 0-{num_layers - 1}"
+
+    problem = _direction_problem(patch, hidden_dim)
+    if problem:
+        return problem
 
     if patch.heads is not None and patch.neurons is not None:
         return "choose heads or neurons, not both"
@@ -184,6 +245,7 @@ def validate_patches(
     mlp_neurons: Optional[int] = None,
     source_tokens: Optional[int] = None,
     max_tokens: Optional[int] = None,
+    hidden_dim: Optional[int] = None,
 ) -> None:
     """
     Check that every patch can be applied as requested, rather than silently skipping it.
@@ -195,12 +257,13 @@ def validate_patches(
         mlp_neurons: The model's neurons per MLP layer, if known
         source_tokens: Tokens in the source prompt, if known (a patch only covers those)
         max_tokens: The most tokens the patched sequence can have, if known
+        hidden_dim: The model's residual stream width, if known (directions must match it)
 
     Raises:
         PatchError: for the first patch that can't be applied
     """
     for number, patch in enumerate(patches, start=1):
-        problem = _patch_problem(patch, num_layers, num_heads, mlp_neurons, source_tokens, max_tokens)
+        problem = _patch_problem(patch, num_layers, num_heads, mlp_neurons, source_tokens, max_tokens, hidden_dim)
         if problem:
             raise PatchError(f"Patch {number} (layer {patch.layer}, {patch.patch_type}): {problem}")
 
@@ -417,32 +480,7 @@ class PatchingEngine:
             raise ValueError("Source activations required for patching interventions. Use ablation types (zero_ablate, mean_ablate, noise_ablate) or provide source activations.")
 
         # Check every patch can be applied, before generating anything
-        if model_type == 'open_source':
-            target_tokens = model_loader.encode_prompt(target_prompt).input_ids.shape[1]
-            config = model_loader.config
-            num_layers, num_heads, mlp_neurons = config.num_layers, config.num_heads, config.intermediate_dim
-        else:
-            if tokenizer is None:
-                raise ValueError("Tokenizer required for Ozera models")
-            config = self._ozera_model(model_loader).config
-            target_tokens = len(tokenizer.encode(target_prompt))
-            num_layers, num_heads, mlp_neurons = config.num_layers, config.num_heads, config.d_ff
-            # Past the context window, generation only attends over the last max_seq_len
-            # tokens, where the patched positions would no longer be the ones asked for
-            if target_tokens + max_new_tokens > config.max_seq_len:
-                raise PatchError(
-                    f"Patching is limited to the model's context window of {config.max_seq_len} tokens "
-                    f"(prompt plus generated). This prompt has {target_tokens}, so generate at most "
-                    f"{max(config.max_seq_len - target_tokens, 0)} tokens."
-                )
-        validate_patches(
-            patches,
-            num_layers=num_layers,
-            num_heads=num_heads,
-            mlp_neurons=mlp_neurons,
-            source_tokens=len(source.tokens) if source is not None else None,
-            max_tokens=target_tokens + max_new_tokens,
-        )
+        self._validate_for_model(target_prompt, patches, source, model_loader, model_type, tokenizer, max_new_tokens)
         unit_sources = self._unit_projection_sources(patches, source, model_loader, model_type)
 
         # Generate baseline (no patches)
@@ -506,6 +544,91 @@ class PatchingEngine:
             source_activation_id=source_activation_id,
             patches_applied=patches,
             effect_summary=effect_summary,
+        )
+
+    def _validate_for_model(
+        self,
+        target_prompt: str,
+        patches: list[PatchConfig],
+        source: Optional[CapturedActivations],
+        model_loader: Any,
+        model_type: Literal['ozera', 'open_source'],
+        tokenizer: Any,
+        max_new_tokens: int,
+    ) -> None:
+        """
+        Check that every patch can be applied to a generation from the target prompt.
+
+        Raises:
+            PatchError: for the first patch that can't be applied
+        """
+        if model_type == 'open_source':
+            target_tokens = model_loader.encode_prompt(target_prompt).input_ids.shape[1]
+            config = model_loader.config
+            num_layers, num_heads, mlp_neurons = config.num_layers, config.num_heads, config.intermediate_dim
+            hidden_dim = config.hidden_dim
+        else:
+            if tokenizer is None:
+                raise ValueError("Tokenizer required for Ozera models")
+            config = self._ozera_model(model_loader).config
+            target_tokens = len(tokenizer.encode(target_prompt))
+            num_layers, num_heads, mlp_neurons = config.num_layers, config.num_heads, config.d_ff
+            hidden_dim = config.d_model
+            # Past the context window, generation only attends over the last max_seq_len
+            # tokens, where the patched positions would no longer be the ones asked for
+            if target_tokens + max_new_tokens > config.max_seq_len:
+                raise PatchError(
+                    f"Patching is limited to the model's context window of {config.max_seq_len} tokens "
+                    f"(prompt plus generated). This prompt has {target_tokens}, so generate at most "
+                    f"{max(config.max_seq_len - target_tokens, 0)} tokens."
+                )
+        validate_patches(
+            patches,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            mlp_neurons=mlp_neurons,
+            source_tokens=len(source.tokens) if source is not None else None,
+            max_tokens=target_tokens + max_new_tokens,
+            hidden_dim=hidden_dim,
+        )
+
+    def run_generation(
+        self,
+        prompt: str,
+        patches: list[PatchConfig],
+        model_loader: Any,
+        model_type: Literal['ozera', 'open_source'],
+        tokenizer: Any = None,
+        max_new_tokens: int = 50,
+        temperature: float = 0.0,
+    ) -> tuple[str, list[int], list[str]]:
+        """
+        Generate once with interventions that need no source prompt (ablations, steering,
+        direction ablation). With no patches it's a plain generation, made the same way as
+        patched ones so the two compare like for like.
+
+        The caller holds an open-source model's lock: the hooks must not act on other
+        requests' generations.
+
+        Returns:
+            (decoded sequence, its token IDs including the prompt, each token decoded)
+
+        Raises:
+            PatchError: a patch can't be applied as requested (checked before generating)
+        """
+        if any(patch.intervention_type == 'patch' for patch in patches):
+            raise ValueError("Patches that copy activations need a source prompt (see run_patched_generation)")
+        self._validate_for_model(prompt, patches, None, model_loader, model_type, tokenizer, max_new_tokens)
+        return self._generate_with_patches(
+            target_prompt=prompt,
+            source=None,
+            patches=patches,
+            model_loader=model_loader,
+            model_type=model_type,
+            tokenizer=tokenizer,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            unit_sources={},
         )
 
     def _generate_with_patches(
@@ -686,7 +809,16 @@ class PatchingEngine:
 
         activation_key = PATCH_TYPE_ACTIVATION_KEYS[patch.patch_type]
 
-        if intervention_type in ['zero_ablate', 'mean_ablate', 'noise_ablate']:
+        if intervention_type in DIRECTION_INTERVENTIONS:
+            direction = torch.as_tensor(patch.direction, dtype=torch.float32).to(device)
+            if intervention_type == 'steer':
+                hook_fn = create_steering_hook(patch.blend_factor * direction, patch.positions, offset)
+            else:
+                hook_fn = create_direction_ablation_hook(direction, patch.positions, patch.blend_factor, offset)
+            if activation_key == 'resid_pre':
+                layer_module = self._open_source_layer(model_loader, patch.layer)
+                return [layer_module.register_forward_pre_hook(as_input_hook(hook_fn), with_kwargs=True)]
+        elif intervention_type in ['zero_ablate', 'mean_ablate', 'noise_ablate']:
             hook_fn = create_zero_ablation_hook(
                 positions=patch.positions,
                 blend_factor=patch.blend_factor,
@@ -729,17 +861,10 @@ class PatchingEngine:
         if activation_key == 'post_attn':
             # No module outputs the residual stream after attention: the layer adds its
             # attention branch's output to its input, so the patch changes that branch's output.
-            # The branch ends at self_attn, or (Gemma, which normalizes the attention output
-            # and has a separate pre-FFN norm) at post_attention_layernorm.
             layer_input = LayerInput()
-            branch_end = (
-                layer_module.post_attention_layernorm
-                if hasattr(layer_module, 'pre_feedforward_layernorm')
-                else layer_module.self_attn
-            )
             return [
                 layer_input.attach(layer_module),
-                branch_end.register_forward_hook(residual_stream_hook(hook_fn, layer_input)),
+                attention_branch_end(layer_module).register_forward_hook(residual_stream_hook(hook_fn, layer_input)),
             ]
 
         module = {
@@ -849,6 +974,8 @@ class PatchingEngine:
                     )
 
                 patch_info['source'] = source_activation.to(device)
+            elif intervention_type in DIRECTION_INTERVENTIONS:
+                patch_info['direction'] = torch.as_tensor(patch.direction, dtype=torch.float32).to(device)
 
             patch_dict.setdefault(full_key, []).append(patch_info)
 

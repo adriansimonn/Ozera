@@ -13,6 +13,7 @@ import { NavBar } from '../../components/common/NavBar'
 import { useActivationData, type VisualizationType } from '../../hooks/useActivationData'
 import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, Copy, Check, BarChart3, FileText, Trash2, Info, Maximize2, MessageSquare, X } from 'lucide-react'
 import { Dropdown } from '../../components/common/Dropdown'
+import { ProbeMonitor } from '../../components/probes/ProbeMonitor'
 import { useTheme } from '../../hooks/useTheme'
 
 type RightPanelMode = 'visualizations' | 'outputs'
@@ -210,6 +211,11 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
               >
                 {stream.text}
                 {stream.phase === 'streaming' && <span className="df-cursor" style={{ color: c.textMid }}>|</span>}
+              </div>
+            )}
+            {stream.monitor && stream.monitorProbe && (
+              <div className="df-stream-monitor" style={{ background: c.panelBg }}>
+                <ProbeMonitor trace={stream.monitor} probe={stream.monitorProbe} live />
               </div>
             )}
           </div>
@@ -571,6 +577,11 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                           )}
                           {stream.phase === 'streaming' && <span className="df-cursor" style={{ color: c.textMid }}>|</span>}
                         </div>
+                        {stream.monitor && stream.monitorProbe && (
+                          <div className="df-output-monitor">
+                            <ProbeMonitor trace={stream.monitor} probe={stream.monitorProbe} live />
+                          </div>
+                        )}
                         <div className="df-output-settings" style={{ borderTop: `1px solid ${c.divider}` }}>
                           <div className="df-output-setting df-output-live">
                             <span className="df-live-dot" style={{ background: c.text }} />
@@ -610,6 +621,11 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                             </button>
                           </div>
                         </div>
+                        {output.monitor && output.monitorProbe && (
+                          <div className="df-output-monitor">
+                            <ProbeMonitor trace={output.monitor} probe={output.monitorProbe} />
+                          </div>
+                        )}
                         <div className="df-output-settings" style={{ borderTop: `1px solid ${c.divider}` }}>
                           <button
                             className="df-output-detail df-output-detail-model"
@@ -1042,6 +1058,18 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
         .df-output-text-wrap {
           position: relative;
+        }
+
+        .df-stream-monitor {
+          width: 100%;
+        }
+
+        .df-output-monitor {
+          padding: 0 1.5rem 1.25rem;
+        }
+
+        .df-output-monitor .probe-monitor {
+          margin-top: 0;
         }
 
         .df-output-text {

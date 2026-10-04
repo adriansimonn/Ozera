@@ -1,0 +1,1179 @@
+{
+ "id": "agreement",
+ "order": 5,
+ "name": "Subject-verb agreement",
+ "category": "minimal_pairs",
+ "description": "Minimal pairs with a distracting noun between subject and verb: \"The key to the cabinets is/are on the table.\"",
+ "label_names": [
+  "Ungrammatical",
+  "Grammatical"
+ ],
+ "source": "Written for Ozera",
+ "rows": [
+  {
+   "text": "The key to the cabinets is on the table.",
+   "label": 1,
+   "group": 0
+  },
+  {
+   "text": "The key to the cabinets are on the table.",
+   "label": 0,
+   "group": 0
+  },
+  {
+   "text": "The keys to the cabinet are on the table.",
+   "label": 1,
+   "group": 1
+  },
+  {
+   "text": "The keys to the cabinet is on the table.",
+   "label": 0,
+   "group": 1
+  },
+  {
+   "text": "The author of the novels is very famous.",
+   "label": 1,
+   "group": 2
+  },
+  {
+   "text": "The author of the novels are very famous.",
+   "label": 0,
+   "group": 2
+  },
+  {
+   "text": "The authors of the novel are very famous.",
+   "label": 1,
+   "group": 3
+  },
+  {
+   "text": "The authors of the novel is very famous.",
+   "label": 0,
+   "group": 3
+  },
+  {
+   "text": "The picture of the mountains hangs in the hall.",
+   "label": 1,
+   "group": 4
+  },
+  {
+   "text": "The picture of the mountains hang in the hall.",
+   "label": 0,
+   "group": 4
+  },
+  {
+   "text": "The pictures of the mountain hang in the hall.",
+   "label": 1,
+   "group": 5
+  },
+  {
+   "text": "The pictures of the mountain hangs in the hall.",
+   "label": 0,
+   "group": 5
+  },
+  {
+   "text": "The teacher of the students was late today.",
+   "label": 1,
+   "group": 6
+  },
+  {
+   "text": "The teacher of the students were late today.",
+   "label": 0,
+   "group": 6
+  },
+  {
+   "text": "The teachers of the student were late today.",
+   "label": 1,
+   "group": 7
+  },
+  {
+   "text": "The teachers of the student was late today.",
+   "label": 0,
+   "group": 7
+  },
+  {
+   "text": "The box near the windows is full of letters.",
+   "label": 1,
+   "group": 8
+  },
+  {
+   "text": "The box near the windows are full of letters.",
+   "label": 0,
+   "group": 8
+  },
+  {
+   "text": "The boxes near the window are full of letters.",
+   "label": 1,
+   "group": 9
+  },
+  {
+   "text": "The boxes near the window is full of letters.",
+   "label": 0,
+   "group": 9
+  },
+  {
+   "text": "The road to the villages was closed for repairs.",
+   "label": 1,
+   "group": 10
+  },
+  {
+   "text": "The road to the villages were closed for repairs.",
+   "label": 0,
+   "group": 10
+  },
+  {
+   "text": "The roads to the village were closed for repairs.",
+   "label": 1,
+   "group": 11
+  },
+  {
+   "text": "The roads to the village was closed for repairs.",
+   "label": 0,
+   "group": 11
+  },
+  {
+   "text": "The manager of the stores has a meeting at noon.",
+   "label": 1,
+   "group": 12
+  },
+  {
+   "text": "The manager of the stores have a meeting at noon.",
+   "label": 0,
+   "group": 12
+  },
+  {
+   "text": "The managers of the store have a meeting at noon.",
+   "label": 1,
+   "group": 13
+  },
+  {
+   "text": "The managers of the store has a meeting at noon.",
+   "label": 0,
+   "group": 13
+  },
+  {
+   "text": "The bottle on the shelves is empty.",
+   "label": 1,
+   "group": 14
+  },
+  {
+   "text": "The bottle on the shelves are empty.",
+   "label": 0,
+   "group": 14
+  },
+  {
+   "text": "The bottles on the shelf are empty.",
+   "label": 1,
+   "group": 15
+  },
+  {
+   "text": "The bottles on the shelf is empty.",
+   "label": 0,
+   "group": 15
+  },
+  {
+   "text": "The letter from the lawyers arrives every Monday.",
+   "label": 1,
+   "group": 16
+  },
+  {
+   "text": "The letter from the lawyers arrive every Monday.",
+   "label": 0,
+   "group": 16
+  },
+  {
+   "text": "The letters from the lawyer arrive every Monday.",
+   "label": 1,
+   "group": 17
+  },
+  {
+   "text": "The letters from the lawyer arrives every Monday.",
+   "label": 0,
+   "group": 17
+  },
+  {
+   "text": "The painting by the artists sells for a lot of money.",
+   "label": 1,
+   "group": 18
+  },
+  {
+   "text": "The painting by the artists sell for a lot of money.",
+   "label": 0,
+   "group": 18
+  },
+  {
+   "text": "The paintings by the artist sell for a lot of money.",
+   "label": 1,
+   "group": 19
+  },
+  {
+   "text": "The paintings by the artist sells for a lot of money.",
+   "label": 0,
+   "group": 19
+  },
+  {
+   "text": "The bridge over the rivers needs repairs.",
+   "label": 1,
+   "group": 20
+  },
+  {
+   "text": "The bridge over the rivers need repairs.",
+   "label": 0,
+   "group": 20
+  },
+  {
+   "text": "The bridges over the river need repairs.",
+   "label": 1,
+   "group": 21
+  },
+  {
+   "text": "The bridges over the river needs repairs.",
+   "label": 0,
+   "group": 21
+  },
+  {
+   "text": "The singer in the bands was very talented.",
+   "label": 1,
+   "group": 22
+  },
+  {
+   "text": "The singer in the bands were very talented.",
+   "label": 0,
+   "group": 22
+  },
+  {
+   "text": "The singers in the band were very talented.",
+   "label": 1,
+   "group": 23
+  },
+  {
+   "text": "The singers in the band was very talented.",
+   "label": 0,
+   "group": 23
+  },
+  {
+   "text": "The door of the houses is painted green.",
+   "label": 1,
+   "group": 24
+  },
+  {
+   "text": "The door of the houses are painted green.",
+   "label": 0,
+   "group": 24
+  },
+  {
+   "text": "The doors of the house are painted green.",
+   "label": 1,
+   "group": 25
+  },
+  {
+   "text": "The doors of the house is painted green.",
+   "label": 0,
+   "group": 25
+  },
+  {
+   "text": "The report about the accidents was published yesterday.",
+   "label": 1,
+   "group": 26
+  },
+  {
+   "text": "The report about the accidents were published yesterday.",
+   "label": 0,
+   "group": 26
+  },
+  {
+   "text": "The reports about the accident were published yesterday.",
+   "label": 1,
+   "group": 27
+  },
+  {
+   "text": "The reports about the accident was published yesterday.",
+   "label": 0,
+   "group": 27
+  },
+  {
+   "text": "The cat behind the fences sleeps all afternoon.",
+   "label": 1,
+   "group": 28
+  },
+  {
+   "text": "The cat behind the fences sleep all afternoon.",
+   "label": 0,
+   "group": 28
+  },
+  {
+   "text": "The cats behind the fence sleep all afternoon.",
+   "label": 1,
+   "group": 29
+  },
+  {
+   "text": "The cats behind the fence sleeps all afternoon.",
+   "label": 0,
+   "group": 29
+  },
+  {
+   "text": "The player on the teams trains every morning.",
+   "label": 1,
+   "group": 30
+  },
+  {
+   "text": "The player on the teams train every morning.",
+   "label": 0,
+   "group": 30
+  },
+  {
+   "text": "The players on the team train every morning.",
+   "label": 1,
+   "group": 31
+  },
+  {
+   "text": "The players on the team trains every morning.",
+   "label": 0,
+   "group": 31
+  },
+  {
+   "text": "The lamp next to the beds is broken.",
+   "label": 1,
+   "group": 32
+  },
+  {
+   "text": "The lamp next to the beds are broken.",
+   "label": 0,
+   "group": 32
+  },
+  {
+   "text": "The lamps next to the bed are broken.",
+   "label": 1,
+   "group": 33
+  },
+  {
+   "text": "The lamps next to the bed is broken.",
+   "label": 0,
+   "group": 33
+  },
+  {
+   "text": "The price of the tickets has gone up.",
+   "label": 1,
+   "group": 34
+  },
+  {
+   "text": "The price of the tickets have gone up.",
+   "label": 0,
+   "group": 34
+  },
+  {
+   "text": "The prices of the ticket have gone up.",
+   "label": 1,
+   "group": 35
+  },
+  {
+   "text": "The prices of the ticket has gone up.",
+   "label": 0,
+   "group": 35
+  },
+  {
+   "text": "The student from the schools is on a trip.",
+   "label": 1,
+   "group": 36
+  },
+  {
+   "text": "The student from the schools are on a trip.",
+   "label": 0,
+   "group": 36
+  },
+  {
+   "text": "The students from the school are on a trip.",
+   "label": 1,
+   "group": 37
+  },
+  {
+   "text": "The students from the school is on a trip.",
+   "label": 0,
+   "group": 37
+  },
+  {
+   "text": "The chair in the corners looks uncomfortable.",
+   "label": 1,
+   "group": 38
+  },
+  {
+   "text": "The chair in the corners look uncomfortable.",
+   "label": 0,
+   "group": 38
+  },
+  {
+   "text": "The chairs in the corner look uncomfortable.",
+   "label": 1,
+   "group": 39
+  },
+  {
+   "text": "The chairs in the corner looks uncomfortable.",
+   "label": 0,
+   "group": 39
+  },
+  {
+   "text": "The window of the classrooms was left open.",
+   "label": 1,
+   "group": 40
+  },
+  {
+   "text": "The window of the classrooms were left open.",
+   "label": 0,
+   "group": 40
+  },
+  {
+   "text": "The windows of the classroom were left open.",
+   "label": 1,
+   "group": 41
+  },
+  {
+   "text": "The windows of the classroom was left open.",
+   "label": 0,
+   "group": 41
+  },
+  {
+   "text": "The doctor at the clinics works long hours.",
+   "label": 1,
+   "group": 42
+  },
+  {
+   "text": "The doctor at the clinics work long hours.",
+   "label": 0,
+   "group": 42
+  },
+  {
+   "text": "The doctors at the clinic work long hours.",
+   "label": 1,
+   "group": 43
+  },
+  {
+   "text": "The doctors at the clinic works long hours.",
+   "label": 0,
+   "group": 43
+  },
+  {
+   "text": "The flower in the vases smells sweet.",
+   "label": 1,
+   "group": 44
+  },
+  {
+   "text": "The flower in the vases smell sweet.",
+   "label": 0,
+   "group": 44
+  },
+  {
+   "text": "The flowers in the vase smell sweet.",
+   "label": 1,
+   "group": 45
+  },
+  {
+   "text": "The flowers in the vase smells sweet.",
+   "label": 0,
+   "group": 45
+  },
+  {
+   "text": "The book about the wars is on the desk.",
+   "label": 1,
+   "group": 46
+  },
+  {
+   "text": "The book about the wars are on the desk.",
+   "label": 0,
+   "group": 46
+  },
+  {
+   "text": "The books about the war are on the desk.",
+   "label": 1,
+   "group": 47
+  },
+  {
+   "text": "The books about the war is on the desk.",
+   "label": 0,
+   "group": 47
+  },
+  {
+   "text": "The cake for the parties was delicious.",
+   "label": 1,
+   "group": 48
+  },
+  {
+   "text": "The cake for the parties were delicious.",
+   "label": 0,
+   "group": 48
+  },
+  {
+   "text": "The cakes for the party were delicious.",
+   "label": 1,
+   "group": 49
+  },
+  {
+   "text": "The cakes for the party was delicious.",
+   "label": 0,
+   "group": 49
+  },
+  {
+   "text": "The tree beside the lakes grows very tall.",
+   "label": 1,
+   "group": 50
+  },
+  {
+   "text": "The tree beside the lakes grow very tall.",
+   "label": 0,
+   "group": 50
+  },
+  {
+   "text": "The trees beside the lake grow very tall.",
+   "label": 1,
+   "group": 51
+  },
+  {
+   "text": "The trees beside the lake grows very tall.",
+   "label": 0,
+   "group": 51
+  },
+  {
+   "text": "The label on the jars is hard to read.",
+   "label": 1,
+   "group": 52
+  },
+  {
+   "text": "The label on the jars are hard to read.",
+   "label": 0,
+   "group": 52
+  },
+  {
+   "text": "The labels on the jar are hard to read.",
+   "label": 1,
+   "group": 53
+  },
+  {
+   "text": "The labels on the jar is hard to read.",
+   "label": 0,
+   "group": 53
+  },
+  {
+   "text": "The guard at the gates checks every bag.",
+   "label": 1,
+   "group": 54
+  },
+  {
+   "text": "The guard at the gates check every bag.",
+   "label": 0,
+   "group": 54
+  },
+  {
+   "text": "The guards at the gate check every bag.",
+   "label": 1,
+   "group": 55
+  },
+  {
+   "text": "The guards at the gate checks every bag.",
+   "label": 0,
+   "group": 55
+  },
+  {
+   "text": "The song on the albums was recorded live.",
+   "label": 1,
+   "group": 56
+  },
+  {
+   "text": "The song on the albums were recorded live.",
+   "label": 0,
+   "group": 56
+  },
+  {
+   "text": "The songs on the album were recorded live.",
+   "label": 1,
+   "group": 57
+  },
+  {
+   "text": "The songs on the album was recorded live.",
+   "label": 0,
+   "group": 57
+  },
+  {
+   "text": "The dog with the spots barks at strangers.",
+   "label": 1,
+   "group": 58
+  },
+  {
+   "text": "The dog with the spots bark at strangers.",
+   "label": 0,
+   "group": 58
+  },
+  {
+   "text": "The dogs with the spot bark at strangers.",
+   "label": 1,
+   "group": 59
+  },
+  {
+   "text": "The dogs with the spot barks at strangers.",
+   "label": 0,
+   "group": 59
+  },
+  {
+   "text": "The light in the hallways is too bright.",
+   "label": 1,
+   "group": 60
+  },
+  {
+   "text": "The light in the hallways are too bright.",
+   "label": 0,
+   "group": 60
+  },
+  {
+   "text": "The lights in the hallway are too bright.",
+   "label": 1,
+   "group": 61
+  },
+  {
+   "text": "The lights in the hallway is too bright.",
+   "label": 0,
+   "group": 61
+  },
+  {
+   "text": "The engine of the trucks makes a strange noise.",
+   "label": 1,
+   "group": 62
+  },
+  {
+   "text": "The engine of the trucks make a strange noise.",
+   "label": 0,
+   "group": 62
+  },
+  {
+   "text": "The engines of the truck make a strange noise.",
+   "label": 1,
+   "group": 63
+  },
+  {
+   "text": "The engines of the truck makes a strange noise.",
+   "label": 0,
+   "group": 63
+  },
+  {
+   "text": "The map of the islands shows every beach.",
+   "label": 1,
+   "group": 64
+  },
+  {
+   "text": "The map of the islands show every beach.",
+   "label": 0,
+   "group": 64
+  },
+  {
+   "text": "The maps of the island show every beach.",
+   "label": 1,
+   "group": 65
+  },
+  {
+   "text": "The maps of the island shows every beach.",
+   "label": 0,
+   "group": 65
+  },
+  {
+   "text": "The bag under the seats belongs to me.",
+   "label": 1,
+   "group": 66
+  },
+  {
+   "text": "The bag under the seats belong to me.",
+   "label": 0,
+   "group": 66
+  },
+  {
+   "text": "The bags under the seat belong to me.",
+   "label": 1,
+   "group": 67
+  },
+  {
+   "text": "The bags under the seat belongs to me.",
+   "label": 0,
+   "group": 67
+  },
+  {
+   "text": "The cup on the trays is chipped.",
+   "label": 1,
+   "group": 68
+  },
+  {
+   "text": "The cup on the trays are chipped.",
+   "label": 0,
+   "group": 68
+  },
+  {
+   "text": "The cups on the tray are chipped.",
+   "label": 1,
+   "group": 69
+  },
+  {
+   "text": "The cups on the tray is chipped.",
+   "label": 0,
+   "group": 69
+  },
+  {
+   "text": "The nurse in the wards was very kind.",
+   "label": 1,
+   "group": 70
+  },
+  {
+   "text": "The nurse in the wards were very kind.",
+   "label": 0,
+   "group": 70
+  },
+  {
+   "text": "The nurses in the ward were very kind.",
+   "label": 1,
+   "group": 71
+  },
+  {
+   "text": "The nurses in the ward was very kind.",
+   "label": 0,
+   "group": 71
+  },
+  {
+   "text": "The phone in the drawers needs charging.",
+   "label": 1,
+   "group": 72
+  },
+  {
+   "text": "The phone in the drawers need charging.",
+   "label": 0,
+   "group": 72
+  },
+  {
+   "text": "The phones in the drawer need charging.",
+   "label": 1,
+   "group": 73
+  },
+  {
+   "text": "The phones in the drawer needs charging.",
+   "label": 0,
+   "group": 73
+  },
+  {
+   "text": "The garden behind the cottages is full of roses.",
+   "label": 1,
+   "group": 74
+  },
+  {
+   "text": "The garden behind the cottages are full of roses.",
+   "label": 0,
+   "group": 74
+  },
+  {
+   "text": "The gardens behind the cottage are full of roses.",
+   "label": 1,
+   "group": 75
+  },
+  {
+   "text": "The gardens behind the cottage is full of roses.",
+   "label": 0,
+   "group": 75
+  },
+  {
+   "text": "The child of the families plays outside.",
+   "label": 1,
+   "group": 76
+  },
+  {
+   "text": "The child of the families play outside.",
+   "label": 0,
+   "group": 76
+  },
+  {
+   "text": "The children of the family play outside.",
+   "label": 1,
+   "group": 77
+  },
+  {
+   "text": "The children of the family plays outside.",
+   "label": 0,
+   "group": 77
+  },
+  {
+   "text": "The coat by the doors is still wet.",
+   "label": 1,
+   "group": 78
+  },
+  {
+   "text": "The coat by the doors are still wet.",
+   "label": 0,
+   "group": 78
+  },
+  {
+   "text": "The coats by the door are still wet.",
+   "label": 1,
+   "group": 79
+  },
+  {
+   "text": "The coats by the door is still wet.",
+   "label": 0,
+   "group": 79
+  }
+ ],
+ "ood": {
+  "description": "Agreement across a relative clause: \"The author that the critics praise writes/write every day.\"",
+  "rows": [
+   {
+    "text": "The author that the critics praise writes every day.",
+    "label": 1,
+    "group": 80
+   },
+   {
+    "text": "The author that the critics praise write every day.",
+    "label": 0,
+    "group": 80
+   },
+   {
+    "text": "The authors that the critic praises write every day.",
+    "label": 1,
+    "group": 81
+   },
+   {
+    "text": "The authors that the critic praises writes every day.",
+    "label": 0,
+    "group": 81
+   },
+   {
+    "text": "The dog that the neighbors own barks all night.",
+    "label": 1,
+    "group": 82
+   },
+   {
+    "text": "The dog that the neighbors own bark all night.",
+    "label": 0,
+    "group": 82
+   },
+   {
+    "text": "The dogs that the neighbor owns bark all night.",
+    "label": 1,
+    "group": 83
+   },
+   {
+    "text": "The dogs that the neighbor owns barks all night.",
+    "label": 0,
+    "group": 83
+   },
+   {
+    "text": "The song that the singers like is very old.",
+    "label": 1,
+    "group": 84
+   },
+   {
+    "text": "The song that the singers like are very old.",
+    "label": 0,
+    "group": 84
+   },
+   {
+    "text": "The songs that the singer likes are very old.",
+    "label": 1,
+    "group": 85
+   },
+   {
+    "text": "The songs that the singer likes is very old.",
+    "label": 0,
+    "group": 85
+   },
+   {
+    "text": "The house that the builders design has a large garden.",
+    "label": 1,
+    "group": 86
+   },
+   {
+    "text": "The house that the builders design have a large garden.",
+    "label": 0,
+    "group": 86
+   },
+   {
+    "text": "The houses that the builder designs have a large garden.",
+    "label": 1,
+    "group": 87
+   },
+   {
+    "text": "The houses that the builder designs has a large garden.",
+    "label": 0,
+    "group": 87
+   },
+   {
+    "text": "The teacher that the students admire lives nearby.",
+    "label": 1,
+    "group": 88
+   },
+   {
+    "text": "The teacher that the students admire live nearby.",
+    "label": 0,
+    "group": 88
+   },
+   {
+    "text": "The teachers that the student admires live nearby.",
+    "label": 1,
+    "group": 89
+   },
+   {
+    "text": "The teachers that the student admires lives nearby.",
+    "label": 0,
+    "group": 89
+   },
+   {
+    "text": "The car that the mechanics repair was very expensive.",
+    "label": 1,
+    "group": 90
+   },
+   {
+    "text": "The car that the mechanics repair were very expensive.",
+    "label": 0,
+    "group": 90
+   },
+   {
+    "text": "The cars that the mechanic repairs were very expensive.",
+    "label": 1,
+    "group": 91
+   },
+   {
+    "text": "The cars that the mechanic repairs was very expensive.",
+    "label": 0,
+    "group": 91
+   },
+   {
+    "text": "The painting that the visitors photograph hangs near the entrance.",
+    "label": 1,
+    "group": 92
+   },
+   {
+    "text": "The painting that the visitors photograph hang near the entrance.",
+    "label": 0,
+    "group": 92
+   },
+   {
+    "text": "The paintings that the visitor photographs hang near the entrance.",
+    "label": 1,
+    "group": 93
+   },
+   {
+    "text": "The paintings that the visitor photographs hangs near the entrance.",
+    "label": 0,
+    "group": 93
+   },
+   {
+    "text": "The letter that the lawyers send arrives on Mondays.",
+    "label": 1,
+    "group": 94
+   },
+   {
+    "text": "The letter that the lawyers send arrive on Mondays.",
+    "label": 0,
+    "group": 94
+   },
+   {
+    "text": "The letters that the lawyer sends arrive on Mondays.",
+    "label": 1,
+    "group": 95
+   },
+   {
+    "text": "The letters that the lawyer sends arrives on Mondays.",
+    "label": 0,
+    "group": 95
+   },
+   {
+    "text": "The cake that the bakers decorate looks delicious.",
+    "label": 1,
+    "group": 96
+   },
+   {
+    "text": "The cake that the bakers decorate look delicious.",
+    "label": 0,
+    "group": 96
+   },
+   {
+    "text": "The cakes that the baker decorates look delicious.",
+    "label": 1,
+    "group": 97
+   },
+   {
+    "text": "The cakes that the baker decorates looks delicious.",
+    "label": 0,
+    "group": 97
+   },
+   {
+    "text": "The boat that the fishermen use is painted blue.",
+    "label": 1,
+    "group": 98
+   },
+   {
+    "text": "The boat that the fishermen use are painted blue.",
+    "label": 0,
+    "group": 98
+   },
+   {
+    "text": "The boats that the fisherman uses are painted blue.",
+    "label": 1,
+    "group": 99
+   },
+   {
+    "text": "The boats that the fisherman uses is painted blue.",
+    "label": 0,
+    "group": 99
+   },
+   {
+    "text": "The book that the children read was written long ago.",
+    "label": 1,
+    "group": 100
+   },
+   {
+    "text": "The book that the children read were written long ago.",
+    "label": 0,
+    "group": 100
+   },
+   {
+    "text": "The books that the child reads were written long ago.",
+    "label": 1,
+    "group": 101
+   },
+   {
+    "text": "The books that the child reads was written long ago.",
+    "label": 0,
+    "group": 101
+   },
+   {
+    "text": "The garden that the gardeners tend is full of roses.",
+    "label": 1,
+    "group": 102
+   },
+   {
+    "text": "The garden that the gardeners tend are full of roses.",
+    "label": 0,
+    "group": 102
+   },
+   {
+    "text": "The gardens that the gardener tends are full of roses.",
+    "label": 1,
+    "group": 103
+   },
+   {
+    "text": "The gardens that the gardener tends is full of roses.",
+    "label": 0,
+    "group": 103
+   },
+   {
+    "text": "The player that the coaches train runs very fast.",
+    "label": 1,
+    "group": 104
+   },
+   {
+    "text": "The player that the coaches train run very fast.",
+    "label": 0,
+    "group": 104
+   },
+   {
+    "text": "The players that the coach trains run very fast.",
+    "label": 1,
+    "group": 105
+   },
+   {
+    "text": "The players that the coach trains runs very fast.",
+    "label": 0,
+    "group": 105
+   },
+   {
+    "text": "The medicine that the doctors prescribe tastes bitter.",
+    "label": 1,
+    "group": 106
+   },
+   {
+    "text": "The medicine that the doctors prescribe taste bitter.",
+    "label": 0,
+    "group": 106
+   },
+   {
+    "text": "The medicines that the doctor prescribes taste bitter.",
+    "label": 1,
+    "group": 107
+   },
+   {
+    "text": "The medicines that the doctor prescribes tastes bitter.",
+    "label": 0,
+    "group": 107
+   },
+   {
+    "text": "The bridge that the engineers inspect needs repairs.",
+    "label": 1,
+    "group": 108
+   },
+   {
+    "text": "The bridge that the engineers inspect need repairs.",
+    "label": 0,
+    "group": 108
+   },
+   {
+    "text": "The bridges that the engineer inspects need repairs.",
+    "label": 1,
+    "group": 109
+   },
+   {
+    "text": "The bridges that the engineer inspects needs repairs.",
+    "label": 0,
+    "group": 109
+   },
+   {
+    "text": "The poem that the poets recite is very short.",
+    "label": 1,
+    "group": 110
+   },
+   {
+    "text": "The poem that the poets recite are very short.",
+    "label": 0,
+    "group": 110
+   },
+   {
+    "text": "The poems that the poet recites are very short.",
+    "label": 1,
+    "group": 111
+   },
+   {
+    "text": "The poems that the poet recites is very short.",
+    "label": 0,
+    "group": 111
+   },
+   {
+    "text": "The horse that the farmers feed sleeps in the barn.",
+    "label": 1,
+    "group": 112
+   },
+   {
+    "text": "The horse that the farmers feed sleep in the barn.",
+    "label": 0,
+    "group": 112
+   },
+   {
+    "text": "The horses that the farmer feeds sleep in the barn.",
+    "label": 1,
+    "group": 113
+   },
+   {
+    "text": "The horses that the farmer feeds sleeps in the barn.",
+    "label": 0,
+    "group": 113
+   },
+   {
+    "text": "The lamp that the designers sell is too bright.",
+    "label": 1,
+    "group": 114
+   },
+   {
+    "text": "The lamp that the designers sell are too bright.",
+    "label": 0,
+    "group": 114
+   },
+   {
+    "text": "The lamps that the designer sells are too bright.",
+    "label": 1,
+    "group": 115
+   },
+   {
+    "text": "The lamps that the designer sells is too bright.",
+    "label": 0,
+    "group": 115
+   }
+  ]
+ }
+}

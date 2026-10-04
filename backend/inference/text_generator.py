@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from core.transformer.model_torch import TransformerLM
 from core.transformer.sampling import FINISH_EOS, FINISH_STOP, TextDeltas, TokenStream
 from core.activation_limits import check_fits_context
+from core.probes.monitor import ProbeMonitor
 from core.tokenizer import get_tokenizer
 from inference.activation_store import get_activation_store
 
@@ -44,11 +45,18 @@ class TextGenerator:
         top_p: Optional[float],
         stop_at_eos: bool,
         should_stop: Optional[Callable[[], bool]] = None,
+        monitor: Optional[ProbeMonitor] = None,
     ) -> TokenStream:
-        """A generation from the prompt (see core.transformer.sampling.TokenStream)."""
+        """
+        A generation from the prompt (see core.transformer.sampling.TokenStream), read by
+        the monitor if one is given.
+        """
         self.model.eval()
-        return TokenStream(
-            self.model,
+        model = self.model
+        if monitor is not None:
+            model = monitor.ozera_model(self.model, lambda: stream.input_ids.size(1))
+        stream = TokenStream(
+            model,
             torch.tensor([prompt_ids], dtype=torch.long).to(self.device),
             max_new_tokens=max_tokens,
             temperature=temperature,
@@ -58,6 +66,13 @@ class TextGenerator:
             eos_token_id=self.tokenizer.eos_token_id if stop_at_eos else None,
             should_stop=should_stop,
         )
+        return stream
+
+    def _monitor(self, probe: Optional[Dict[str, Any]]) -> Optional[ProbeMonitor]:
+        """A monitor for a probe ({"layer", "weights", "bias"}), or None without one."""
+        if not probe:
+            return None
+        return ProbeMonitor(probe["layer"], probe["weights"], probe["bias"], lambda i: self.tokenizer.decode([i]))
 
     def _text(self, token_list: list[int], finish_reason: Optional[str]) -> str:
         """A sequence's text, without the EOS that ended it."""
@@ -159,6 +174,7 @@ class TextGenerator:
         report_usage: bool = False,
         stop_at_eos: bool = False,
         should_stop: Optional[Callable[[], bool]] = None,
+        probe: Optional[Dict[str, Any]] = None,
     ) -> Iterator[str | Dict[str, Any]]:
         """
         Generate text from a prompt with streaming (yields tokens as generated).
@@ -175,20 +191,27 @@ class TextGenerator:
             stop_at_eos: End at the end-of-sequence token (not streamed); otherwise generate
                 exactly max_tokens
             should_stop: Checked before each token; generation ends once it returns True
+            probe: {"layer", "weights", "bias"} of a probe to score each token with
 
         Yields:
-            Generated text token by token
+            Generated text token by token (and with a probe, its {"event": "probe", ...}
+            scores; see core.probes.monitor)
         """
         prompt_ids = self.tokenizer.encode(prompt)
-        stream = self._token_stream(prompt_ids, max_tokens, temperature, top_k, top_p, stop_at_eos, should_stop)
+        monitor = self._monitor(probe)
+        stream = self._token_stream(prompt_ids, max_tokens, temperature, top_k, top_p, stop_at_eos, should_stop, monitor)
 
         deltas = TextDeltas(self.tokenizer)
         for token in stream:
+            if monitor is not None:
+                yield from monitor.take_events()
             if stream.eos_token_id is not None and token == stream.eos_token_id:
                 continue  # The EOS that ends the generation isn't part of its text
             new_text = deltas.push(token)
             if new_text:
                 yield new_text
+        if monitor is not None:
+            yield from monitor.take_events()
 
         if report_usage:
             yield {
@@ -243,6 +266,7 @@ class TextGenerator:
         stop_at_eos: bool = False,
         fit_to_context: bool = False,
         should_stop: Optional[Callable[[], bool]] = None,
+        probe: Optional[Dict[str, Any]] = None,
     ) -> Iterator[str | Dict[str, Any]]:
         """
         Generate text, streaming it, and capture activations from a final forward pass.
@@ -259,11 +283,12 @@ class TextGenerator:
                 refusing the request
             should_stop: Checked before each token; generation ends once it returns True,
                 and the tokens generated so far are captured
+            probe: {"layer", "weights", "bias"} of a probe to score each token with
 
         Yields:
             Text chunks, then {"event": "generated"} when the capture starts, then a dict
             with the generated text, activation ID (none if stopped before generating
-            anything), and metadata
+            anything), and metadata (and with a probe, its {"event": "probe", ...} scores)
 
         Raises:
             ActivationLimitError: the prompt plus max_tokens doesn't fit the model's context window
@@ -275,9 +300,12 @@ class TextGenerator:
         # The whole sequence has to fit the context window for the capture to match the tokens
         check_fits_context(self.model_name, len(prompt_ids), max_tokens, context_len)
 
-        stream = self._token_stream(prompt_ids, max_tokens, temperature, top_k, top_p, stop_at_eos, should_stop)
+        monitor = self._monitor(probe)
+        stream = self._token_stream(prompt_ids, max_tokens, temperature, top_k, top_p, stop_at_eos, should_stop, monitor)
         deltas = TextDeltas(self.tokenizer)
         for token in stream:
+            if monitor is not None:
+                yield from monitor.take_events()
             if stream.eos_token_id is not None and token == stream.eos_token_id:
                 continue  # The EOS that ends the generation isn't part of its text
             new_text = deltas.push(token)
@@ -305,8 +333,12 @@ class TextGenerator:
             return
 
         # Now do one final forward pass over the whole sequence with activation capture
+        # (it also gives the monitor the last token)
+        capture_model = self.model if monitor is None else monitor.ozera_model(self.model, lambda: input_ids.size(1))
         with torch.no_grad():
-            _, _, activations = self.model.forward(input_ids, return_attention=True, capture_activations=True)
+            _, _, activations = capture_model.forward(input_ids, return_attention=True, capture_activations=True)
+        if monitor is not None:
+            yield from monitor.take_events()
 
         # Decode individual tokens for visualization
         decoded_tokens = [self.tokenizer.decode([token_id]) for token_id in token_list]

@@ -1,0 +1,1459 @@
+{
+ "id": "tense",
+ "order": 4,
+ "name": "Tense (present vs past)",
+ "category": "minimal_pairs",
+ "description": "Minimal pairs that differ only in the verb's tense: \"She walks to work.\" / \"She walked to work.\"",
+ "label_names": [
+  "Present",
+  "Past"
+ ],
+ "source": "Written for Ozera",
+ "rows": [
+  {
+   "text": "He walks to work.",
+   "label": 0,
+   "group": 0
+  },
+  {
+   "text": "He walked to work.",
+   "label": 1,
+   "group": 0
+  },
+  {
+   "text": "We walk to work.",
+   "label": 0,
+   "group": 1
+  },
+  {
+   "text": "We walked to work.",
+   "label": 1,
+   "group": 1
+  },
+  {
+   "text": "The farmer writes a letter.",
+   "label": 0,
+   "group": 2
+  },
+  {
+   "text": "The farmer wrote a letter.",
+   "label": 1,
+   "group": 2
+  },
+  {
+   "text": "Our friends write a letter.",
+   "label": 0,
+   "group": 3
+  },
+  {
+   "text": "Our friends wrote a letter.",
+   "label": 1,
+   "group": 3
+  },
+  {
+   "text": "My sister eats breakfast early.",
+   "label": 0,
+   "group": 4
+  },
+  {
+   "text": "My sister ate breakfast early.",
+   "label": 1,
+   "group": 4
+  },
+  {
+   "text": "They eat breakfast early.",
+   "label": 0,
+   "group": 5
+  },
+  {
+   "text": "They ate breakfast early.",
+   "label": 1,
+   "group": 5
+  },
+  {
+   "text": "The doctor drives to the city.",
+   "label": 0,
+   "group": 6
+  },
+  {
+   "text": "The doctor drove to the city.",
+   "label": 1,
+   "group": 6
+  },
+  {
+   "text": "They drive to the city.",
+   "label": 0,
+   "group": 7
+  },
+  {
+   "text": "They drove to the city.",
+   "label": 1,
+   "group": 7
+  },
+  {
+   "text": "He sings in the choir.",
+   "label": 0,
+   "group": 8
+  },
+  {
+   "text": "He sang in the choir.",
+   "label": 1,
+   "group": 8
+  },
+  {
+   "text": "The students sing in the choir.",
+   "label": 0,
+   "group": 9
+  },
+  {
+   "text": "The students sang in the choir.",
+   "label": 1,
+   "group": 9
+  },
+  {
+   "text": "My sister buys fresh vegetables.",
+   "label": 0,
+   "group": 10
+  },
+  {
+   "text": "My sister bought fresh vegetables.",
+   "label": 1,
+   "group": 10
+  },
+  {
+   "text": "The students buy fresh vegetables.",
+   "label": 0,
+   "group": 11
+  },
+  {
+   "text": "The students bought fresh vegetables.",
+   "label": 1,
+   "group": 11
+  },
+  {
+   "text": "The old man teaches mathematics.",
+   "label": 0,
+   "group": 12
+  },
+  {
+   "text": "The old man taught mathematics.",
+   "label": 1,
+   "group": 12
+  },
+  {
+   "text": "They teach mathematics.",
+   "label": 0,
+   "group": 13
+  },
+  {
+   "text": "They taught mathematics.",
+   "label": 1,
+   "group": 13
+  },
+  {
+   "text": "The teacher swims in the lake.",
+   "label": 0,
+   "group": 14
+  },
+  {
+   "text": "The teacher swam in the lake.",
+   "label": 1,
+   "group": 14
+  },
+  {
+   "text": "My parents swim in the lake.",
+   "label": 0,
+   "group": 15
+  },
+  {
+   "text": "My parents swam in the lake.",
+   "label": 1,
+   "group": 15
+  },
+  {
+   "text": "The farmer speaks to the manager.",
+   "label": 0,
+   "group": 16
+  },
+  {
+   "text": "The farmer spoke to the manager.",
+   "label": 1,
+   "group": 16
+  },
+  {
+   "text": "They speak to the manager.",
+   "label": 0,
+   "group": 17
+  },
+  {
+   "text": "They spoke to the manager.",
+   "label": 1,
+   "group": 17
+  },
+  {
+   "text": "The old man takes the early train.",
+   "label": 0,
+   "group": 18
+  },
+  {
+   "text": "The old man took the early train.",
+   "label": 1,
+   "group": 18
+  },
+  {
+   "text": "They take the early train.",
+   "label": 0,
+   "group": 19
+  },
+  {
+   "text": "They took the early train.",
+   "label": 1,
+   "group": 19
+  },
+  {
+   "text": "The doctor builds model ships.",
+   "label": 0,
+   "group": 20
+  },
+  {
+   "text": "The doctor built model ships.",
+   "label": 1,
+   "group": 20
+  },
+  {
+   "text": "My parents build model ships.",
+   "label": 0,
+   "group": 21
+  },
+  {
+   "text": "My parents built model ships.",
+   "label": 1,
+   "group": 21
+  },
+  {
+   "text": "My sister sells old books.",
+   "label": 0,
+   "group": 22
+  },
+  {
+   "text": "My sister sold old books.",
+   "label": 1,
+   "group": 22
+  },
+  {
+   "text": "The workers sell old books.",
+   "label": 0,
+   "group": 23
+  },
+  {
+   "text": "The workers sold old books.",
+   "label": 1,
+   "group": 23
+  },
+  {
+   "text": "Her cousin drinks green tea.",
+   "label": 0,
+   "group": 24
+  },
+  {
+   "text": "Her cousin drank green tea.",
+   "label": 1,
+   "group": 24
+  },
+  {
+   "text": "They drink green tea.",
+   "label": 0,
+   "group": 25
+  },
+  {
+   "text": "They drank green tea.",
+   "label": 1,
+   "group": 25
+  },
+  {
+   "text": "The old man brings flowers home.",
+   "label": 0,
+   "group": 26
+  },
+  {
+   "text": "The old man brought flowers home.",
+   "label": 1,
+   "group": 26
+  },
+  {
+   "text": "Our friends bring flowers home.",
+   "label": 0,
+   "group": 27
+  },
+  {
+   "text": "Our friends brought flowers home.",
+   "label": 1,
+   "group": 27
+  },
+  {
+   "text": "The manager catches the bus.",
+   "label": 0,
+   "group": 28
+  },
+  {
+   "text": "The manager caught the bus.",
+   "label": 1,
+   "group": 28
+  },
+  {
+   "text": "The students catch the bus.",
+   "label": 0,
+   "group": 29
+  },
+  {
+   "text": "The students caught the bus.",
+   "label": 1,
+   "group": 29
+  },
+  {
+   "text": "My sister cleans the kitchen.",
+   "label": 0,
+   "group": 30
+  },
+  {
+   "text": "My sister cleaned the kitchen.",
+   "label": 1,
+   "group": 30
+  },
+  {
+   "text": "The students clean the kitchen.",
+   "label": 0,
+   "group": 31
+  },
+  {
+   "text": "The students cleaned the kitchen.",
+   "label": 1,
+   "group": 31
+  },
+  {
+   "text": "Her cousin paints the fence.",
+   "label": 0,
+   "group": 32
+  },
+  {
+   "text": "Her cousin painted the fence.",
+   "label": 1,
+   "group": 32
+  },
+  {
+   "text": "My parents paint the fence.",
+   "label": 0,
+   "group": 33
+  },
+  {
+   "text": "My parents painted the fence.",
+   "label": 1,
+   "group": 33
+  },
+  {
+   "text": "My sister plays the piano.",
+   "label": 0,
+   "group": 34
+  },
+  {
+   "text": "My sister played the piano.",
+   "label": 1,
+   "group": 34
+  },
+  {
+   "text": "We play the piano.",
+   "label": 0,
+   "group": 35
+  },
+  {
+   "text": "We played the piano.",
+   "label": 1,
+   "group": 35
+  },
+  {
+   "text": "My sister visits the museum.",
+   "label": 0,
+   "group": 36
+  },
+  {
+   "text": "My sister visited the museum.",
+   "label": 1,
+   "group": 36
+  },
+  {
+   "text": "The students visit the museum.",
+   "label": 0,
+   "group": 37
+  },
+  {
+   "text": "The students visited the museum.",
+   "label": 1,
+   "group": 37
+  },
+  {
+   "text": "Our neighbor cooks dinner.",
+   "label": 0,
+   "group": 38
+  },
+  {
+   "text": "Our neighbor cooked dinner.",
+   "label": 1,
+   "group": 38
+  },
+  {
+   "text": "The children cook dinner.",
+   "label": 0,
+   "group": 39
+  },
+  {
+   "text": "The children cooked dinner.",
+   "label": 1,
+   "group": 39
+  },
+  {
+   "text": "The farmer watches the news.",
+   "label": 0,
+   "group": 40
+  },
+  {
+   "text": "The farmer watched the news.",
+   "label": 1,
+   "group": 40
+  },
+  {
+   "text": "We watch the news.",
+   "label": 0,
+   "group": 41
+  },
+  {
+   "text": "We watched the news.",
+   "label": 1,
+   "group": 41
+  },
+  {
+   "text": "The doctor fixes the radio.",
+   "label": 0,
+   "group": 42
+  },
+  {
+   "text": "The doctor fixed the radio.",
+   "label": 1,
+   "group": 42
+  },
+  {
+   "text": "They fix the radio.",
+   "label": 0,
+   "group": 43
+  },
+  {
+   "text": "They fixed the radio.",
+   "label": 1,
+   "group": 43
+  },
+  {
+   "text": "Her cousin carries the boxes.",
+   "label": 0,
+   "group": 44
+  },
+  {
+   "text": "Her cousin carried the boxes.",
+   "label": 1,
+   "group": 44
+  },
+  {
+   "text": "The children carry the boxes.",
+   "label": 0,
+   "group": 45
+  },
+  {
+   "text": "The children carried the boxes.",
+   "label": 1,
+   "group": 45
+  },
+  {
+   "text": "The doctor studies history.",
+   "label": 0,
+   "group": 46
+  },
+  {
+   "text": "The doctor studied history.",
+   "label": 1,
+   "group": 46
+  },
+  {
+   "text": "The workers study history.",
+   "label": 0,
+   "group": 47
+  },
+  {
+   "text": "The workers studied history.",
+   "label": 1,
+   "group": 47
+  },
+  {
+   "text": "The manager finds the answer.",
+   "label": 0,
+   "group": 48
+  },
+  {
+   "text": "The manager found the answer.",
+   "label": 1,
+   "group": 48
+  },
+  {
+   "text": "We find the answer.",
+   "label": 0,
+   "group": 49
+  },
+  {
+   "text": "We found the answer.",
+   "label": 1,
+   "group": 49
+  },
+  {
+   "text": "The teacher keeps a diary.",
+   "label": 0,
+   "group": 50
+  },
+  {
+   "text": "The teacher kept a diary.",
+   "label": 1,
+   "group": 50
+  },
+  {
+   "text": "The students keep a diary.",
+   "label": 0,
+   "group": 51
+  },
+  {
+   "text": "The students kept a diary.",
+   "label": 1,
+   "group": 51
+  },
+  {
+   "text": "Her cousin leaves the door open.",
+   "label": 0,
+   "group": 52
+  },
+  {
+   "text": "Her cousin left the door open.",
+   "label": 1,
+   "group": 52
+  },
+  {
+   "text": "Our friends leave the door open.",
+   "label": 0,
+   "group": 53
+  },
+  {
+   "text": "Our friends left the door open.",
+   "label": 1,
+   "group": 53
+  },
+  {
+   "text": "The old man feels tired.",
+   "label": 0,
+   "group": 54
+  },
+  {
+   "text": "The old man felt tired.",
+   "label": 1,
+   "group": 54
+  },
+  {
+   "text": "The children feel tired.",
+   "label": 0,
+   "group": 55
+  },
+  {
+   "text": "The children felt tired.",
+   "label": 1,
+   "group": 55
+  },
+  {
+   "text": "The teacher hears the birds.",
+   "label": 0,
+   "group": 56
+  },
+  {
+   "text": "The teacher heard the birds.",
+   "label": 1,
+   "group": 56
+  },
+  {
+   "text": "The students hear the birds.",
+   "label": 0,
+   "group": 57
+  },
+  {
+   "text": "The students heard the birds.",
+   "label": 1,
+   "group": 57
+  },
+  {
+   "text": "His uncle tells a funny story.",
+   "label": 0,
+   "group": 58
+  },
+  {
+   "text": "His uncle told a funny story.",
+   "label": 1,
+   "group": 58
+  },
+  {
+   "text": "They tell a funny story.",
+   "label": 0,
+   "group": 59
+  },
+  {
+   "text": "They told a funny story.",
+   "label": 1,
+   "group": 59
+  },
+  {
+   "text": "Her cousin wins the race.",
+   "label": 0,
+   "group": 60
+  },
+  {
+   "text": "Her cousin won the race.",
+   "label": 1,
+   "group": 60
+  },
+  {
+   "text": "They win the race.",
+   "label": 0,
+   "group": 61
+  },
+  {
+   "text": "They won the race.",
+   "label": 1,
+   "group": 61
+  },
+  {
+   "text": "Her cousin runs in the park.",
+   "label": 0,
+   "group": 62
+  },
+  {
+   "text": "Her cousin ran in the park.",
+   "label": 1,
+   "group": 62
+  },
+  {
+   "text": "We run in the park.",
+   "label": 0,
+   "group": 63
+  },
+  {
+   "text": "We ran in the park.",
+   "label": 1,
+   "group": 63
+  },
+  {
+   "text": "My friend forgets the password.",
+   "label": 0,
+   "group": 64
+  },
+  {
+   "text": "My friend forgot the password.",
+   "label": 1,
+   "group": 64
+  },
+  {
+   "text": "Our friends forget the password.",
+   "label": 0,
+   "group": 65
+  },
+  {
+   "text": "Our friends forgot the password.",
+   "label": 1,
+   "group": 65
+  },
+  {
+   "text": "The doctor gives good advice.",
+   "label": 0,
+   "group": 66
+  },
+  {
+   "text": "The doctor gave good advice.",
+   "label": 1,
+   "group": 66
+  },
+  {
+   "text": "My parents give good advice.",
+   "label": 0,
+   "group": 67
+  },
+  {
+   "text": "My parents gave good advice.",
+   "label": 1,
+   "group": 67
+  },
+  {
+   "text": "He knows the way.",
+   "label": 0,
+   "group": 68
+  },
+  {
+   "text": "He knew the way.",
+   "label": 1,
+   "group": 68
+  },
+  {
+   "text": "My parents know the way.",
+   "label": 0,
+   "group": 69
+  },
+  {
+   "text": "My parents knew the way.",
+   "label": 1,
+   "group": 69
+  },
+  {
+   "text": "Her cousin grows tomatoes.",
+   "label": 0,
+   "group": 70
+  },
+  {
+   "text": "Her cousin grew tomatoes.",
+   "label": 1,
+   "group": 70
+  },
+  {
+   "text": "My parents grow tomatoes.",
+   "label": 0,
+   "group": 71
+  },
+  {
+   "text": "My parents grew tomatoes.",
+   "label": 1,
+   "group": 71
+  },
+  {
+   "text": "He draws the plans.",
+   "label": 0,
+   "group": 72
+  },
+  {
+   "text": "He drew the plans.",
+   "label": 1,
+   "group": 72
+  },
+  {
+   "text": "The children draw the plans.",
+   "label": 0,
+   "group": 73
+  },
+  {
+   "text": "The children drew the plans.",
+   "label": 1,
+   "group": 73
+  },
+  {
+   "text": "The old man throws the ball.",
+   "label": 0,
+   "group": 74
+  },
+  {
+   "text": "The old man threw the ball.",
+   "label": 1,
+   "group": 74
+  },
+  {
+   "text": "The workers throw the ball.",
+   "label": 0,
+   "group": 75
+  },
+  {
+   "text": "The workers threw the ball.",
+   "label": 1,
+   "group": 75
+  },
+  {
+   "text": "Our neighbor wears a blue coat.",
+   "label": 0,
+   "group": 76
+  },
+  {
+   "text": "Our neighbor wore a blue coat.",
+   "label": 1,
+   "group": 76
+  },
+  {
+   "text": "Our friends wear a blue coat.",
+   "label": 0,
+   "group": 77
+  },
+  {
+   "text": "Our friends wore a blue coat.",
+   "label": 1,
+   "group": 77
+  },
+  {
+   "text": "The old man sleeps on the sofa.",
+   "label": 0,
+   "group": 78
+  },
+  {
+   "text": "The old man slept on the sofa.",
+   "label": 1,
+   "group": 78
+  },
+  {
+   "text": "They sleep on the sofa.",
+   "label": 0,
+   "group": 79
+  },
+  {
+   "text": "They slept on the sofa.",
+   "label": 1,
+   "group": 79
+  },
+  {
+   "text": "Her cousin feeds the chickens.",
+   "label": 0,
+   "group": 80
+  },
+  {
+   "text": "Her cousin fed the chickens.",
+   "label": 1,
+   "group": 80
+  },
+  {
+   "text": "The children feed the chickens.",
+   "label": 0,
+   "group": 81
+  },
+  {
+   "text": "The children fed the chickens.",
+   "label": 1,
+   "group": 81
+  },
+  {
+   "text": "The doctor meets the clients.",
+   "label": 0,
+   "group": 82
+  },
+  {
+   "text": "The doctor met the clients.",
+   "label": 1,
+   "group": 82
+  },
+  {
+   "text": "My parents meet the clients.",
+   "label": 0,
+   "group": 83
+  },
+  {
+   "text": "My parents met the clients.",
+   "label": 1,
+   "group": 83
+  },
+  {
+   "text": "He pays the bills.",
+   "label": 0,
+   "group": 84
+  },
+  {
+   "text": "He paid the bills.",
+   "label": 1,
+   "group": 84
+  },
+  {
+   "text": "Our friends pay the bills.",
+   "label": 0,
+   "group": 85
+  },
+  {
+   "text": "Our friends paid the bills.",
+   "label": 1,
+   "group": 85
+  },
+  {
+   "text": "My friend sends an email.",
+   "label": 0,
+   "group": 86
+  },
+  {
+   "text": "My friend sent an email.",
+   "label": 1,
+   "group": 86
+  },
+  {
+   "text": "The children send an email.",
+   "label": 0,
+   "group": 87
+  },
+  {
+   "text": "The children sent an email.",
+   "label": 1,
+   "group": 87
+  },
+  {
+   "text": "Her cousin spends the money.",
+   "label": 0,
+   "group": 88
+  },
+  {
+   "text": "Her cousin spent the money.",
+   "label": 1,
+   "group": 88
+  },
+  {
+   "text": "They spend the money.",
+   "label": 0,
+   "group": 89
+  },
+  {
+   "text": "They spent the money.",
+   "label": 1,
+   "group": 89
+  },
+  {
+   "text": "The teacher loses the keys.",
+   "label": 0,
+   "group": 90
+  },
+  {
+   "text": "The teacher lost the keys.",
+   "label": 1,
+   "group": 90
+  },
+  {
+   "text": "The students lose the keys.",
+   "label": 0,
+   "group": 91
+  },
+  {
+   "text": "The students lost the keys.",
+   "label": 1,
+   "group": 91
+  },
+  {
+   "text": "The farmer chooses the red one.",
+   "label": 0,
+   "group": 92
+  },
+  {
+   "text": "The farmer chose the red one.",
+   "label": 1,
+   "group": 92
+  },
+  {
+   "text": "We choose the red one.",
+   "label": 0,
+   "group": 93
+  },
+  {
+   "text": "We chose the red one.",
+   "label": 1,
+   "group": 93
+  },
+  {
+   "text": "He rides a bicycle.",
+   "label": 0,
+   "group": 94
+  },
+  {
+   "text": "He rode a bicycle.",
+   "label": 1,
+   "group": 94
+  },
+  {
+   "text": "We ride a bicycle.",
+   "label": 0,
+   "group": 95
+  },
+  {
+   "text": "We rode a bicycle.",
+   "label": 1,
+   "group": 95
+  },
+  {
+   "text": "My friend opens the windows.",
+   "label": 0,
+   "group": 96
+  },
+  {
+   "text": "My friend opened the windows.",
+   "label": 1,
+   "group": 96
+  },
+  {
+   "text": "My parents open the windows.",
+   "label": 0,
+   "group": 97
+  },
+  {
+   "text": "My parents opened the windows.",
+   "label": 1,
+   "group": 97
+  },
+  {
+   "text": "My sister closes the shop.",
+   "label": 0,
+   "group": 98
+  },
+  {
+   "text": "My sister closed the shop.",
+   "label": 1,
+   "group": 98
+  },
+  {
+   "text": "Our friends close the shop.",
+   "label": 0,
+   "group": 99
+  },
+  {
+   "text": "Our friends closed the shop.",
+   "label": 1,
+   "group": 99
+  },
+  {
+   "text": "The teacher answers the phone.",
+   "label": 0,
+   "group": 100
+  },
+  {
+   "text": "The teacher answered the phone.",
+   "label": 1,
+   "group": 100
+  },
+  {
+   "text": "The workers answer the phone.",
+   "label": 0,
+   "group": 101
+  },
+  {
+   "text": "The workers answered the phone.",
+   "label": 1,
+   "group": 101
+  },
+  {
+   "text": "The doctor climbs the hill.",
+   "label": 0,
+   "group": 102
+  },
+  {
+   "text": "The doctor climbed the hill.",
+   "label": 1,
+   "group": 102
+  },
+  {
+   "text": "The students climb the hill.",
+   "label": 0,
+   "group": 103
+  },
+  {
+   "text": "The students climbed the hill.",
+   "label": 1,
+   "group": 103
+  },
+  {
+   "text": "He waits for the doctor.",
+   "label": 0,
+   "group": 104
+  },
+  {
+   "text": "He waited for the doctor.",
+   "label": 1,
+   "group": 104
+  },
+  {
+   "text": "The children wait for the doctor.",
+   "label": 0,
+   "group": 105
+  },
+  {
+   "text": "The children waited for the doctor.",
+   "label": 1,
+   "group": 105
+  },
+  {
+   "text": "His uncle laughs at the jokes.",
+   "label": 0,
+   "group": 106
+  },
+  {
+   "text": "His uncle laughed at the jokes.",
+   "label": 1,
+   "group": 106
+  },
+  {
+   "text": "The children laugh at the jokes.",
+   "label": 0,
+   "group": 107
+  },
+  {
+   "text": "The children laughed at the jokes.",
+   "label": 1,
+   "group": 107
+  }
+ ],
+ "ood": {
+  "description": "Questions where only the auxiliary carries the tense: \"Does she walk to work?\" / \"Did she walk to work?\"",
+  "rows": [
+   {
+    "text": "Do the children wear a blue coat?",
+    "label": 0,
+    "group": 108
+   },
+   {
+    "text": "Did the children wear a blue coat?",
+    "label": 1,
+    "group": 108
+   },
+   {
+    "text": "Do they run in the park?",
+    "label": 0,
+    "group": 109
+   },
+   {
+    "text": "Did they run in the park?",
+    "label": 1,
+    "group": 109
+   },
+   {
+    "text": "Do our friends throw the ball?",
+    "label": 0,
+    "group": 110
+   },
+   {
+    "text": "Did our friends throw the ball?",
+    "label": 1,
+    "group": 110
+   },
+   {
+    "text": "Does the doctor tell a funny story?",
+    "label": 0,
+    "group": 111
+   },
+   {
+    "text": "Did the doctor tell a funny story?",
+    "label": 1,
+    "group": 111
+   },
+   {
+    "text": "Does she sing in the choir?",
+    "label": 0,
+    "group": 112
+   },
+   {
+    "text": "Did she sing in the choir?",
+    "label": 1,
+    "group": 112
+   },
+   {
+    "text": "Do we buy fresh vegetables?",
+    "label": 0,
+    "group": 113
+   },
+   {
+    "text": "Did we buy fresh vegetables?",
+    "label": 1,
+    "group": 113
+   },
+   {
+    "text": "Do our friends play the piano?",
+    "label": 0,
+    "group": 114
+   },
+   {
+    "text": "Did our friends play the piano?",
+    "label": 1,
+    "group": 114
+   },
+   {
+    "text": "Does the doctor win the race?",
+    "label": 0,
+    "group": 115
+   },
+   {
+    "text": "Did the doctor win the race?",
+    "label": 1,
+    "group": 115
+   },
+   {
+    "text": "Do we spend the money?",
+    "label": 0,
+    "group": 116
+   },
+   {
+    "text": "Did we spend the money?",
+    "label": 1,
+    "group": 116
+   },
+   {
+    "text": "Does his uncle pay the bills?",
+    "label": 0,
+    "group": 117
+   },
+   {
+    "text": "Did his uncle pay the bills?",
+    "label": 1,
+    "group": 117
+   },
+   {
+    "text": "Do they close the shop?",
+    "label": 0,
+    "group": 118
+   },
+   {
+    "text": "Did they close the shop?",
+    "label": 1,
+    "group": 118
+   },
+   {
+    "text": "Does my friend drive to the city?",
+    "label": 0,
+    "group": 119
+   },
+   {
+    "text": "Did my friend drive to the city?",
+    "label": 1,
+    "group": 119
+   },
+   {
+    "text": "Does she cook dinner?",
+    "label": 0,
+    "group": 120
+   },
+   {
+    "text": "Did she cook dinner?",
+    "label": 1,
+    "group": 120
+   },
+   {
+    "text": "Does our neighbor draw the plans?",
+    "label": 0,
+    "group": 121
+   },
+   {
+    "text": "Did our neighbor draw the plans?",
+    "label": 1,
+    "group": 121
+   },
+   {
+    "text": "Does he hear the birds?",
+    "label": 0,
+    "group": 122
+   },
+   {
+    "text": "Did he hear the birds?",
+    "label": 1,
+    "group": 122
+   },
+   {
+    "text": "Does she visit the museum?",
+    "label": 0,
+    "group": 123
+   },
+   {
+    "text": "Did she visit the museum?",
+    "label": 1,
+    "group": 123
+   },
+   {
+    "text": "Does my friend find the answer?",
+    "label": 0,
+    "group": 124
+   },
+   {
+    "text": "Did my friend find the answer?",
+    "label": 1,
+    "group": 124
+   },
+   {
+    "text": "Does my friend carry the boxes?",
+    "label": 0,
+    "group": 125
+   },
+   {
+    "text": "Did my friend carry the boxes?",
+    "label": 1,
+    "group": 125
+   },
+   {
+    "text": "Does my sister write a letter?",
+    "label": 0,
+    "group": 126
+   },
+   {
+    "text": "Did my sister write a letter?",
+    "label": 1,
+    "group": 126
+   },
+   {
+    "text": "Do my parents answer the phone?",
+    "label": 0,
+    "group": 127
+   },
+   {
+    "text": "Did my parents answer the phone?",
+    "label": 1,
+    "group": 127
+   },
+   {
+    "text": "Do the workers feed the chickens?",
+    "label": 0,
+    "group": 128
+   },
+   {
+    "text": "Did the workers feed the chickens?",
+    "label": 1,
+    "group": 128
+   },
+   {
+    "text": "Does he build model ships?",
+    "label": 0,
+    "group": 129
+   },
+   {
+    "text": "Did he build model ships?",
+    "label": 1,
+    "group": 129
+   },
+   {
+    "text": "Does the doctor swim in the lake?",
+    "label": 0,
+    "group": 130
+   },
+   {
+    "text": "Did the doctor swim in the lake?",
+    "label": 1,
+    "group": 130
+   },
+   {
+    "text": "Does her cousin clean the kitchen?",
+    "label": 0,
+    "group": 131
+   },
+   {
+    "text": "Did her cousin clean the kitchen?",
+    "label": 1,
+    "group": 131
+   },
+   {
+    "text": "Does my sister grow tomatoes?",
+    "label": 0,
+    "group": 132
+   },
+   {
+    "text": "Did my sister grow tomatoes?",
+    "label": 1,
+    "group": 132
+   },
+   {
+    "text": "Does she teach mathematics?",
+    "label": 0,
+    "group": 133
+   },
+   {
+    "text": "Did she teach mathematics?",
+    "label": 1,
+    "group": 133
+   },
+   {
+    "text": "Do we climb the hill?",
+    "label": 0,
+    "group": 134
+   },
+   {
+    "text": "Did we climb the hill?",
+    "label": 1,
+    "group": 134
+   },
+   {
+    "text": "Do our friends take the early train?",
+    "label": 0,
+    "group": 135
+   },
+   {
+    "text": "Did our friends take the early train?",
+    "label": 1,
+    "group": 135
+   },
+   {
+    "text": "Does his uncle send an email?",
+    "label": 0,
+    "group": 136
+   },
+   {
+    "text": "Did his uncle send an email?",
+    "label": 1,
+    "group": 136
+   },
+   {
+    "text": "Do the workers study history?",
+    "label": 0,
+    "group": 137
+   },
+   {
+    "text": "Did the workers study history?",
+    "label": 1,
+    "group": 137
+   },
+   {
+    "text": "Does the manager wait for the doctor?",
+    "label": 0,
+    "group": 138
+   },
+   {
+    "text": "Did the manager wait for the doctor?",
+    "label": 1,
+    "group": 138
+   },
+   {
+    "text": "Does she drink green tea?",
+    "label": 0,
+    "group": 139
+   },
+   {
+    "text": "Did she drink green tea?",
+    "label": 1,
+    "group": 139
+   },
+   {
+    "text": "Do the students give good advice?",
+    "label": 0,
+    "group": 140
+   },
+   {
+    "text": "Did the students give good advice?",
+    "label": 1,
+    "group": 140
+   },
+   {
+    "text": "Does the teacher choose the red one?",
+    "label": 0,
+    "group": 141
+   },
+   {
+    "text": "Did the teacher choose the red one?",
+    "label": 1,
+    "group": 141
+   },
+   {
+    "text": "Do the children eat breakfast early?",
+    "label": 0,
+    "group": 142
+   },
+   {
+    "text": "Did the children eat breakfast early?",
+    "label": 1,
+    "group": 142
+   },
+   {
+    "text": "Do our friends open the windows?",
+    "label": 0,
+    "group": 143
+   },
+   {
+    "text": "Did our friends open the windows?",
+    "label": 1,
+    "group": 143
+   }
+  ]
+ }
+}

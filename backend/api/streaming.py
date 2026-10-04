@@ -15,6 +15,7 @@ its own, so if the client disconnects mid-stream it's stopped and still settled.
 import asyncio
 import json
 import logging
+import math
 from typing import AsyncIterator, Callable, Optional
 
 from fastapi.concurrency import run_in_threadpool
@@ -94,6 +95,15 @@ async def _run_generation(
         async for chunk in chunks:
             if isinstance(chunk, str):
                 events.put_nowait({"type": "token", "text": chunk})
+            elif chunk.get("event") == "probe":
+                # A monitoring probe's scores of the newest tokens (core.probes.monitor)
+                events.put_nowait({
+                    "type": "probe",
+                    "start": chunk["start"],
+                    "tokens": chunk["tokens"],
+                    "scores": [score if math.isfinite(score) else None for score in chunk["scores"]],
+                    "prompt_tokens": chunk["prompt_tokens"],
+                })
             elif "event" in chunk:
                 # Generation is done; the worker is capturing activations
                 events.put_nowait({"type": "status", "status": "capturing"})
@@ -144,12 +154,13 @@ async def billed_generation_stream(
     SSE events for a generation stream that was charged `charged_usd` up front.
 
     Events: "start" (with the generation_id to stop it by), "token"s, a "status" of
-    "capturing" when activations are being captured, then "done" (with the token counts,
-    why generation ended and what it cost) or "error".
+    "capturing" when activations are being captured, "probe" scores from a monitoring probe
+    (positions start.., their tokens and scores, and the prompt's length), then "done" (with
+    the token counts, why generation ended and what it cost) or "error".
 
     Args:
-        chunks: The generation: text, optionally {"event": ...} markers, then a dict of its
-            result with the real token counts ({"prompt_tokens", "generated_tokens"}) and
+        chunks: The generation: text, optionally {"event": ...} markers and probe scores, then
+            a dict of its result with the real token counts ({"prompt_tokens", "generated_tokens"}) and
             "finish_reason"
         generation_id: ID the generation is stopped by (with user_id)
         finalize: Run (in a thread) on the result before settling; returns fields to add to

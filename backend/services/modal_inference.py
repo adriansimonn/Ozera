@@ -9,6 +9,7 @@ Separate from the training app to allow independent scaling and deployment.
 import os
 import threading
 import time
+from contextlib import contextmanager
 from typing import Callable, Iterator, Optional
 
 import modal
@@ -23,6 +24,11 @@ models_volume = modal.Volume.from_name(MODELS_VOLUME_NAME, create_if_missing=Tru
 # HuggingFace models volume for open-source models
 HF_VOLUME_NAME = "ozera-hf-models"
 hf_volume = modal.Volume.from_name(HF_VOLUME_NAME, create_if_missing=True)
+
+# SAEs (the SAE services' volume): Ozera's under /saes/{model}/, external ones under
+# /saes/external/{sae_id}/. Probe runs read them to compare probes with SAE features.
+SAES_VOLUME_NAME = "ozera-saes"
+saes_volume = modal.Volume.from_name(SAES_VOLUME_NAME, create_if_missing=True)
 
 # HuggingFace token secret for gated models (create with: modal secret create huggingface-secret HF_TOKEN=hf_xxx)
 hf_secret = modal.Secret.from_name("huggingface-secret", required_keys=["HF_TOKEN"])
@@ -170,6 +176,11 @@ class _InferenceWorker:
         self._os_loaders = {}  # Open-source model loaders cache
         # Concurrent inputs on a cold container would otherwise each load the same model
         self._load_lock = threading.Lock()
+        # One probe training run per container at a time: a large run's pooled features take
+        # gigabytes of GPU memory
+        self._probe_lock = threading.Lock()
+        # The last SAE a probe run used, (directory, model, metadata); runs hold _probe_lock
+        self._probe_sae = None
         self._tokenizer = None
         import sys
         sys.path.insert(0, "/app/backend")
@@ -371,6 +382,7 @@ class _InferenceWorker:
         should_stop: Optional[Callable[[], bool]] = None,
         for_capture: bool = False,
         fit_to_context: bool = False,
+        monitor=None,
     ):
         """
         Set up an Ozera model's generation.
@@ -380,6 +392,7 @@ class _InferenceWorker:
                 fit the model's context window (raises ActivationLimitError otherwise)
             fit_to_context: With for_capture, lower max_tokens to what fits the context
                 window instead of refusing the request
+            monitor: A core.probes.monitor.ProbeMonitor to read the generation with
 
         Returns:
             (model, prompt token IDs, TokenStream to iterate)
@@ -398,8 +411,11 @@ class _InferenceWorker:
             # The whole sequence has to fit the context window for the capture to match the tokens
             check_fits_context(model_id, len(prompt_ids), max_tokens, config.max_seq_len)
 
+        stream_model = model
+        if monitor is not None:
+            stream_model = monitor.ozera_model(model, lambda: stream.input_ids.size(1))
         stream = TokenStream(
-            model,
+            stream_model,
             torch.tensor([prompt_ids], dtype=torch.long).to("cuda"),
             max_new_tokens=max_tokens,
             temperature=temperature,
@@ -410,6 +426,34 @@ class _InferenceWorker:
             should_stop=should_stop,
         )
         return model, prompt_ids, stream
+
+    def _probe_monitor(self, model_id: str, probe: Optional[dict]):
+        """
+        A core.probes.monitor.ProbeMonitor for a generation, or None.
+
+        Args:
+            probe: {"layer", "weights", "bias"} of the probe to read the generation with, or None
+        """
+        if not probe:
+            return None
+        from core.probes.monitor import ProbeMonitor
+
+        tokenizer = (
+            self._get_open_source_loader(model_id).tokenizer
+            if self._is_open_source_model(model_id)
+            else self._tokenizer
+        )
+        return ProbeMonitor(probe["layer"], probe["weights"], probe["bias"], lambda i: tokenizer.decode([i]))
+
+    @staticmethod
+    @contextmanager
+    def _watching(loader, monitor):
+        """Hold an open-source model while a monitor reads its generation (nothing without a monitor)."""
+        if monitor is None:
+            yield
+            return
+        with loader.lock, monitor.watch_open_source(loader):
+            yield
 
     @modal.method()
     def generate(
@@ -502,6 +546,7 @@ class _InferenceWorker:
         report_usage: bool = False,
         stop_at_eos: bool = False,
         stop_key: Optional[str] = None,
+        probe: Optional[dict] = None,
     ) -> Iterator[str | dict]:
         """
         Stream text generation token by token.
@@ -513,27 +558,33 @@ class _InferenceWorker:
         With stop_at_eos, generation ends at the model's end-of-sequence token (which isn't
         streamed); otherwise it generates exactly max_tokens, streaming any EOS it runs past.
         With a stop_key, it also ends once the backend puts that key in the stop signals.
+        With a probe ({"layer", "weights", "bias"}), the probe's score of each token is
+        streamed too, as {"event": "probe", ...} items (see core.probes.monitor).
         """
         should_stop = _StopWatcher(stop_key)
+        monitor = self._probe_monitor(model_id, probe)
         try:
             # Handle open-source models with HuggingFace streamer
             if self._is_open_source_model(model_id):
                 loader = self._get_open_source_loader(model_id)
 
                 def run(streamer):
-                    return loader.generate(
-                        prompt=prompt,
-                        max_new_tokens=max_tokens,
-                        temperature=temperature,
-                        top_k=top_k,
-                        top_p=top_p,
-                        do_sample=temperature > 0,
-                        stop_at_eos=stop_at_eos,
-                        should_stop=should_stop,
-                        streamer=streamer,
-                    )
+                    with self._watching(loader, monitor):
+                        return loader.generate(
+                            prompt=prompt,
+                            max_new_tokens=max_tokens,
+                            temperature=temperature,
+                            top_k=top_k,
+                            top_p=top_p,
+                            do_sample=temperature > 0,
+                            stop_at_eos=stop_at_eos,
+                            should_stop=should_stop,
+                            streamer=streamer,
+                        )
 
                 for item in _stream_open_source(run, loader.tokenizer, skip_special_tokens=stop_at_eos):
+                    if monitor is not None:
+                        yield from monitor.take_events()
                     if isinstance(item, str):
                         yield item
                     elif "event" not in item and report_usage:
@@ -549,15 +600,19 @@ class _InferenceWorker:
 
             _, prompt_ids, stream = self._ozera_tokens(
                 model_id, prompt, max_tokens, temperature, top_k, top_p, owner_id, version,
-                stop_at_eos, should_stop,
+                stop_at_eos, should_stop, monitor=monitor,
             )
             deltas = TextDeltas(self._tokenizer)
             for token in stream:
+                if monitor is not None:
+                    yield from monitor.take_events()
                 if stream.eos_token_id is not None and token == stream.eos_token_id:
                     continue  # The EOS that ends the generation isn't part of its text
                 new_text = deltas.push(token)
                 if new_text:
                     yield new_text
+            if monitor is not None:
+                yield from monitor.take_events()
 
             if report_usage:
                 yield {
@@ -605,6 +660,7 @@ class _InferenceWorker:
         stop_at_eos: bool = False,
         fit_to_limit: bool = False,
         stop_key: Optional[str] = None,
+        probe: Optional[dict] = None,
     ) -> Iterator[str | dict]:
         """
         Generate text with activation capture, streaming the text as it's generated.
@@ -612,11 +668,12 @@ class _InferenceWorker:
         Yields text chunks, then {"event": "generated"} when generation is done and the
         capture starts, then the result (as generate_with_activations returns it).
         A generation stopped (via stop_key) is captured as far as it got; one stopped before
-        generating anything has no "activations".
+        generating anything has no "activations". With a probe, its score of each token is
+        streamed too, as for generate_stream (the capture pass scores the last token).
         """
         yield from self._generate_with_activations(
             model_id, prompt, max_tokens, temperature, top_k, top_p, owner_id, version,
-            stop_at_eos, fit_to_limit, stop_key,
+            stop_at_eos, fit_to_limit, stop_key, probe,
         )
 
     def _generate_with_activations(
@@ -632,10 +689,11 @@ class _InferenceWorker:
         stop_at_eos: bool,
         fit_to_limit: bool,
         stop_key: Optional[str],
+        probe: Optional[dict] = None,
     ) -> Iterator[str | dict]:
         """
         Generate with activation capture: yields text chunks, {"event": "generated"}, then
-        the result dict.
+        the result dict (with a probe, its {"event": "probe"} items in between).
 
         With stop_at_eos, generation ends at the model's end-of-sequence token; otherwise it
         generates exactly max_tokens. With fit_to_limit, max_tokens is lowered to what can
@@ -643,26 +701,30 @@ class _InferenceWorker:
         ones) instead of the request being refused.
         """
         should_stop = _StopWatcher(stop_key)
+        monitor = self._probe_monitor(model_id, probe)
         try:
             # Handle open-source models
             if self._is_open_source_model(model_id):
                 loader = self._get_open_source_loader(model_id)
 
                 def run(streamer):
-                    return loader.generate_with_activations(
-                        prompt=prompt,
-                        max_new_tokens=max_tokens,
-                        temperature=temperature,
-                        top_k=top_k,
-                        top_p=top_p,
-                        do_sample=temperature > 0,
-                        stop_at_eos=stop_at_eos,
-                        should_stop=should_stop,
-                        streamer=streamer,
-                        fit_to_capture_limit=fit_to_limit,
-                    )
+                    with self._watching(loader, monitor):
+                        return loader.generate_with_activations(
+                            prompt=prompt,
+                            max_new_tokens=max_tokens,
+                            temperature=temperature,
+                            top_k=top_k,
+                            top_p=top_p,
+                            do_sample=temperature > 0,
+                            stop_at_eos=stop_at_eos,
+                            should_stop=should_stop,
+                            streamer=streamer,
+                            fit_to_capture_limit=fit_to_limit,
+                        )
 
                 for item in _stream_open_source(run, loader.tokenizer, skip_special_tokens=stop_at_eos):
+                    if monitor is not None:
+                        yield from monitor.take_events()
                     if isinstance(item, dict) and "event" not in item:
                         item["model"] = model_id
                         item["top_k"] = top_k
@@ -678,9 +740,12 @@ class _InferenceWorker:
             model, prompt_ids, stream = self._ozera_tokens(
                 model_id, prompt, max_tokens, temperature, top_k, top_p, owner_id, version,
                 stop_at_eos, should_stop, for_capture=True, fit_to_context=fit_to_limit,
+                monitor=monitor,
             )
             deltas = TextDeltas(self._tokenizer)
             for token in stream:
+                if monitor is not None:
+                    yield from monitor.take_events()
                 if stream.eos_token_id is not None and token == stream.eos_token_id:
                     continue  # The EOS that ends the generation isn't part of its text
                 new_text = deltas.push(token)
@@ -707,11 +772,15 @@ class _InferenceWorker:
                 yield result
                 return
 
-            # Final forward pass with activations, over the whole sequence
+            # Final forward pass with activations, over the whole sequence (it also gives the
+            # monitor the last token)
+            capture_model = model if monitor is None else monitor.ozera_model(model, lambda: input_ids.size(1))
             with torch.no_grad():
-                _, _, activations = model.forward(
+                _, _, activations = capture_model.forward(
                     input_ids, return_attention=True, capture_activations=True
                 )
+            if monitor is not None:
+                yield from monitor.take_events()
 
             # Extract logits for top-K computation before serializing other activations
             logits_tensor = activations.pop("logits", None)
@@ -1143,10 +1212,407 @@ class _InferenceWorker:
             "effect_summary": result.effect_summary,
         }
 
+    def _probe_target(self, model_id: str, owner_id: Optional[int], version: Optional[str]):
+        """The model to probe, wrapped for core.probes."""
+        from core.probes.runner import OpenSourceTarget, OzeraTarget
+
+        if self._is_open_source_model(model_id):
+            return OpenSourceTarget(self._get_open_source_loader(model_id))
+        model, config = self._get_model(model_id, owner_id, version)
+        return OzeraTarget(model, config, self._tokenizer)
+
+    @modal.method()
+    def train_probes(
+        self,
+        model_id: str,
+        texts: list[str],
+        labels: list[int],
+        n_train: int,
+        n_test: int,
+        train_groups: list[int],
+        chat_template: bool = False,
+        read_span: str = "text",
+        seed: int = 0,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        Fit probes at every position of a model's residual stream, with baselines.
+
+        Only the residual stream is hooked, each layer's hidden states are pooled on the GPU as
+        they're produced, and probes are fit here: only metrics, scores and probe weights are
+        returned, never activations.
+
+        Args:
+            texts, labels: All examples, ordered train, then test, then any out-of-distribution set
+            n_train, n_test: How many are train and test (the rest are out-of-distribution)
+            train_groups: Each training example's group (see core.probes.split)
+            chat_template: Read the texts as user messages in an instruct model's chat template
+            read_span: "text" (the text's own tokens) or "prompt" (on to the end of the template)
+            seed: Seed for the validation split, control task and PCA
+
+        Returns:
+            core.probes.sweep.run_sweep's result with tensors encoded for transport, plus
+            "num_layers", "hidden_dim" and "total_tokens"
+
+        Raises:
+            ProbeInputError: an example is too long, or the run too large for this worker
+        """
+        from core.probes.budget import check_run_size, estimate_run_seconds
+        from core.probes.runner import collect_features, encode_texts
+        from core.probes.sweep import run_sweep
+
+        target = self._probe_target(model_id, owner_id, version)
+        with self._probe_lock:
+            with target.lock():
+                encoded = encode_texts(target, texts, chat_template, read_span)
+                total_tokens = sum(len(e.ids) for e in encoded)
+                check_run_size(self.gpu_tier, model_id, estimate_run_seconds(
+                    self.gpu_tier, target.parameters, len(target.layers), target.hidden_dim,
+                    len(texts), total_tokens,
+                ))
+                features = collect_features(target, encoded)
+            # Fitting doesn't use the model, so other requests can run it meanwhile
+            try:
+                result = self._serialize_value(run_sweep(features, labels, n_train, n_test, train_groups, seed))
+            finally:
+                del features
+
+        result["num_layers"] = len(target.layers)
+        result["hidden_dim"] = target.hidden_dim
+        result["total_tokens"] = total_tokens
+        return result
+
+    @modal.method()
+    def score_probe(
+        self,
+        model_id: str,
+        texts: list[str],
+        layer: int,
+        weights: list[float],
+        bias: float,
+        pooling: str,
+        chat_template: bool = False,
+        read_span: str = "text",
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> list[dict]:
+        """
+        Score texts with a probe at every token (see core.probes.runner.score_texts).
+
+        Args:
+            layer: The decoder layer whose output the probe reads
+            weights, bias: The probe, on raw activations
+            pooling, chat_template, read_span: How the probe was trained
+        """
+        from core.probes.runner import encode_texts, score_texts
+
+        target = self._probe_target(model_id, owner_id, version)
+        with target.lock():
+            encoded = encode_texts(target, texts, chat_template, read_span)
+            return score_texts(target, encoded, layer, weights, bias, pooling)
+
+    @modal.method()
+    def steer_probe(
+        self,
+        model_id: str,
+        prompt: str,
+        layer: int,
+        weights: list[float],
+        bias: float,
+        pooling: str,
+        vector: list[float],
+        alphas: list[float],
+        ablate: bool = False,
+        generated_only: bool = False,
+        max_tokens: int = 40,
+        temperature: float = 0.0,
+        seed: int = 0,
+        chat_template: bool = False,
+        read_span: str = "text",
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        Generate with a probe's direction added at its layer, at each α, next to an unsteered
+        baseline (and optionally the direction ablated everywhere); see
+        core.probes.steering.run_steering.
+
+        Args:
+            layer, weights, bias, pooling, chat_template, read_span: The probe (it scores
+                every generation)
+            vector: The steering vector for α = 1
+        """
+        from core.probes.steering import ScoringProbe, run_steering
+
+        target = self._probe_target(model_id, owner_id, version)
+        probe = ScoringProbe(layer, weights, bias, pooling, chat_template, read_span)
+        with target.lock():
+            return run_steering(
+                target, prompt, probe, vector, alphas, ablate=ablate, generated_only=generated_only,
+                max_tokens=max_tokens, temperature=temperature, seed=seed,
+            )
+
+    @modal.method()
+    def ablate_probe(
+        self,
+        model_id: str,
+        texts: list[str],
+        labels: list[int],
+        n_train: int,
+        n_test: int,
+        train_groups: list[int],
+        layer: int,
+        direction: list[float],
+        pooling: str,
+        method: str,
+        chat_template: bool = False,
+        read_span: str = "text",
+        seed: int = 0,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        Project a probe's direction (and, separately, control directions) out of the residual
+        stream everywhere, and measure what changes over a dataset: the model's next-token
+        predictions, and how well probes at every layer read the concept (see
+        core.probes.ablation).
+
+        Args:
+            texts, labels: Examples ordered train, then test
+            layer: The probe's decoder layer; direction: its weights (any length)
+            pooling, method: How the probes are fit (as the probe being tested was)
+
+        Returns:
+            core.probes.ablation.evaluate_ablation's result, plus "behaviour" (see
+            run_ablation_passes), "compared_tokens", "num_layers", "hidden_dim" and
+            "total_tokens"
+
+        Raises:
+            ProbeInputError: an example is too long, or the run too large for this worker
+        """
+        from core.probes.ablation import evaluate_ablation, run_ablation_passes
+        from core.probes.budget import ProbeInputError, check_run_size, estimate_ablation_seconds
+        from core.probes.directions import unit_vector
+        from core.probes.runner import encode_texts
+
+        target = self._probe_target(model_id, owner_id, version)
+        if not 0 <= layer < len(target.layers):
+            raise ProbeInputError(f"Layer {layer} is out of range for this model ({len(target.layers)} layers)")
+        if len(direction) != target.hidden_dim:
+            raise ProbeInputError(f"The direction has {len(direction)} values; this model's activations have {target.hidden_dim}")
+        unit = unit_vector(direction, device=target.device)
+
+        with self._probe_lock:
+            with target.lock():
+                encoded = encode_texts(target, texts, chat_template, read_span)
+                total_tokens = sum(len(e.ids) for e in encoded)
+                check_run_size(self.gpu_tier, model_id, estimate_ablation_seconds(
+                    self.gpu_tier, target.parameters, len(target.layers), target.hidden_dim,
+                    len(texts), total_tokens, method,
+                ))
+                features, behaviour, compared = run_ablation_passes(
+                    target, encoded, n_train, layer, pooling, unit, seed,
+                )
+            # Fitting doesn't use the model, so other requests can run it meanwhile
+            try:
+                result = evaluate_ablation(features, labels, n_train, n_test, train_groups, method, seed)
+            finally:
+                del features
+
+        result.update(
+            behaviour=behaviour,
+            compared_tokens=compared,
+            num_layers=len(target.layers),
+            hidden_dim=target.hidden_dim,
+            total_tokens=total_tokens,
+        )
+        return result
+
+
+    @modal.method()
+    def generalize_probes(
+        self,
+        model_id: str,
+        texts: list[str],
+        labels: list[int],
+        datasets: list[dict],
+        pooling: str,
+        transfer_model_id: Optional[str] = None,
+        chat_template: bool = False,
+        read_span: str = "text",
+        seed: int = 0,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        Train probes on each dataset and test them on every dataset (and, with a transfer
+        model, on both models); see core.probes.transfer.run_matrix.
+
+        Args:
+            texts, labels: Every dataset's examples, dataset by dataset, each one's training
+                split then its test split
+            datasets: Per dataset, {"name", "n_train", "n_test", "train_groups"}
+            pooling: The one pooling probes are fit with
+            transfer_model_id: An open-source model with the same shapes (the base or instruct
+                sibling) whose activations the probes are also trained and tested on
+            chat_template: Instruct models read texts in their chat template (base models
+                always read them as plain text)
+
+        Returns:
+            run_matrix's result, plus "num_layers", "hidden_dim" and "total_tokens" (over
+            every model's passes)
+
+        Raises:
+            ProbeInputError: an example is too long, or the run too large for this worker
+        """
+        from core.probes.budget import ProbeInputError, check_run_size, estimate_matrix_seconds
+        from core.probes.runner import collect_features, encode_texts
+        from core.probes.transfer import MatrixDataset, run_matrix
+
+        targets = [self._probe_target(model_id, owner_id, version)]
+        if transfer_model_id is not None:
+            if not self._is_open_source_model(transfer_model_id):
+                raise ProbeInputError(f"Unknown transfer model: {transfer_model_id}")
+            targets.append(self._probe_target(transfer_model_id, None, None))
+            if (len(targets[1].layers), targets[1].hidden_dim) != (len(targets[0].layers), targets[0].hidden_dim):
+                raise ProbeInputError(f"{transfer_model_id} doesn't have {model_id}'s shape")
+
+        matrix_datasets = []
+        start = 0
+        for dataset in datasets:
+            matrix_datasets.append(MatrixDataset(
+                dataset["name"], start, dataset["n_train"], dataset["n_test"], dataset["train_groups"],
+            ))
+            start += dataset["n_train"] + dataset["n_test"]
+        if start != len(texts) or len(labels) != len(texts):
+            raise ProbeInputError("The datasets don't cover the examples")
+
+        with self._probe_lock:
+            features = []
+            total_tokens = 0
+            try:
+                for i, target in enumerate(targets):
+                    instruct = target.model_type == "open_source" and target.loader.config.is_instruct
+                    with target.lock():
+                        encoded = encode_texts(target, texts, chat_template and instruct, read_span if instruct else "text")
+                        tokens = sum(len(e.ids) for e in encoded)
+                        if i == 0:
+                            # The models share a tokenizer, so each reads about as many tokens
+                            check_run_size(self.gpu_tier, model_id, estimate_matrix_seconds(
+                                self.gpu_tier, target.parameters, len(target.layers), target.hidden_dim,
+                                [d.n_train for d in matrix_datasets], len(targets), len(texts), tokens * len(targets),
+                            ))
+                        total_tokens += tokens
+                        features.append(collect_features(target, encoded, poolings=(pooling,))[pooling])
+                # Fitting doesn't use the models, so other requests can run them meanwhile
+                result = run_matrix(features, labels, matrix_datasets, seed)
+            finally:
+                del features
+
+        result["num_layers"] = len(targets[0].layers)
+        result["hidden_dim"] = targets[0].hidden_dim
+        result["total_tokens"] = total_tokens
+        return result
+
+    def _load_probe_sae(self, ref: dict, hidden_dim: int, device):
+        """
+        An SAE from the SAE volume for a probe run (caller holds _probe_lock).
+
+        Keeps the last one loaded: SAEs reach gigabytes, and a researcher usually runs one
+        several times in a row.
+        """
+        from core.probes.budget import ProbeInputError
+        from core.probes.sae import load_sae, sae_directory
+
+        directory = sae_directory(ref)
+        if self._probe_sae is not None and self._probe_sae[0] == directory:
+            return self._probe_sae[1], self._probe_sae[2]
+        self._probe_sae = None
+
+        if not os.path.exists(os.path.join(directory, "config.json")):
+            # Loaded by the SAE service since this container started
+            saes_volume.reload()
+            if not os.path.exists(os.path.join(directory, "config.json")):
+                raise ProbeInputError("This SAE isn't on the SAE volume; load it again from the SAE page")
+
+        model, metadata = load_sae(directory, hidden_dim, device)
+        self._probe_sae = (directory, model, metadata)
+        return model, metadata
+
+    @modal.method()
+    def sae_probe(
+        self,
+        model_id: str,
+        texts: list[str],
+        labels: list[int],
+        n_train: int,
+        n_test: int,
+        train_groups: list[int],
+        layer: int,
+        direction: list[float],
+        pooling: str,
+        sae: dict,
+        chat_template: bool = False,
+        read_span: str = "text",
+        seed: int = 0,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        Compare a probe with an SAE at its layer: the SAE features nearest its direction, and
+        sparse probes on a few SAE features against a dense probe (see core.probes.sae).
+
+        Args:
+            texts, labels: Examples ordered train, then test, then any out-of-distribution set
+            layer: The probe's decoder layer (the SAE reads its output); direction: its weights
+            pooling, chat_template, read_span: How the probe reads texts
+            sae: Which SAE (see core.probes.sae.sae_directory)
+
+        Returns:
+            core.probes.sae.sae_analysis's result, plus "num_layers", "hidden_dim" and "total_tokens"
+
+        Raises:
+            ProbeInputError: the SAE doesn't fit, an example is too long, or the run is too large
+        """
+        import torch
+
+        from core.probes.budget import ProbeInputError, check_run_size, estimate_sae_seconds
+        from core.probes.runner import encode_texts
+        from core.probes.sae import read_sae_features, sae_analysis
+
+        target = self._probe_target(model_id, owner_id, version)
+        if not 0 <= layer < len(target.layers):
+            raise ProbeInputError(f"Layer {layer} is out of range for this model ({len(target.layers)} layers)")
+        if len(direction) != target.hidden_dim:
+            raise ProbeInputError(f"The direction has {len(direction)} values; this model's activations have {target.hidden_dim}")
+
+        with self._probe_lock:
+            sae_model, _ = self._load_probe_sae(sae, target.hidden_dim, target.device)
+            with target.lock():
+                encoded = encode_texts(target, texts, chat_template, read_span)
+                total_tokens = sum(len(e.ids) for e in encoded)
+                check_run_size(self.gpu_tier, model_id, estimate_sae_seconds(
+                    self.gpu_tier, target.parameters, target.hidden_dim, len(texts), total_tokens, sae_model.d_hidden,
+                ))
+                readout = read_sae_features(target, encoded, layer, pooling, sae_model)
+            # Fitting doesn't use the model, so other requests can run it meanwhile
+            try:
+                result = sae_analysis(
+                    readout, sae_model, torch.tensor(direction), labels, n_train, n_test, train_groups, seed,
+                )
+            finally:
+                del readout
+
+        result["num_layers"] = len(target.layers)
+        result["hidden_dim"] = target.hidden_dim
+        result["total_tokens"] = total_tokens
+        return result
+
 
 @app.cls(
     image=inference_image,
-    volumes={"/models": models_volume, "/hf_cache": hf_volume},
+    volumes={"/models": models_volume, "/hf_cache": hf_volume, "/saes": saes_volume},
     secrets=[hf_secret],
     gpu="L4",
     timeout=300,
@@ -1161,7 +1627,7 @@ class InferenceWorkerL4(_InferenceWorker):
 
 @app.cls(
     image=inference_image,
-    volumes={"/models": models_volume, "/hf_cache": hf_volume},
+    volumes={"/models": models_volume, "/hf_cache": hf_volume, "/saes": saes_volume},
     secrets=[hf_secret],
     gpu="A10G",
     timeout=600,

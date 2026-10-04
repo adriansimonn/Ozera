@@ -159,6 +159,8 @@ def load_sae_checkpoint(
             metadata = json.load(f)
     else:
         metadata = {}
+    if metadata.get("source") == "gemma_scope":
+        config.apply_b_dec_to_input = False
 
     # Load weights
     if weights_path.suffix == ".safetensors":
