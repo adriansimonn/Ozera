@@ -5,61 +5,21 @@
  */
 
 import { useEffect, useState, type PointerEvent } from 'react'
-import { ExternalLink } from 'lucide-react'
 import { apiClient } from '../../api/client'
 import type { ProbeLab } from '../../hooks/useProbeLab'
-import type { ProbeEstimate, ProbeSaeInfo, SaeFeature, SaeProbeResponse, SaeRef } from '../../types/probes'
+import type { ProbeEstimate, ProbeSaeInfo, SaeFeature, SaeProbeResponse } from '../../types/probes'
 import { Dropdown } from '../common/Dropdown'
 import type { CausalProbe } from './CausalPanel'
-import { ChartTooltip, Findings, RunBar, Segmented, StatTiles, type Finding, type TooltipRow } from './chartKit'
-import { useElementWidth, useProbeColors } from './probeTheme'
+import { ChartTooltip, Findings, RunBar, Segmented, StatTiles, type Finding, type TooltipRow } from '../lab/chartKit'
+import { useElementWidth, useLabColors } from '../lab/labTheme'
+import { FeatureLink } from '../lab/FeatureLink'
+import { formatWidth, refKey } from '../lab/saeLinks'
 import { estimateText, formatMetric, formatPercent, formatScore } from './probeUtils'
-
-function refKey(ref: SaeRef): string {
-  return ref.kind === 'ozera' ? `ozera:${ref.model}:${ref.layer}` : `external:${ref.sae_id}`
-}
-
-/** A link into the SAE browser, with the SAE, a feature, and an example text to analyze filled in. */
-function saeBrowserUrl(ref: SaeRef, feature: number, text?: string): string {
-  const params = new URLSearchParams()
-  if (ref.kind === 'ozera') {
-    params.set('model', ref.model)
-    params.set('layer', String(ref.layer))
-    params.set('type', 'residual')
-  } else {
-    params.set('external', ref.sae_id)
-  }
-  params.set('feature', String(feature))
-  if (text) params.set('text', text)
-  return `/sae?${params.toString()}`
-}
-
-function formatWidth(width: number | null): string {
-  if (width == null) return '?'
-  return width >= 1000 ? `${Math.round(width / 1024)}k` : String(width)
-}
-
-function FeatureLink({ sae, feature, text }: { sae: SaeRef; feature: number; text?: string }) {
-  const colors = useProbeColors()
-  return (
-    <a
-      href={saeBrowserUrl(sae, feature, text)}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="pl-feature-link"
-      style={{ color: colors.accent }}
-      title="Open in the SAE browser"
-    >
-      #{feature}
-      <ExternalLink className="pl-icon" aria-hidden="true" style={{ width: 11, height: 11 }} />
-    </a>
-  )
-}
 
 type FeatureOrder = 'contribution' | 'cosine'
 
 function FeatureTable({ result, order, labelNames }: { result: SaeProbeResponse; order: FeatureOrder; labelNames: [string, string] }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const { contributions } = result.alignment
   const features = order === 'contribution' ? contributions.features : result.alignment.features
   const gap = contributions.gap
@@ -133,7 +93,7 @@ const MARGIN = { top: 16, right: 118, bottom: 38, left: 44 }
 
 /** Test (and OOD) AUROC of probes on the k SAE features with the largest class difference, against the dense probe. */
 function SparseChart({ result }: { result: SaeProbeResponse }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const { ref, width } = useElementWidth<HTMLDivElement>()
   const [hover, setHover] = useState<{ index: number; px: number; py: number } | null>(null)
   const sparse = result.sparse!
@@ -260,7 +220,7 @@ function SparseChart({ result }: { result: SaeProbeResponse }) {
 }
 
 function SparseTable({ result }: { result: SaeProbeResponse }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const sparse = result.sparse!
   const hasOod = sparse.metrics.ood_auroc != null
   const row = (label: string, m: Partial<Record<string, number | null | undefined>>, key: string) => (
@@ -350,7 +310,7 @@ function saeFindings(result: SaeProbeResponse): Finding[] {
 }
 
 export function SaePanel({ probe, lab, onShowPurchaseCredits }: { probe: CausalProbe; lab: ProbeLab; onShowPurchaseCredits?: () => void }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const [saes, setSaes] = useState<ProbeSaeInfo[] | null>(null)
   const [choice, setChoice] = useState('')
   const [estimate, setEstimate] = useState<ProbeEstimate | null>(null)
@@ -566,8 +526,6 @@ export function SaePanel({ probe, lab, onShowPurchaseCredits }: { probe: CausalP
       )}
 
       <style>{`
-        .probe-lab .pl-feature-link { display: inline-flex; align-items: center; gap: 0.2rem; font-weight: 600; text-decoration: none; font-variant-numeric: tabular-nums; }
-        .probe-lab .pl-feature-link:hover { text-decoration: underline; }
         .probe-lab .pl-feature-table td { white-space: nowrap; }
         .probe-lab .pl-feature-table .pl-feature-example { text-align: left; max-width: 22rem; overflow: hidden; text-overflow: ellipsis; font-size: 0.72rem; }
         .probe-lab .pl-share { display: inline-flex; align-items: center; gap: 0.4rem; justify-content: flex-end; }

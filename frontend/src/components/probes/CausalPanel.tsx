@@ -9,10 +9,10 @@ import type { ProbeLab } from '../../hooks/useProbeLab'
 import type { InlineProbe, Pooling, ProbeMethod, ReadSpan } from '../../types/probes'
 import { Dropdown } from '../common/Dropdown'
 import { AblationPanel } from './AblationPanel'
-import { Placeholder, Segmented } from './chartKit'
+import { Placeholder, Segmented } from '../lab/chartKit'
 import { SaePanel } from './SaePanel'
 import { SteeringPanel } from './SteeringPanel'
-import { useProbeColors } from './probeTheme'
+import { useLabColors } from '../lab/labTheme'
 import { METHOD_LABELS, POOLING_LABELS, formatScore, inlineProbe } from './probeUtils'
 
 /** A probe, as the steering and ablation panels use it. */
@@ -101,7 +101,7 @@ export function ProbeCausal({
   tool: CausalTool
   onShowPurchaseCredits?: () => void
 }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const { run, position } = lab
   const sweepAvailable = run != null && position > 0
   const options = [

@@ -10,12 +10,17 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from core.geometry.budget import MAX_ATLAS_SECONDS
+from core.geometry.budget import estimate_run_seconds as estimate_geometry_run_seconds
+from core.geometry.budget import estimate_sae_seconds as estimate_geometry_sae_seconds
+from core.geometry.budget import estimate_steer_seconds as estimate_geometry_steer_seconds
 from core.open_source import get_gpu_tier
 from core.probes.budget import estimate_ablation_seconds as estimate_probe_ablation_seconds
 from core.probes.budget import estimate_matrix_seconds as estimate_probe_matrix_seconds
 from core.probes.budget import estimate_run_seconds as estimate_probe_run_seconds
 from core.probes.budget import estimate_sae_seconds as estimate_probe_sae_seconds
 from models.database import CreditBalance, TrainingJob, Transaction, TransactionType, User
+from services.modal_feature_stats import ATLAS_CPU, ATLAS_MEMORY_MB, ATLAS_SCALEDOWN_SECONDS, ATLAS_TIMEOUT_SECONDS
 from services.modal_inference import SCALEDOWN_WINDOW_SECONDS as INFERENCE_SCALEDOWN_SECONDS
 
 
@@ -857,6 +862,152 @@ def calculate_probe_sae_cost(
     tier = get_gpu_tier(model_id)
     busy = estimate_probe_sae_seconds(tier, parameters, hidden_dim, num_examples, total_tokens, sae_latents)
     return min_gpu_request_charge(model_id, {tier: max(busy, INFERENCE_BUSY_SECONDS[tier])})
+
+
+def calculate_geometry_cost(
+    model_id: str,
+    parameters: int,
+    num_layers: int,
+    hidden_dim: int,
+    num_examples: int,
+    num_values: int,
+    total_tokens: int,
+) -> float:
+    """
+    Cost of a Geometry Lab run: a forward pass over every example (each template with each
+    value), then the class means' PCA and the shape tests at every layer (see
+    core.geometry.budget.estimate_run_seconds).
+
+    Charged like calculate_probe_cost, for the GPU time the run is estimated to take.
+
+    Args:
+        model_id: Model read (picks the GPU tier)
+        parameters, num_layers, hidden_dim: The model's size
+        num_examples: Templates × values
+        num_values: The concept's values
+        total_tokens: Tokens over every example (estimated before the run, counted after)
+    """
+    tier = get_gpu_tier(model_id)
+    busy = estimate_geometry_run_seconds(tier, parameters, num_layers, hidden_dim, num_examples, num_values, total_tokens)
+    return min_gpu_request_charge(model_id, {tier: max(busy, INFERENCE_BUSY_SECONDS[tier])})
+
+
+def calculate_geometry_steer_cost(
+    model_id: str,
+    parameters: int,
+    hidden_dim: int,
+    num_examples: int,
+    total_tokens: int,
+    eval_passes: int,
+    eval_tokens: int,
+    num_values: int,
+) -> float:
+    """
+    Cost of a Geometry Lab steering run: a pass over the concept's examples for the class
+    means, then the eval prompt with each value and with each steering method at each step,
+    each with next-token logits (see core.geometry.budget.estimate_steer_seconds).
+
+    Charged like calculate_probe_cost, for the GPU time the run is estimated to take.
+
+    Args:
+        model_id: Model steered (picks the GPU tier)
+        parameters, hidden_dim: The model's size
+        num_examples: The concept's templates × values
+        total_tokens: Tokens over those examples
+        eval_passes, eval_tokens: Passes over the eval prompt, and their tokens
+        num_values: The concept's values
+    """
+    tier = get_gpu_tier(model_id)
+    busy = estimate_geometry_steer_seconds(
+        tier, parameters, hidden_dim, num_examples, total_tokens, eval_passes, eval_tokens, num_values,
+    )
+    return min_gpu_request_charge(model_id, {tier: max(busy, INFERENCE_BUSY_SECONDS[tier])})
+
+
+def calculate_geometry_sae_cost(
+    model_id: str,
+    parameters: int,
+    hidden_dim: int,
+    num_examples: int,
+    num_values: int,
+    total_tokens: int,
+    span_tokens: int,
+    sae_latents: int,
+) -> float:
+    """
+    Cost of a Geometry Lab SAE run: loading the SAE, a pass over the concept's examples, their
+    read spans through the SAE, and the greedy fits (see core.geometry.budget.estimate_sae_seconds).
+
+    Charged like calculate_probe_cost, for the GPU time the run is estimated to take.
+
+    Args:
+        model_id: Model read (picks the GPU tier)
+        parameters, hidden_dim: The model's size
+        num_examples: The concept's templates × values; num_values: its values
+        total_tokens: Tokens over those examples
+        span_tokens: Tokens in their read spans (through the SAE)
+        sae_latents: The SAE's features
+    """
+    tier = get_gpu_tier(model_id)
+    busy = estimate_geometry_sae_seconds(
+        tier, parameters, hidden_dim, num_examples, num_values, total_tokens, span_tokens, sae_latents,
+    )
+    return min_gpu_request_charge(model_id, {tier: max(busy, INFERENCE_BUSY_SECONDS[tier])})
+
+
+# Atlas jobs run on a GPU container of their own (services/modal_feature_stats.py), billed from
+# its cold start (boot and image; loading the model and SAE is in the job's estimate) to its
+# scaledown, for the CPU and memory it reserves
+ATLAS_COLD_START_SECONDS = 60
+
+if MAX_ATLAS_SECONDS >= ATLAS_TIMEOUT_SECONDS:
+    raise RuntimeError("Atlas jobs may be estimated to run past their container's timeout")
+
+
+def calculate_atlas_cost(model_id: str, seconds: float) -> float:
+    """
+    Cost of an atlas job estimated (or measured) to keep its GPU busy for `seconds`: the whole
+    container lifetime Modal bills, on the model's GPU tier, plus markup.
+    """
+    return lone_request_charge(
+        gpu_type=get_gpu_tier(model_id),
+        cold_start_seconds=ATLAS_COLD_START_SECONDS,
+        busy_seconds=seconds,
+        idle_seconds=ATLAS_SCALEDOWN_SECONDS,
+        cpu_cores=ATLAS_CPU,
+        memory_gib=ATLAS_MEMORY_MB / 1024,
+    )
+
+
+def credit_refund(
+    db: Session,
+    user_id: int,
+    amount_usd: float,
+    transaction_type: TransactionType,
+    description: str,
+) -> Optional[Transaction]:
+    """
+    Give back part of a charge (e.g. a failed atlas job's unused GPU time).
+
+    Doesn't commit: the caller commits it with whatever settles the charge, so a refund is
+    recorded exactly once. Returns None (nothing recorded) for amounts under a cent.
+    """
+    if amount_usd < 0.01:
+        return None
+    credit_balance = get_credit_balance_for_update(db, user_id)
+    if credit_balance is None:
+        return None
+    amount = _to_decimal(round(amount_usd, 4))
+    credit_balance.balance_usd += amount
+    credit_balance.updated_at = datetime.utcnow()
+    transaction = Transaction(
+        user_id=user_id,
+        amount_usd=amount,
+        transaction_type=transaction_type,
+        description=description,
+    )
+    db.add(transaction)
+    return transaction
 
 
 # Steering runs read every generation back through the model twice (the probe's score and

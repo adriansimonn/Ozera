@@ -1,0 +1,53 @@
+{
+ "id": "colors",
+ "order": 4,
+ "name": "Colors by hue",
+ "structure": "cyclic",
+ "description": "Color words placed at their hue angle on the color wheel",
+ "values": [
+  "red",
+  "orange",
+  "yellow",
+  "lime",
+  "green",
+  "teal",
+  "blue",
+  "purple",
+  "magenta",
+  "pink"
+ ],
+ "positions": [
+  0,
+  30,
+  60,
+  90,
+  120,
+  170,
+  225,
+  275,
+  300,
+  330
+ ],
+ "templates": [
+  "The car is painted {x}.",
+  "She wore the {x} dress to the party.",
+  "The walls of the room are {x}.",
+  "He bought the {x} umbrella.",
+  "The flowers in the garden are {x}.",
+  "My favorite color is {x}.",
+  "The sign was painted bright {x}.",
+  "They chose {x} curtains for the kitchen.",
+  "The bird had {x} feathers.",
+  "The logo is {x} and white.",
+  "The door was painted {x} last summer.",
+  "He drew the circle in {x} ink.",
+  "The team's jerseys are {x}.",
+  "The {x} light flashed on the panel.",
+  "Her new bike is {x}.",
+  "The kitchen tiles are {x}."
+ ],
+ "eval_templates": [
+  "The paint is {x}. The color of the paint is"
+ ],
+ "source": "Written for Ozera"
+}

@@ -13,6 +13,9 @@ import {
   Zap,
   Search,
   MessageSquare,
+  Layers,
+  Microscope,
+  Shapes,
 } from 'lucide-react';
 import { useTransactions, Transaction } from '../../hooks/useCredits';
 
@@ -36,6 +39,14 @@ function getTransactionIcon(type: Transaction['transaction_type']) {
       return <Zap size={16} className="text-pink-400" />;
     case 'analysis_charge':
       return <Search size={16} className="text-cyan-400" />;
+    case 'sae_charge':
+      return <Layers size={16} className="text-indigo-400" />;
+    case 'probe_charge':
+      return <Microscope size={16} className="text-teal-400" />;
+    case 'geometry_charge':
+      return <Shapes size={16} className="text-violet-400" />;
+    case 'geometry_refund':
+      return <RefreshCcw size={16} className="text-blue-400" />;
     default:
       return <ArrowUpRight size={16} className="text-white" />;
   }
@@ -59,6 +70,14 @@ function getTransactionLabel(type: Transaction['transaction_type']) {
       return 'Patching Experiment';
     case 'analysis_charge':
       return 'Pattern Analysis';
+    case 'sae_charge':
+      return 'SAE Analysis';
+    case 'probe_charge':
+      return 'Probe Lab';
+    case 'geometry_charge':
+      return 'Geometry Lab';
+    case 'geometry_refund':
+      return 'Geometry Lab Refund';
     default:
       return 'Transaction';
   }

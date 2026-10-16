@@ -8,7 +8,7 @@ import { Download, Crosshair, Trash2 } from 'lucide-react'
 import type { SavedProbe } from '../../types/probes'
 import { apiClient } from '../../api/client'
 import { ConfirmModal } from '../common/ConfirmModal'
-import { useProbeColors } from './probeTheme'
+import { useLabColors } from '../lab/labTheme'
 import { METHOD_SHORT, POOLING_LABELS, downloadJson, formatMetric } from './probeUtils'
 
 interface SavedProbesProps {
@@ -25,7 +25,7 @@ function metric(probe: SavedProbe, key: string): number | null {
 }
 
 export function SavedProbes({ probes, loading, activeId, onUse, onDeleted }: SavedProbesProps) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const [deleting, setDeleting] = useState<SavedProbe | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

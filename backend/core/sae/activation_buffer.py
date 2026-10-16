@@ -9,7 +9,6 @@ import numpy as np
 import torch
 from typing import Optional, Dict, Iterator, Tuple, List, Union
 from pathlib import Path
-import h5py
 from dataclasses import dataclass
 
 
@@ -305,7 +304,10 @@ class DiskActivationBuffer:
         self.max_samples = max_samples
         self.chunk_size = chunk_size
 
-        # Create or open HDF5 file
+        # Create or open HDF5 file (h5py is imported here: only SAE training images install it,
+        # and importing core.sae shouldn't need it)
+        import h5py
+
         self.h5file = h5py.File(self.filepath, "a")
 
         # Create dataset if it doesn't exist

@@ -4,8 +4,8 @@
  */
 
 import { useState, type PointerEvent } from 'react'
-import { ChartTooltip } from './chartKit'
-import { useElementWidth, useProbeColors } from './probeTheme'
+import { ChartTooltip } from '../lab/chartKit'
+import { useElementWidth, useLabColors } from '../lab/labTheme'
 import { classHistogram, formatPercent, formatScore, rocCurve } from './probeUtils'
 
 interface ScoreViewProps {
@@ -27,7 +27,7 @@ function barPath(x: number, base: number, w: number, h: number, up: boolean): st
 }
 
 export function ScoreHistogram({ scores, labels, labelNames }: ScoreViewProps) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const { ref, width } = useElementWidth<HTMLDivElement>(420)
   const [hover, setHover] = useState<{ bin: number; px: number; py: number } | null>(null)
 
@@ -124,7 +124,7 @@ export function ScoreHistogram({ scores, labels, labelNames }: ScoreViewProps) {
 }
 
 export function RocCurve({ scores, labels, color }: ScoreViewProps) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const { ref, width } = useElementWidth<HTMLDivElement>(420)
   const [hover, setHover] = useState<{ index: number; px: number; py: number } | null>(null)
 

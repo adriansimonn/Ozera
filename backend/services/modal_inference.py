@@ -1609,6 +1609,204 @@ class _InferenceWorker:
         result["total_tokens"] = total_tokens
         return result
 
+    @modal.method()
+    def concept_geometry(
+        self,
+        model_id: str,
+        concept: dict,
+        read: str = "value_last",
+        chat_template: bool = False,
+        seed: int = 0,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        The shape a concept's values take at every position of a model's residual stream,
+        with shape tests against their baselines (see core.geometry).
+
+        One forward pass over every example (each template with each value) reads the
+        residual stream at the chosen read position; only projections and metrics come
+        back, never activations.
+
+        Args:
+            concept: The concept (see core.geometry.concepts.validate_concept)
+            read: "value_last", "value_mean" or "template_last"
+            chat_template: Read the examples as user messages in an instruct model's chat template
+            seed: Seed for the shape tests' folds and shuffles
+
+        Returns:
+            core.geometry.shapes.analyze's result with tensors encoded for transport, plus
+            "value_tokens", "num_layers", "hidden_dim" and "total_tokens"
+
+        Raises:
+            GeometryInputError: the concept or its templates can't be used, or the run is too
+                large for this worker
+        """
+        from core.geometry.budget import check_run_size, estimate_run_seconds
+        from core.geometry.concepts import validate_concept
+        from core.geometry.encoding import encode_concept
+        from core.geometry.shapes import analyze
+        from core.probes.runner import collect_features
+
+        concept = validate_concept(concept)
+        target = self._probe_target(model_id, owner_id, version)
+        with self._probe_lock:
+            with target.lock():
+                encoded, value_tokens = encode_concept(
+                    target, concept["values"], concept["templates"], read, chat_template,
+                )
+                total_tokens = sum(len(e.ids) for e in encoded)
+                check_run_size(self.gpu_tier, model_id, estimate_run_seconds(
+                    self.gpu_tier, target.parameters, len(target.layers), target.hidden_dim,
+                    len(encoded), len(concept["values"]), total_tokens,
+                ))
+                features = collect_features(target, encoded, poolings=("mean",))["mean"]
+            # The analysis doesn't use the model, so other requests can run it meanwhile
+            try:
+                result = self._serialize_value(analyze(features, concept, seed))
+            finally:
+                del features
+
+        result.update(
+            value_tokens=value_tokens,
+            num_layers=len(target.layers),
+            hidden_dim=target.hidden_dim,
+            total_tokens=total_tokens,
+        )
+        return result
+
+    @modal.method()
+    def steer_manifold(
+        self,
+        model_id: str,
+        concept: dict,
+        position: int,
+        dims: int,
+        source: int,
+        target_value: int,
+        eval_template: str,
+        steps: int = 16,
+        read: str = "value_last",
+        chat_template: bool = False,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        Walk an eval prompt from a source value to a target value at one layer, along the
+        concept's manifold and along a straight line, reading the next-token distribution at
+        every step (see core.geometry.steering).
+
+        One pass over the concept's examples up to the layer recomputes its class means; the
+        eval prompt then runs with each value unedited and with each method at each step.
+        Forward passes only; distributions are summarized here.
+
+        Args:
+            concept: The concept (see core.geometry.concepts.validate_concept)
+            position: Residual stream position the class means are read and edits made at
+            dims: Subspace size (the class means' top components)
+            source, target_value: Value indices the walk starts and ends at
+            eval_template: A template ending where the model would say a value
+            steps: Steps of the walk (steps + 1 points per method)
+            read, chat_template: How the run being steered read its examples
+
+        Returns:
+            core.geometry.steering.run_steering's result, plus "num_layers", "hidden_dim",
+            "concept_tokens", "eval_tokens" and "total_tokens"
+
+        Raises:
+            GeometryInputError: the run can't be done as asked, or is too large for this worker
+        """
+        from core.geometry.budget import check_run_size, estimate_steer_seconds
+        from core.geometry.concepts import validate_concept
+        from core.geometry.steering import plan_steering, run_steering
+
+        concept = validate_concept(concept)
+        target = self._probe_target(model_id, owner_id, version)
+        with target.lock():
+            plan = plan_steering(
+                target, concept, read, chat_template, position, dims, source, target_value, steps, eval_template,
+            )
+            check_run_size(self.gpu_tier, model_id, estimate_steer_seconds(
+                self.gpu_tier, target.parameters, target.hidden_dim, len(plan.examples), plan.concept_tokens,
+                plan.eval_passes, plan.eval_tokens, len(concept["values"]),
+            ))
+            result = run_steering(target, plan)
+
+        result.update(
+            num_layers=len(target.layers),
+            hidden_dim=target.hidden_dim,
+            concept_tokens=plan.concept_tokens,
+            eval_tokens=plan.eval_tokens,
+            total_tokens=plan.concept_tokens + plan.eval_tokens,
+        )
+        return result
+
+    @modal.method()
+    def sae_geometry(
+        self,
+        model_id: str,
+        concept: dict,
+        layer: int,
+        sae: dict,
+        read: str = "value_last",
+        chat_template: bool = False,
+        seed: int = 0,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        How an SAE breaks up a concept's shape at the layer it reads: tuning curves,
+        restricted-support R² against random and decoder-cosine baselines, and a verdict
+        (see core.geometry.sae).
+
+        One pass over the concept's examples up to the layer reads the residual stream and the
+        SAE's latents at each example's read span; only the analysis comes back.
+
+        Args:
+            concept: The concept (see core.geometry.concepts.validate_concept)
+            layer: The decoder layer whose output the SAE reads
+            sae: Which SAE (see core.probes.sae.sae_directory)
+            read, chat_template: How the run being broken up read its examples
+            seed: Seed for the random-feature baseline
+
+        Returns:
+            core.geometry.sae.analyze_sae's result with tensors encoded for transport, plus
+            "num_layers", "hidden_dim" and "total_tokens"
+
+        Raises:
+            GeometryInputError / ProbeInputError: the concept or SAE can't be used, or the run is
+                too large for this worker
+        """
+        from core.geometry.budget import GeometryInputError, check_run_size, estimate_sae_seconds
+        from core.geometry.concepts import validate_concept
+        from core.geometry.encoding import encode_concept
+        from core.geometry.sae import analyze_sae
+        from core.probes.sae import read_sae_features
+
+        concept = validate_concept(concept)
+        target = self._probe_target(model_id, owner_id, version)
+        if not 0 <= layer < len(target.layers):
+            raise GeometryInputError(f"Layer {layer} is out of range for this model ({len(target.layers)} layers)")
+
+        with self._probe_lock:
+            sae_model, _ = self._load_probe_sae(sae, target.hidden_dim, target.device)
+            with target.lock():
+                encoded, _ = encode_concept(target, concept["values"], concept["templates"], read, chat_template)
+                total_tokens = sum(len(e.ids) for e in encoded)
+                check_run_size(self.gpu_tier, model_id, estimate_sae_seconds(
+                    self.gpu_tier, target.parameters, target.hidden_dim, len(encoded), len(concept["values"]),
+                    total_tokens, sum(e.end - e.start for e in encoded), sae_model.d_hidden,
+                ))
+                readout = read_sae_features(target, encoded, layer, "mean", sae_model)
+            # The analysis doesn't use the model, so other requests can run it meanwhile
+            try:
+                result = self._serialize_value(analyze_sae(readout, sae_model, concept, seed))
+            finally:
+                del readout
+
+        result.update(num_layers=len(target.layers), hidden_dim=target.hidden_dim, total_tokens=total_tokens)
+        return result
+
 
 @app.cls(
     image=inference_image,

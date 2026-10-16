@@ -11,8 +11,8 @@ import { useEffect, useMemo, useState, type PointerEvent } from 'react'
 import type { SteeredGeneration, SteeringEstimate, SteerProbeResponse } from '../../types/probes'
 import { apiClient } from '../../api/client'
 import type { CausalProbe } from './CausalPanel'
-import { ChartTooltip, RunBar, Segmented } from './chartKit'
-import { divergingColor, inkOn, useElementWidth, useProbeColors } from './probeTheme'
+import { ChartTooltip, RunBar, Segmented } from '../lab/chartKit'
+import { divergingColor, inkOn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { formatScore } from './probeUtils'
 
 const DEFAULT_ALPHAS = '-4, -2, 2, 4'
@@ -88,7 +88,7 @@ const CHART_HEIGHT = 210
 const CHART_MARGIN = { top: 16, right: 16, bottom: 34, left: 48 }
 
 function AlphaChart({ title, generations, value, format, log, color, labelNames }: AlphaChartProps) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const { ref, width } = useElementWidth<HTMLDivElement>(360)
   const [hover, setHover] = useState<{ index: number; px: number; py: number } | null>(null)
 
@@ -243,7 +243,7 @@ function GenerationCard({
   probe: CausalProbe
   colorTokens: boolean
 }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const scored = g.scored
   const scale =
     probe.scale ||
@@ -307,7 +307,7 @@ export function SteeringPanel({
   isAuthenticated: boolean
   onShowPurchaseCredits?: () => void
 }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const [prompt, setPrompt] = useState('')
   const [alphaText, setAlphaText] = useState(DEFAULT_ALPHAS)
   const [maxTokens, setMaxTokens] = useState(40)

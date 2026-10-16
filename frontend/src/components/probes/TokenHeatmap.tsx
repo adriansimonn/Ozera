@@ -8,8 +8,8 @@ import { ScanText } from 'lucide-react'
 import type { Pooling, ProbeMethod, ProbeRunResult, SavedProbe, ScoreProbeResponse } from '../../types/probes'
 import { apiClient } from '../../api/client'
 import { Dropdown } from '../common/Dropdown'
-import { Placeholder, RunBar } from './chartKit'
-import { divergingColor, inkOn, useProbeColors } from './probeTheme'
+import { Placeholder, RunBar } from '../lab/chartKit'
+import { divergingColor, inkOn, useLabColors } from '../lab/labTheme'
 import { METHOD_SHORT, POOLING_LABELS, formatScore, inlineProbe } from './probeUtils'
 
 /** "sweep" for the probe selected in the layer sweep, or "saved:<id>" */
@@ -52,7 +52,7 @@ export function TokenHeatmap({
   onSourceChange,
   onShowPurchaseCredits,
 }: TokenHeatmapProps) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const [text, setText] = useState('')
   const [scoring, setScoring] = useState(false)
   const [error, setError] = useState<string | null>(null)

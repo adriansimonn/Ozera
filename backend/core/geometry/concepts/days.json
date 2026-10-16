@@ -1,0 +1,48 @@
+{
+ "id": "days",
+ "order": 1,
+ "name": "Days of the week",
+ "structure": "cyclic",
+ "description": "Monday to Sunday, which Engels et al. (ICLR 2025) found on a circle",
+ "values": [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday"
+ ],
+ "groups": [
+  "weekday",
+  "weekday",
+  "weekday",
+  "weekday",
+  "weekday",
+  "weekend",
+  "weekend"
+ ],
+ "templates": [
+  "Today is {x}.",
+  "The meeting is on {x}.",
+  "I will see you on {x}.",
+  "She was born on a {x}.",
+  "The store is closed on {x}.",
+  "We usually go hiking on {x}.",
+  "My favorite day of the week is {x}.",
+  "The package arrived on {x} morning.",
+  "Every {x}, he calls his mother.",
+  "The deadline is next {x}.",
+  "It rained all day on {x}.",
+  "Our flight leaves on {x} night.",
+  "The museum is free on {x}.",
+  "Last {x} was very busy.",
+  "The class meets every {x} at noon.",
+  "They got married on a {x} in June."
+ ],
+ "eval_templates": [
+  "Today is {x}. Tomorrow is",
+  "If today is {x}, then tomorrow is"
+ ],
+ "source": "Written for Ozera"
+}

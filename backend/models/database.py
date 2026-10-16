@@ -65,6 +65,9 @@ class User(Base):
     probes = relationship(
         "Probe", back_populates="user", cascade="all, delete-orphan"
     )
+    atlas_jobs = relationship(
+        "AtlasJob", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
@@ -110,6 +113,8 @@ class TransactionType(PyEnum):
     ANALYSIS_CHARGE = "analysis_charge"
     SAE_CHARGE = "sae_charge"
     PROBE_CHARGE = "probe_charge"
+    GEOMETRY_CHARGE = "geometry_charge"
+    GEOMETRY_REFUND = "geometry_refund"
 
 
 class Transaction(Base):
@@ -338,3 +343,40 @@ class Probe(Base):
 
     def __repr__(self):
         return f"<Probe(id={self.id}, user_id={self.user_id}, model={self.model_id}, layer={self.layer})>"
+
+
+class AtlasJob(Base):
+    """
+    A Geometry Lab atlas job: a model and an SAE over corpus text on a GPU container of its own
+    (services/modal_feature_stats.py), charged when submitted.
+
+    Results are stored next to the SAE on the SAE volume, not here, and serve everyone who has
+    the SAE. A job that fails is refunded all but the GPU time it used.
+    """
+
+    __tablename__ = "atlas_jobs"
+
+    job_id = Column(String(50), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    model_id = Column(String(255), nullable=False)
+    sae = Column(JSON, nullable=False)  # The SAE reference (core.probes.sae.sae_directory)
+    sae_name = Column(String(500), nullable=False)
+    # The SAE's directory on the volume, the model and the corpus: one active job per atlas
+    atlas_key = Column(String(800), nullable=False, index=True)
+    corpus = Column(String(50), nullable=False)
+    tokens = Column(Integer, nullable=False)
+    status = Column(String(20), nullable=False, default="queued")  # queued, running, completed, failed
+    cost_usd = Column(Numeric(precision=10, scale=4), nullable=False)
+    refunded_usd = Column(Numeric(precision=10, scale=4), nullable=True)
+    estimated_seconds = Column(Float, nullable=False)
+    modal_call_id = Column(String(100), nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    user = relationship("User", back_populates="atlas_jobs")
+
+    def __repr__(self):
+        return f"<AtlasJob(job_id={self.job_id}, user_id={self.user_id}, status={self.status})>"

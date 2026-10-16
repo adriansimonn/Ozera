@@ -1,37 +1,15 @@
 /**
- * Model choice and run settings for a probe training run, with its cost estimate and the
- * button that starts it.
+ * Run settings for a probe training run, with its cost estimate and the button that starts it.
  */
 
 import { FlaskConical } from 'lucide-react'
 import type { ProbeLab } from '../../hooks/useProbeLab'
-import { Dropdown, type DropdownGroup } from '../common/Dropdown'
-import { Segmented } from './chartKit'
-import { useProbeColors } from './probeTheme'
+import { Segmented } from '../lab/chartKit'
+import { useLabColors } from '../lab/labTheme'
 import { estimateText } from './probeUtils'
 
-const TYPE_LABELS = { ozera: 'Ozera Models', open_source: 'Open Source', custom: 'Custom Models' } as const
-
-export function ModelPicker({ lab, disabled }: { lab: ProbeLab; disabled?: boolean }) {
-  const groups: DropdownGroup[] = lab.loadingModels
-    ? [{ label: 'Models', options: [{ value: '', label: 'Loading models…' }] }]
-    : (['ozera', 'open_source', 'custom'] as const)
-        .map((type) => ({
-          label: TYPE_LABELS[type],
-          options: lab.models
-            .filter((m) => m.model_type === type)
-            .map((m) => ({
-              value: m.model_id,
-              label: `${m.display_name} · ${m.num_layers ?? '?'}L · d=${m.hidden_dim ?? '?'}`,
-              disabled: m.num_layers == null,
-            })),
-        }))
-        .filter((group) => group.options.length > 0)
-  return <Dropdown value={lab.modelId} onChange={lab.setModelId} groups={groups} disabled={disabled || lab.loadingModels} />
-}
-
 export function RunSettings({ lab }: { lab: ProbeLab }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const disabled = lab.training
   const instruct = lab.model?.is_instruct ?? false
   const estimate = lab.estimate

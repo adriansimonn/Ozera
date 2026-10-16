@@ -7,12 +7,14 @@ import PatchingPlayground from './pages/PatchingPlayground'
 import AnalysisPage from './pages/AnalysisPage'
 import SAEPage from './pages/SAEPage'
 import ProbesPage from './pages/ProbesPage'
+import GeometryPage from './pages/GeometryPage'
 import DefaultUnifiedPage from './pages/default/UnifiedPage'
 import DefaultTrainingPage from './pages/default/TrainingPage'
 import DefaultPatchingPlayground from './pages/default/PatchingPlayground'
 import DefaultAnalysisPage from './pages/default/AnalysisPage'
 import DefaultSAEPage from './pages/default/SAEPage'
 import DefaultProbesPage from './pages/default/ProbesPage'
+import DefaultGeometryPage from './pages/default/GeometryPage'
 import SettingsPage from './pages/SettingsPage'
 import AuthPage from './pages/AuthPage'
 import { AnimatedBackground } from './components/common/AnimatedBackground'
@@ -120,6 +122,20 @@ function AppShell() {
                     />
                   ) : (
                     <ProbesPage
+                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                    />
+                  )
+                }
+              />
+              <Route
+                path="/geometry"
+                element={
+                  isDefault ? (
+                    <DefaultGeometryPage
+                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
+                    />
+                  ) : (
+                    <GeometryPage
                       onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
                     />
                   )

@@ -7,7 +7,7 @@
 import { useState } from 'react'
 import { Microscope } from 'lucide-react'
 import type { ProbeLab } from '../../hooks/useProbeLab'
-import { Placeholder } from './chartKit'
+import { Placeholder } from '../lab/chartKit'
 import { ErrorList } from './ErrorList'
 import { LayerSummary } from './LayerSummary'
 import { LayerSweepChart, SweepControls } from './LayerSweepChart'
@@ -15,11 +15,11 @@ import { PcaScatter } from './PcaScatter'
 import { SavedProbes } from './SavedProbes'
 import { RocCurve, ScoreHistogram } from './ScoreViews'
 import { TokenHeatmap } from './TokenHeatmap'
-import { useProbeColors } from './probeTheme'
+import { useLabColors } from '../lab/labTheme'
 import { evalScores } from './probeUtils'
 
 export function ProbeResults({ lab }: { lab: ProbeLab }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const [showOodInPca, setShowOodInPca] = useState(true)
   const { run, pooling, method, position, evalSet } = lab
 

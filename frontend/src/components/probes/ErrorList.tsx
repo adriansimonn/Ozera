@@ -3,7 +3,7 @@
  * Surface-feature shortcuts (a word, a length, a template) tend to show up here first.
  */
 
-import { useProbeColors } from './probeTheme'
+import { useLabColors } from '../lab/labTheme'
 import { formatScore } from './probeUtils'
 
 interface ErrorListProps {
@@ -15,7 +15,7 @@ interface ErrorListProps {
 }
 
 export function ErrorList({ scores, labels, texts, labelNames, limit = 6 }: ErrorListProps) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const indices = scores.map((_, i) => i)
   const falsePositives = indices.filter((i) => labels[i] === 0 && scores[i] > 0).sort((a, b) => scores[b] - scores[a])
   const falseNegatives = indices.filter((i) => labels[i] === 1 && scores[i] <= 0).sort((a, b) => scores[a] - scores[b])

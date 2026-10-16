@@ -4,13 +4,13 @@
  * and on the tokens themselves. Scores stream in with the text, one token behind it (a token
  * is scored when the model reads it to predict the next one).
  *
- * Carries the probe-lab class so the Probe Lab's shared styles (tooltip, tokens, legend) apply.
+ * Carries the lab-kit class so the labs' shared styles (tooltip, tokens, legend) apply.
  */
 
 import { useId, useState, type PointerEvent } from 'react'
 import type { MonitorProbeInfo, MonitorTrace } from '../../types/probes'
-import { ChartTooltip, ProbeLabStyles } from './chartKit'
-import { divergingColor, inkOn, useElementWidth, useProbeColors } from './probeTheme'
+import { ChartTooltip, LabKitStyles } from '../lab/chartKit'
+import { divergingColor, inkOn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { formatScore } from './probeUtils'
 
 interface ProbeMonitorProps {
@@ -36,7 +36,7 @@ function scoreScale(trace: MonitorTrace, probe: MonitorProbeInfo): number {
 }
 
 function ScoreTrace({ trace, probe }: { trace: MonitorTrace; probe: MonitorProbeInfo }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const { ref, width } = useElementWidth<HTMLDivElement>(480)
   const [hover, setHover] = useState<{ index: number; px: number; py: number } | null>(null)
   const clipId = useId().replace(/:/g, '')
@@ -152,7 +152,7 @@ function ScoreTrace({ trace, probe }: { trace: MonitorTrace; probe: MonitorProbe
 }
 
 export function ProbeMonitor({ trace, probe, live }: ProbeMonitorProps) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const [showPrompt, setShowPrompt] = useState(false)
   const scale = scoreScale(trace, probe)
 
@@ -168,7 +168,7 @@ export function ProbeMonitor({ trace, probe, live }: ProbeMonitorProps) {
     .filter((t) => showPrompt || t.i >= trace.promptTokens)
 
   return (
-    <div className="probe-lab probe-monitor" style={{ borderColor: colors.border, color: colors.text }}>
+    <div className="probe-lab lab-kit probe-monitor" style={{ borderColor: colors.border, color: colors.text }}>
       <div className="pm-head">
         <span className="pm-title">Probe monitor</span>
         <span className="pl-note">
@@ -234,7 +234,7 @@ export function ProbeMonitor({ trace, probe, live }: ProbeMonitorProps) {
         </span>
       </div>
 
-      <ProbeLabStyles />
+      <LabKitStyles />
       <style>{`
         .probe-monitor { border: 1px solid; padding: 0.75rem 0.875rem; margin-top: 0.75rem; text-align: left; }
         .probe-monitor .pm-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; margin-bottom: 0.3rem; }

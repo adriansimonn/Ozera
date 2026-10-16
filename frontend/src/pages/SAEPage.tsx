@@ -7,6 +7,8 @@
 import { useState, useCallback, useEffect } from 'react'
 import { SaeDeepLinkNote } from '../components/sae/SaeDeepLinkNote'
 import { useSaeDeepLink } from '../hooks/useSaeDeepLink'
+import { useCorpusStats } from '../hooks/useCorpusStats'
+import { useAuthStore } from '../stores/authStore'
 import { NavBar } from '../components/common/NavBar'
 import {
   SAESelector,
@@ -326,6 +328,9 @@ export default function SAEPage({
   // A link from the Probe Lab picks the SAE, the text, and a feature to show once analyzed
   const { link: deepLink, pendingFeature, clearPending } = useSaeDeepLink()
   const [saeSelection, setSaeSelection] = useState<SAESelection | null>(deepLink?.selection ?? null)
+  // Corpus statistics from a Geometry Lab atlas of the SAE, when one exists (Browse uses them)
+  const { isAuthenticated } = useAuthStore()
+  const { atlas: corpusAtlas, catalog: corpusCatalog, loadFeature: loadCorpusFeature } = useCorpusStats(saeSelection, isAuthenticated)
   const [inputText, setInputText] = useState(deepLink?.text ?? '')
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -425,6 +430,17 @@ export default function SAEPage({
       setFeatureInfo(null)
       return
     }
+    if (mode === 'browse' && corpusAtlas) {
+      let cancelled = false
+      setLoadingFeature(true)
+      loadCorpusFeature(selectedFeature)
+        .then((info) => !cancelled && setFeatureInfo(info))
+        .catch(() => !cancelled && setFeatureInfo(null))
+        .finally(() => !cancelled && setLoadingFeature(false))
+      return () => {
+        cancelled = true
+      }
+    }
 
     const loadFeatureInfo = async () => {
       setLoadingFeature(true)
@@ -480,7 +496,7 @@ export default function SAEPage({
     }
 
     loadFeatureInfo()
-  }, [selectedFeature, saeSelection, analyzeResponse])
+  }, [selectedFeature, saeSelection, analyzeResponse, mode, corpusAtlas, loadCorpusFeature])
 
   const handleFeatureSelect = useCallback((featureIdx: number) => {
     setSelectedFeature(featureIdx)
@@ -666,7 +682,7 @@ export default function SAEPage({
           {/* Content */}
           <div className="sae-main">
             {/* No data state */}
-            {!analyzeResponse && !analyzing && mode !== 'load' && (
+            {!analyzeResponse && !analyzing && mode !== 'load' && !(mode === 'browse' && corpusCatalog) && (
               <div className="empty-state">
                 <Search className="empty-icon" />
                 <h3>Enter Text to Analyze</h3>
@@ -716,11 +732,16 @@ export default function SAEPage({
             )}
 
             {/* Browse Features Mode */}
-            {!analyzing && analyzeResponse && mode === 'browse' && featureCatalog && (
+            {!analyzing && mode === 'browse' && (corpusCatalog ?? (analyzeResponse ? featureCatalog : null)) && (
               <div className="browse-layout">
                 <div className="browser-panel">
+                  {corpusAtlas && (
+                    <p className="corpus-note" title={`Feature statistics and top contexts from a Geometry Lab atlas (${corpusAtlas.corpus.license ?? ''})`}>
+                      Over {corpusAtlas.tokens.toLocaleString()} {corpusAtlas.corpus.name} tokens
+                    </p>
+                  )}
                   <FeatureBrowser
-                    catalog={featureCatalog}
+                    catalog={(corpusCatalog ?? featureCatalog) as FeatureCatalog}
                     onFeatureSelect={handleFeatureSelect}
                     selectedFeature={selectedFeature ?? undefined}
                   />
@@ -910,6 +931,8 @@ export default function SAEPage({
         }
 
         /* Empty State */
+        .corpus-note { margin: 0 0 0.5rem; font-size: 0.75rem; opacity: 0.7; }
+
         .empty-state,
         .loading-state {
           display: flex;

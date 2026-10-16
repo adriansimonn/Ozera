@@ -19,6 +19,9 @@ class TransactionTypeEnum(str, Enum):
     PATCHING_CHARGE = "patching_charge"
     ANALYSIS_CHARGE = "analysis_charge"
     SAE_CHARGE = "sae_charge"
+    PROBE_CHARGE = "probe_charge"
+    GEOMETRY_CHARGE = "geometry_charge"
+    GEOMETRY_REFUND = "geometry_refund"
 
 
 class CreditBalanceResponse(BaseModel):

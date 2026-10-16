@@ -1,0 +1,58 @@
+{
+ "id": "months",
+ "order": 2,
+ "name": "Months of the year",
+ "structure": "cyclic",
+ "description": "January to December, a circle in Engels et al. (ICLR 2025); grouped by northern seasons",
+ "values": [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December"
+ ],
+ "groups": [
+  "winter",
+  "winter",
+  "spring",
+  "spring",
+  "spring",
+  "summer",
+  "summer",
+  "summer",
+  "autumn",
+  "autumn",
+  "autumn",
+  "winter"
+ ],
+ "templates": [
+  "The festival takes place in {x}.",
+  "My birthday is in {x}.",
+  "The school year starts in {x}.",
+  "We moved to a new city in {x}.",
+  "The report is due at the end of {x}.",
+  "It snowed a lot in {x}.",
+  "The garden looks best in {x}.",
+  "Her favorite month is {x}.",
+  "Prices went up in {x}.",
+  "The bridge opened in {x} of last year.",
+  "They planned a trip for {x}.",
+  "Sales were strong in {x}.",
+  "The lease ends in {x}.",
+  "He started his new job in {x}.",
+  "Tickets go on sale in early {x}.",
+  "The meeting was moved to {x}."
+ ],
+ "eval_templates": [
+  "If this month is {x}, next month is",
+  "The month after {x} is"
+ ],
+ "source": "Written for Ozera"
+}

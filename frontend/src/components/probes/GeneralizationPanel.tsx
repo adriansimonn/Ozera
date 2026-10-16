@@ -18,9 +18,9 @@ import type {
   ProbeMethod,
 } from '../../types/probes'
 import { Dropdown } from '../common/Dropdown'
-import { ChartTooltip, Findings, RunBar, Segmented, type Finding, type TooltipRow } from './chartKit'
+import { ChartTooltip, Findings, RunBar, Segmented, type Finding, type TooltipRow } from '../lab/chartKit'
 import { FileButton } from './DatasetPanel'
-import { inkOn, transferColor, useElementWidth, useProbeColors, type ProbeColors } from './probeTheme'
+import { inkOn, transferColor, useElementWidth, useLabColors, type LabColors } from '../lab/labTheme'
 import { METHOD_LABELS, POOLING_LABELS, estimateText, formatMetric, formatPercent, positionLabel } from './probeUtils'
 
 const MAX_DATASETS = 6
@@ -221,7 +221,7 @@ const SERIES_LABELS = {
 const SERIES_SHORT = { diagonal: 'same dataset', datasets: 'other datasets', models: 'other model' } as const
 type SeriesKey = keyof typeof SERIES_LABELS
 
-function seriesStyles(colors: ProbeColors, method: ProbeMethod): Record<SeriesKey, { color: string; dash?: string }> {
+function seriesStyles(colors: LabColors, method: ProbeMethod): Record<SeriesKey, { color: string; dash?: string }> {
   return {
     diagonal: { color: colors.baseline },
     datasets: { color: colors.methods[method] },
@@ -243,7 +243,7 @@ function TransferByLayer({
   position: number
   onSelect: (position: number) => void
 }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const { ref, width } = useElementWidth<HTMLDivElement>()
   const [hover, setHover] = useState<{ index: number; px: number; py: number } | null>(null)
   const summary = layerSummaries(result, method, metric)
@@ -411,7 +411,7 @@ function TransferMatrix({
   position: number
   modelName: (id: string) => string
 }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const wrap = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState<{ i: number; j: number; x: number; y: number } | null>(null)
   const conditions = conditionsOf(result)
@@ -520,7 +520,7 @@ function TransferMatrix({
 }
 
 function ScaleLegend() {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const stops = [0, 0.25, 0.5, 0.75, 1].map((v) => `${transferColor(colors, v)} ${v * 100}%`).join(', ')
   return (
     <div className="pl-scale" aria-hidden="true">
@@ -533,7 +533,7 @@ function ScaleLegend() {
 }
 
 export function ProbeGeneralization({ lab, onShowPurchaseCredits }: { lab: ProbeLab; onShowPurchaseCredits?: () => void }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const [edited, setEdited] = useState<MatrixEntry[] | null>(null)
   const [parsing, setParsing] = useState(false)
   const [transfer, setTransfer] = useState(false)

@@ -1,12 +1,12 @@
 /**
- * Shared components of the Probe Lab's charts and controls: the hover tooltip, segmented
- * controls, findings, stat tiles, run bars, placeholders, and the styles every Probe Lab
- * component uses (scoped under .probe-lab).
+ * Shared components of the labs' charts and controls (Probe Lab, Geometry Lab): the hover
+ * tooltip, segmented controls, findings, stat tiles, run bars, placeholders, and the styles
+ * they use, scoped under .lab-kit (the root class of every page or widget that uses the kit).
  */
 
 import type { ReactNode } from 'react'
 import { AlertTriangle, CheckCircle2, Info, Play, type LucideIcon } from 'lucide-react'
-import { useProbeColors } from './probeTheme'
+import { useLabColors } from './labTheme'
 
 export interface Finding {
   level: 'warning' | 'info' | 'good'
@@ -15,7 +15,7 @@ export interface Finding {
 
 /** Short findings about a result, each marked by its level's icon. */
 export function Findings({ items }: { items: Finding[] }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   if (items.length === 0) return null
   return (
     <ul className="pl-checks">
@@ -39,14 +39,16 @@ export interface Tile {
   label: string
   value: string
   hint?: string
+  /** What the number means, on hover */
+  title?: string
 }
 
 export function StatTiles({ tiles }: { tiles: Tile[] }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   return (
     <div className="pl-tiles">
       {tiles.map((tile) => (
-        <div key={tile.label} className="pl-tile" style={{ borderColor: colors.border, background: colors.panel }}>
+        <div key={tile.label} className="pl-tile" title={tile.title} style={{ borderColor: colors.border, background: colors.panel }}>
           <div className="pl-tile-label">{tile.label}</div>
           <div className="pl-tile-value">{tile.value}</div>
           {tile.hint && <div className="pl-tile-hint">{tile.hint}</div>}
@@ -72,7 +74,7 @@ export function RunBar({
   disabled?: boolean
   onRun: () => void
 }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   return (
     <div className="pl-run-bar">
       <span className="pl-note" style={warn ? { color: colors.warning } : undefined}>
@@ -131,7 +133,7 @@ export function ChartTooltip({
   rows?: TooltipRow[]
   children?: ReactNode
 }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const width = 240
   const left = x + 14 + width > containerWidth ? Math.max(0, x - width - 14) : x + 14
   return (
@@ -160,11 +162,11 @@ export function ChartTooltip({
   )
 }
 
-/** Styles shared by the Probe Lab's components, all scoped under .probe-lab. */
-export function ProbeLabStyles() {
+/** Styles shared by the labs' components, all scoped under .lab-kit. */
+export function LabKitStyles() {
   return (
     <style>{`
-      .probe-lab .pl-tooltip {
+      .lab-kit .pl-tooltip {
         position: absolute;
         z-index: 20;
         pointer-events: none;
@@ -174,19 +176,19 @@ export function ProbeLabStyles() {
         line-height: 1.35;
         box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
       }
-      .probe-lab .pl-tooltip-title { font-weight: 600; margin-bottom: 0.25rem; }
-      .probe-lab .pl-tooltip-row { display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
-      .probe-lab .pl-tooltip-key { width: 12px; height: 2px; border-radius: 1px; flex-shrink: 0; }
-      .probe-lab .pl-tooltip-key-space { width: 12px; flex-shrink: 0; }
-      .probe-lab .pl-tooltip-value { font-weight: 600; font-variant-numeric: tabular-nums; }
-      .probe-lab .pl-tooltip-label { opacity: 0.85; }
+      .lab-kit .pl-tooltip-title { font-weight: 600; margin-bottom: 0.25rem; }
+      .lab-kit .pl-tooltip-row { display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
+      .lab-kit .pl-tooltip-key { width: 12px; height: 2px; border-radius: 1px; flex-shrink: 0; }
+      .lab-kit .pl-tooltip-key-space { width: 12px; flex-shrink: 0; }
+      .lab-kit .pl-tooltip-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+      .lab-kit .pl-tooltip-label { opacity: 0.85; }
 
-      .probe-lab .pl-chart { position: relative; width: 100%; }
-      .probe-lab .pl-chart svg { display: block; overflow: visible; }
-      .probe-lab .pl-chart svg text { font-family: inherit; }
-      .probe-lab .pl-chart:focus-visible { outline: 2px solid rgba(59, 130, 246, 0.6); outline-offset: 2px; }
+      .lab-kit .pl-chart { position: relative; width: 100%; }
+      .lab-kit .pl-chart svg { display: block; overflow: visible; }
+      .lab-kit .pl-chart svg text { font-family: inherit; }
+      .lab-kit .pl-chart:focus-visible { outline: 2px solid rgba(59, 130, 246, 0.6); outline-offset: 2px; }
 
-      .probe-lab .pl-card-title {
+      .lab-kit .pl-card-title {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -195,7 +197,7 @@ export function ProbeLabStyles() {
         min-height: 1.75rem;
         margin-bottom: 0.625rem;
       }
-      .probe-lab .pl-card-title h3 {
+      .lab-kit .pl-card-title h3 {
         margin: 0;
         font-size: 0.8rem;
         font-weight: 600;
@@ -203,15 +205,15 @@ export function ProbeLabStyles() {
         letter-spacing: 0.05em;
       }
 
-      .probe-lab .pl-legend { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; font-size: 0.75rem; margin-top: 0.5rem; }
-      .probe-lab .pl-legend-item { display: inline-flex; align-items: center; gap: 0.4rem; }
-      .probe-lab .pl-legend-line { width: 16px; height: 2px; border-radius: 1px; }
-      .probe-lab .pl-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
-      .probe-lab .pl-legend-ring { width: 8px; height: 8px; border-radius: 50%; border: 2px solid; box-sizing: border-box; }
-      .probe-lab .pl-legend-rect { width: 10px; height: 10px; border-radius: 2px; }
+      .lab-kit .pl-legend { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; font-size: 0.75rem; margin-top: 0.5rem; }
+      .lab-kit .pl-legend-item { display: inline-flex; align-items: center; gap: 0.4rem; }
+      .lab-kit .pl-legend-line { width: 16px; height: 2px; border-radius: 1px; }
+      .lab-kit .pl-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+      .lab-kit .pl-legend-ring { width: 8px; height: 8px; border-radius: 50%; border: 2px solid; box-sizing: border-box; }
+      .lab-kit .pl-legend-rect { width: 10px; height: 10px; border-radius: 2px; }
 
-      .probe-lab .pl-segmented { display: inline-flex; border: 1px solid; }
-      .probe-lab .pl-segmented button {
+      .lab-kit .pl-segmented { display: inline-flex; border: 1px solid; }
+      .lab-kit .pl-segmented button {
         padding: 0.35rem 0.7rem;
         font-size: 0.75rem;
         font-weight: 500;
@@ -221,8 +223,8 @@ export function ProbeLabStyles() {
         color: inherit;
         white-space: nowrap;
       }
-      .probe-lab .pl-segmented button:disabled { opacity: 0.4; cursor: not-allowed; }
-      .probe-lab .pl-control-label {
+      .lab-kit .pl-segmented button:disabled { opacity: 0.4; cursor: not-allowed; }
+      .lab-kit .pl-control-label {
         font-size: 0.65rem;
         font-weight: 600;
         text-transform: uppercase;
@@ -230,7 +232,7 @@ export function ProbeLabStyles() {
         margin-bottom: 0.3rem;
       }
 
-      .probe-lab .pl-input, .probe-lab .pl-textarea {
+      .lab-kit .pl-input, .lab-kit .pl-textarea {
         width: 100%;
         padding: 0.5rem 0.625rem;
         border: 1px solid;
@@ -239,10 +241,10 @@ export function ProbeLabStyles() {
         outline: none;
         box-sizing: border-box;
       }
-      .probe-lab .pl-textarea { resize: vertical; min-height: 84px; }
-      .probe-lab .pl-input:focus, .probe-lab .pl-textarea:focus { border-color: rgba(59, 130, 246, 0.5) !important; }
+      .lab-kit .pl-textarea { resize: vertical; min-height: 84px; }
+      .lab-kit .pl-input:focus, .lab-kit .pl-textarea:focus { border-color: rgba(59, 130, 246, 0.5) !important; }
 
-      .probe-lab .pl-button {
+      .lab-kit .pl-button {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -256,10 +258,10 @@ export function ProbeLabStyles() {
         color: inherit;
         white-space: nowrap;
       }
-      .probe-lab .pl-button:disabled { opacity: 0.45; cursor: not-allowed; }
-      .probe-lab .pl-icon { width: 14px; height: 14px; flex-shrink: 0; }
+      .lab-kit .pl-button:disabled { opacity: 0.45; cursor: not-allowed; }
+      .lab-kit .pl-icon { width: 14px; height: 14px; flex-shrink: 0; }
 
-      .probe-lab .pl-spinner {
+      .lab-kit .pl-spinner {
         width: 14px;
         height: 14px;
         border: 2px solid;
@@ -268,23 +270,23 @@ export function ProbeLabStyles() {
       }
       @keyframes pl-spin { to { transform: rotate(360deg); } }
 
-      .probe-lab .pl-hint { font-size: 0.72rem; line-height: 1.45; }
-      .probe-lab .pl-hint code { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
-      .probe-lab .pl-note { font-size: 0.72rem; }
-      .probe-lab .pl-empty { font-size: 0.8rem; padding: 1rem; border: 1px dashed; text-align: center; }
-      .probe-lab .pl-check-row { display: flex; gap: 0.4rem; align-items: flex-start; cursor: pointer; font-size: 0.8rem; }
-      .probe-lab .pl-check-row input { margin-top: 0.15rem; }
-      .probe-lab .pl-icon-button { background: none; border: none; padding: 0.3rem; cursor: pointer; display: inline-flex; }
-      .probe-lab .pl-icon-button:disabled { opacity: 0.35; cursor: not-allowed; }
-      .probe-lab .pl-link { background: none; border: none; padding: 0; font-size: 0.72rem; cursor: pointer; text-align: left; }
+      .lab-kit .pl-hint { font-size: 0.72rem; line-height: 1.45; }
+      .lab-kit .pl-hint code { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
+      .lab-kit .pl-note { font-size: 0.72rem; }
+      .lab-kit .pl-empty { font-size: 0.8rem; padding: 1rem; border: 1px dashed; text-align: center; }
+      .lab-kit .pl-check-row { display: flex; gap: 0.4rem; align-items: flex-start; cursor: pointer; font-size: 0.8rem; }
+      .lab-kit .pl-check-row input { margin-top: 0.15rem; }
+      .lab-kit .pl-icon-button { background: none; border: none; padding: 0.3rem; cursor: pointer; display: inline-flex; }
+      .lab-kit .pl-icon-button:disabled { opacity: 0.35; cursor: not-allowed; }
+      .lab-kit .pl-link { background: none; border: none; padding: 0; font-size: 0.72rem; cursor: pointer; text-align: left; }
 
-      .probe-lab .pl-controls-row { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 1rem; }
-      .probe-lab .pl-run-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.75rem; }
-      .probe-lab .pl-token { padding: 0.12rem 0.05rem; border-radius: 3px; margin-right: 1px; cursor: default; }
-      .probe-lab .pl-run-meta { font-size: 0.75rem; margin-bottom: 0.875rem; }
-      .probe-lab .pl-result { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid; }
-      .probe-lab .pl-error-note { color: #ef4444; font-size: 0.75rem; margin-top: 0.5rem; }
-      .probe-lab .pl-placeholder {
+      .lab-kit .pl-controls-row { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 1rem; }
+      .lab-kit .pl-run-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.75rem; }
+      .lab-kit .pl-token { padding: 0.12rem 0.05rem; border-radius: 3px; margin-right: 1px; cursor: default; }
+      .lab-kit .pl-run-meta { font-size: 0.75rem; margin-bottom: 0.875rem; }
+      .lab-kit .pl-result { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid; }
+      .lab-kit .pl-error-note { color: #ef4444; font-size: 0.75rem; margin-top: 0.5rem; }
+      .lab-kit .pl-placeholder {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -292,28 +294,30 @@ export function ProbeLabStyles() {
         padding: 4rem 2rem;
         text-align: center;
       }
-      .probe-lab .pl-placeholder-icon { width: 36px; height: 36px; opacity: 0.3; margin-bottom: 0.75rem; }
-      .probe-lab .pl-placeholder p { margin: 0; font-size: 0.8rem; max-width: 360px; line-height: 1.5; }
+      .lab-kit .pl-placeholder-icon { width: 36px; height: 36px; opacity: 0.3; margin-bottom: 0.75rem; }
+      .lab-kit .pl-placeholder p { margin: 0; font-size: 0.8rem; max-width: 360px; line-height: 1.5; }
 
-      .probe-lab .pl-tiles {
+      .lab-kit .pl-tiles {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
         gap: 0.5rem;
         margin-bottom: 0.875rem;
       }
-      .probe-lab .pl-tile { border: 1px solid; padding: 0.5rem 0.65rem; }
-      .probe-lab .pl-tile-label { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-      .probe-lab .pl-tile-value { font-size: 1.15rem; font-weight: 600; margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
-      .probe-lab .pl-tile-hint { font-size: 0.68rem; margin-top: 0.1rem; }
-      .probe-lab .pl-checks { list-style: none; margin: 0 0 0.875rem; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
-      .probe-lab .pl-check { display: flex; gap: 0.5rem; align-items: flex-start; font-size: 0.78rem; line-height: 1.4; }
-      .probe-lab .pl-check .pl-icon { margin-top: 0.1rem; }
+      .lab-kit .pl-tile { border: 1px solid; padding: 0.5rem 0.65rem; }
+      .lab-kit .pl-tile-label { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+      .lab-kit .pl-tile-value { font-size: 1.15rem; font-weight: 600; margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
+      .lab-kit .pl-tile-hint { font-size: 0.68rem; margin-top: 0.1rem; }
+      .lab-kit .pl-checks { list-style: none; margin: 0 0 0.875rem; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+      .lab-kit .pl-check { display: flex; gap: 0.5rem; align-items: flex-start; font-size: 0.78rem; line-height: 1.4; }
+      .lab-kit .pl-check .pl-icon { margin-top: 0.1rem; }
 
-      .probe-lab .pl-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
-      .probe-lab .pl-table th { text-align: right; font-weight: 600; padding: 0.35rem 0.5rem; position: sticky; top: 0; }
-      .probe-lab .pl-table th:first-child, .probe-lab .pl-table td:first-child { text-align: left; }
-      .probe-lab .pl-table td { text-align: right; padding: 0.3rem 0.5rem; }
-      .probe-lab .pl-table tbody tr { cursor: pointer; }
+      .lab-kit .pl-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+      .lab-kit .pl-table th { text-align: right; font-weight: 600; padding: 0.35rem 0.5rem; position: sticky; top: 0; }
+      .lab-kit .pl-table th:first-child, .lab-kit .pl-table td:first-child { text-align: left; }
+      .lab-kit .pl-table td { text-align: right; padding: 0.3rem 0.5rem; }
+      .lab-kit .pl-table tbody tr { cursor: pointer; }
+      .lab-kit .pl-feature-link { display: inline-flex; align-items: center; gap: 0.2rem; font-weight: 600; text-decoration: none; font-variant-numeric: tabular-nums; }
+      .lab-kit .pl-feature-link:hover { text-decoration: underline; }
     `}</style>
   )
 }
@@ -332,7 +336,7 @@ export function Segmented<T extends string>({
   disabled?: boolean
   ariaLabel: string
 }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   return (
     <div className="pl-segmented" role="radiogroup" aria-label={ariaLabel} style={{ borderColor: colors.border }}>
       {options.map((option) => {

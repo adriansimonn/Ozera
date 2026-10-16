@@ -7,8 +7,8 @@ import { useEffect, useState } from 'react'
 import { Save } from 'lucide-react'
 import type { Pooling, ProbeMethod, ProbeRunResult, SavedProbe } from '../../types/probes'
 import { apiClient } from '../../api/client'
-import { Findings, StatTiles, type Finding, type Tile } from './chartKit'
-import { useProbeColors } from './probeTheme'
+import { Findings, StatTiles, type Finding, type Tile } from '../lab/chartKit'
+import { useLabColors } from '../lab/labTheme'
 import {
   METHOD_LABELS,
   METHOD_SHORT,
@@ -78,7 +78,7 @@ function trustChecks(run: ProbeRunResult, pooling: Pooling, method: ProbeMethod,
 }
 
 export function LayerSummary({ run, pooling, method, position, testFraction, onSaved }: LayerSummaryProps) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const result = run.poolings[pooling].methods[method]
   const m = result.metrics
   const at = (values: (number | null)[] | undefined) => values?.[position] ?? null

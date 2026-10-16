@@ -6,8 +6,8 @@
 
 import { useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { PROBE_METHODS, type PerPosition, type Pooling, type ProbeMethod, type ProbeRunResult } from '../../types/probes'
-import { ChartTooltip, Segmented, type TooltipRow } from './chartKit'
-import { useElementWidth, useProbeColors } from './probeTheme'
+import { ChartTooltip, Segmented, type TooltipRow } from '../lab/chartKit'
+import { useElementWidth, useLabColors } from '../lab/labTheme'
 import {
   METHOD_LABELS,
   METHOD_SHORT,
@@ -48,7 +48,7 @@ function linePath(values: PerPosition, x: (i: number) => number, y: (v: number) 
 }
 
 export function LayerSweepChart({ run, pooling, method, metric, evalSet, position, onSelectPosition }: LayerSweepChartProps) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const { ref, width } = useElementWidth<HTMLDivElement>()
   const [hover, setHover] = useState<{ index: number; px: number; py: number } | null>(null)
   const [view, setView] = useState<'chart' | 'table'>('chart')
@@ -281,7 +281,7 @@ function SweepTable({
   position: number
   onSelectPosition: (position: number) => void
 }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const metrics = (m: ProbeMethod) => run.poolings[pooling].methods[m].metrics
   const hasOod = run.dataset.n_ood > 0
   const columns: { label: string; values: PerPosition; percent?: boolean }[] = [

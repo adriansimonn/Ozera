@@ -5,7 +5,7 @@
  */
 
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Cpu, Square, SplitSquareVertical, Sparkles, GraduationCap, Upload, Zap, Search, Layers, Microscope } from 'lucide-react'
+import { Cpu, Square, SplitSquareVertical, Sparkles, GraduationCap, Upload, Zap, Search, Layers, Microscope, Shapes } from 'lucide-react'
 import { UserMenu } from './UserMenu'
 import { useAuthStore } from '../../stores/authStore'
 
@@ -85,6 +85,13 @@ export function NavBar({
             >
               <Microscope className="nav-icon" />
               Probe Lab
+            </Link>
+            <Link
+              to="/geometry"
+              className={`nav-link ${isActive('/geometry') ? 'active' : ''}`}
+            >
+              <Shapes className="nav-icon" />
+              Geometry Lab
             </Link>
           </div>
         </div>

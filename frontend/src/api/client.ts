@@ -65,6 +65,34 @@ import type {
   TrainProbesRequest,
 } from '../types/probes'
 import type {
+  CompareRequest,
+  CompareResult,
+  ConceptDetail,
+  ConceptSpec,
+  ConceptSummary,
+  GeometryEstimate,
+  GeometryRun,
+  GeometryRunRequest,
+  GeometrySaeEstimate,
+  GeometrySaeRequest,
+  GeometrySaeResult,
+  AtlasCommunity,
+  AtlasCorpus,
+  AtlasEstimate,
+  AtlasFeature,
+  AtlasFeaturesRequest,
+  AtlasFeaturesResponse,
+  AtlasJob,
+  AtlasJobRequest,
+  AtlasMeta,
+  AtlasRef,
+  AtlasStatus,
+  AtlasSummary,
+  SteerEstimate,
+  SteerRequest,
+  SteerResult,
+} from '../types/geometry'
+import type {
   PresetInfo,
   AttentionHeatmapExportRequest,
   MultiHeadHeatmapExportRequest,
@@ -405,6 +433,10 @@ const ANALYSIS_TIMEOUT_MS = 300_000
 const UPLOAD_TIMEOUT_MS = 900_000
 // Starting training reads the dataset's metadata from storage and spawns the job on Modal
 const TRAINING_START_TIMEOUT_MS = 120_000
+// Geometry comparisons run on the backend's CPU (a few hundred small SVDs at most)
+const GEOMETRY_COMPARE_TIMEOUT_MS = 60_000
+// Atlases are read from the SAE volume through Modal's API (summaries run to a few MB)
+const ATLAS_READ_TIMEOUT_MS = 60_000
 
 async function fetchWithTimeout(
   input: string,
@@ -2025,6 +2057,186 @@ class OzeraAPIClient {
       headers: getAuthHeaders(),
     })
     if (!response.ok) throw await responseError(response, 'Failed to delete the probe')
+  }
+
+  // ============= Geometry Lab =============
+
+  /**
+   * List the built-in concepts (free).
+   */
+  async listGeometryConcepts(): Promise<ConceptSummary[]> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/geometry/concepts`)
+    if (!response.ok) throw await responseError(response, 'Failed to list concepts')
+    return response.json()
+  }
+
+  /**
+   * Get a built-in concept with its templates (free).
+   */
+  async getGeometryConcept(conceptId: string): Promise<ConceptDetail> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/geometry/concepts/${encodeURIComponent(conceptId)}`)
+    if (!response.ok) throw await responseError(response, 'Failed to load the concept')
+    return response.json()
+  }
+
+  /**
+   * Estimate a geometry run's cost (free).
+   */
+  async estimateGeometryRun(request: { model: string; concept: ConceptSpec; chat_template: boolean }): Promise<GeometryEstimate> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/geometry/estimate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to estimate the run')
+    return response.json()
+  }
+
+  /**
+   * Read a concept's geometry at every layer, with shape tests (one GPU call; charged).
+   */
+  async runGeometry(request: GeometryRunRequest): Promise<GeometryRun> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/geometry/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Geometry run failed')
+    notifyCreditsChanged()
+    return decodeTensorData(await response.json())
+  }
+
+  /**
+   * Align one run's class means at a layer with another run's at every layer (CPU; free).
+   */
+  async compareGeometry(request: CompareRequest): Promise<CompareResult> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/geometry/compare`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GEOMETRY_COMPARE_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Comparison failed')
+    return response.json()
+  }
+
+  /**
+   * Estimate a steering run's cost (free).
+   */
+  async estimateGeometrySteer(request: SteerRequest): Promise<SteerEstimate> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/geometry/steer/estimate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to estimate steering')
+    return response.json()
+  }
+
+  /**
+   * Walk an eval prompt from one value to another along the concept's manifold and along a
+   * straight line, reading the next-token distribution at each step (one GPU call; charged).
+   */
+  async steerGeometry(request: SteerRequest): Promise<SteerResult> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/geometry/steer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Steering failed')
+    notifyCreditsChanged()
+    return response.json()
+  }
+
+  /**
+   * Estimate an SAE run's cost (free).
+   */
+  async estimateGeometrySae(request: GeometrySaeRequest): Promise<GeometrySaeEstimate> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/geometry/sae/estimate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to estimate the SAE run')
+    return response.json()
+  }
+
+  /**
+   * Read a concept through an SAE at the layer it reads: tuning curves, restricted-support R²
+   * and a capture / shatter / dilute verdict (one GPU call; charged).
+   */
+  async saeGeometry(request: GeometrySaeRequest): Promise<GeometrySaeResult> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/geometry/sae`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'SAE run failed')
+    notifyCreditsChanged()
+    return decodeTensorData(await response.json())
+  }
+
+  // Atlas: feature statistics over a corpus, communities and their geometry (jobs charged when submitted; reads free)
+
+  private async atlasPost<T>(path: string, body: unknown, fallback: string, timeout = DEFAULT_TIMEOUT_MS): Promise<T> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/geometry/atlas/${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(body),
+    }, timeout)
+    if (!response.ok) throw await responseError(response, fallback)
+    return response.json()
+  }
+
+  async listAtlasCorpora(): Promise<AtlasCorpus[]> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/geometry/atlas/corpora`)
+    if (!response.ok) throw await responseError(response, 'Failed to list corpora')
+    return response.json()
+  }
+
+  /** An SAE's stored atlases on a model, and any job computing one. */
+  async atlasStatus(request: { model: string; sae: SaeRef }): Promise<AtlasStatus> {
+    return this.atlasPost('status', request, 'Failed to load the atlas status', ATLAS_READ_TIMEOUT_MS)
+  }
+
+  async estimateAtlas(request: AtlasJobRequest): Promise<AtlasEstimate> {
+    return this.atlasPost('estimate', request, 'Failed to estimate the atlas')
+  }
+
+  /** Start an atlas job (charged its estimate now; a failed job is refunded all but the GPU time it used). */
+  async submitAtlasJob(request: AtlasJobRequest): Promise<AtlasJob> {
+    const job = await this.atlasPost<AtlasJob>('jobs', request, 'Failed to start the atlas job', TRAINING_START_TIMEOUT_MS)
+    notifyCreditsChanged()
+    return job
+  }
+
+  async getAtlasJob(jobId: string): Promise<AtlasJob> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/geometry/atlas/jobs/${encodeURIComponent(jobId)}`, {
+      headers: getAuthHeaders(),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to load the atlas job')
+    return response.json()
+  }
+
+  async atlasSummary(ref: AtlasRef): Promise<AtlasSummary> {
+    return this.atlasPost('summary', ref, 'Failed to load the atlas', ATLAS_READ_TIMEOUT_MS)
+  }
+
+  async atlasCommunity(ref: AtlasRef, community: number): Promise<AtlasCommunity> {
+    return this.atlasPost('community', { ...ref, community }, 'Failed to load the community', ATLAS_READ_TIMEOUT_MS)
+  }
+
+  async atlasFeatures(request: AtlasFeaturesRequest): Promise<AtlasFeaturesResponse> {
+    return this.atlasPost('features', request, 'Failed to load features', ATLAS_READ_TIMEOUT_MS)
+  }
+
+  async atlasFeature(ref: AtlasRef, feature: number): Promise<AtlasFeature> {
+    return this.atlasPost('feature', { ...ref, feature }, 'Failed to load the feature', ATLAS_READ_TIMEOUT_MS)
+  }
+
+  /** Every stored atlas of an SAE, on any model (for the SAE browser). */
+  async atlasLookup(sae: SaeRef): Promise<AtlasMeta[]> {
+    const result = await this.atlasPost<{ atlases: AtlasMeta[] }>('lookup', { sae }, 'Failed to look up corpus statistics', ATLAS_READ_TIMEOUT_MS)
+    return result.atlases
   }
 }
 

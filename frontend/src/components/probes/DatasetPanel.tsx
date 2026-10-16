@@ -7,8 +7,8 @@ import { useRef, useState } from 'react'
 import { ArrowLeftRight, Upload, X } from 'lucide-react'
 import type { ParsedProbeDataset, ProbeDatasetSummary } from '../../types/probes'
 import type { ProbeLab } from '../../hooks/useProbeLab'
-import { Segmented } from './chartKit'
-import { useProbeColors } from './probeTheme'
+import { Segmented } from '../lab/chartKit'
+import { useLabColors } from '../lab/labTheme'
 
 const CATEGORY_LABELS: Record<ProbeDatasetSummary['category'], string> = {
   contrastive: 'Contrastive sets',
@@ -26,7 +26,7 @@ export function FileButton({
   disabled?: boolean
   onFile: (file: File) => void
 }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const input = useRef<HTMLInputElement>(null)
   return (
     <>
@@ -70,7 +70,7 @@ function ParsedSummary({
   onClear: () => void
   disabled?: boolean
 }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const positives = parsed.rows.filter((r) => r.label === 1).length
   return (
     <div className="pl-parsed" style={{ borderColor: colors.border, background: colors.panel }}>
@@ -112,7 +112,7 @@ function ParsedSummary({
 }
 
 export function DatasetPanel({ lab, disabled }: { lab: ProbeLab; disabled?: boolean }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const [preview, setPreview] = useState<string | null>(null)
 
   const togglePreview = async (id: string) => {

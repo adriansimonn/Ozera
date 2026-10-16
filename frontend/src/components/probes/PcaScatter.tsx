@@ -6,8 +6,8 @@
 
 import { useState, type PointerEvent } from 'react'
 import type { Pooling, ProbeExample, ProbeRunResult } from '../../types/probes'
-import { ChartTooltip } from './chartKit'
-import { useElementWidth, useProbeColors } from './probeTheme'
+import { ChartTooltip } from '../lab/chartKit'
+import { useElementWidth, useLabColors } from '../lab/labTheme'
 
 interface PcaScatterProps {
   run: ProbeRunResult
@@ -29,7 +29,7 @@ const MARGIN = { top: 12, right: 12, bottom: 34, left: 40 }
 const HOVER_RADIUS = 16
 
 export function PcaScatter({ run, pooling, position, showOod }: PcaScatterProps) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const { ref, width } = useElementWidth<HTMLDivElement>(420)
   const [hover, setHover] = useState<{ point: Point; px: number; py: number } | null>(null)
 

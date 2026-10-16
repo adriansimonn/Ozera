@@ -10,8 +10,8 @@ import type { AblateProbeResponse, AblationCurve, PerPosition, ProbeEstimate } f
 import type { ProbeLab } from '../../hooks/useProbeLab'
 import { apiClient } from '../../api/client'
 import type { CausalProbe } from './CausalPanel'
-import { ChartTooltip, Findings, RunBar, Segmented, StatTiles, type Finding, type TooltipRow } from './chartKit'
-import { useElementWidth, useProbeColors, type ProbeColors } from './probeTheme'
+import { ChartTooltip, Findings, RunBar, Segmented, StatTiles, type Finding, type TooltipRow } from '../lab/chartKit'
+import { useElementWidth, useLabColors, type LabColors } from '../lab/labTheme'
 import { estimateText, formatMetric, formatPercent, positionLabel } from './probeUtils'
 
 const CURVE_LABELS: Record<AblationCurve, string> = {
@@ -88,7 +88,7 @@ function linePath(values: PerPosition, x: (i: number) => number, y: (v: number) 
   return path
 }
 
-function seriesStyle(colors: ProbeColors, result: AblateProbeResponse): Record<'clean' | 'probe_frozen' | 'probe_retrained' | 'control_retrained', { color: string; width: number; dash?: string }> {
+function seriesStyle(colors: LabColors, result: AblateProbeResponse): Record<'clean' | 'probe_frozen' | 'probe_retrained' | 'control_retrained', { color: string; width: number; dash?: string }> {
   return {
     clean: { color: colors.methods[result.method], width: 2 },
     probe_retrained: { color: colors.ablated, width: 2 },
@@ -98,7 +98,7 @@ function seriesStyle(colors: ProbeColors, result: AblateProbeResponse): Record<'
 }
 
 function AblationChart({ result }: { result: AblateProbeResponse }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const { ref, width } = useElementWidth<HTMLDivElement>()
   const [hover, setHover] = useState<{ index: number; px: number; py: number } | null>(null)
   const [focus, setFocus] = useState<number | null>(null)
@@ -245,7 +245,7 @@ function AblationChart({ result }: { result: AblateProbeResponse }) {
 }
 
 function AblationTable({ result }: { result: AblateProbeResponse }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const keys: AblationCurve[] = ['clean', 'probe_frozen', 'probe_retrained', 'control_frozen', 'control_retrained']
   return (
     <div style={{ maxHeight: 320, overflowY: 'auto', border: `1px solid ${colors.border}` }}>
@@ -282,7 +282,7 @@ export function AblationPanel({
   lab: ProbeLab
   onShowPurchaseCredits?: () => void
 }) {
-  const colors = useProbeColors()
+  const colors = useLabColors()
   const [estimate, setEstimate] = useState<ProbeEstimate | null>(null)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)

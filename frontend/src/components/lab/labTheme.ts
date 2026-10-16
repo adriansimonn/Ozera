@@ -1,5 +1,5 @@
 /**
- * Colors and sizing for the Probe Lab's charts.
+ * Colors and sizing for the labs' charts (Probe Lab and Geometry Lab).
  *
  * Colors (validated for CVD separation and contrast on the app's light and dark surfaces):
  * the two probe methods take violet and aqua; class 0 / negative scores take blue and class 1 /
@@ -10,18 +10,24 @@
  * as a pair in both modes; below 3:1 on light surfaces, so their charts carry direct labels
  * and a table view). Transfer AUROC uses its own diverging scale around chance (0.5): toward
  * blue as a probe transfers, toward orange as it ranks the other data backwards.
+ *
+ * series: the categorical slots in their fixed order (validated as adjacent series in both
+ * modes; slots 3–5 sit below 3:1 on light surfaces, so charts using them carry direct labels
+ * and a table view). The Geometry Lab's hypotheses take them in order.
  */
 
 import { useEffect, useRef, useState } from 'react'
 import type { ProbeMethod } from '../../types/probes'
 import { useTheme } from '../../hooks/useTheme'
 
-export interface ProbeColors {
+export interface LabColors {
   isLight: boolean
   methods: Record<ProbeMethod, string>
   classes: [string, string]
   ablated: string
   sae: string
+  /** Categorical slots, in their fixed order */
+  series: string[]
   /** Poles of the transfer AUROC scale: [AUROC 0, AUROC 1] */
   transfer: [string, string]
   midpoint: string
@@ -37,12 +43,13 @@ export interface ProbeColors {
   warning: string
 }
 
-const LIGHT: ProbeColors = {
+const LIGHT: LabColors = {
   isLight: true,
   methods: { logreg: '#4a3aa7', diff_means: '#1baf7a' },
   classes: ['#2a78d6', '#e34948'],
   ablated: '#eb6834',
   sae: '#e87ba4',
+  series: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'],
   transfer: ['#eb6834', '#184f95'],
   midpoint: '#f0efec',
   baseline: '#898781',
@@ -57,12 +64,13 @@ const LIGHT: ProbeColors = {
   warning: '#b77900',
 }
 
-const DARK: ProbeColors = {
+const DARK: LabColors = {
   isLight: false,
   methods: { logreg: '#9085e9', diff_means: '#199e70' },
   classes: ['#3987e5', '#e66767'],
   ablated: '#d95926',
   sae: '#d55181',
+  series: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'],
   transfer: ['#d95926', '#6da7ec'],
   midpoint: '#383835',
   baseline: '#898781',
@@ -77,20 +85,20 @@ const DARK: ProbeColors = {
   warning: '#fab219',
 }
 
-export function useProbeColors(): ProbeColors {
+export function useLabColors(): LabColors {
   const { isLight } = useTheme()
   return isLight ? LIGHT : DARK
 }
 
 /** A diverging color for a score: midpoint gray at 0, toward blue (negative) or red (positive). */
-export function divergingColor(colors: ProbeColors, t: number): string {
+export function divergingColor(colors: LabColors, t: number): string {
   const clamped = Math.max(-1, Math.min(1, t))
   const pole = clamped < 0 ? colors.classes[0] : colors.classes[1]
   return mix(colors.midpoint, pole, Math.abs(clamped))
 }
 
 /** A transfer AUROC's color: midpoint gray at chance (0.5), toward blue at 1, toward orange at 0. */
-export function transferColor(colors: ProbeColors, auroc: number): string {
+export function transferColor(colors: LabColors, auroc: number): string {
   const t = Math.max(-1, Math.min(1, (auroc - 0.5) * 2))
   return mix(colors.midpoint, colors.transfer[t < 0 ? 0 : 1], Math.abs(t))
 }

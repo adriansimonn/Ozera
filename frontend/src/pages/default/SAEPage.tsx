@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react'
 import { SaeDeepLinkNote } from '../../components/sae/SaeDeepLinkNote'
 import { useSaeDeepLink } from '../../hooks/useSaeDeepLink'
+import { useCorpusStats } from '../../hooks/useCorpusStats'
+import { useAuthStore } from '../../stores/authStore'
 import { NavBar } from '../../components/common/NavBar'
 import {
   SAESelector,
@@ -293,6 +295,9 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
   // A link from the Probe Lab picks the SAE, the text, and a feature to show once analyzed
   const { link: deepLink, pendingFeature, clearPending } = useSaeDeepLink()
   const [saeSelection, setSaeSelection] = useState<SAESelection | null>(deepLink?.selection ?? null)
+  // Corpus statistics from a Geometry Lab atlas of the SAE, when one exists (Browse uses them)
+  const { isAuthenticated } = useAuthStore()
+  const { atlas: corpusAtlas, catalog: corpusCatalog, loadFeature: loadCorpusFeature } = useCorpusStats(saeSelection, isAuthenticated)
   const [inputText, setInputText] = useState(deepLink?.text ?? '')
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -390,6 +395,17 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
       setFeatureInfo(null)
       return
     }
+    if (mode === 'browse' && corpusAtlas) {
+      let cancelled = false
+      setLoadingFeature(true)
+      loadCorpusFeature(selectedFeature)
+        .then((info) => !cancelled && setFeatureInfo(info))
+        .catch(() => !cancelled && setFeatureInfo(null))
+        .finally(() => !cancelled && setLoadingFeature(false))
+      return () => {
+        cancelled = true
+      }
+    }
 
     const loadFeatureInfo = async () => {
       setLoadingFeature(true)
@@ -439,7 +455,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
     }
 
     loadFeatureInfo()
-  }, [selectedFeature, saeSelection, analyzeResponse])
+  }, [selectedFeature, saeSelection, analyzeResponse, mode, corpusAtlas, loadCorpusFeature])
 
   const handleFeatureSelect = useCallback((featureIdx: number) => {
     setSelectedFeature(featureIdx)
@@ -692,11 +708,19 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
         )}
 
         {/* Browse Features Mode */}
-        {mode === 'browse' && !analyzing && analyzeResponse && featureCatalog && (
+        {mode === 'browse' && !analyzing && (corpusCatalog ?? (analyzeResponse ? featureCatalog : null)) && (
           <div className="ds-results">
             <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              {corpusAtlas && (
+                <p
+                  style={{ color: c.textSub, fontSize: '0.75rem', margin: '0 0 0.5rem' }}
+                  title={`Feature statistics and top contexts from a Geometry Lab atlas (${corpusAtlas.corpus.license ?? ''})`}
+                >
+                  Over {corpusAtlas.tokens.toLocaleString()} {corpusAtlas.corpus.name} tokens
+                </p>
+              )}
               <FeatureBrowser
-                catalog={featureCatalog}
+                catalog={(corpusCatalog ?? featureCatalog) as FeatureCatalog}
                 onFeatureSelect={handleFeatureSelect}
                 selectedFeature={selectedFeature ?? undefined}
               />
@@ -754,7 +778,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
         )}
 
         {/* Empty state */}
-        {!analyzing && !analyzeResponse && mode !== 'compare' && mode !== 'load' && (
+        {!analyzing && !analyzeResponse && mode !== 'compare' && mode !== 'load' && !(mode === 'browse' && corpusCatalog) && (
           <div className="ds-placeholder">
             <Search style={{ width: 36, height: 36, color: c.textSub, opacity: 0.3, marginBottom: '0.75rem' }} />
             <p style={{ color: c.textSub, fontSize: '0.8rem', margin: 0, maxWidth: 360, lineHeight: 1.5 }}>
