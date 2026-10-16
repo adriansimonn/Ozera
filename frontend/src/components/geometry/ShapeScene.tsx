@@ -9,8 +9,20 @@
 
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
+import { Canvas, createPointerEvents, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Html, Line, OrbitControls } from '@react-three/drei'
+
+// The page's CSS zoom (index.css) scales bounding boxes and offsetX/Y but not layout sizes, so
+// the canvas is sized from layout (offsetSize) and picks by the pointer's fraction of its box
+const CANVAS_RESIZE = { offsetSize: true }
+const zoomAwareEvents: typeof createPointerEvents = (store) => ({
+  ...createPointerEvents(store),
+  compute(event, state) {
+    const box = state.gl.domElement.getBoundingClientRect()
+    state.pointer.set(((event.clientX - box.left) / box.width) * 2 - 1, -((event.clientY - box.top) / box.height) * 2 + 1)
+    state.raycaster.setFromCamera(state.pointer, state.camera)
+  },
+})
 
 export interface ShapeSceneProps {
   /** [n, 3] every example */
@@ -131,7 +143,7 @@ export default function ShapeScene({
 
   return (
     <div style={{ height, position: 'relative', cursor: hoverPoint != null || hoverMean != null ? 'pointer' : 'grab' }}>
-      <Canvas frameloop="demand" dpr={[1, 2]} camera={{ position: [1.55, 1.15, 1.95], fov: 45, near: 0.01, far: 100 }}>
+      <Canvas frameloop="demand" dpr={[1, 2]} resize={CANVAS_RESIZE} events={zoomAwareEvents} camera={{ position: [1.55, 1.15, 1.95], fov: 45, near: 0.01, far: 100 }}>
         <ambientLight intensity={0.85} />
         <directionalLight position={[3, 5, 4]} intensity={0.7} />
 

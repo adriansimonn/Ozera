@@ -5,7 +5,7 @@
 
 import { useState, type PointerEvent } from 'react'
 import { ChartTooltip } from '../lab/chartKit'
-import { useElementWidth, useLabColors } from '../lab/labTheme'
+import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { classHistogram, formatPercent, formatScore, rocCurve } from './probeUtils'
 
 interface ScoreViewProps {
@@ -50,10 +50,9 @@ export function ScoreHistogram({ scores, labels, labelNames }: ScoreViewProps) {
   const ticks = [lo, lo / 2, 0, hi / 2, hi].filter((v, i, arr) => arr.indexOf(v) === i)
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const px = e.clientX - box.left
+    const { x: px, y: py } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
     const bin = Math.max(0, Math.min(bins.length - 1, Math.floor((px - margin.left) / binW)))
-    setHover({ bin, px, py: e.clientY - box.top })
+    setHover({ bin, px, py })
   }
 
   return (
@@ -147,14 +146,13 @@ export function RocCurve({ scores, labels, color }: ScoreViewProps) {
   const fpr0 = scores.filter((s, i) => s > 0 && labels[i] === 0).length / negatives
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const px = e.clientX - box.left
+    const { x: px, y: py } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
     const fpr = Math.max(0, Math.min(1, (px - margin.left) / side))
     let index = 0
     points.forEach((p, i) => {
       if (Math.abs(p.fpr - fpr) < Math.abs(points[index].fpr - fpr)) index = i
     })
-    setHover({ index, px, py: e.clientY - box.top })
+    setHover({ index, px, py })
   }
 
   return (

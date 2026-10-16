@@ -127,6 +127,25 @@ export function inkOn(background: string): string {
   return luminance > 0.4 ? '#111111' : '#ffffff'
 }
 
+/**
+ * The pointer's position in an element's own CSS pixels, the units its chart draws in. The
+ * page's CSS zoom (index.css) scales clientX/Y and getBoundingClientRect but not layout sizes,
+ * so the offset from the box is rescaled by layout size over rendered size.
+ */
+export function pointerIn(e: { clientX: number; clientY: number }, element: Element) {
+  const box = element.getBoundingClientRect()
+  const [width, height] =
+    element instanceof SVGSVGElement
+      ? [element.width.baseVal.value, element.height.baseVal.value]
+      : element instanceof HTMLElement
+        ? [element.offsetWidth, element.offsetHeight]
+        : [box.width, box.height]
+  return {
+    x: (e.clientX - box.left) * (box.width > 0 && width > 0 ? width / box.width : 1),
+    y: (e.clientY - box.top) * (box.height > 0 && height > 0 ? height / box.height : 1),
+  }
+}
+
 /** The rendered width of an element, kept up to date. */
 export function useElementWidth<T extends HTMLElement>(fallback = 600) {
   const ref = useRef<T>(null)

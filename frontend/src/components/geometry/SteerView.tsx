@@ -15,7 +15,7 @@ import { runConceptSpec, type GeometryLab } from '../../hooks/useGeometryLab'
 import type { GeometryRun, PerPosition, SteerEstimate, SteerMethodId, SteerMethodResult, SteerRequest, SteerResult, TopToken } from '../../types/geometry'
 import { Dropdown } from '../common/Dropdown'
 import { ChartTooltip, Findings, Placeholder, RunBar, Segmented, StatTiles, type Finding, type Tile, type TooltipRow } from '../lab/chartKit'
-import { useElementWidth, useLabColors } from '../lab/labTheme'
+import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { READ_LABELS, downloadSvg, formatPercent, formatValue, layerName, linePath, sequentialColor, valueColors } from './geometryUtils'
 
 const METHODS: { id: SteerMethodId; label: string; title: string }[] = [
@@ -599,9 +599,7 @@ function ProbHeatmap({
   })
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const mx = e.clientX - box.left
-    const my = e.clientY - box.top
+    const { x: mx, y: my } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
     const i = Math.floor((my - HEAT_MARGIN.top) / cellH)
     const j = Math.floor((mx - HEAT_MARGIN.left) / cellW)
     setHover(i >= 0 && j >= 0 && i < rows && j < cols ? { i, j, px: mx, py: my } : null)
@@ -776,9 +774,8 @@ function StepChart({
           height={innerH}
           fill="transparent"
           onPointerMove={(e) => {
-            const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-            const px = e.clientX - box.left
-            setHover({ index: indexAt(px), px, py: e.clientY - box.top })
+            const { x: px, y: py } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
+            setHover({ index: indexAt(px), px, py })
           }}
           onPointerLeave={() => setHover(null)}
         />
@@ -863,9 +860,7 @@ function PathPlane({
     ...plot.linear.map((p, index) => ({ kind: 'linear' as const, index, x: p[0], y: p[1] })),
   ]
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const mx = e.clientX - box.left
-    const my = e.clientY - box.top
+    const { x: mx, y: my } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
     let best: PlaneTarget | null = null
     let bestDist = 14 ** 2
     for (const t of targets) {

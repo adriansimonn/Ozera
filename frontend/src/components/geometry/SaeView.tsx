@@ -15,7 +15,7 @@ import type { ProbeSaeInfo } from '../../types/probes'
 import type { GeometryRun, GeometrySaeEstimate, GeometrySaeRequest, GeometrySaeResult, PerPosition, SaeShapeFit, SaeVerdict } from '../../types/geometry'
 import { Dropdown } from '../common/Dropdown'
 import { ChartTooltip, Findings, Placeholder, RunBar, Segmented, StatTiles, type Finding, type Tile, type TooltipRow } from '../lab/chartKit'
-import { useElementWidth, useLabColors } from '../lab/labTheme'
+import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { FeatureLink } from '../lab/FeatureLink'
 import { formatWidth, refKey, saeBrowserUrl } from '../lab/saeLinks'
 import { READ_LABELS, closedPath, downloadSvg, exampleText, formatPercent, formatValue, layerName, linePath, sameValues, sequentialColor } from './geometryUtils'
@@ -538,10 +538,9 @@ function SupportChart({ fit, other, filename }: { fit: SaeShapeFit; other: { fit
   for (let i = 1; i < ends.length; i++) ends[i].py = Math.max(ends[i].py, ends[i - 1].py + 12)
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const px = e.clientX - box.left
+    const { x: px, y: py } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
     const n = Math.max(1, Math.min(N, Math.round(2 ** (((px - CHART_MARGIN.left) / innerW) * logN))))
-    setHover({ n, px, py: e.clientY - box.top })
+    setHover({ n, px, py })
   }
 
   return (
@@ -666,9 +665,7 @@ function TuningStrip({ run, result, fit, title }: { run: GeometryRun; result: Ge
   const colEvery = Math.max(1, Math.ceil(k / (innerW / 13)))
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const mx = e.clientX - box.left
-    const my = e.clientY - box.top
+    const { x: mx, y: my } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
     const i = Math.floor((my - STRIP_MARGIN.top) / cellH)
     const j = Math.floor((mx - STRIP_MARGIN.left) / cellW)
     setHover(i >= 0 && j >= 0 && i < rows && j < k ? { i, j, px: mx, py: my } : null)

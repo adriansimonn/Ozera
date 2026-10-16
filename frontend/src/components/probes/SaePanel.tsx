@@ -11,7 +11,7 @@ import type { ProbeEstimate, ProbeSaeInfo, SaeFeature, SaeProbeResponse } from '
 import { Dropdown } from '../common/Dropdown'
 import type { CausalProbe } from './CausalPanel'
 import { ChartTooltip, Findings, RunBar, Segmented, StatTiles, type Finding, type TooltipRow } from '../lab/chartKit'
-import { useElementWidth, useLabColors } from '../lab/labTheme'
+import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { FeatureLink } from '../lab/FeatureLink'
 import { formatWidth, refKey } from '../lab/saeLinks'
 import { estimateText, formatMetric, formatPercent, formatScore } from './probeUtils'
@@ -129,13 +129,12 @@ function SparseChart({ result }: { result: SaeProbeResponse }) {
   for (let i = 1; i < ends.length; i++) ends[i].py = Math.max(ends[i].py, ends[i - 1].py + 12)
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const px = e.clientX - box.left
+    const { x: px, y: py } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
     let index = 0
     ks.forEach((k, i) => {
       if (Math.abs(x(k) - px) < Math.abs(x(ks[index]) - px)) index = i
     })
-    setHover({ index, px, py: e.clientY - box.top })
+    setHover({ index, px, py })
   }
   const tooltipRows = (i: number): TooltipRow[] => [
     ...series.map((s) => ({ key: s.color, label: s.label, value: formatMetric(s.values[i]) })),

@@ -11,7 +11,7 @@ import type { ProbeLab } from '../../hooks/useProbeLab'
 import { apiClient } from '../../api/client'
 import type { CausalProbe } from './CausalPanel'
 import { ChartTooltip, Findings, RunBar, Segmented, StatTiles, type Finding, type TooltipRow } from '../lab/chartKit'
-import { useElementWidth, useLabColors, type LabColors } from '../lab/labTheme'
+import { pointerIn, useElementWidth, useLabColors, type LabColors } from '../lab/labTheme'
 import { estimateText, formatMetric, formatPercent, positionLabel } from './probeUtils'
 
 const CURVE_LABELS: Record<AblationCurve, string> = {
@@ -134,9 +134,8 @@ function AblationChart({ result }: { result: AblateProbeResponse }) {
 
   const indexAt = (px: number) => Math.max(0, Math.min(positions - 1, Math.round((px - MARGIN.left) / step)))
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const px = e.clientX - box.left
-    setHover({ index: indexAt(px), px, py: e.clientY - box.top })
+    const { x: px, y: py } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
+    setHover({ index: indexAt(px), px, py })
   }
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const current = focus ?? probePosition

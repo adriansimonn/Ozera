@@ -9,7 +9,7 @@ import { Download, Orbit } from 'lucide-react'
 import type { GeometryLab } from '../../hooks/useGeometryLab'
 import type { GeometryRun } from '../../types/geometry'
 import { ChartTooltip, Findings, Placeholder, Segmented, StatTiles, type Finding, type Tile } from '../lab/chartKit'
-import { useElementWidth, useLabColors } from '../lab/labTheme'
+import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import {
   READ_LABELS,
   closedPath,
@@ -201,9 +201,7 @@ function PcPlane({ run, position, pair, showPoints, fills }: { run: GeometryRun;
     ...points.map((p, i) => ({ x: p[a], y: p[b], index: i, mean: false })),
   ]
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const mx = e.clientX - box.left
-    const my = e.clientY - box.top
+    const { x: mx, y: my } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
     let best: PlanePoint | null = null
     let bestDist = HOVER_RADIUS ** 2
     for (const t of targets) {

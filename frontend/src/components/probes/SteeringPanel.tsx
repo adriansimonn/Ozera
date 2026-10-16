@@ -12,7 +12,7 @@ import type { SteeredGeneration, SteeringEstimate, SteerProbeResponse } from '..
 import { apiClient } from '../../api/client'
 import type { CausalProbe } from './CausalPanel'
 import { ChartTooltip, RunBar, Segmented } from '../lab/chartKit'
-import { divergingColor, inkOn, useElementWidth, useLabColors } from '../lab/labTheme'
+import { divergingColor, inkOn, pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { formatScore } from './probeUtils'
 
 const DEFAULT_ALPHAS = '-4, -2, 2, 4'
@@ -131,13 +131,12 @@ function AlphaChart({ title, generations, value, format, log, color, labelNames 
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
     if (points.length === 0) return
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const px = e.clientX - box.left
+    const { x: px, y: py } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
     let index = 0
     points.forEach((p, i) => {
       if (Math.abs(x(p.alpha) - px) < Math.abs(x(points[index].alpha) - px)) index = i
     })
-    setHover({ index, px, py: e.clientY - box.top })
+    setHover({ index, px, py })
   }
 
   return (

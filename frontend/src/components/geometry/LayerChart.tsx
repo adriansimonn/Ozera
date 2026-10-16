@@ -10,7 +10,7 @@ import { LineChart as LineChartIcon } from 'lucide-react'
 import type { GeometryLab } from '../../hooks/useGeometryLab'
 import type { GeometryRun, PerPosition } from '../../types/geometry'
 import { ChartTooltip, Placeholder, Segmented, type TooltipRow } from '../lab/chartKit'
-import { useElementWidth, useLabColors } from '../lab/labTheme'
+import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { formatPercent, formatValue, layerName, linePath, positionLabel } from './geometryUtils'
 
 type LayerMetric = 'shape' | 'neighbors' | 'dimension' | 'between'
@@ -147,9 +147,8 @@ function LayerChartBody({ lab, run }: { lab: GeometryLab; run: GeometryRun }) {
   const halo = { stroke: colors.surface, strokeWidth: 3, paintOrder: 'stroke' as const, strokeLinejoin: 'round' as const }
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const px = e.clientX - box.left
-    setHover({ index: indexAt(px), px, py: e.clientY - box.top })
+    const { x: px, y: py } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
+    setHover({ index: indexAt(px), px, py })
   }
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'ArrowLeft' && position > 0) lab.setPosition(position - 1)
@@ -304,8 +303,8 @@ function LayerChartBody({ lab, run }: { lab: GeometryLab; run: GeometryRun }) {
                   onPointerMove={onPointerMove}
                   onPointerLeave={() => setHover(null)}
                   onClick={(e) => {
-                    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-                    lab.setPosition(indexAt(e.clientX - box.left))
+                    const pointer = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
+                    lab.setPosition(indexAt(pointer.x))
                   }}
                 />
               </svg>

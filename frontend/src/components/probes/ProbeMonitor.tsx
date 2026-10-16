@@ -10,7 +10,7 @@
 import { useId, useState, type PointerEvent } from 'react'
 import type { MonitorProbeInfo, MonitorTrace } from '../../types/probes'
 import { ChartTooltip, LabKitStyles } from '../lab/chartKit'
-import { divergingColor, inkOn, useElementWidth, useLabColors } from '../lab/labTheme'
+import { divergingColor, inkOn, pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { formatScore } from './probeUtils'
 
 interface ProbeMonitorProps {
@@ -67,10 +67,9 @@ function ScoreTrace({ trace, probe }: { trace: MonitorTrace; probe: MonitorProbe
 
   const promptEnd = Math.min(trace.promptTokens, n)
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const px = e.clientX - box.left
+    const { x: px, y: py } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
     const index = Math.max(0, Math.min(n - 1, Math.round(((px - MARGIN.left) / innerW) * (n - 1))))
-    setHover({ index, px, py: e.clientY - box.top })
+    setHover({ index, px, py })
   }
   const halo = { stroke: colors.surface, strokeWidth: 3, paintOrder: 'stroke' as const, strokeLinejoin: 'round' as const }
   const hovered = hover ? trace.scores[hover.index] : null

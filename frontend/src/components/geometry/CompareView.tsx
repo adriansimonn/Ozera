@@ -13,7 +13,7 @@ import type { GeometryLab, StoredRun } from '../../hooks/useGeometryLab'
 import type { CompareResult, GeometryRun } from '../../types/geometry'
 import { Dropdown } from '../common/Dropdown'
 import { ChartTooltip, Findings, Placeholder, Segmented, StatTiles, type Finding } from '../lab/chartKit'
-import { useElementWidth, useLabColors } from '../lab/labTheme'
+import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { closedPath, downloadSvg, encodeWire, formatValue, layerName, linePath, positionLabel, sameValues, valueColors } from './geometryUtils'
 
 type CompareDims = number | 'all'
@@ -233,9 +233,8 @@ function CompareChart({ result, positions, selected, onSelect }: { result: Compa
   for (let i = 1; i < endLabels.length; i++) endLabels[i].py = Math.max(endLabels[i].py, endLabels[i - 1].py + 12)
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const px = e.clientX - box.left
-    setHover({ index: indexAt(px), px, py: e.clientY - box.top })
+    const { x: px, y: py } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
+    setHover({ index: indexAt(px), px, py })
   }
 
   return (
@@ -286,8 +285,8 @@ function CompareChart({ result, positions, selected, onSelect }: { result: Compa
           onPointerMove={onPointerMove}
           onPointerLeave={() => setHover(null)}
           onClick={(e) => {
-            const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-            onSelect(indexAt(e.clientX - box.left))
+            const pointer = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
+            onSelect(indexAt(pointer.x))
           }}
         />
       </svg>
@@ -339,9 +338,7 @@ function Overlay({ result, run, fills, labelA, labelB }: { result: CompareResult
   const labelEvery = Math.max(1, Math.ceil(k / 24))
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const mx = e.clientX - box.left
-    const my = e.clientY - box.top
+    const { x: mx, y: my } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
     let best: { v: number; which: 'a' | 'b' } | null = null
     let bestDist = 16 ** 2
     ;(['b', 'a'] as const).forEach((which) =>

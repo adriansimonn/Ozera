@@ -20,7 +20,7 @@ import type {
 import { Dropdown } from '../common/Dropdown'
 import { ChartTooltip, Findings, RunBar, Segmented, type Finding, type TooltipRow } from '../lab/chartKit'
 import { FileButton } from './DatasetPanel'
-import { inkOn, transferColor, useElementWidth, useLabColors, type LabColors } from '../lab/labTheme'
+import { inkOn, pointerIn, transferColor, useElementWidth, useLabColors, type LabColors } from '../lab/labTheme'
 import { METHOD_LABELS, POOLING_LABELS, estimateText, formatMetric, formatPercent, positionLabel } from './probeUtils'
 
 const MAX_DATASETS = 6
@@ -277,9 +277,8 @@ function TransferByLayer({
 
   const indexAt = (px: number) => Math.max(0, Math.min(positions - 1, Math.round((px - CHART_MARGIN.left) / step)))
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const px = e.clientX - box.left
-    setHover({ index: indexAt(px), px, py: e.clientY - box.top })
+    const { x: px, y: py } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
+    setHover({ index: indexAt(px), px, py })
   }
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'ArrowLeft' && position > 0) onSelect(position - 1)
@@ -421,8 +420,9 @@ function TransferMatrix({
 
   const color = (v: number | null) => (v == null ? colors.panel : transferColor(colors, v))
   const onCell = (e: PointerEvent<HTMLTableCellElement>, i: number, j: number) => {
-    const box = wrap.current?.getBoundingClientRect()
-    if (box) setHover({ i, j, x: e.clientX - box.left + (wrap.current?.scrollLeft ?? 0), y: e.clientY - box.top })
+    if (!wrap.current) return
+    const pointer = pointerIn(e, wrap.current)
+    setHover({ i, j, x: pointer.x + wrap.current.scrollLeft, y: pointer.y })
   }
 
   const tooltip = (i: number, j: number): TooltipRow[] => {

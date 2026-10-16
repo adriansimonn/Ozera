@@ -29,7 +29,7 @@ import type {
 } from '../../types/geometry'
 import { Dropdown } from '../common/Dropdown'
 import { ChartTooltip, Findings, Placeholder, RunBar, Segmented, StatTiles, type Finding, type Tile } from '../lab/chartKit'
-import { useElementWidth, useLabColors, type LabColors } from '../lab/labTheme'
+import { pointerIn, useElementWidth, useLabColors, type LabColors } from '../lab/labTheme'
 import { FeatureLink } from '../lab/FeatureLink'
 import { formatWidth, refKey } from '../lab/saeLinks'
 import { STRUCTURE_LABELS, downloadSvg, estimateText, formatPercent, formatValue } from './geometryUtils'
@@ -556,9 +556,7 @@ function AtlasMap({
   }
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const px = e.clientX - box.left
-    const py = e.clientY - box.top
+    const { x: px, y: py } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
     const i = nearest(px, py)
     setHover(i == null ? null : { i, px, py })
   }

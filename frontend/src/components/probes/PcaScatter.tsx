@@ -7,7 +7,7 @@
 import { useState, type PointerEvent } from 'react'
 import type { Pooling, ProbeExample, ProbeRunResult } from '../../types/probes'
 import { ChartTooltip } from '../lab/chartKit'
-import { useElementWidth, useLabColors } from '../lab/labTheme'
+import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 
 interface PcaScatterProps {
   run: ProbeRunResult
@@ -57,9 +57,7 @@ export function PcaScatter({ run, pooling, position, showOod }: PcaScatterProps)
   const py = (y: number) => MARGIN.top + innerH / 2 - (y - cy) * scale
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const mx = e.clientX - box.left
-    const my = e.clientY - box.top
+    const { x: mx, y: my } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
     let best: Point | null = null
     let bestDist = HOVER_RADIUS ** 2
     for (const p of points) {

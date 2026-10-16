@@ -7,7 +7,7 @@
 import { useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { PROBE_METHODS, type PerPosition, type Pooling, type ProbeMethod, type ProbeRunResult } from '../../types/probes'
 import { ChartTooltip, Segmented, type TooltipRow } from '../lab/chartKit'
-import { useElementWidth, useLabColors } from '../lab/labTheme'
+import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import {
   METHOD_LABELS,
   METHOD_SHORT,
@@ -82,9 +82,8 @@ export function LayerSweepChart({ run, pooling, method, metric, evalSet, positio
   const indexAt = (px: number) => Math.max(0, Math.min(positions - 1, Math.round((px - MARGIN.left) / step)))
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const px = e.clientX - box.left
-    setHover({ index: indexAt(px), px, py: e.clientY - box.top })
+    const { x: px, y: py } = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
+    setHover({ index: indexAt(px), px, py })
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -229,8 +228,8 @@ export function LayerSweepChart({ run, pooling, method, metric, evalSet, positio
               onPointerMove={onPointerMove}
               onPointerLeave={() => setHover(null)}
               onClick={(e) => {
-                const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-                onSelectPosition(indexAt(e.clientX - box.left))
+                const pointer = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
+                onSelectPosition(indexAt(pointer.x))
               }}
             />
           </svg>

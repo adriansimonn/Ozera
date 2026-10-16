@@ -9,7 +9,7 @@ import { Download, Grid3x3 } from 'lucide-react'
 import type { GeometryLab } from '../../hooks/useGeometryLab'
 import type { GeometryRun } from '../../types/geometry'
 import { ChartTooltip, Placeholder } from '../lab/chartKit'
-import { divergingColor, useElementWidth, useLabColors } from '../lab/labTheme'
+import { divergingColor, pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { cosineMatrix, downloadSvg, layerName } from './geometryUtils'
 
 const MARGIN = { top: 12, right: 12, bottom: 56, left: 64 }
@@ -60,12 +60,12 @@ function SimilarityBody({ lab, run }: { lab: GeometryLab; run: GeometryRun }) {
   const labelEvery = Math.max(1, Math.ceil(k / (size / 14)))
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-    const mx = e.clientX - box.left - MARGIN.left
-    const my = e.clientY - box.top - MARGIN.top
+    const pointer = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
+    const mx = pointer.x - MARGIN.left
+    const my = pointer.y - MARGIN.top
     const i = Math.floor(my / cell)
     const j = Math.floor(mx / cell)
-    setHover(i >= 0 && j >= 0 && i < k && j < k ? { i, j, px: e.clientX - box.left, py: e.clientY - box.top } : null)
+    setHover(i >= 0 && j >= 0 && i < k && j < k ? { i, j, px: pointer.x, py: pointer.y } : null)
   }
   const filename = `${run.concept.name}-${run.model}-${layerName(position)}-cosine`.replace(/[^\w.-]+/g, '_')
 
@@ -208,10 +208,10 @@ function Profile({ profile, color }: { profile: { offset: number; value: number 
           height={innerH}
           fill="transparent"
           onPointerMove={(e) => {
-            const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect()
-            const mx = e.clientX - box.left
+            const pointer = pointerIn(e, e.currentTarget.ownerSVGElement as SVGSVGElement)
+            const mx = pointer.x
             const index = Math.max(0, Math.min(n - 1, Math.round(((mx - PROFILE_MARGIN.left) / innerW) * (n - 1))))
-            setHover({ index, px: mx, py: e.clientY - box.top })
+            setHover({ index, px: mx, py: pointer.y })
           }}
           onPointerLeave={() => setHover(null)}
         />
