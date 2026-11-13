@@ -363,11 +363,11 @@ export default function SettingsPage() {
             <div>
               <label className="block text-base text-white mb-2">Interface</label>
               <Dropdown
-                value={settings?.ui.interface ?? 'glass'}
+                value={settings?.ui.interface ?? 'default'}
                 onChange={(v) => {
                   handleUISetting('interface', v)
                   // If switching to default and glow is selected, fall back to dark
-                  if (v === 'default' && (settings?.ui.background ?? 'glow') === 'glow') {
+                  if (v === 'default' && (settings?.ui.background ?? 'system') === 'glow') {
                     handleUISetting('background', 'dark')
                   }
                 }}
@@ -382,13 +382,14 @@ export default function SettingsPage() {
             <div>
               <label className="block text-base text-white mb-2">Background</label>
               <Dropdown
-                value={settings?.ui.background ?? 'glow'}
+                value={settings?.ui.background ?? 'system'}
                 onChange={(v) => handleUISetting('background', v)}
                 options={
-                  (settings?.ui.interface ?? 'glass') === 'default'
+                  (settings?.ui.interface ?? 'default') === 'default'
                     ? [
                         { value: 'dark', label: 'Dark' },
                         { value: 'light', label: 'Light' },
+                        { value: 'system', label: 'System' },
                       ]
                     : [
                         { value: 'dark', label: 'Dark' },

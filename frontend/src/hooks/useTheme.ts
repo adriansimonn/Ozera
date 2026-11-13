@@ -12,8 +12,8 @@ export type InterfaceStyle = 'default' | 'glass'
 export function useTheme() {
   const settings = useSettingsStore((s) => s.settings)
 
-  const rawBg = settings?.ui?.background ?? 'glow'
-  const interfaceStyle: InterfaceStyle = settings?.ui?.interface ?? 'glass'
+  const rawBg = settings?.ui?.background ?? 'system'
+  const interfaceStyle: InterfaceStyle = settings?.ui?.interface ?? 'default'
 
   const background: EffectiveBg =
     rawBg === 'system'

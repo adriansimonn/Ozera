@@ -12,8 +12,8 @@ DEFAULT_SETTINGS = {
         "show_balance_in_navbar": True,
     },
     "ui": {
-        "background": "glow",
-        "interface": "glass",
+        "background": "system",
+        "interface": "default",
         "default_view_mode": "single",
         "default_page": "/",
     },
