@@ -17,6 +17,9 @@ Spends real money on the configured Anthropic key: about $1 for 10 tasks on 3 mo
 once Anthropic's cost passes --budget.
 
     cd backend && python scripts/assistant_pilot.py [--models haiku,sonnet,opus] [--tasks 1,3] [--budget 1.5] [--out pilot.json]
+
+--check-tools only checks that each model accepts the tool definitions (the API compiles the
+strict ones into one grammar and refuses one that's too large): about $0.05, nothing else runs.
 """
 
 import argparse
@@ -260,12 +263,35 @@ async def run_task(client, uid: int, model_id: str, text: str, snapshot: dict) -
     return {"events": out, "turn": detail, "calls": recorder.calls, "paused": paused}
 
 
+async def check_tools(client, keys: list[str]) -> None:
+    """Whether each model accepts the tools (a 400 costs nothing; an accepted call, the tools' input tokens)."""
+    import anthropic
+
+    from core.assistant.tools import definitions
+
+    failed = False
+    for key in keys:
+        try:
+            await client.messages.create(
+                model=MODEL_KEYS[key], max_tokens=16, tools=definitions(),
+                messages=[{"role": "user", "content": "Reply with the word OK."}],
+            )
+            print(f"{key}: tools accepted")
+        except anthropic.BadRequestError as e:
+            failed = True
+            print(f"{key}: {e}")
+    if failed:
+        sys.exit(1)
+
+
 async def main(args) -> None:
     import anthropic
 
     if not KEY:
         sys.exit("No ANTHROPIC_API_KEY (environment or backend/.env)")
     client = anthropic.AsyncAnthropic(api_key=KEY, max_retries=0, timeout=am.CALL_TIMEOUT_SECONDS)
+    if args.check_tools:
+        return await check_tools(client, args.models)
     with tempfile.TemporaryDirectory() as root:
         write_atlas(root)
         uid = seed_data()
@@ -320,4 +346,5 @@ if __name__ == "__main__":
     parser.add_argument("--tasks", default=",".join(str(i) for i in range(1, len(TASKS) + 1)), type=lambda s: [int(x) for x in s.split(",")])
     parser.add_argument("--budget", default=1.5, type=float)
     parser.add_argument("--out", default=None)
+    parser.add_argument("--check-tools", action="store_true", help="only check that each model accepts the tool definitions")
     asyncio.run(main(parser.parse_args()))

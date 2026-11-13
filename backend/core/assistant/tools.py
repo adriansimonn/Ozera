@@ -12,10 +12,14 @@ Three kinds:
   calls and the panel shows an approval card.
 
 Every schema has all parameters required and no unions: a parameter that doesn't apply takes ""
-or 0, as its description says. A request may have at most 20 strict tools (and 24 optional and
-16 union-typed parameters across them), so the tools without parameters, or with one ID that
-their executor checks anyway, aren't strict; every run tool is (their inputs are what the user
-approves).
+or 0, as its description says. The loop checks every call's input against its schema
+(check_input) and answers a bad one with what's wrong, so Claude can call again. Only the tools
+with the most structured inputs are strict, because the API compiles all strict schemas of a
+request into one grammar and refuses one that's too large ("The compiled grammar is too large"),
+well before its documented limits of 20 strict tools, 24 optional and 16 union-typed parameters.
+Measured 2026-11-13 on Haiku, Sonnet and Opus 5.5: all 20 tools strict failed, the 12 run tools
+plus navigate were the most that compiled, and these five plus six more compiled. After changing
+a strict tool, check with scripts/assistant_pilot.py --check-tools.
 """
 
 from dataclasses import dataclass, field
@@ -27,8 +31,8 @@ READ = "read"
 UI = "ui"
 RUN = "run"
 
-# The most strict tools a request may have
-MAX_STRICT_TOOLS = 20
+# A guard well under what compiled (see above); the grammar's size, not the count, is the limit
+MAX_STRICT_TOOLS = 8
 
 ESTIMATE_ACTIONS = (
     "analyze_sae",
@@ -55,8 +59,8 @@ class Tool:
     # A short label for the tool chip under the reply, from the call's arguments (executors may
     # give a better one, e.g. with an SAE's name)
     chip: Callable[[dict], str] = lambda args: ""
-    # Whether the API enforces the schema (see the module docstring)
-    strict: bool = True
+    # Whether the API enforces the schema (see the module docstring); check_input checks every tool
+    strict: bool = False
 
     @property
     def input_schema(self) -> dict:
@@ -95,6 +99,45 @@ def _enum(values, description: str = "") -> dict:
     if description:
         out["description"] = description
     return out
+
+
+_TYPES = {"string": str, "integer": int, "number": (int, float), "boolean": bool, "array": list, "object": dict}
+_NAMES = {"string": "text", "integer": "a whole number", "number": "a number", "boolean": "true or false", "array": "a list", "object": "an object"}
+
+
+def _problem(schema: dict, value, path: str) -> Optional[str]:
+    kind = schema.get("type")
+    where = path or "the input"
+    if kind in _TYPES:
+        # JSON's true and false aren't numbers (Python's bool is an int)
+        if not isinstance(value, _TYPES[kind]) or (isinstance(value, bool) and kind in ("integer", "number")):
+            return f"{where} must be {_NAMES[kind]}"
+    if "enum" in schema and value not in schema["enum"]:
+        return f"{where} must be one of: {', '.join(map(str, schema['enum']))}"
+    if kind == "object":
+        properties = schema.get("properties", {})
+        missing = [k for k in schema.get("required", []) if k not in value]
+        if missing:
+            return f"{where} is missing {', '.join(missing)}"
+        unknown = [k for k in value if k not in properties]
+        if unknown and schema.get("additionalProperties") is False:
+            return f"{where} has unknown {', '.join(unknown)}"
+        for key, sub in properties.items():
+            if key in value:
+                problem = _problem(sub, value[key], f"{path}.{key}" if path else key)
+                if problem:
+                    return problem
+    if kind == "array" and "items" in schema:
+        for i, item in enumerate(value):
+            problem = _problem(schema["items"], item, f"{path}[{i}]")
+            if problem:
+                return problem
+    return None
+
+
+def check_input(spec: "Tool", args) -> Optional[str]:
+    """What's wrong with a call's input against the tool's schema (the first problem), or None."""
+    return _problem(spec.input_schema, args, "")
 
 
 MODEL = _string("A model ID, as list_models gives it (e.g. nano, gemma-3-270m)")
@@ -139,7 +182,6 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
         "and the model's top predictions at each position.",
         {"activation_id": _string("The activation ID")},
         lambda a: "Stored generation",
-        strict=False,
     ),
     Tool(
         "get_atlas", READ,
@@ -154,7 +196,6 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
         "The user's available credit balance, and the free assistant messages left today.",
         {},
         lambda a: "Balance",
-        strict=False,
     ),
     Tool(
         "get_community", READ,
@@ -178,7 +219,6 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
         "metrics with their baselines (control task, embeddings, majority class).",
         {"probe_id": _integer("The saved probe's ID")},
         lambda a: f"Probe {a.get('probe_id', '')}",
-        strict=False,
     ),
     Tool(
         "highlight", UI,
@@ -196,7 +236,6 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
         "status and progress.",
         {},
         lambda a: "Jobs",
-        strict=False,
     ),
     Tool(
         "list_models", READ,
@@ -204,14 +243,12 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
         "models, with their layers, width, parameters and GPU tier.",
         {},
         lambda a: "Models",
-        strict=False,
     ),
     Tool(
         "list_probes", READ,
         "The user's saved probes, newest first, with their test AUROC and its control-task baseline.",
         {},
         lambda a: "Saved probes",
-        strict=False,
     ),
     Tool(
         "list_saes", READ,
@@ -220,7 +257,6 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
         "its features can be explained, and how many are.",
         {"model": MODEL},
         lambda a: f"SAEs · {a.get('model', '')}",
-        strict=False,
     ),
     Tool(
         "navigate", UI,
@@ -254,6 +290,7 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
             },
         },
         lambda a: f"Filled {', '.join(f.get('control', '') for f in a.get('fields', [])[:4])}",
+        strict=True,
     ),
     # Run tools (charged; each stops the turn for the user's approval)
     Tool(
@@ -312,6 +349,7 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
             "until_eos": _boolean("Stop at the model's end-of-sequence token, with max_tokens as the cap"),
         },
         lambda a: f"Generate · {a.get('model', '')}",
+        strict=True,
     ),
     Tool(
         "generation_test", RUN,
@@ -335,6 +373,7 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
             "seed": _integer("The run's seed (0 by default)"),
         },
         lambda a: f"Geometry · {a.get('concept', '')} · {a.get('model', '')}",
+        strict=True,
     ),
     Tool(
         "run_patching", RUN,
@@ -367,6 +406,7 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
             "temperature": _number("0 to 2 (0 for a deterministic comparison)"),
         },
         lambda a: f"Patching · {a.get('model', '')}",
+        strict=True,
     ),
     Tool(
         "start_autointerp_job", RUN,
@@ -397,6 +437,7 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
             "seed": _integer("The split's seed (0 by default)"),
         },
         lambda a: f"Probes · {a.get('dataset', '')} · {a.get('model', '')}",
+        strict=True,
     ),
 ), key=lambda t: t.name))
 

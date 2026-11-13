@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.assistant.pages import PAGES, check_patches, check_value, sae_key, sae_ref  # noqa: E402
 from core.assistant.prompt import ROLE, render_guide, system_prompt  # noqa: E402
-from core.assistant.tools import BY_NAME, ESTIMATE_ACTIONS, MAX_STRICT_TOOLS, RUN_TOOLS, TOOLS, definitions  # noqa: E402
+from core.assistant.tools import BY_NAME, ESTIMATE_ACTIONS, MAX_STRICT_TOOLS, RUN_TOOLS, TOOLS, check_input, definitions  # noqa: E402
 
 FRONTEND = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "frontend", "src")
 BRIDGES = os.path.join(FRONTEND, "components", "assistant", "pages")
@@ -73,16 +73,46 @@ def _walk(schema: dict, path: str):
 
 def test_tool_schemas_are_strict():
     tools = definitions()
-    assert sum(1 for t in tools if t.get("strict")) <= MAX_STRICT_TOOLS
+    # The API refuses strict sets whose compiled grammar is too large (core.assistant.tools)
+    assert 0 < sum(1 for t in tools if t.get("strict")) <= MAX_STRICT_TOOLS
     assert [t["name"] for t in tools] == sorted(t["name"] for t in tools), "tools keep a fixed, sorted order"
     for t in tools:
         # Strict or not, every schema is written the strict way (closed, everything required)
         _walk(t["input_schema"], t["name"])
     for spec in TOOLS:
         assert spec.kind in {"read", "ui", "run"}
-        if spec.kind != "read" or spec.properties and len(spec.properties) > 1:
-            assert spec.strict, f"{spec.name} takes inputs the API should check: keep it strict"
     assert len(definitions()) == len(BY_NAME)
+
+
+def _sample(schema: dict):
+    """A value that fits a schema."""
+    if "enum" in schema:
+        return schema["enum"][0]
+    kind = schema["type"]
+    if kind == "object":
+        return {k: _sample(v) for k, v in schema["properties"].items()}
+    if kind == "array":
+        return [_sample(schema["items"])]
+    return {"string": "x", "integer": 1, "number": 0.5, "boolean": True}[kind]
+
+
+def test_check_input():
+    for spec in TOOLS:
+        assert check_input(spec, _sample(spec.input_schema)) is None, spec.name
+    generate, patching, navigate = BY_NAME["generate"], BY_NAME["run_patching"], BY_NAME["navigate"]
+    good = _sample(generate.input_schema)
+    assert check_input(generate, None) == "the input must be an object"
+    assert check_input(generate, {k: v for k, v in good.items() if k != "prompt"}) == "the input is missing prompt"
+    assert check_input(generate, {**good, "seed": 1}) == "the input has unknown seed"
+    assert check_input(generate, {**good, "max_tokens": "50"}) == "max_tokens must be a whole number"
+    assert check_input(generate, {**good, "max_tokens": True}) == "max_tokens must be a whole number"
+    assert check_input(generate, {**good, "max_tokens": 2.5}) == "max_tokens must be a whole number"
+    assert check_input(generate, {**good, "temperature": 1}) is None, "a whole number is a number"
+    assert check_input(generate, {**good, "until_eos": "true"}) == "until_eos must be true or false"
+    assert check_input(navigate, {"page": "nowhere"}).startswith("page must be one of: ")
+    patch = _sample(patching.input_schema)
+    patch["patches"][0]["heads"] = ["0"]
+    assert check_input(patching, patch) == "patches[0].heads[0] must be a whole number"
 
 
 def test_run_tools_can_be_priced_and_run():
@@ -148,3 +178,27 @@ def test_every_control_can_be_highlighted():
         f"{p.id}.{c.id}" for p in PAGES.values() if p.bridged for c in p.controls if f'"{p.id}.{c.id}"' not in sources
     ]
     assert not missing, f"controls without a data-assist target: {missing}"
+
+
+def test_bad_input_is_answered_without_running():
+    """A non-strict tool's bad input gets an error result saying what's wrong; nothing runs or is priced."""
+    import asyncio
+    import json
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from core.assistant.loop import _run_tools
+
+    turn = SimpleNamespace(run_tool=AsyncMock(), quote=AsyncMock())
+    uses = [
+        {"type": "tool_use", "id": "a", "name": "get_feature", "input": {"model": "nano", "sae": "ozera:nano:1", "feature": "12"}},
+        {"type": "tool_use", "id": "b", "name": "explain_feature", "input": {"model": "nano"}},
+    ]
+    events = []
+    answered, chips, quotes = asyncio.run(_run_tools(turn, uses, events.append))
+    turn.run_tool.assert_not_called()
+    turn.quote.assert_not_called()
+    assert quotes == {}
+    assert answered["a"]["is_error"] and "feature must be a whole number" in json.loads(answered["a"]["content"])["error"]
+    assert answered["b"]["is_error"] and "missing sae, feature" in json.loads(answered["b"]["content"])["error"]
+    assert chips["a"]["status"] == "error" and chips["a"]["chip"].startswith("Feature 12")

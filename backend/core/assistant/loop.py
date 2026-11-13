@@ -49,7 +49,7 @@ from .models import (
     AssistantModel,
 )
 from .prompt import LAST_CALL_NOTE, dumps, fit, system_blocks
-from .tools import RUN, definitions, tool
+from .tools import RUN, check_input, definitions, tool
 
 logger = logging.getLogger(__name__)
 
@@ -405,7 +405,11 @@ async def _call(client, params: dict, emit: Emit, stop: asyncio.Event) -> CallRe
 def _chip_of(use: dict) -> dict:
     spec = tool(use.get("name", ""))
     args = use.get("input") if isinstance(use.get("input"), dict) else {}
-    return {"id": use.get("id"), "name": use.get("name"), "kind": spec.kind if spec else None, "chip": spec.chip(args) if spec else use.get("name")}
+    try:
+        label = spec.chip(args) if spec else use.get("name")
+    except Exception:  # a non-strict tool's input can be malformed
+        label = spec.name
+    return {"id": use.get("id"), "name": use.get("name"), "kind": spec.kind if spec else None, "chip": label}
 
 
 def _result_block(tool_use_id: str, outcome: ToolOutcome) -> dict:
@@ -444,6 +448,12 @@ async def _run_tools(turn: Turn, uses: list[dict], emit: Emit) -> tuple[dict, di
         args = use.get("input") if isinstance(use.get("input"), dict) else {}
         chip = _chip_of(use)
         use_id = use.get("id")
+        problem = check_input(spec, use.get("input")) if spec is not None else None
+        if problem:
+            # Most tools aren't strict (see core.assistant.tools): say what's wrong so Claude can call again
+            emit({"type": "tool", **chip, "status": "running"})
+            bad = ToolOutcome({"error": f"Bad input: {problem}. Nothing ran; call {spec.name} again with its schema's arguments."}, error=True)
+            return use_id, _result_block(use_id, bad), _finish_chip(chip, bad, emit), None
         if spec is not None and spec.kind == RUN:
             emit({"type": "tool", **chip, "status": "pricing"})
             try:
