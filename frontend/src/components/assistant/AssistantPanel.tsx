@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ArrowUp, Bot, Check, ChevronDown, Download, Pencil, Plus, Square, Trash2, X, Zap } from 'lucide-react'
+import { ArrowUp, Bot, Check, ChevronDown, Download, Pencil, Plus, Square, Trash2, X } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { MAX_WIDTH, MIN_WIDTH, useAssistantStore } from '../../stores/assistantStore'
 import { usePurchaseCredits } from '../../contexts/PurchaseCreditsContext'
@@ -118,8 +118,7 @@ function AllowanceControl() {
         aria-expanded={open}
         title="Runs up to this much in all start without asking"
       >
-        <Zap aria-hidden="true" />
-        <span>{allowance > 0 ? `${dollars(left)} left` : 'Ask'}</span>
+        {allowance > 0 ? `${dollars(left)} left` : 'Ask'}
       </button>
       {open && (
         <div className="ast-menu ast-allowance-menu" role="menu">
@@ -318,15 +317,27 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
   }
 
   const modelOptions = useMemo(
-    () =>
-      (models?.models ?? []).map((m) => ({
-        value: m.id,
-        label: `${m.name.replace('Claude ', '')} · ${m.free && freeLeft > 0 ? `${freeLeft} free today` : `~${money(m.per_message)}/msg`}`,
-      })),
-    [models, freeLeft],
+    () => (models?.models ?? []).map((m) => ({ value: m.id, label: m.name.replace('Claude ', '') })),
+    [models],
   )
 
+  // The composer grows with its lines up to its CSS max-height, then scrolls
+  useLayoutEffect(() => {
+    const el = input.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [text, width])
+
   const lastTurn = turns[turns.length - 1]
+  const priceLabel = current
+    ? `${current.name.replace('Claude ', '')} · ${current.free && freeLeft > 0 ? `free (${freeLeft} left today)` : `~${money(current.per_message)}/msg`}`
+    : ''
+  const footnote = [
+    chat ? `chat ${money(chat.cost)}, ${tokens(chat.tokens)} tokens` : '',
+    lastTurn && !busy && lastTurn.status === 'running' ? 'reply saving…' : '',
+    !busy && chat?.status === 'awaiting_approval' ? 'a new message skips the waiting runs' : '',
+  ].filter(Boolean)
 
   const exportChat = async () => {
     if (!chat) return
@@ -377,7 +388,6 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
           {modelId && (
             <Dropdown value={modelId} onChange={(v) => setModel(v as AssistantModelId)} options={modelOptions} disabled={busy} />
           )}
-          <AllowanceControl />
         </div>
       </header>
 
@@ -456,11 +466,20 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
             </button>
           </div>
         )}
-        <div className="ast-composer">
+        <div
+          className="ast-composer"
+          onMouseDown={(e) => {
+            // A click on the box's empty space focuses the text, not the bar
+            if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('ast-composer-bar')) {
+              e.preventDefault()
+              input.current?.focus()
+            }
+          }}
+        >
           <textarea
             ref={input}
             value={text}
-            rows={2}
+            rows={1}
             maxLength={8000}
             placeholder="Ask about Ozera, your data, or this page"
             onChange={(e) => setText(e.target.value)}
@@ -471,26 +490,27 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
               }
             }}
           />
-          {busy ? (
-            <button type="button" className="ast-send" aria-label="Stop" title="Stop" onClick={stop} disabled={draft?.status === 'stopping'}>
-              <Square aria-hidden="true" />
-            </button>
-          ) : (
-            <button type="button" className="ast-send" aria-label="Send" title="Send (Enter)" onClick={() => submit(text)} disabled={!text.trim()}>
-              <ArrowUp aria-hidden="true" />
-            </button>
-          )}
-        </div>
-        <div className="ast-footnote">
-          {current ? (current.free && freeLeft > 0 ? `${current.name.replace('Claude ', '')} · free (${freeLeft} left today)` : `${current.name.replace('Claude ', '')} · ~${money(current.per_message)} a message`) : ''}
-          {chat && (
-            <span className="ast-chat-cost" title="What this chat has cost, and the size of its context">
-              {' · '}chat {money(chat.cost)}, {tokens(chat.tokens)} tokens
+          <div className="ast-composer-bar">
+            <AllowanceControl />
+            <span className="ast-composer-model" title={priceLabel}>
+              {priceLabel}
             </span>
-          )}
-          {lastTurn && !busy && lastTurn.status === 'running' ? ' · reply saving…' : ''}
-          {!busy && chat?.status === 'awaiting_approval' ? ' · a new message skips the waiting runs' : ''}
+            {busy ? (
+              <button type="button" className="ast-send" aria-label="Stop" title="Stop" onClick={stop} disabled={draft?.status === 'stopping'}>
+                <Square aria-hidden="true" />
+              </button>
+            ) : (
+              <button type="button" className="ast-send" aria-label="Send" title="Send (Enter)" onClick={() => submit(text)} disabled={!text.trim()}>
+                <ArrowUp aria-hidden="true" />
+              </button>
+            )}
+          </div>
         </div>
+        {footnote.length > 0 && (
+          <div className="ast-footnote" title="What this chat has cost, and the size of its context">
+            {footnote.join(' · ')}
+          </div>
+        )}
       </footer>
     </aside>
   )

@@ -21,7 +21,7 @@ export function AssistantStyles() {
         background: transparent; border: 1px solid rgba(255, 255, 255, 0.12); color: #fff;
         font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: background 0.15s, border-color 0.15s;
       }
-      .ast-nav-button svg { width: 15px; height: 15px; }
+      .ast-nav-button svg { width: 18px; height: 18px; stroke-width: 2.25; }
       .ast-nav-button:hover { background: rgba(255, 255, 255, 0.06); }
       .ast-nav-button.active { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.22); }
       [data-bg="light"] .ast-nav-button { color: #1d1d1f; border-color: rgba(0, 0, 0, 0.12); }
@@ -32,6 +32,7 @@ export function AssistantStyles() {
         --ast-bg: #0d0d0e; --ast-surface: rgba(255, 255, 255, 0.04); --ast-border: rgba(255, 255, 255, 0.1);
         --ast-text: #ffffff; --ast-faint: rgba(255, 255, 255, 0.55); --ast-user: rgba(255, 255, 255, 0.07);
         --ast-accent: rgba(96, 165, 250, 0.95); --ast-warn: #fab219; --ast-code: rgba(255, 255, 255, 0.08);
+        --ast-strong: #ffffff;
         position: fixed; top: 0; right: 0; height: 125vh; z-index: 120;
         display: flex; flex-direction: column; background: var(--ast-bg); color: var(--ast-text);
         border-left: 1px solid var(--ast-border); font-size: 0.875rem; line-height: 1.5;
@@ -40,6 +41,7 @@ export function AssistantStyles() {
         --ast-bg: #ffffff; --ast-surface: rgba(0, 0, 0, 0.03); --ast-border: rgba(0, 0, 0, 0.1);
         --ast-text: #1d1d1f; --ast-faint: rgba(0, 0, 0, 0.55); --ast-user: rgba(0, 0, 0, 0.05);
         --ast-accent: #2563eb; --ast-warn: #b77900; --ast-code: rgba(0, 0, 0, 0.06);
+        --ast-strong: #000000;
       }
       [data-interface="glass"]:not([data-bg="light"]) .ast-panel {
         background: rgba(8, 8, 10, 0.82); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -53,12 +55,13 @@ export function AssistantStyles() {
       .ast-panel .ast-resize:hover { background: var(--ast-accent); opacity: 0.4; }
 
       .ast-panel button { font: inherit; color: inherit; }
+      .ast-panel svg.lucide { stroke-width: 2.25; }
       .ast-panel .ast-icon {
-        display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex-shrink: 0;
-        background: transparent; border: 1px solid transparent; cursor: pointer; color: var(--ast-faint);
+        display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0;
+        background: transparent; border: 1px solid transparent; cursor: pointer; color: var(--ast-strong);
       }
-      .ast-panel .ast-icon svg { width: 15px; height: 15px; }
-      .ast-panel .ast-icon:hover:not(:disabled) { color: var(--ast-text); background: var(--ast-surface); }
+      .ast-panel .ast-icon svg { width: 18px; height: 18px; }
+      .ast-panel .ast-icon:hover:not(:disabled) { background: var(--ast-surface); }
       .ast-panel .ast-icon:disabled { opacity: 0.4; cursor: default; }
 
       .ast-panel .ast-header { padding: 0.75rem 0.85rem 0.6rem; border-bottom: 1px solid var(--ast-border); display: flex; flex-direction: column; gap: 0.5rem; }
@@ -68,10 +71,11 @@ export function AssistantStyles() {
         background: transparent; border: 1px solid transparent; cursor: pointer; font-weight: 600; text-align: left;
       }
       .ast-panel .ast-chat-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .ast-panel .ast-chat-title svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--ast-faint); }
+      .ast-panel .ast-chat-title svg { width: 17px; height: 17px; flex-shrink: 0; color: var(--ast-strong); }
       .ast-panel .ast-chat-title:hover:not(:disabled) { background: var(--ast-surface); }
       .ast-panel .ast-model { justify-content: space-between; }
       .ast-panel .ast-model > div:first-child { flex: 1; min-width: 0; }
+      .ast-panel .ozera-dropdown__chevron { width: 17px; height: 17px; }
       .ast-panel .ast-chat-cost { color: var(--ast-faint); font-size: 0.75rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
       .ast-panel .ast-menu {
@@ -84,23 +88,22 @@ export function AssistantStyles() {
         display: flex; align-items: center; gap: 0.45rem; width: 100%; padding: 0.4rem 0.5rem; background: transparent;
         border: none; cursor: pointer; text-align: left;
       }
-      .ast-panel .ast-menu-item svg { width: 14px; height: 14px; }
+      .ast-panel .ast-menu-item svg { width: 17px; height: 17px; flex-shrink: 0; color: var(--ast-strong); }
       .ast-panel .ast-menu-item:hover { background: var(--ast-surface); }
       .ast-panel .ast-menu-title { min-width: 0; justify-content: space-between; }
       .ast-panel .ast-menu-title span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .ast-panel .ast-menu-head { padding: 0.35rem 0.5rem 0.25rem; font-size: 0.72rem; color: var(--ast-faint); }
       .ast-panel .ast-menu-foot { padding: 0.35rem 0.5rem 0.25rem; font-size: 0.72rem; color: var(--ast-faint); border-top: 1px solid var(--ast-border); margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
-      .ast-panel .ast-menu-check { display: inline-block; width: 14px; height: 14px; flex-shrink: 0; }
+      .ast-panel .ast-menu-check { display: inline-block; width: 17px; height: 17px; flex-shrink: 0; }
       .ast-panel .ast-allowance { position: relative; flex-shrink: 0; }
       .ast-panel .ast-allowance-button {
-        display: inline-flex; align-items: center; gap: 0.3rem; height: 30px; padding: 0 0.5rem; cursor: pointer;
-        background: transparent; border: 1px solid var(--ast-border); color: var(--ast-faint); font-size: 0.75rem;
-        font-variant-numeric: tabular-nums; white-space: nowrap;
+        display: inline-flex; align-items: center; height: 28px; padding: 0 0.6rem; cursor: pointer;
+        background: transparent; border: 1px solid var(--ast-border); color: var(--ast-text); font-size: 0.78rem;
+        font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap;
       }
-      .ast-panel .ast-allowance-button svg { width: 13px; height: 13px; }
-      .ast-panel .ast-allowance-button:hover { color: var(--ast-text); background: var(--ast-surface); }
+      .ast-panel .ast-allowance-button:hover { background: var(--ast-surface); }
       .ast-panel .ast-allowance-button.on { color: var(--ast-accent); border-color: var(--ast-accent); }
-      .ast-panel .ast-allowance-menu { left: auto; right: 0; width: 200px; }
+      .ast-panel .ast-allowance-menu { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; width: 200px; }
       .ast-panel .ast-rename {
         flex: 1; min-width: 0; padding: 0.3rem 0.45rem; background: var(--ast-surface); color: var(--ast-text);
         border: 1px solid var(--ast-border); font: inherit; outline: none;
@@ -108,7 +111,7 @@ export function AssistantStyles() {
 
       .ast-panel .ast-body { flex: 1; overflow-y: auto; padding: 0.85rem; display: flex; flex-direction: column; gap: 1.1rem; }
       .ast-panel .ast-empty { margin: auto 0; display: flex; flex-direction: column; align-items: stretch; gap: 0.45rem; }
-      .ast-panel .ast-empty > svg { width: 22px; height: 22px; color: var(--ast-faint); align-self: center; margin-bottom: 0.4rem; }
+      .ast-panel .ast-empty > svg { width: 30px; height: 30px; color: var(--ast-strong); align-self: center; margin-bottom: 0.4rem; }
       .ast-panel .ast-suggestion {
         padding: 0.55rem 0.7rem; text-align: left; cursor: pointer; background: var(--ast-surface);
         border: 1px solid var(--ast-border); transition: border-color 0.15s;
@@ -127,8 +130,8 @@ export function AssistantStyles() {
         font-size: 0.72rem; color: var(--ast-faint); border: 1px solid var(--ast-border); background: var(--ast-surface);
       }
       .ast-panel .ast-tool span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .ast-panel .ast-tool svg { width: 11px; height: 11px; flex-shrink: 0; }
-      .ast-panel .ast-tool--error { color: var(--ast-warn); }
+      .ast-panel .ast-tool svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--ast-strong); }
+      .ast-panel .ast-tool--error, .ast-panel .ast-tool--error svg { color: var(--ast-warn); }
       .ast-panel .ast-tool--run { color: var(--ast-text); }
       .ast-panel .ast-tool--skipped { opacity: 0.6; }
       .ast-panel .ast-tool .ast-tool-cost { color: var(--ast-faint); font-variant-numeric: tabular-nums; flex-shrink: 0; }
@@ -150,7 +153,7 @@ export function AssistantStyles() {
       .ast-panel .ast-approval-note { font-size: 0.72rem; color: var(--ast-faint); }
       .ast-panel .ast-approval--auto { border-color: var(--ast-border); }
       .ast-panel .ast-approval--auto .ast-approval-run { border-bottom: none; }
-      .ast-panel .ast-approval--auto .ast-approval-price svg { width: 13px; height: 13px; vertical-align: -2px; }
+      .ast-panel .ast-approval--auto .ast-approval-price svg { width: 16px; height: 16px; vertical-align: -3px; color: var(--ast-strong); }
       .ast-panel .ast-approval-auto-foot { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
       .ast-panel .ast-approval-auto-foot .ast-approval-note { margin-right: auto; }
       .ast-panel .ast-approval-footer { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.7rem; font-size: 0.78rem; flex-wrap: wrap; }
@@ -162,7 +165,7 @@ export function AssistantStyles() {
       }
       .ast-panel .ast-approval-skip:hover:not(:disabled) { background: var(--ast-surface); }
       .ast-panel .ast-approval-go { background: var(--ast-text); color: var(--ast-bg) !important; border-color: transparent; }
-      .ast-panel .ast-approval-go svg { width: 12px; height: 12px; }
+      .ast-panel .ast-approval-go svg { width: 15px; height: 15px; }
       .ast-panel .ast-approval-skip:disabled, .ast-panel .ast-approval-go:disabled { opacity: 0.4; cursor: default; }
       .ast-panel .ast-meta { display: flex; align-items: center; gap: 0.6rem; font-size: 0.75rem; color: var(--ast-faint); min-height: 1rem; }
       .ast-panel .ast-cost { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--ast-faint); font-size: 0.72rem; }
@@ -207,21 +210,30 @@ export function AssistantStyles() {
       .ast-panel .ast-footer { border-top: 1px solid var(--ast-border); padding: 0.65rem 0.85rem 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; }
       .ast-panel .ast-error { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; color: var(--ast-warn); }
       .ast-panel .ast-error span { flex: 1; }
-      .ast-panel .ast-composer { display: flex; align-items: flex-end; gap: 0.45rem; }
+      .ast-panel .ast-composer {
+        display: flex; flex-direction: column; background: var(--ast-surface); border: 1px solid var(--ast-border);
+        cursor: text; transition: border-color 0.15s;
+      }
+      .ast-panel .ast-composer:focus-within { border-color: var(--ast-strong); }
       .ast-panel .ast-composer textarea {
-        flex: 1; resize: none; min-height: 2.6rem; max-height: 12rem; padding: 0.5rem 0.6rem; font: inherit;
-        background: var(--ast-surface); color: var(--ast-text); border: 1px solid var(--ast-border); outline: none;
-        field-sizing: content;
+        display: block; width: 100%; resize: none; min-height: 4rem; max-height: 16rem; overflow-y: auto;
+        padding: 0.65rem 0.75rem 0.45rem; font: inherit; background: transparent; color: var(--ast-text); border: none; outline: none;
       }
-      .ast-panel .ast-composer textarea:focus { border-color: var(--ast-accent); }
+      .ast-panel .ast-composer textarea::placeholder { color: var(--ast-faint); }
+      .ast-panel .ast-composer-bar {
+        display: flex; align-items: center; gap: 0.55rem; padding: 0.35rem 0.4rem; border-top: 1px solid var(--ast-border); cursor: default;
+      }
+      .ast-panel .ast-composer-model {
+        flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        font-size: 0.75rem; color: var(--ast-faint); font-variant-numeric: tabular-nums;
+      }
       .ast-panel .ast-send {
-        display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex-shrink: 0;
-        background: var(--ast-text); color: var(--ast-bg) !important; border: none; cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex-shrink: 0;
+        background: var(--ast-strong); color: var(--ast-bg) !important; border: none; cursor: pointer;
       }
-      .ast-panel .ast-send svg { width: 16px; height: 16px; }
+      .ast-panel .ast-send svg { width: 18px; height: 18px; stroke-width: 2.5; }
       .ast-panel .ast-send:disabled { opacity: 0.35; cursor: default; }
-      .ast-panel .ast-footnote { font-size: 0.72rem; color: var(--ast-faint); }
-      .ast-panel .ast-footnote .ast-chat-cost { white-space: normal; font-size: inherit; }
+      .ast-panel .ast-footnote { font-size: 0.72rem; color: var(--ast-faint); font-variant-numeric: tabular-nums; }
     `}</style>
   )
 }
