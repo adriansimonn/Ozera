@@ -16,6 +16,10 @@ interface FeatureStats {
   suggested_label: string
   confidence: number
   unique_tokens: number
+  /** Autointerp score of the explanation shown as its label (0.5 is chance), if scored */
+  score?: number | null
+  /** Title for the label (the full explanation and its scores) */
+  label_title?: string
 }
 
 interface FeatureCatalog {
@@ -34,7 +38,7 @@ interface FeatureBrowserProps {
   className?: string
 }
 
-type SortField = 'feature_idx' | 'activation_frequency' | 'mean_activation' | 'polysemanticity' | 'confidence'
+type SortField = 'feature_idx' | 'activation_frequency' | 'mean_activation' | 'polysemanticity' | 'confidence' | 'score'
 type FilterType = 'all' | 'dead' | 'monosemantic' | 'polysemantic' | 'active'
 
 export function FeatureBrowser({
@@ -80,8 +84,11 @@ export function FeatureBrowser({
       )
     }
 
-    // Apply sort
+    // Apply sort (features without a score last, either way)
     features.sort((a, b) => {
+      if (sortField === 'score' && (a.score == null || b.score == null)) {
+        return (a.score == null ? 1 : 0) - (b.score == null ? 1 : 0)
+      }
       const aVal = a[sortField]
       const bVal = b[sortField]
       const cmp = typeof aVal === 'number' && typeof bVal === 'number'
@@ -204,7 +211,7 @@ export function FeatureBrowser({
         >
           Index <SortIcon field="feature_idx" />
         </button>
-        <div className="col-span-3">Label</div>
+        <div className="col-span-4">Label</div>
         <button
           className="col-span-2 flex items-center gap-1 hover:text-white"
           onClick={() => handleSort('activation_frequency')}
@@ -212,13 +219,20 @@ export function FeatureBrowser({
           Freq <SortIcon field="activation_frequency" />
         </button>
         <button
-          className="col-span-2 flex items-center gap-1 hover:text-white"
+          className="col-span-1 flex items-center gap-1 hover:text-white"
           onClick={() => handleSort('mean_activation')}
         >
           Mean <SortIcon field="mean_activation" />
         </button>
         <button
-          className="col-span-2 flex items-center gap-1 hover:text-white"
+          className="col-span-1 flex items-center gap-1 hover:text-white"
+          onClick={() => handleSort('score')}
+          title="Autointerp score of the label's explanation (0.5 is chance)"
+        >
+          Score <SortIcon field="score" />
+        </button>
+        <button
+          className="col-span-1 flex items-center gap-1 hover:text-white"
           onClick={() => handleSort('polysemanticity')}
         >
           Type <SortIcon field="polysemanticity" />
@@ -251,16 +265,19 @@ export function FeatureBrowser({
                 <div className="col-span-2 font-mono text-purple-300">
                   F{feature.feature_idx}
                 </div>
-                <div className="col-span-3 text-sm text-white truncate" title={feature.suggested_label}>
+                <div className="col-span-4 text-sm text-white truncate" title={feature.label_title ?? feature.suggested_label}>
                   {feature.suggested_label}
                 </div>
                 <div className="col-span-2 font-mono text-sm" style={{ color: getFrequencyColor(feature.activation_frequency) }}>
                   {(feature.activation_frequency * 100).toFixed(1)}%
                 </div>
-                <div className="col-span-2 font-mono text-sm text-white">
-                  {feature.mean_activation.toFixed(3)}
+                <div className="col-span-1 font-mono text-sm text-white">
+                  {feature.mean_activation.toFixed(2)}
                 </div>
-                <div className={`col-span-2 text-xs ${polySem.color}`}>
+                <div className="col-span-1 font-mono text-sm text-white">
+                  {feature.score != null ? feature.score.toFixed(2) : '–'}
+                </div>
+                <div className={`col-span-1 text-xs ${polySem.color}`}>
                   {polySem.label}
                 </div>
                 <div className="col-span-1 flex items-center justify-end">

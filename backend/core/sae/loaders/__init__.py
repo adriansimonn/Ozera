@@ -104,6 +104,13 @@ def list_external_saes(identifier: str) -> List[Dict[str, Any]]:
     return loader.list_available(identifier)
 
 
+def external_sae_id(repo_id: str, hookpoint: Optional[str]) -> str:
+    """The directory name (under the SAE volume's external/) an external SAE is saved as."""
+    safe_repo = repo_id.replace("/", "--")
+    safe_hookpoint = (hookpoint or "default").replace("/", "-").replace(".", "_")
+    return f"{safe_repo}__{safe_hookpoint}"
+
+
 def save_loaded_sae(
     loaded: LoadedSAE,
     save_dir: Path,
@@ -149,5 +156,6 @@ __all__ = [
     "get_loader",
     "load_external_sae",
     "list_external_saes",
+    "external_sae_id",
     "save_loaded_sae",
 ]

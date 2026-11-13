@@ -1807,6 +1807,62 @@ class _InferenceWorker:
         result.update(num_layers=len(target.layers), hidden_dim=target.hidden_dim, total_tokens=total_tokens)
         return result
 
+    @modal.method()
+    def feature_activations(
+        self,
+        model_id: str,
+        texts: list[str],
+        layer: int,
+        sae: dict,
+        feature: int,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        One SAE feature's activation on every token of a few texts, read the way an atlas reads
+        its corpus (see core.geometry.atlas.read_feature_on_texts), for autointerp's generation
+        test: does a feature fire on texts written from its explanation?
+
+        Args:
+            texts: Plain texts (each read up to an atlas's sequence length)
+            layer: The decoder layer whose output the SAE reads
+            sae: Which SAE (see core.probes.sae.sae_directory)
+            feature: The feature
+
+        Returns:
+            {"texts": [{"tokens": [str], "acts": [float], "read": [bool]}], "width",
+            "total_tokens", "num_layers", "hidden_dim"}
+
+        Raises:
+            ProbeInputError: the SAE or the feature can't be used, or the run is too large
+        """
+        from core.geometry.atlas import SEQ_LEN, read_feature_on_texts
+        from core.probes.budget import ProbeInputError, check_run_size, estimate_sae_seconds
+
+        target = self._probe_target(model_id, owner_id, version)
+        if not 0 <= layer < len(target.layers):
+            raise ProbeInputError(f"Layer {layer} is out of range for this model ({len(target.layers)} layers)")
+
+        with self._probe_lock:
+            sae_model, _ = self._load_probe_sae(sae, target.hidden_dim, target.device)
+            if not 0 <= feature < sae_model.d_hidden:
+                raise ProbeInputError(f"This SAE has {sae_model.d_hidden} features")
+            # Each text is read up to SEQ_LEN tokens
+            check_run_size(self.gpu_tier, model_id, estimate_sae_seconds(
+                self.gpu_tier, target.parameters, target.hidden_dim, len(texts), len(texts) * SEQ_LEN, sae_model.d_hidden,
+            ))
+            with target.lock():
+                read = read_feature_on_texts(target, sae_model, layer, texts, feature)
+        total_tokens = sum(len(entry["tokens"]) for entry in read)
+
+        return {
+            "texts": read,
+            "width": sae_model.d_hidden,
+            "total_tokens": total_tokens,
+            "num_layers": len(target.layers),
+            "hidden_dim": target.hidden_dim,
+        }
+
 
 @app.cls(
     image=inference_image,

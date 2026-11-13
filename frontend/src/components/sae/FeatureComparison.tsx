@@ -1,12 +1,20 @@
 /**
  * Feature comparison component for comparing features across SAEs.
- * Shows aligned features, similarity metrics, and divergences.
+ * Shows aligned features, similarity metrics, and divergences, and each matched pair's
+ * autointerp explanations side by side when the SAEs have them.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import { GitCompare, ArrowRight, Layers, Zap } from 'lucide-react'
+import { useFeatureLabels } from '../../hooks/useFeatureLabels'
 import { useThemeColors } from '../../hooks/useTheme'
+import type { FeatureLabel } from '../../types/autointerp'
+import type { SaeRef } from '../../types/probes'
+import { labelTitle } from '../autointerp/labels'
+
+// Matched pairs drawn in the alignment chart, and listed with their explanations
+const PAIRS_SHOWN = 15
 
 interface FeatureMatch {
   feature_a: number
@@ -39,20 +47,38 @@ interface FeatureComparisonProps {
   saeA: SAEInfo
   saeB: SAEInfo
   comparison: ComparisonMetrics
+  /** The SAEs compared, for their features' autointerp explanations (null: an SAE that has none) */
+  refA?: SaeRef | null
+  refB?: SaeRef | null
   onFeatureSelect?: (saeId: string, featureIdx: number) => void
   className?: string
+}
+
+/** A feature's explanation in a matched pair (with its score in the title), or a dash. */
+function PairExplanation({ label }: { label: FeatureLabel | undefined }) {
+  if (!label) return <span style={{ opacity: 0.5 }}>–</span>
+  return <span title={labelTitle(label)}>{label.explanation}</span>
 }
 
 export function FeatureComparison({
   saeA,
   saeB,
   comparison,
+  refA = null,
+  refB = null,
   onFeatureSelect,
   className = '',
 }: FeatureComparisonProps) {
   const matchChartRef = useRef<SVGSVGElement>(null)
   const [selectedMatch, setSelectedMatch] = useState<FeatureMatch | null>(null)
   const tc = useThemeColors()
+  // Autointerp explanations of the matched features, where each SAE has them
+  const pairs = useMemo(() => comparison.top_matches.slice(0, PAIRS_SHOWN), [comparison.top_matches])
+  const featuresA = useMemo(() => comparison.top_matches.map((m) => m.feature_a), [comparison.top_matches])
+  const featuresB = useMemo(() => comparison.top_matches.map((m) => m.feature_b), [comparison.top_matches])
+  const labelsA = useFeatureLabels(refA, featuresA)
+  const labelsB = useFeatureLabels(refB, featuresB)
+  const explained = pairs.some((m) => labelsA.has(m.feature_a) || labelsB.has(m.feature_b))
 
   // Render feature matching visualization
   useEffect(() => {
@@ -89,7 +115,7 @@ export function FeatureComparison({
       .text('Feature Alignment')
 
     // Get top matches for visualization
-    const topMatches = comparison.top_matches.slice(0, 15)
+    const topMatches = comparison.top_matches.slice(0, PAIRS_SHOWN)
 
     // Y scales for both sides
     const yScaleA = d3.scalePoint()
@@ -318,6 +344,47 @@ export function FeatureComparison({
         </div>
       )}
 
+      {/* Matched pairs with both features' autointerp explanations */}
+      {explained && (
+        <div className="p-4 border-t border-gray-800">
+          <div className="text-xs text-white uppercase tracking-wide mb-2" title="Each matched pair’s autointerp explanations, where its SAE has them">
+            Matched pairs · explanations
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', color: tc.text, tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '4.5rem' }} />
+              <col />
+              <col style={{ width: '3.5rem' }} />
+              <col style={{ width: '4.5rem' }} />
+              <col />
+            </colgroup>
+            <tbody>
+              {pairs.map((m) => {
+                const active = selectedMatch?.feature_a === m.feature_a && selectedMatch?.feature_b === m.feature_b
+                const cell = { padding: '0.3rem 0.4rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const
+                return (
+                  <tr
+                    key={`${m.feature_a}-${m.feature_b}`}
+                    onClick={() => setSelectedMatch(m)}
+                    style={{ borderTop: `1px solid ${tc.border}`, background: active ? tc.surfaceActive : undefined, cursor: 'pointer' }}
+                  >
+                    <td style={{ ...cell, fontFamily: 'monospace' }}>F{m.feature_a}</td>
+                    <td style={cell}>
+                      <PairExplanation label={labelsA.get(m.feature_a)} />
+                    </td>
+                    <td style={{ ...cell, textAlign: 'center', fontFamily: 'monospace', opacity: 0.8 }}>{(m.similarity * 100).toFixed(0)}%</td>
+                    <td style={{ ...cell, fontFamily: 'monospace' }}>F{m.feature_b}</td>
+                    <td style={cell}>
+                      <PairExplanation label={labelsB.get(m.feature_b)} />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Selected match details */}
       {selectedMatch && (
         <div className="p-4 border-t border-gray-800" style={{ background: tc.surface }}>
@@ -330,16 +397,16 @@ export function FeatureComparison({
               <div className="text-xs text-white uppercase tracking-wide mb-1">
                 {saeA.name} - Feature {selectedMatch.feature_a}
               </div>
-              <div className="text-sm" style={{ color: tc.textStrong }}>
-                {selectedMatch.label_a || 'No label'}
+              <div className="text-sm" style={{ color: tc.textStrong }} title={labelsA.has(selectedMatch.feature_a) ? labelTitle(labelsA.get(selectedMatch.feature_a) as FeatureLabel) : undefined}>
+                {labelsA.get(selectedMatch.feature_a)?.explanation || selectedMatch.label_a || 'No label'}
               </div>
             </div>
             <div>
               <div className="text-xs text-white uppercase tracking-wide mb-1">
                 {saeB.name} - Feature {selectedMatch.feature_b}
               </div>
-              <div className="text-sm" style={{ color: tc.textStrong }}>
-                {selectedMatch.label_b || 'No label'}
+              <div className="text-sm" style={{ color: tc.textStrong }} title={labelsB.has(selectedMatch.feature_b) ? labelTitle(labelsB.get(selectedMatch.feature_b) as FeatureLabel) : undefined}>
+                {labelsB.get(selectedMatch.feature_b)?.explanation || selectedMatch.label_b || 'No label'}
               </div>
             </div>
           </div>

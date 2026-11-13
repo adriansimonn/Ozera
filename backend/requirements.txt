@@ -61,5 +61,8 @@ stripe==14.2.0  # Stripe payment processing
 # Cloud GPU Training
 modal==1.3.0.post1  # Modal for cloud GPU execution
 
+# Autointerp (Claude explains and scores SAE features)
+anthropic==1.15.0
+
 # Paper-ready figure export
 matplotlib==3.10.8  # Server-side figure generation

@@ -10,7 +10,9 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { Download, Map as MapIcon, X } from 'lucide-react'
 import { apiClient } from '../../api/client'
+import { useCommunityNames } from '../../hooks/useAutointerp'
 import type { GeometryLab } from '../../hooks/useGeometryLab'
+import type { CommunityName } from '../../types/autointerp'
 import type { ProbeSaeInfo } from '../../types/probes'
 import type {
   AtlasCommunity,
@@ -68,6 +70,20 @@ function visible(token: string): string {
 function words(c: { top_words: [string, number][] }, n = 4): string {
   const shown = c.top_words.slice(0, n).map(([w]) => visible(w))
   return shown.length ? shown.join(', ') : '–'
+}
+
+/** Autointerp's names of an atlas's communities, by community ID (see hooks/useAutointerp) */
+type CommunityNames = Map<number, CommunityName>
+
+const NO_NAMES: CommunityNames = new Map()
+
+/** A community's name, or its number when it has none. */
+function communityLabel(names: CommunityNames, id: number): string {
+  return names.get(id)?.name ?? `#${id}`
+}
+
+function nameTitle(name: CommunityName): string {
+  return `${name.name}\nNamed from ${name.explained} of its ${name.size} features’ explanations`
 }
 
 function saeLabel(s: ProbeSaeInfo): string {
@@ -377,6 +393,8 @@ function AtlasResults({ lab, summary }: { lab: GeometryLab; summary: AtlasSummar
   const atlasRef = useMemo((): AtlasRef => ({ model: summary.model, sae: summary.sae, corpus: summary.corpus.id as AtlasCorpusId }), [summary])
   const [selected, setSelected] = useState<number | null>(summary.ranked[0] ?? null)
   const [feature, setFeature] = useState<number | null>(null)
+  // Names a naming job wrote for these communities (none until one has run)
+  const names = useCommunityNames(atlasRef).data ?? NO_NAMES
   const byId = useMemo(() => new Map(summary.communities.map((c) => [c.id, c])), [summary])
   const ranked = summary.ranked.map((id) => byId.get(id)).filter((c): c is AtlasCommunitySummary => c != null)
   const notable = ranked.filter((c) => (c.geometry?.score ?? 0) >= NOTABLE_EXCESS)
@@ -438,10 +456,10 @@ function AtlasResults({ lab, summary }: { lab: GeometryLab; summary: AtlasSummar
 
       <div className="pl-results-grid">
         <section className="pl-panel">
-          <AtlasMap summary={summary} byId={byId} selected={selected} onSelect={pick} onFeature={setFeature} />
+          <AtlasMap summary={summary} byId={byId} names={names} selected={selected} onSelect={pick} onFeature={setFeature} />
         </section>
         <section className="pl-panel">
-          <CommunityTable summary={summary} ranked={ranked} selected={selected} onSelect={pick} />
+          <CommunityTable summary={summary} ranked={ranked} names={names} selected={selected} onSelect={pick} />
         </section>
       </div>
 
@@ -452,12 +470,13 @@ function AtlasResults({ lab, summary }: { lab: GeometryLab; summary: AtlasSummar
           atlasRef={atlasRef}
           summary={summary}
           community={byId.get(selected) as AtlasCommunitySummary}
+          name={names.get(selected) ?? null}
           onClose={() => pick(null)}
           onFeature={setFeature}
         />
       )}
       {feature != null && (
-        <FeatureDetail key={feature} atlasRef={atlasRef} feature={feature} byId={byId} onFeature={setFeature} onCommunity={pick} onClose={() => setFeature(null)} />
+        <FeatureDetail key={feature} atlasRef={atlasRef} feature={feature} byId={byId} names={names} onFeature={setFeature} onCommunity={pick} onClose={() => setFeature(null)} />
       )}
     </>
   )
@@ -474,12 +493,14 @@ function communityColors(summary: AtlasSummary, colors: LabColors): Map<number, 
 function AtlasMap({
   summary,
   byId,
+  names,
   selected,
   onSelect,
   onFeature,
 }: {
   summary: AtlasSummary
   byId: Map<number, AtlasCommunitySummary>
+  names: CommunityNames
   selected: number | null
   onSelect: (id: number | null) => void
   onFeature: (f: number) => void
@@ -619,7 +640,7 @@ function AtlasMap({
             rows={
               hoveredCommunity
                 ? [
-                    { label: 'community', value: `#${hoveredCommunity.id}` },
+                    { label: 'community', value: communityLabel(names, hoveredCommunity.id) },
                     { label: 'fires on', value: words(hoveredCommunity, 3) },
                   ]
                 : [{ label: '', value: 'in no community' }]
@@ -630,9 +651,16 @@ function AtlasMap({
       {legend.length > 0 && (
         <div className="pl-legend">
           {legend.map((c) => (
-            <button key={c.id} type="button" className="pl-legend-item pl-link" onClick={() => onSelect(c.id)} style={{ color: colors.text, fontSize: '0.72rem' }}>
+            <button
+              key={c.id}
+              type="button"
+              className="pl-legend-item pl-link"
+              onClick={() => onSelect(c.id)}
+              title={names.has(c.id) ? `Fires on ${words(c, 4)}` : undefined}
+              style={{ color: colors.text, fontSize: '0.72rem' }}
+            >
               <span className="pl-legend-dot" style={{ background: palette.get(c.id) }} />
-              {words(c, 2)}
+              {names.get(c.id)?.name ?? words(c, 2)}
             </button>
           ))}
         </div>
@@ -646,11 +674,13 @@ function AtlasMap({
 function CommunityTable({
   summary,
   ranked,
+  names,
   selected,
   onSelect,
 }: {
   summary: AtlasSummary
   ranked: AtlasCommunitySummary[]
+  names: CommunityNames
   selected: number | null
   onSelect: (id: number) => void
 }) {
@@ -658,6 +688,7 @@ function CommunityTable({
   const [scope, setScope] = useState<'ranked' | 'all'>('ranked')
   const palette = useMemo(() => communityColors(summary, colors), [summary, colors])
   const rows = scope === 'ranked' ? ranked : summary.communities
+  const named = names.size > 0
   return (
     <div>
       <div className="pl-card-title">
@@ -679,8 +710,11 @@ function CommunityTable({
           <thead>
             <tr style={{ background: colors.isLight ? '#f5f5f7' : '#151515' }}>
               <th>#</th>
-              <th style={{ textAlign: 'left' }} title="The tokens its features fire on most">
-                Fires on
+              <th
+                style={{ textAlign: 'left' }}
+                title={named ? 'Its name, from its features’ explanations (autointerp); unnamed ones show the tokens their features fire on most' : 'The tokens its features fire on most'}
+              >
+                {named ? 'Community' : 'Fires on'}
               </th>
               <th title="Features">Size</th>
               <th title="Share of its variance on the top 3 principal components (activations projected onto the span of its decoder rows)">3 PCs</th>
@@ -692,6 +726,8 @@ function CommunityTable({
           <tbody>
             {rows.map((c) => {
               const active = c.id === selected
+              const name = names.get(c.id)
+              const fires = c.top_words.map(([w, n]) => `${visible(w)} (${n})`).join(', ')
               return (
                 <tr
                   key={c.id}
@@ -704,8 +740,8 @@ function CommunityTable({
                       {c.rank != null ? c.rank + 1 : '–'}
                     </span>
                   </td>
-                  <td className="gl-words" title={c.top_words.map(([w, n]) => `${visible(w)} (${n})`).join(', ')}>
-                    {words(c)}
+                  <td className="gl-words" title={name ? `${nameTitle(name)}\nFires on ${fires}` : fires}>
+                    {name ? name.name : <span style={{ opacity: named ? 0.65 : undefined }}>{words(c)}</span>}
                   </td>
                   <td>{c.size}</td>
                   <td>{formatPercent(share(c.geometry?.explained, 3))}</td>
@@ -727,6 +763,7 @@ function CommunityDetail({
   atlasRef,
   summary,
   community,
+  name,
   onClose,
   onFeature,
 }: {
@@ -734,6 +771,8 @@ function CommunityDetail({
   atlasRef: AtlasRef
   summary: AtlasSummary
   community: AtlasCommunitySummary
+  /** Its autointerp name, if it has one */
+  name: CommunityName | null
   onClose: () => void
   onFeature: (f: number) => void
 }) {
@@ -795,7 +834,7 @@ function CommunityDetail({
     <section className="pl-panel">
       <div className="gl-detail-head">
         <div className="pl-run-meta">
-          <strong>Community #{community.id}</strong>
+          {name ? <strong title={`${nameTitle(name)}\nCommunity #${community.id}`}>{name.name}</strong> : <strong>Community #{community.id}</strong>}
           {community.rank != null ? ` · rank ${community.rank + 1}` : ''} · fires on {words(community, 6)}
         </div>
         <button type="button" className="pl-icon-button" aria-label="Close" title="Close" onClick={onClose} style={{ color: colors.text }}>
@@ -848,7 +887,7 @@ function CommunityDetail({
                         <td>
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                             <span className="pl-legend-dot" style={{ background: colors.series[i % colors.series.length] }} />
-                            <FeatureLink sae={atlasRef.sae} feature={f.id} text={detail.examples.find((e) => e.feature === f.id) ? contextText(detail.examples.find((e) => e.feature === f.id) as AtlasContext) : undefined} />
+                            <FeatureLink sae={atlasRef.sae} feature={f.id} model={atlasRef.model} text={detail.examples.find((e) => e.feature === f.id) ? contextText(detail.examples.find((e) => e.feature === f.id) as AtlasContext) : undefined} />
                           </span>
                         </td>
                         <td className="gl-words">{f.top != null ? visible(f.top) : '–'}</td>
@@ -1143,6 +1182,7 @@ function FeatureDetail({
   atlasRef,
   feature,
   byId,
+  names,
   onFeature,
   onCommunity,
   onClose,
@@ -1150,6 +1190,7 @@ function FeatureDetail({
   atlasRef: AtlasRef
   feature: number
   byId: Map<number, AtlasCommunitySummary>
+  names: CommunityNames
   onFeature: (f: number) => void
   onCommunity: (c: number) => void
   onClose: () => void
@@ -1174,12 +1215,12 @@ function FeatureDetail({
       <div className="gl-detail-head">
         <div className="pl-run-meta">
           <strong>Feature </strong>
-          <FeatureLink sae={atlasRef.sae} feature={feature} text={data?.examples[0] ? contextText(data.examples[0]) : undefined} />
+          <FeatureLink sae={atlasRef.sae} feature={feature} model={atlasRef.model} text={data?.examples[0] ? contextText(data.examples[0]) : undefined} />
           {community && (
             <>
               {' · '}
               <button type="button" className="pl-link" style={{ color: colors.accent, fontSize: '0.75rem' }} onClick={() => onCommunity(community.id)}>
-                community #{community.id}
+                {names.has(community.id) ? communityLabel(names, community.id) : `community #${community.id}`}
               </button>
             </>
           )}

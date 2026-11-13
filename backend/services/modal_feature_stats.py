@@ -8,6 +8,11 @@ Deployment:
 
 Precomputing the built-in residual SAEs (Ozera nano and mini, every layer; free, run by hand):
     modal run backend/services/modal_feature_stats.py::precompute
+
+The app also runs autointerp jobs' stages (core.autointerp.jobs): short CPU functions on the SAE
+volume that build a job's requests, send them to Claude as batches and read the replies. They
+need the Anthropic API key as the Modal secret "anthropic-api-key" (ANTHROPIC_API_KEY):
+    modal secret create anthropic-api-key ANTHROPIC_API_KEY=...
 """
 
 import os
@@ -49,6 +54,14 @@ feature_stats_image = (
     .add_local_dir(os.path.join(BACKEND_DIR, "core"), remote_path="/app/backend/core")
     .add_local_dir(os.path.join(BACKEND_DIR, "inference"), remote_path="/app/backend/inference")
 )
+
+# Autointerp jobs' stages: no GPU, no torch
+autointerp_image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install("numpy>=1.24.0", "anthropic==1.15.0")
+    .add_local_dir(os.path.join(BACKEND_DIR, "core", "autointerp"), remote_path="/app/backend/core/autointerp")
+)
+anthropic_secret = modal.Secret.from_name("anthropic-api-key", required_keys=["ANTHROPIC_API_KEY"])
 
 # What a job's container reserves: UMAP and Louvain run on the CPU, and the activations kept
 # for group geometry (core.geometry.atlas.ACTIVATION_BYTES) sit in memory. credit_service
@@ -183,13 +196,136 @@ def feature_stats_a10g(job_id: Optional[str], model_id: str, sae: dict, sae_name
     return _run(job_id, model_id, sae, sae_name, layer, corpus, tokens, seed)
 
 
+@app.function(image=feature_stats_image, volumes={"/saes": saes_volume}, secrets=[hf_secret], timeout=1800, cpu=2.0, memory=8192)
+def load_external_sae(repo_id: str, hookpoint: Optional[str]) -> dict:
+    """
+    An external SAE on the SAE volume, saved as the SAE service's /sae/external/load saves it
+    (same ID and files) unless it's there already. Returns {"sae_id", "layer"}: the residual
+    layer it reads, as the app resolves it (None if it doesn't read the residual stream).
+    """
+    import json
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, "/app/backend")
+    from core.probes.sae import external_residual_layer, sae_directory
+    from core.sae.loaders import external_sae_id, load_external_sae as do_load, save_loaded_sae
+
+    sae_id = external_sae_id(repo_id, hookpoint)
+    directory = Path(sae_directory({"kind": "external", "sae_id": sae_id}))
+    if not (directory / "config.json").exists():
+        loaded = do_load(identifier=repo_id, hookpoint=hookpoint, device="cpu", cache_dir=Path("/tmp/hf_cache"))
+        save_loaded_sae(loaded, directory)
+        saes_volume.commit()
+    meta = json.loads((directory / "metadata.json").read_text())
+    return {"sae_id": sae_id, "layer": external_residual_layer(meta.get("source"), meta.get("source_id"), meta.get("hookpoint"))}
+
+
+# Autointerp stages: what a container reserves (a job's requests are built and read a chunk at a
+# time; a part of a batch is at most BATCH_MAX_BYTES), and the longest a stage runs.
+# credit_service prices them from these (CPU time per stage, and each stage's timeout in a job's
+# hold); keep them in sync.
+AUTOINTERP_CPU = 2.0
+AUTOINTERP_MEMORY_MB = 4096
+AUTOINTERP_TIMEOUT_SECONDS = 1800
+AUTOINTERP_SCALEDOWN_SECONDS = 2
+
+
+def _autointerp_stage(job_id: str, stage: str, run) -> dict:
+    """
+    Run one stage of an autointerp job on the SAE volume. Returns {"status": "completed" |
+    "failed", "seconds", "error", "report"}: failures are reported, not raised, so the backend
+    can settle the job either way. Files a stage writes are committed as it goes.
+    """
+    import asyncio
+    import sys
+
+    sys.path.insert(0, "/app/backend")
+    started = time.time()
+    # Each stage reports under its own key, so a stage never shows the one before it
+    progress = _report(f"{job_id}:{stage}")
+    saes_volume.reload()
+    try:
+        from core.autointerp.client import ClaudeClient
+
+        report = asyncio.run(run(ClaudeClient(api_key=os.environ["ANTHROPIC_API_KEY"]), progress))
+        saes_volume.commit()
+        return {"status": "completed", "seconds": time.time() - started, "error": None, "report": report}
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        try:
+            saes_volume.commit()
+        except Exception:
+            pass
+        message = str(e) if e.__class__.__name__ in ("JobError", "AutointerpInputError") else f"The {stage} stage failed"
+        return {"status": "failed", "seconds": time.time() - started, "error": message, "report": None}
+    finally:
+        progress("Done", 1.0)
+
+
+_AUTOINTERP_ARGS = dict(
+    image=autointerp_image,
+    volumes={"/saes": saes_volume},
+    secrets=[anthropic_secret],
+    timeout=AUTOINTERP_TIMEOUT_SECONDS,
+    cpu=AUTOINTERP_CPU,
+    memory=AUTOINTERP_MEMORY_MB,
+    scaledown_window=AUTOINTERP_SCALEDOWN_SECONDS,
+)
+
+
+@app.function(**_AUTOINTERP_ARGS)
+def autointerp_prepare(job_id: str, job_dir: str, atlas_dir: str, spec: dict) -> dict:
+    """Build an autointerp job's explain requests and count its upper bound (core.autointerp.jobs.prepare)."""
+
+    async def run(client, progress):
+        from core.autointerp import jobs
+
+        return await jobs.prepare(jobs.JobFiles(job_dir, saes_volume.commit), atlas_dir, spec, client, progress)
+
+    return _autointerp_stage(job_id, "prepare", run)
+
+
+@app.function(**_AUTOINTERP_ARGS)
+def autointerp_submit(job_id: str, job_dir: str) -> dict:
+    """Send an autointerp job's explain requests as batches."""
+
+    async def run(client, progress):
+        from core.autointerp import jobs
+
+        return await jobs.submit(jobs.JobFiles(job_dir, saes_volume.commit), client)
+
+    return _autointerp_stage(job_id, "submit", run)
+
+
+@app.function(**_AUTOINTERP_ARGS)
+def autointerp_collect(job_id: str, job_dir: str, stage: str) -> dict:
+    """Read an autointerp job's ended batches: its explanations (then send the scoring requests), or its scores."""
+
+    async def run(client, progress):
+        from core.autointerp import jobs
+
+        files = jobs.JobFiles(job_dir, saes_volume.commit)
+        if stage == "explain":
+            return await jobs.collect_explain(files, client, progress)
+        return await jobs.collect_score(files, client, progress)
+
+    return _autointerp_stage(job_id, f"collect {stage}", run)
+
+
 FUNCTION_NAMES = {"l4": "feature_stats_l4", "a10g": "feature_stats_a10g"}
 _function_refs: dict[str, modal.Function] = {}
 
 
 def get_feature_stats_function(gpu_tier: str):
     """The deployed atlas function for a GPU tier (looked up once per process)."""
-    name = FUNCTION_NAMES.get(gpu_tier, FUNCTION_NAMES["l4"])
+    return get_function(FUNCTION_NAMES.get(gpu_tier, FUNCTION_NAMES["l4"]))
+
+
+def get_function(name: str):
+    """A deployed function of this app (looked up once per process)."""
     if name not in _function_refs:
         _function_refs[name] = modal.Function.from_name("ozera-feature-stats", name)
     return _function_refs[name]
@@ -207,3 +343,22 @@ def precompute(tokens: int = 2_000_000, corpus: str = "openwebtext", models: str
     for name, call in calls:
         result = call.get()
         print(f"{name}: {result['status']} in {result['seconds']:.0f}s {result['error'] or ''}")
+
+
+@app.local_entrypoint()
+def external_atlas(repo_id: str, hookpoint: str, model: str, corpus: str = "openwebtext", tokens: int = 2_000_000, gpu: str = "l4"):
+    """
+    An atlas for an external residual SAE, without the backend (loading the SAE onto the volume
+    first if needed); e.g. autointerp calibration's:
+        modal run backend/services/modal_feature_stats.py::external_atlas \\
+            --repo-id google/gemma-scope-2-270m-pt --hookpoint resid_post/layer_9_width_16k_l0_small --model gemma-3-270m
+    """
+    sae = load_external_sae.remote(repo_id, hookpoint)
+    if sae["layer"] is None:
+        raise SystemExit(f"{repo_id} {hookpoint} doesn't read the residual stream between layers")
+    name = f"{repo_id} · {hookpoint}"
+    run = {"l4": feature_stats_l4, "a10g": feature_stats_a10g}[gpu]
+    result = run.remote(None, model, {"kind": "external", "sae_id": sae["sae_id"]}, name, sae["layer"], corpus, tokens)
+    print(f"{name}: {result['status']} in {result['seconds']:.0f}s {result['error'] or ''}")
+    if result["status"] == "completed":
+        print(f"Atlas: external/{sae['sae_id']}/atlas/{model}--{corpus} on the ozera-saes volume")

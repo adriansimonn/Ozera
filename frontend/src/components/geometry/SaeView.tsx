@@ -804,7 +804,7 @@ function FieldsOnShape({ run, result, fit }: { run: GeometryRun; result: Geometr
           return (
             <div key={f}>
               <div className="gl-field-title">
-                <FeatureLink sae={result.sae.info.ref} feature={f} text={example != null ? exampleText(run.concept, example) : undefined} />
+                <FeatureLink sae={result.sae.info.ref} feature={f} model={result.model} text={example != null ? exampleText(run.concept, example) : undefined} />
                 <span style={{ opacity: 0.7 }} title={fieldText(result.values, t, run.concept.structure)}>
                   {fieldText(result.values, t, run.concept.structure)}
                 </span>
@@ -878,7 +878,7 @@ function FeatureTable({ run, result, fit }: { run: GeometryRun; result: Geometry
                 <tr key={f} style={{ borderTop: `1px solid ${colors.grid}`, borderBottom: boundary ? `2px dashed ${colors.text}` : undefined, cursor: 'default' }}>
                   <td style={{ opacity: 0.6 }}>{g + 1}</td>
                   <td>
-                    <FeatureLink sae={ref} feature={f} text={text} />
+                    <FeatureLink sae={ref} feature={f} model={result.model} text={text} />
                   </td>
                   <td>+{formatValue(gain, 3)}</td>
                   <td style={{ textAlign: 'left' }}>{fieldText(result.values, t, run.concept.structure)}</td>

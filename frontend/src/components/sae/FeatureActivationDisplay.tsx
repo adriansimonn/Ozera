@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
 import * as d3 from 'd3'
 import { useThemeColors } from '../../hooks/useTheme'
+import type { FeatureLabels } from '../../hooks/useFeatureLabels'
 interface FeatureActivation {
   feature_idx: number
   activation_value: number
@@ -38,6 +39,8 @@ interface FeatureActivationDisplayProps {
   onFeatureSelect?: (featureIdx: number) => void
   showTopK?: number
   className?: string
+  /** Autointerp labels of the features shown */
+  labels?: FeatureLabels
 }
 
 interface SelectedCell {
@@ -60,6 +63,7 @@ export function FeatureActivationDisplay({
   onFeatureSelect,
   showTopK = 50,
   className = '',
+  labels,
 }: FeatureActivationDisplayProps) {
   const tc = useThemeColors()
   const svgRef = useRef<SVGSVGElement>(null)
@@ -296,8 +300,8 @@ export function FeatureActivationDisplay({
   const getTooltipStyle = () => {
     if (!hoveredCell) return {}
 
-    const tooltipWidth = 220
-    const tooltipHeight = 100
+    const tooltipWidth = 290
+    const tooltipHeight = labels?.has(hoveredCell.featureIdx) ? 140 : 100
     const offset = 12
 
     let x = hoveredCell.x + offset
@@ -356,6 +360,11 @@ export function FeatureActivationDisplay({
             <div className="text-white">
               Feature: <span className="text-purple-300 font-mono">F{hoveredCell.featureIdx}</span>
             </div>
+            {labels?.get(hoveredCell.featureIdx) && (
+              <div className="text-white" style={{ maxWidth: 260, whiteSpace: 'normal' }}>
+                {labels.get(hoveredCell.featureIdx)?.explanation}
+              </div>
+            )}
             <div className="text-white">
               Value: <span className="text-white font-mono">{hoveredCell.value.toFixed(4)}</span>
             </div>

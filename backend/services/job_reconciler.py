@@ -18,6 +18,7 @@ from sqlalchemy import text
 from db import SessionLocal
 from models.database import JobStatus, TrainingJob
 from services.atlas_jobs import reconcile_atlas_jobs
+from services.autointerp_jobs import reconcile_autointerp_jobs
 from services.custom_models import remove_replaced_model_files
 from services.job_orchestrator import _fail_job_submission, finish_job
 from services.modal_worker import TRAINING_TIMEOUT_SECONDS
@@ -166,7 +167,7 @@ async def reconcile_training_jobs() -> None:
 
 
 async def run_training_job_reconciler() -> None:
-    """Reconcile training and atlas jobs shortly after startup, then periodically, until cancelled."""
+    """Reconcile training, atlas and autointerp jobs shortly after startup, then periodically, until cancelled."""
     await asyncio.sleep(STARTUP_DELAY_SECONDS)
     while True:
         try:
@@ -177,4 +178,8 @@ async def run_training_job_reconciler() -> None:
             await reconcile_atlas_jobs()
         except Exception:
             logger.exception("Atlas job reconciliation failed")
+        try:
+            await reconcile_autointerp_jobs()
+        except Exception:
+            logger.exception("Autointerp job reconciliation failed")
         await asyncio.sleep(RECONCILE_INTERVAL_SECONDS)

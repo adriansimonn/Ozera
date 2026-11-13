@@ -1554,7 +1554,7 @@ def load_external_sae(request: LoadExternalSAERequest) -> dict:
     import sys
     sys.path.insert(0, "/app/backend")
 
-    from core.sae.loaders import load_external_sae as do_load, save_loaded_sae
+    from core.sae.loaders import external_sae_id, load_external_sae as do_load, save_loaded_sae
 
     repo_id = request.repo_id
     hookpoint = request.hookpoint
@@ -1576,10 +1576,7 @@ def load_external_sae(request: LoadExternalSAERequest) -> dict:
         if custom_name:
             loaded.metadata.display_name = custom_name
 
-        # Generate a unique ID for storage
-        safe_repo = repo_id.replace("/", "--")
-        safe_hookpoint = (hookpoint or "default").replace("/", "-").replace(".", "_")
-        sae_id = f"{safe_repo}__{safe_hookpoint}"
+        sae_id = external_sae_id(repo_id, hookpoint)
 
         # Save to external SAEs directory
         save_dir = Path(EXTERNAL_SAES_ROOT) / sae_id

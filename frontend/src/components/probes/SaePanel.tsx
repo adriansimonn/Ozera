@@ -50,7 +50,7 @@ function FeatureTable({ result, order, labelNames }: { result: SaeProbeResponse;
             return (
               <tr key={f.feature} style={{ borderTop: `1px solid ${colors.grid}`, cursor: 'default' }}>
                 <td>
-                  <FeatureLink sae={saeRef} feature={f.feature} text={text} />
+                  <FeatureLink sae={saeRef} feature={f.feature} text={text} model={result.model} />
                 </td>
                 <td>
                   <span className="pl-share">
@@ -508,7 +508,7 @@ export function SaePanel({ probe, lab, onShowPurchaseCredits }: { probe: CausalP
                 {response.sparse.features.slice(0, 8).map((f, i) => (
                   <span key={f.feature}>
                     {i > 0 && ', '}
-                    <FeatureLink sae={response.sae.info.ref} feature={f.feature} text={f.top_example != null ? response.examples[f.top_example]?.text : undefined} /> (
+                    <FeatureLink sae={response.sae.info.ref} feature={f.feature} model={response.model} text={f.top_example != null ? response.examples[f.top_example]?.text : undefined} /> (
                     {f.mean_pos - f.mean_neg >= 0 ? '+' : '−'}
                     {formatScore(Math.abs(f.mean_pos - f.mean_neg))})
                   </span>

@@ -7,6 +7,8 @@ runs (services.credit_service.calculate_geometry_cost) and refuses runs that wou
 within the inference workers' timeouts.
 """
 
+from typing import Optional
+
 from core.probes.budget import (
     CHAT_TEMPLATE_TOKENS,
     FIT_FLOPS_PER_SECOND,
@@ -193,6 +195,11 @@ UMAP_POINTS_PER_SECOND = 400
 UMAP_SETUP_SECONDS = 45
 # Writing each live feature's statistics and contexts
 SECONDS_PER_FEATURE = 0.002
+# Building each live feature's autointerp example sets on the CPU (sampling, windows, levels,
+# top tokens), and the vocabulary assumed for projecting decoder rows through the unembedding
+# when the model's is unknown (Gemma's, the largest offered)
+AUTOINTERP_SECONDS_PER_FEATURE = 0.004
+ASSUMED_VOCAB = 262_144
 
 
 def estimate_atlas_seconds(
@@ -202,14 +209,16 @@ def estimate_atlas_seconds(
     sae_latents: int,
     tokens: int,
     l0: float,
+    vocab_size: Optional[int] = None,
 ) -> float:
     """
     Seconds an atlas job is estimated to take on its own GPU container: loading the model and
     SAE, reading and tokenizing the corpus, a forward pass over it (to the SAE's layer, counted
     as a whole pass), every token through the SAE (encoding and decoding), the co-active pairs
     (l0² per token), Louvain on the strongest neighbors, UMAP of the decoder rows, group
-    geometry, and writing the results. Priced on the tokens asked for, even when a dense SAE
-    makes the job stop early.
+    geometry, autointerp's example sets and every decoder row through the unembedding, and
+    writing the results. Priced on the tokens asked for, even when a dense SAE makes the job
+    stop early.
     """
     from .atlas import MAP_FEATURES, MAX_GEOMETRY_COMMUNITIES, GEOMETRY_TOKENS, NEIGHBORS
 
@@ -223,7 +232,11 @@ def estimate_atlas_seconds(
     # Each community and its random groups: tokens × d onto a span of up to a few hundred rows
     geometry = MAX_GEOMETRY_COMMUNITIES * 5 * GEOMETRY_TOKENS * hidden_dim * 512 * 2 / FIT_FLOPS_PER_SECOND[gpu_tier]
     write = sae_latents * SECONDS_PER_FEATURE
-    return SETUP_SECONDS + load + read + forward + sae + pairs + louvain + umap + geometry + write
+    autointerp = (
+        sae_latents * AUTOINTERP_SECONDS_PER_FEATURE
+        + sae_latents * hidden_dim * (vocab_size or ASSUMED_VOCAB) * 2 / FIT_FLOPS_PER_SECOND[gpu_tier]
+    )
+    return SETUP_SECONDS + load + read + forward + sae + pairs + louvain + umap + geometry + write + autointerp
 
 
 def check_atlas_size(model_name: str, estimated_seconds: float) -> None:

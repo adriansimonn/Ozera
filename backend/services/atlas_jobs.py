@@ -147,7 +147,7 @@ def finish(db: Session, job_id: str, outcome: Outcome) -> bool:
     Settle a job whose call ended, once: completed, or failed with a refund of all but the GPU
     time it ran (from its report, else the time since it started). Returns whether this call settled it.
     """
-    job = db.query(AtlasJob).filter(AtlasJob.job_id == job_id).with_for_update().first()
+    job = db.query(AtlasJob).filter(AtlasJob.job_id == job_id).with_for_update().populate_existing().first()
     if job is None or job.status not in ACTIVE:
         db.rollback()
         return False

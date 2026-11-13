@@ -31,7 +31,9 @@ import {
 import { DEFAULT_SAE_LIST } from '../../data/defaultSAEs'
 import { FeatureComparison } from './FeatureComparison'
 import { SimilarityMatrix } from './SimilarityMatrix'
+import { saeRef } from '../../hooks/useCorpusStats'
 import { useThemeColors } from '../../hooks/useTheme'
+import type { SaeRef } from '../../types/probes'
 import { Dropdown } from '../common/Dropdown'
 
 interface SAECompareSelection {
@@ -98,6 +100,8 @@ export function ModelComparisonDashboard({
   const [error, setError] = useState<string | null>(null)
   const [featureResult, setFeatureResult] = useState<SAECompareResponse | null>(null)
   const [layerResult, setLayerResult] = useState<SAECompareLayersResponse | null>(null)
+  // The SAEs the feature result compares (the selections can change after it), for their features' explanations
+  const [comparedRefs, setComparedRefs] = useState<{ a: SaeRef | null; b: SaeRef | null }>({ a: null, b: null })
 
   // Fetch external SAEs in background
   useEffect(() => {
@@ -139,6 +143,7 @@ export function ModelComparisonDashboard({
         }
 
         setFeatureResult(result)
+        setComparedRefs({ a: saeRef(selectionA), b: saeRef(selectionB) })
         setLayerResult(null)
       } else {
         const result = await saeClient.compareLayers({
@@ -704,6 +709,8 @@ export function ModelComparisonDashboard({
               divergent_features_a: featureResult.divergent_features_a,
               divergent_features_b: featureResult.divergent_features_b,
             }}
+            refA={comparedRefs.a}
+            refB={comparedRefs.b}
             onFeatureSelect={onFeatureSelect}
           />
 

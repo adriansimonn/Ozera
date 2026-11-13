@@ -16,6 +16,7 @@ import {
   Layers,
   Microscope,
   Shapes,
+  Sparkles,
 } from 'lucide-react';
 import { useTransactions, Transaction } from '../../hooks/useCredits';
 
@@ -46,6 +47,10 @@ function getTransactionIcon(type: Transaction['transaction_type']) {
     case 'geometry_charge':
       return <Shapes size={16} className="text-violet-400" />;
     case 'geometry_refund':
+      return <RefreshCcw size={16} className="text-blue-400" />;
+    case 'autointerp_charge':
+      return <Sparkles size={16} className="text-amber-400" />;
+    case 'autointerp_refund':
       return <RefreshCcw size={16} className="text-blue-400" />;
     default:
       return <ArrowUpRight size={16} className="text-white" />;
@@ -78,6 +83,10 @@ function getTransactionLabel(type: Transaction['transaction_type']) {
       return 'Geometry Lab';
     case 'geometry_refund':
       return 'Geometry Lab Refund';
+    case 'autointerp_charge':
+      return 'Autointerp';
+    case 'autointerp_refund':
+      return 'Autointerp Refund';
     default:
       return 'Transaction';
   }

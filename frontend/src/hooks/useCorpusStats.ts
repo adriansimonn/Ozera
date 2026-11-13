@@ -1,21 +1,24 @@
 /**
  * Corpus statistics for the SAE browser, from a Geometry Lab atlas of the selected SAE when one
  * has been computed: a feature catalog with real firing frequencies, and each feature's top
- * contexts over the corpus (instead of over the one text analyzed).
+ * contexts over the corpus (instead of over the one text analyzed). Features with an autointerp
+ * explanation are labeled with it (and its score).
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiClient } from '../api/client'
+import { labelTitle } from '../components/autointerp/labels'
 import type { SAESelection } from '../components/sae/SAESelector'
 import type { AtlasCorpusId, AtlasMeta, AtlasRef } from '../types/geometry'
 import type { FeatureCatalog, FeatureInterpretation } from '../types/model'
 import type { SaeRef } from '../types/probes'
+import { useFeatureLabels } from './useFeatureLabels'
 
 // Features listed in the catalog (the most frequent), and tokens shown each side of a context's firing token
 const CATALOG_FEATURES = 2000
 const CONTEXT_SIDE = 8
 
-function saeRef(selection: SAESelection | null): SaeRef | null {
+export function saeRef(selection: SAESelection | null): SaeRef | null {
   if (!selection) return null
   if (selection.externalId) return { kind: 'external', sae_id: selection.externalId }
   return selection.activationType === 'residual' ? { kind: 'ozera', model: selection.model, layer: selection.layer } : null
@@ -79,10 +82,24 @@ export function useCorpusStats(selection: SAESelection | null, enabled: boolean)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, enabled])
 
+  // Autointerp labels of the catalog's features (from atlases on the catalog atlas's model)
+  const ids = useMemo(() => catalog?.features.map((f) => f.feature_idx) ?? [], [catalog])
+  const labels = useFeatureLabels(atlas ? ref : null, ids, atlas?.model)
+  const labeled = useMemo((): FeatureCatalog | null => {
+    if (!catalog || labels.size === 0) return catalog
+    return {
+      ...catalog,
+      features: catalog.features.map((f) => {
+        const label = labels.get(f.feature_idx)
+        return label ? { ...f, suggested_label: label.explanation, score: label.score, label_title: labelTitle(label) } : f
+      }),
+    }
+  }, [catalog, labels])
+
   /**
    * A feature's top corpus contexts as the browser shows interpretations: labeled by the token it
-   * fires on most among them (confidence: that token's share), polysemanticity the diversity of
-   * their firing tokens (as in the catalog).
+   * fires on most among them (confidence: that token's share; its autointerp explanation is shown
+   * above them), polysemanticity the diversity of their firing tokens (as in the catalog).
    */
   const loadFeature = useCallback(
     async (feature: number): Promise<FeatureInterpretation | null> => {
@@ -124,5 +141,5 @@ export function useCorpusStats(selection: SAESelection | null, enabled: boolean)
     [atlas, key],
   )
 
-  return { atlas, catalog, loadFeature }
+  return { atlas, catalog: labeled, loadFeature }
 }

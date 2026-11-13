@@ -10,6 +10,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from core.autointerp import budget as autointerp_budget
+from core.autointerp.client import Usage
 from core.geometry.budget import MAX_ATLAS_SECONDS
 from core.geometry.budget import estimate_run_seconds as estimate_geometry_run_seconds
 from core.geometry.budget import estimate_sae_seconds as estimate_geometry_sae_seconds
@@ -20,7 +22,16 @@ from core.probes.budget import estimate_matrix_seconds as estimate_probe_matrix_
 from core.probes.budget import estimate_run_seconds as estimate_probe_run_seconds
 from core.probes.budget import estimate_sae_seconds as estimate_probe_sae_seconds
 from models.database import CreditBalance, TrainingJob, Transaction, TransactionType, User
-from services.modal_feature_stats import ATLAS_CPU, ATLAS_MEMORY_MB, ATLAS_SCALEDOWN_SECONDS, ATLAS_TIMEOUT_SECONDS
+from services.modal_feature_stats import (
+    ATLAS_CPU,
+    ATLAS_MEMORY_MB,
+    ATLAS_SCALEDOWN_SECONDS,
+    ATLAS_TIMEOUT_SECONDS,
+    AUTOINTERP_CPU,
+    AUTOINTERP_MEMORY_MB,
+    AUTOINTERP_SCALEDOWN_SECONDS,
+    AUTOINTERP_TIMEOUT_SECONDS,
+)
 from services.modal_inference import SCALEDOWN_WINDOW_SECONDS as INFERENCE_SCALEDOWN_SECONDS
 
 
@@ -977,6 +988,222 @@ def calculate_atlas_cost(model_id: str, seconds: float) -> float:
         cpu_cores=ATLAS_CPU,
         memory_gib=ATLAS_MEMORY_MB / 1024,
     )
+
+
+# Autointerp: Claude API list prices per million tokens
+# (https://platform.claude.com/docs/en/about-claude/pricing, checked 2026-10-16). Cache reads
+# are a per-model fraction of input; 5-minute cache writes are 1.25x input; the Message
+# Batches API halves every token's price, cache reads and writes included.
+CLAUDE_PRICES_CHECKED = "2026-10-16"
+CLAUDE_PRICES = {
+    "claude-haiku-4-5": {"input": 1.00, "output": 5.00, "cache_read": 0.10},
+    "claude-sonnet-5-5": {"input": 2.00, "output": 10.00, "cache_read": 0.20},
+    "claude-opus-5-5": {"input": 4.00, "output": 20.00, "cache_read": 0.20},
+}
+CLAUDE_CACHE_WRITE_MULTIPLIER = 1.25
+CLAUDE_BATCH_MULTIPLIER = 0.5
+
+for _model in autointerp_budget.MODELS:
+    if _model not in CLAUDE_PRICES:
+        raise RuntimeError(f"Autointerp model {_model} has no price in CLAUDE_PRICES")
+
+
+def claude_cost(model_id: str, usage: Usage, batch: bool = False) -> float:
+    """What Anthropic bills for a model's usage, in USD (no markup)."""
+    price = CLAUDE_PRICES[model_id]
+    cost = (
+        usage.input_tokens * price["input"]
+        + usage.cache_write_tokens * price["input"] * CLAUDE_CACHE_WRITE_MULTIPLIER
+        + usage.cache_read_tokens * price["cache_read"]
+        + usage.output_tokens * price["output"]
+    ) / 1e6
+    return cost * (CLAUDE_BATCH_MULTIPLIER if batch else 1.0)
+
+
+def calculate_autointerp_cost(usage: dict[str, Usage], batch: bool = False, cpu_seconds: float = 0.0, cpu_cores: float = 1.0, memory_gib: float = 1.0) -> float:
+    """
+    Charge for autointerp usage (tokens by model), plus any Modal CPU time its stages ran, with
+    markup. Settling on reported usage keeps every charge above cost.
+    """
+    tokens = sum(claude_cost(model_id, u, batch) for model_id, u in usage.items())
+    cpu = cpu_seconds * (cpu_cores * MODAL_CPU_CORE_PRICE_PER_SEC + memory_gib * MODAL_MEMORY_GIB_PRICE_PER_SEC)
+    return (tokens + cpu) * PRICE_MARKUP
+
+
+def autointerp_bound(requests: list[tuple[str, int, int]], batch: bool = False, cached: bool = False) -> float:
+    """
+    The most a set of requests can cost, with markup: each one's exact input and max_tokens of
+    output. Requests are (model, input tokens, max_tokens); with cached (requests that mark a
+    prefix for caching), input is priced as cache writes, the dearest input.
+    """
+    usage: dict[str, Usage] = {}
+    for model_id, input_tokens, max_tokens in requests:
+        tokens = Usage(cache_write_tokens=input_tokens) if cached else Usage(input_tokens=input_tokens)
+        usage[model_id] = usage.get(model_id, Usage()) + tokens + Usage(output_tokens=max_tokens)
+    return calculate_autointerp_cost(usage, batch)
+
+
+def estimate_autointerp_cost(explainer: str, scorer: str, features: int = 1, scored: bool = True, batch: bool = False) -> float:
+    """The expected charge for explaining (and scoring) features, from the measured tokens per feature."""
+    usage = {
+        model_id: Usage(input_tokens=t["input"] * features, output_tokens=t["output"] * features)
+        for model_id, t in autointerp_budget.estimated_tokens(explainer, scorer, scored).items()
+    }
+    return calculate_autointerp_cost(usage, batch)
+
+
+def autointerp_tokens_cost(tokens: dict[str, dict[str, int]], batch: bool = True) -> float:
+    """Charge for {model: {"input", "output"}} tokens (e.g. a job's upper bound), with markup."""
+    return calculate_autointerp_cost(
+        {model_id: Usage(input_tokens=t["input"], output_tokens=t["output"]) for model_id, t in tokens.items()}, batch,
+    )
+
+
+# Autointerp jobs' stages run on CPU containers of their own (services/modal_feature_stats.py),
+# each billed from its cold start to its scaledown. A job runs AUTOINTERP_STAGES of them
+# (prepare, submit, collect the explanations, collect the scores); its hold covers each one's
+# timeout, and it's charged the seconds they report.
+AUTOINTERP_STAGES = 4
+AUTOINTERP_COLD_START_SECONDS = 15
+# Seconds a stage is expected to run, for estimates
+AUTOINTERP_STAGE_SECONDS = 60
+
+
+def autointerp_cpu_cost(seconds: float, stages: int) -> float:
+    """Charge for autointerp stages that ran `seconds` in all, with markup."""
+    billed = seconds + stages * (AUTOINTERP_COLD_START_SECONDS + AUTOINTERP_SCALEDOWN_SECONDS)
+    return calculate_autointerp_cost({}, cpu_seconds=billed, cpu_cores=AUTOINTERP_CPU, memory_gib=AUTOINTERP_MEMORY_MB / 1024)
+
+
+def autointerp_stage_bound(stages: int) -> float:
+    """The most stages can cost: each one running to its timeout."""
+    return autointerp_cpu_cost(stages * AUTOINTERP_TIMEOUT_SECONDS, stages)
+
+
+def estimate_autointerp_job(explainer: str, scorer: str, features: int, scored: int, controls: int) -> tuple[float, float]:
+    """
+    (expected charge, expected hold) of a job explaining features + controls and scoring scored +
+    controls, at batch prices: tokens from the measured tokens per feature, and the hold from
+    the same estimate of each request's input with room for any explanation and every
+    request's max_tokens of output (the real hold comes from counting the job's prompts).
+    """
+    explained, scoring = features + controls, scored + controls
+
+    def tokens(per_feature, n_explained: int, n_scored: int) -> dict[str, dict[str, int]]:
+        total: dict[str, dict[str, int]] = {}
+        for n, scored_too in ((n_scored, True), (n_explained - n_scored, False)):
+            for model_id, t in per_feature(explainer, scorer, scored_too).items():
+                entry = total.setdefault(model_id, {"input": 0, "output": 0})
+                entry["input"] += t["input"] * n
+                entry["output"] += t["output"] * n
+        return total
+
+    expected = autointerp_tokens_cost(tokens(autointerp_budget.estimated_tokens, explained, scoring))
+    expected += autointerp_cpu_cost(AUTOINTERP_STAGES * AUTOINTERP_STAGE_SECONDS, AUTOINTERP_STAGES)
+    hold = autointerp_tokens_cost(tokens(autointerp_budget.estimated_bound_tokens, explained, scoring))
+    hold += autointerp_stage_bound(AUTOINTERP_STAGES)
+    return expected, hold
+
+
+# One feature explained and scored synchronously is charged its usage, at least this: one
+# feature's expected cost at full price on the priciest pair of models allowed for it
+MIN_AUTOINTERP_CHARGE = math.ceil(max(
+    estimate_autointerp_cost(explainer, scorer)
+    for explainer in autointerp_budget.SINGLE_FEATURE_MODELS
+    for scorer in autointerp_budget.SINGLE_FEATURE_MODELS
+) * 100) / 100
+
+
+# Testing explanations (AUTOINTERP_PLAN.md, Phase 3)
+
+def estimate_hypothesis_cost(scorer: str, baseline: bool = False) -> float:
+    """The expected charge for scoring a user's explanation of a feature (with the token baseline's detection, if it's run too)."""
+    t = autointerp_budget.estimated_score_tokens(scorer, baseline)
+    return calculate_autointerp_cost({scorer: Usage(input_tokens=t["input"], output_tokens=t["output"])})
+
+
+# Scoring a hypothesis is charged its usage, at least this: one scoring pass's expected cost on
+# the priciest scorer allowed for a single feature
+MIN_HYPOTHESIS_CHARGE = math.ceil(max(
+    estimate_hypothesis_cost(scorer) for scorer in autointerp_budget.SINGLE_FEATURE_MODELS
+) * 100) / 100
+
+
+def estimate_generation_cost(generator: str) -> float:
+    """The expected charge for the request writing a generation test's texts."""
+    t = autointerp_budget.estimated_generation_tokens(generator)
+    return calculate_autointerp_cost({generator: Usage(input_tokens=t["input"], output_tokens=t["output"])})
+
+
+def calculate_generation_read_cost(
+    model_id: str,
+    parameters: int,
+    hidden_dim: int,
+    num_texts: int,
+    total_tokens: int,
+    sae_latents: int,
+) -> float:
+    """
+    Cost of a generation test's GPU call: its texts through the model and the SAE on the model's
+    inference worker (the code an atlas reads its corpus with, so activations compare with the
+    atlas's). Charged like a probe's SAE run, for the GPU time it's estimated to take: at least
+    the worker's request minimum, and at least MIN_SAE_CHARGE.
+    """
+    return max(MIN_SAE_CHARGE, calculate_probe_sae_cost(model_id, parameters, hidden_dim, num_texts, total_tokens, sae_latents))
+
+
+def generation_read_bound(model_id: str, parameters: int, hidden_dim: int, sae_latents: int) -> float:
+    """The most a generation test's GPU call is charged: every text read to its token limit."""
+    texts = autointerp_budget.GENERATION_FIRING + autointerp_budget.GENERATION_NEAR_MISSES
+    return calculate_generation_read_cost(
+        model_id, parameters, hidden_dim, texts, texts * autointerp_budget.GENERATION_TEXT_TOKENS, sae_latents,
+    )
+
+
+# A job naming an atlas's communities runs three stages (prepare, submit, collect)
+NAMING_STAGES = 3
+
+
+def estimate_naming_job(namer: str, communities: int) -> tuple[float, float]:
+    """
+    (expected charge, expected hold) of a job naming communities, at batch prices: tokens from
+    the estimated tokens per name, and the hold from each request's max_tokens of output and
+    every stage running to its timeout (the real hold comes from counting the job's prompts).
+    """
+    def tokens(bound: bool) -> dict[str, dict[str, int]]:
+        t = autointerp_budget.estimated_naming_tokens(namer, bound)
+        return {namer: {"input": t["input"] * communities, "output": t["output"] * communities}}
+
+    expected = autointerp_tokens_cost(tokens(False)) + autointerp_cpu_cost(NAMING_STAGES * AUTOINTERP_STAGE_SECONDS, NAMING_STAGES)
+    hold = autointerp_tokens_cost(tokens(True)) + autointerp_stage_bound(AUTOINTERP_STAGES)
+    return expected, hold
+
+
+def charge_uncommitted(
+    db: Session,
+    user_id: int,
+    amount_usd: float,
+    transaction_type: TransactionType,
+    description: str,
+) -> Transaction:
+    """
+    Charge an amount from the available balance without committing, so the caller commits it
+    with the state it pays for (e.g. a job's next stage), once.
+
+    Raises:
+        InsufficientBalanceError: the available balance doesn't cover it (nothing is changed;
+            the caller rolls back to release the balance row's lock)
+    """
+    amount = _to_decimal(round(amount_usd, 4))
+    credit_balance = get_credit_balance_for_update(db, user_id)
+    available = credit_balance.available_balance if credit_balance else 0
+    if credit_balance is None or available < amount:
+        raise InsufficientBalanceError(required=amount_usd, available=float(available))
+    credit_balance.balance_usd -= amount
+    credit_balance.updated_at = datetime.utcnow()
+    transaction = Transaction(user_id=user_id, amount_usd=-amount, transaction_type=transaction_type, description=description)
+    db.add(transaction)
+    return transaction
 
 
 def credit_refund(

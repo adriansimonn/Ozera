@@ -695,7 +695,9 @@ async def _job_info(job: AtlasJob, user: User) -> dict:
 
 def _atlas_estimate(model_id: str, specs: ModelSpecs, width: int, tokens: int) -> tuple[float, float]:
     """(estimated GPU seconds, cost) of an atlas job."""
-    seconds = estimate_atlas_seconds(get_gpu_tier(model_id), specs.parameters, specs.hidden_dim, width, tokens, ATLAS_ASSUMED_L0)
+    seconds = estimate_atlas_seconds(
+        get_gpu_tier(model_id), specs.parameters, specs.hidden_dim, width, tokens, ATLAS_ASSUMED_L0, specs.vocab_size,
+    )
     return seconds, calculate_atlas_cost(model_id, seconds)
 
 

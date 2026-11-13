@@ -68,6 +68,15 @@ class User(Base):
     atlas_jobs = relationship(
         "AtlasJob", back_populates="user", cascade="all, delete-orphan"
     )
+    autointerp_jobs = relationship(
+        "AutointerpJob", back_populates="user", cascade="all, delete-orphan"
+    )
+    feature_hypotheses = relationship(
+        "FeatureHypothesis", back_populates="user", cascade="all, delete-orphan"
+    )
+    generation_tests = relationship(
+        "GenerationTest", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
@@ -115,6 +124,8 @@ class TransactionType(PyEnum):
     PROBE_CHARGE = "probe_charge"
     GEOMETRY_CHARGE = "geometry_charge"
     GEOMETRY_REFUND = "geometry_refund"
+    AUTOINTERP_CHARGE = "autointerp_charge"
+    AUTOINTERP_REFUND = "autointerp_refund"
 
 
 class Transaction(Base):
@@ -380,3 +391,223 @@ class AtlasJob(Base):
 
     def __repr__(self):
         return f"<AtlasJob(job_id={self.job_id}, user_id={self.user_id}, status={self.status})>"
+
+
+class FeatureExplanation(Base):
+    """
+    An SAE feature's autointerp explanation and its scores (core.autointerp), from one atlas.
+
+    Shared like atlases: an explanation of a public SAE serves everyone with the SAE in their
+    list, whoever paid for it (uploads' atlases are per user already). Reproducible from what's
+    stored: the atlas (key and build), the models, and the prompt and example-set versions.
+
+    status: running (a claim while a request explains it; at most one per feature, models and
+    versions), scored, unscored (explained, but its sets can't be scored) or refused.
+    """
+
+    __tablename__ = "feature_explanations"
+    __table_args__ = (
+        Index("ix_feature_explanations_atlas_feature", "atlas_key", "feature"),
+        Index(
+            "uq_feature_explanations_running",
+            "atlas_key", "feature", "explainer_model", "scorer_model", "prompt_version", "examples_version",
+            unique=True,
+            postgresql_where=text("status = 'running'"),
+            sqlite_where=text("status = 'running'"),
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    atlas_key = Column(String(800), nullable=False)  # The atlas's directory on the SAE volume
+    sae_key = Column(String(800), nullable=False, index=True)  # The SAE's directory
+    model_id = Column(String(255), nullable=False)
+    corpus = Column(String(50), nullable=False)
+    atlas = Column(JSON, nullable=True)  # The atlas build: created_at, tokens, seed, version
+    feature = Column(Integer, nullable=False)
+    is_control = Column(Boolean, nullable=False, default=False)  # A random-direction control
+    explanation = Column(Text, nullable=True)
+    explainer_model = Column(String(100), nullable=False)
+    scorer_model = Column(String(100), nullable=False)
+    prompt_version = Column(Integer, nullable=False)
+    examples_version = Column(Integer, nullable=False)
+    status = Column(String(20), nullable=False)
+    note = Column(String(500), nullable=True)
+    detection = Column(Float, nullable=True)
+    detection_hard = Column(Float, nullable=True)  # Against token-matched negatives alone
+    fuzzing = Column(Float, nullable=True)
+    score = Column(Float, nullable=True)
+    token_detection = Column(Float, nullable=True)  # The token baseline's detection
+    decile_recall = Column(JSON, nullable=True)
+    details = Column(JSON, nullable=True)  # Intervals, refused prompts, example counts
+    verdicts = Column(JSON, nullable=True)  # The scorer's verdict on every example
+    usage = Column(JSON, nullable=True)  # Tokens by model
+    cost_usd = Column(Numeric(precision=10, scale=4), nullable=True)
+    job_id = Column(String(50), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    def __repr__(self):
+        return f"<FeatureExplanation(atlas_key={self.atlas_key}, feature={self.feature}, status={self.status})>"
+
+
+class AutointerpJob(Base):
+    """
+    An autointerp job: a selection of an SAE's features, and the atlas's random-direction
+    controls, explained (and scored) through the Message Batches API in stages
+    (services/autointerp_jobs.py): queued, then running through preparing → explaining →
+    scoring → importing, then completed or failed. Holds its upper bound once its requests are
+    counted, and is settled on the usage reported.
+    """
+
+    __tablename__ = "autointerp_jobs"
+
+    job_id = Column(String(50), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    model_id = Column(String(255), nullable=False)
+    sae = Column(JSON, nullable=False)
+    sae_name = Column(String(500), nullable=False)
+    atlas_key = Column(String(800), nullable=False, index=True)
+    corpus = Column(String(50), nullable=False)
+    atlas = Column(JSON, nullable=True)  # The atlas build it reads: created_at, tokens, seed, version
+    explainer_model = Column(String(100), nullable=False)
+    scorer_model = Column(String(100), nullable=False)
+    selection = Column(JSON, nullable=False)  # How its features were chosen, and how many are scored
+    features = Column(Integer, nullable=False)  # Features to explain (controls apart)
+    scored = Column(Integer, nullable=False)  # Of those, features to score
+    controls = Column(Integer, nullable=False)
+    status = Column(String(20), nullable=False, default="queued", index=True)
+    stage = Column(String(20), nullable=True)
+    modal_call_id = Column(String(100), nullable=True)  # The stage running on Modal, if any
+    batch_ids = Column(JSON, nullable=True)  # {"explain": [...], "score": [...]}
+    usage = Column(JSON, nullable=True)  # Tokens by stage and model
+    details = Column(JSON, nullable=True)  # Stage reports, batch progress, results imported
+    cost_usd = Column(Numeric(precision=10, scale=4), nullable=False)  # Charged in all (holds)
+    bound_usd = Column(Numeric(precision=10, scale=4), nullable=True)  # The upper bound, once counted
+    estimated_usd = Column(Numeric(precision=10, scale=4), nullable=True)
+    settled_usd = Column(Numeric(precision=10, scale=4), nullable=True)
+    refunded_usd = Column(Numeric(precision=10, scale=4), nullable=True)
+    cpu_seconds = Column(Float, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="autointerp_jobs")
+
+    def __repr__(self):
+        return f"<AutointerpJob(job_id={self.job_id}, user_id={self.user_id}, status={self.status})>"
+
+
+class FeatureHypothesis(Base):
+    """
+    A user's own explanation of a feature, scored like autointerp's: by the same scorer and
+    prompts, on the same held-out set of the atlas (private to the user).
+
+    status: scored, unscored (the scorer's answers couldn't be read) or refused.
+    """
+
+    __tablename__ = "feature_hypotheses"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    atlas_key = Column(String(800), nullable=False, index=True)
+    sae_key = Column(String(800), nullable=False)
+    model_id = Column(String(255), nullable=False)
+    corpus = Column(String(50), nullable=False)
+    atlas = Column(JSON, nullable=True)  # The atlas build it was scored on: created_at, tokens, seed, version
+    feature = Column(Integer, nullable=False)
+    text = Column(Text, nullable=False)
+    scorer_model = Column(String(100), nullable=False)
+    prompt_version = Column(Integer, nullable=False)
+    examples_version = Column(Integer, nullable=False)
+    status = Column(String(20), nullable=False)
+    note = Column(String(500), nullable=True)
+    detection = Column(Float, nullable=True)
+    detection_hard = Column(Float, nullable=True)
+    fuzzing = Column(Float, nullable=True)
+    score = Column(Float, nullable=True)
+    token_detection = Column(Float, nullable=True)  # The token baseline's detection on the same examples
+    decile_recall = Column(JSON, nullable=True)
+    details = Column(JSON, nullable=True)  # Intervals, refused prompts, example counts
+    verdicts = Column(JSON, nullable=True)
+    usage = Column(JSON, nullable=True)
+    cost_usd = Column(Numeric(precision=10, scale=4), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    user = relationship("User", back_populates="feature_hypotheses")
+
+    def __repr__(self):
+        return f"<FeatureHypothesis(user_id={self.user_id}, feature={self.feature})>"
+
+
+class GenerationTest(Base):
+    """
+    A generation test of one explanation of a feature (core.autointerp.pipeline): texts Claude
+    wrote from the explanation (ones it says the feature fires on, and near-misses), with the
+    feature's activation on each as the model and SAE read them, and the shares that fire.
+
+    A test of an autointerp explanation (explanation_id) is shared like the explanation; a test
+    of a user's hypothesis (hypothesis_id) is private to that user.
+    """
+
+    __tablename__ = "generation_tests"
+    __table_args__ = (Index("ix_generation_tests_atlas_feature", "atlas_key", "feature"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)  # Who ran (and paid for) it
+    atlas_key = Column(String(800), nullable=False)
+    sae_key = Column(String(800), nullable=False)
+    model_id = Column(String(255), nullable=False)
+    corpus = Column(String(50), nullable=False)
+    atlas = Column(JSON, nullable=True)  # The atlas build whose maximum it's measured against
+    feature = Column(Integer, nullable=False)
+    explanation_id = Column(Integer, ForeignKey("feature_explanations.id", ondelete="CASCADE"), nullable=True, index=True)
+    hypothesis_id = Column(Integer, ForeignKey("feature_hypotheses.id", ondelete="CASCADE"), nullable=True, index=True)
+    text = Column(Text, nullable=False)  # The explanation tested
+    generator_model = Column(String(100), nullable=False)
+    prompt_version = Column(Integer, nullable=False)
+    threshold = Column(Float, nullable=False)  # Share of the maximum a text must reach to count as firing
+    maximum = Column(Float, nullable=False)  # The feature's maximum over the corpus
+    firing_rate = Column(Float, nullable=True)  # Share of the firing texts that reach the threshold
+    near_miss_rate = Column(Float, nullable=True)  # Share of the near-misses that stay below it
+    texts = Column(JSON, nullable=False)  # [{"kind", "tokens", "levels", "read", "peak"}]
+    usage = Column(JSON, nullable=True)  # Tokens by model
+    cost_usd = Column(Numeric(precision=10, scale=4), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    user = relationship("User", back_populates="generation_tests")
+
+    def __repr__(self):
+        return f"<GenerationTest(feature={self.feature}, explanation_id={self.explanation_id}, hypothesis_id={self.hypothesis_id})>"
+
+
+class CommunityName(Base):
+    """
+    An atlas community's name (core.autointerp.communities), written by Claude from its
+    features' explanations and contexts. Shared like explanations. Community IDs belong to one
+    atlas build, so a name serves only the build it was made from (atlas_created_at).
+    """
+
+    __tablename__ = "community_names"
+    __table_args__ = (Index("ix_community_names_atlas_community", "atlas_key", "community"),)
+
+    id = Column(Integer, primary_key=True)
+    atlas_key = Column(String(800), nullable=False)
+    sae_key = Column(String(800), nullable=False)
+    model_id = Column(String(255), nullable=False)
+    corpus = Column(String(50), nullable=False)
+    atlas_created_at = Column(String(40), nullable=False)
+    community = Column(Integer, nullable=False)
+    name = Column(Text, nullable=False)
+    namer_model = Column(String(100), nullable=False)
+    prompt_version = Column(Integer, nullable=False)
+    explained = Column(Integer, nullable=False)  # Its features with an explanation when it was named
+    size = Column(Integer, nullable=False)
+    usage = Column(JSON, nullable=True)
+    cost_usd = Column(Numeric(precision=10, scale=4), nullable=True)
+    job_id = Column(String(50), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    def __repr__(self):
+        return f"<CommunityName(atlas_key={self.atlas_key}, community={self.community}, name={self.name})>"

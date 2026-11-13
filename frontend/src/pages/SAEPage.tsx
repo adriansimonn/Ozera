@@ -7,7 +7,11 @@
 import { useState, useCallback, useEffect } from 'react'
 import { SaeDeepLinkNote } from '../components/sae/SaeDeepLinkNote'
 import { useSaeDeepLink } from '../hooks/useSaeDeepLink'
-import { useCorpusStats } from '../hooks/useCorpusStats'
+import { saeRef, useCorpusStats } from '../hooks/useCorpusStats'
+import { useFeatureLabels } from '../hooks/useFeatureLabels'
+import { FeatureExplanation } from '../components/autointerp/FeatureExplanation'
+import { AutointerpView } from '../components/autointerp/AutointerpView'
+import type { AtlasCorpusId } from '../types/geometry'
 import { useAuthStore } from '../stores/authStore'
 import { NavBar } from '../components/common/NavBar'
 import {
@@ -29,6 +33,7 @@ import {
   Loader2,
   AlertCircle,
   Download,
+  Sparkles,
 } from 'lucide-react'
 import { saeClient, type SAEAnalyzeResponse, type SAEFeatureInfoResponse, type ExternalSAEInfo } from '../api/client'
 import type {
@@ -44,7 +49,7 @@ interface SAEPageProps {
   onShowPurchaseCredits: () => void
 }
 
-type SAEMode = 'browse' | 'analyze' | 'dashboard' | 'compare' | 'load'
+type SAEMode = 'browse' | 'analyze' | 'dashboard' | 'compare' | 'load' | 'autointerp'
 
 // Transform API response to SequenceFeatureActivations format
 function transformAnalyzeResponse(response: SAEAnalyzeResponse): SequenceFeatureActivations {
@@ -325,6 +330,11 @@ export default function SAEPage({
   onShowPurchaseCredits,
 }: SAEPageProps) {
   const [mode, setMode] = useState<SAEMode>('analyze')
+  // The Autointerp view stays mounted once opened (its jobs and tables survive switching modes)
+  const [autointerpOpened, setAutointerpOpened] = useState(false)
+  useEffect(() => {
+    if (mode === 'autointerp') setAutointerpOpened(true)
+  }, [mode])
   // A link from the Probe Lab picks the SAE, the text, and a feature to show once analyzed
   const { link: deepLink, pendingFeature, clearPending } = useSaeDeepLink()
   const [saeSelection, setSaeSelection] = useState<SAESelection | null>(deepLink?.selection ?? null)
@@ -340,6 +350,9 @@ export default function SAEPage({
   const [activations, setActivations] = useState<SequenceFeatureActivations | null>(null)
   const [featureCatalog, setFeatureCatalog] = useState<FeatureCatalog | null>(null)
   const [qualityMetrics, setQualityMetrics] = useState<SAEQualityMetrics | null>(null)
+  // Autointerp: the selected SAE, and labels of the features the heatmap shows
+  const selectedRef = saeRef(saeSelection)
+  const heatmapLabels = useFeatureLabels(selectedRef, activations?.most_active_features ?? [])
 
   // Feature selection state
   const [selectedFeature, setSelectedFeature] = useState<number | null>(null)
@@ -553,6 +566,7 @@ export default function SAEPage({
                   { id: 'browse', label: 'Browse Features', icon: Layers },
                   { id: 'dashboard', label: 'Quality Dashboard', icon: BarChart3 },
                   { id: 'compare', label: 'Compare SAEs', icon: GitCompare },
+                  { id: 'autointerp', label: 'Autointerp', icon: Sparkles },
                   { id: 'load', label: 'Load External', icon: Download },
                 ].map(({ id, label, icon: Icon }) => (
                   <button
@@ -595,6 +609,7 @@ export default function SAEPage({
               { id: 'browse', label: 'Browse Features', icon: Layers },
               { id: 'dashboard', label: 'Quality Dashboard', icon: BarChart3 },
               { id: 'compare', label: 'Compare SAEs', icon: GitCompare },
+              { id: 'autointerp', label: 'Autointerp', icon: Sparkles },
               { id: 'load', label: 'Load External', icon: Download },
             ].map(({ id, label, icon: Icon }) => (
               <button
@@ -620,8 +635,8 @@ export default function SAEPage({
 
           {pendingFeature != null && mode !== 'load' && <SaeDeepLinkNote feature={pendingFeature} />}
 
-          {/* Text Input - Hidden in Load mode */}
-          {mode !== 'load' && (
+          {/* Text Input - Hidden in Load and Autointerp modes */}
+          {mode !== 'load' && mode !== 'autointerp' && (
             <div className="input-section mb-4">
               <div className="flex gap-3">
                 <div className="flex-1 relative">
@@ -682,7 +697,7 @@ export default function SAEPage({
           {/* Content */}
           <div className="sae-main">
             {/* No data state */}
-            {!analyzeResponse && !analyzing && mode !== 'load' && !(mode === 'browse' && corpusCatalog) && (
+            {!analyzeResponse && !analyzing && mode !== 'load' && mode !== 'autointerp' && !(mode === 'browse' && corpusCatalog) && (
               <div className="empty-state">
                 <Search className="empty-icon" />
                 <h3>Enter Text to Analyze</h3>
@@ -707,6 +722,7 @@ export default function SAEPage({
                     selectedFeatures={selectedFeatures}
                     onFeatureSelect={handleFeatureSelect}
                     showTopK={10}
+                    labels={heatmapLabels}
                   />
                 </div>
                 <div className="feature-detail-panel">
@@ -747,6 +763,13 @@ export default function SAEPage({
                   />
                 </div>
                 <div className="detail-panel">
+                  {selectedFeature !== null && corpusAtlas && selectedRef && (
+                    <FeatureExplanation
+                      atlasRef={{ model: corpusAtlas.model, sae: selectedRef, corpus: corpusAtlas.corpus.id as AtlasCorpusId }}
+                      feature={selectedFeature}
+                      onShowPurchaseCredits={onShowPurchaseCredits}
+                    />
+                  )}
                   {selectedFeature !== null && featureInfo ? (
                     <FeatureTopTokens
                       interpretation={featureInfo}
@@ -775,6 +798,13 @@ export default function SAEPage({
                   metrics={qualityMetrics}
                   trainingProgress={trainingProgress}
                 />
+              </div>
+            )}
+
+            {/* Autointerp Mode */}
+            {autointerpOpened && (
+              <div hidden={mode !== 'autointerp'}>
+                <AutointerpView sae={selectedRef} onShowPurchaseCredits={onShowPurchaseCredits} />
               </div>
             )}
 

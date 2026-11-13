@@ -57,6 +57,7 @@ from api.export import router as export_router
 from api.sae import router as sae_router
 from api.probes import monitor_probe, router as probes_router
 from api.geometry import router as geometry_router
+from api.autointerp import router as autointerp_router
 from api.settings import router as settings_router
 from api.streaming import SSE_HEADERS, billed_generation_stream
 from services.generation_control import GENERATION_ID_PATTERN, new_generation_id, request_stop, stop_key
@@ -139,6 +140,7 @@ app.include_router(export_router)
 app.include_router(sae_router)
 app.include_router(probes_router)
 app.include_router(geometry_router)
+app.include_router(autointerp_router)
 app.include_router(settings_router)
 
 

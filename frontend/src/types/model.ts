@@ -352,6 +352,10 @@ export interface FeatureStats {
   suggested_label: string
   confidence: number
   unique_tokens: number
+  /** Autointerp score of the explanation shown as its label (0.5 is chance), if scored */
+  score?: number | null
+  /** Title for the label (the full explanation and its scores) */
+  label_title?: string
 }
 
 /**

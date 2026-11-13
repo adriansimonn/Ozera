@@ -93,6 +93,24 @@ import type {
   SteerResult,
 } from '../types/geometry'
 import type {
+  AutointerpFeatureRef,
+  AutointerpJob,
+  AutointerpStatus,
+  CommunityName,
+  ExamplesResponse,
+  ExplainResponse,
+  ExplanationSource,
+  FeatureAutointerp,
+  FeaturesRequest,
+  FeaturesResponse,
+  GenerationTestResponse,
+  HypothesisResponse,
+  JobEstimate,
+  JobRequest,
+  LabelsResponse,
+  SummaryResponse,
+} from '../types/autointerp'
+import type {
   PresetInfo,
   AttentionHeatmapExportRequest,
   MultiHeadHeatmapExportRequest,
@@ -437,6 +455,14 @@ const TRAINING_START_TIMEOUT_MS = 120_000
 const GEOMETRY_COMPARE_TIMEOUT_MS = 60_000
 // Atlases are read from the SAE volume through Modal's API (summaries run to a few MB)
 const ATLAS_READ_TIMEOUT_MS = 60_000
+// Explaining a feature runs Claude on the backend for at most EXPLAIN_DEADLINE_SECONDS (240s);
+// a request waiting on another request's run of the same feature waits that plus
+// CLAIM_GRACE_SECONDS (30s), both in backend/core/autointerp/budget.py
+const AUTOINTERP_EXPLAIN_TIMEOUT_MS = 285_000
+// A generation test has Claude write its texts on the backend for at most
+// GENERATION_DEADLINE_SECONDS (120s, in backend/core/autointerp/budget.py), then reads them in
+// one call to an inference worker (a GPU call, see GPU_TIMEOUT_MS)
+const AUTOINTERP_GENERATION_TIMEOUT_MS = GPU_TIMEOUT_MS + 125_000
 
 async function fetchWithTimeout(
   input: string,
@@ -2237,6 +2263,143 @@ class OzeraAPIClient {
   async atlasLookup(sae: SaeRef): Promise<AtlasMeta[]> {
     const result = await this.atlasPost<{ atlases: AtlasMeta[] }>('lookup', { sae }, 'Failed to look up corpus statistics', ATLAS_READ_TIMEOUT_MS)
     return result.atlases
+  }
+
+  // Autointerp: explanations of SAE features (reads free and shared; explaining one is charged its usage)
+
+  private async autointerpPost<T>(path: string, body: unknown, fallback: string, timeout = DEFAULT_TIMEOUT_MS): Promise<T> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/autointerp/${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(body),
+    }, timeout)
+    if (!response.ok) throw await responseError(response, fallback)
+    return response.json()
+  }
+
+  /** Whether an SAE's features can be explained from its atlas on a model, and the price of one. */
+  async autointerpStatus(request: { model: string; sae: SaeRef; corpus?: string }): Promise<AutointerpStatus> {
+    return this.autointerpPost('status', request, 'Failed to load the autointerp status', ATLAS_READ_TIMEOUT_MS)
+  }
+
+  /** A feature's explanation and scores, top tokens, and the tokens its decoder row promotes. */
+  async autointerpFeature(ref: AutointerpFeatureRef): Promise<FeatureAutointerp> {
+    return this.autointerpPost('feature', ref, 'Failed to load the explanation', ATLAS_READ_TIMEOUT_MS)
+  }
+
+  /** Explain and score a feature (charged its usage; free when it's already explained). */
+  async explainFeature(ref: AutointerpFeatureRef & { explainer?: string; scorer?: string }): Promise<ExplainResponse> {
+    try {
+      const result = await this.autointerpPost<ExplainResponse>('explain', ref, 'Failed to explain the feature', AUTOINTERP_EXPLAIN_TIMEOUT_MS)
+      if (result.cost > 0) notifyCreditsChanged()
+      return result
+    } catch (err) {
+      // A run whose requests failed is still charged the tokens they used
+      notifyCreditsChanged()
+      throw err
+    }
+  }
+
+  /** Explanations of an SAE's features, for labels (features without one are left out). */
+  async featureLabels(request: { sae: SaeRef; model?: string; features: number[] }): Promise<LabelsResponse> {
+    return this.autointerpPost('labels', request, 'Failed to load feature labels')
+  }
+
+  /** What a job would explain, its expected charge, and about what it would hold. */
+  async estimateAutointerpJob(request: JobRequest): Promise<JobEstimate> {
+    return this.autointerpPost('estimate', request, 'Failed to estimate the job', ATLAS_READ_TIMEOUT_MS)
+  }
+
+  /** Start a job (it holds what counting can cost now, then its upper bound; settled on usage). */
+  async submitAutointerpJob(request: JobRequest): Promise<AutointerpJob> {
+    const job = await this.autointerpPost<AutointerpJob>('jobs', request, 'Failed to start the job', TRAINING_START_TIMEOUT_MS)
+    notifyCreditsChanged()
+    return job
+  }
+
+  async getAutointerpJob(jobId: string): Promise<AutointerpJob> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/autointerp/jobs/${encodeURIComponent(jobId)}`, {
+      headers: getAuthHeaders(),
+    }, ATLAS_READ_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Failed to load the job')
+    return response.json()
+  }
+
+  /** A page of an atlas's explained features, filtered and sorted. */
+  async explainedFeatures(request: FeaturesRequest): Promise<FeaturesResponse> {
+    return this.autointerpPost('features', request, 'Failed to load explanations', ATLAS_READ_TIMEOUT_MS)
+  }
+
+  /** An atlas's scores against its random-direction controls, with one pair of models. */
+  async autointerpSummary(request: { model: string; sae: SaeRef; corpus: string; explainer?: string; scorer?: string }): Promise<SummaryResponse> {
+    return this.autointerpPost('summary', request, 'Failed to load the summary', ATLAS_READ_TIMEOUT_MS)
+  }
+
+  /** A feature's explain set and the scorer's mistakes on its explanation (the one shown, or the explanation or hypothesis named). */
+  async featureExamples(ref: AutointerpFeatureRef & ExplanationSource): Promise<ExamplesResponse> {
+    return this.autointerpPost('examples', ref, 'Failed to load the examples', ATLAS_READ_TIMEOUT_MS)
+  }
+
+  /** Score the user's own explanation of a feature on its held-out set (charged its usage; free when already scored). */
+  async scoreHypothesis(request: AutointerpFeatureRef & { text: string; scorer?: string }): Promise<HypothesisResponse> {
+    try {
+      // Scoring runs Claude on the backend for at most EXPLAIN_DEADLINE_SECONDS, like explaining
+      const result = await this.autointerpPost<HypothesisResponse>('hypothesis', request, 'Failed to score the hypothesis', AUTOINTERP_EXPLAIN_TIMEOUT_MS)
+      if (result.cost > 0) notifyCreditsChanged()
+      return result
+    } catch (err) {
+      // A run whose requests failed is still charged the tokens they used
+      notifyCreditsChanged()
+      throw err
+    }
+  }
+
+  async deleteHypothesis(id: number): Promise<void> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/autointerp/hypotheses/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to delete the hypothesis')
+  }
+
+  /**
+   * Generation test of an explanation or a hypothesis: Claude writes texts from it, and a GPU
+   * call reads them through the model and SAE (charged both; free when already stored).
+   */
+  async generationTest(request: AutointerpFeatureRef & ExplanationSource & { generator?: string }): Promise<GenerationTestResponse> {
+    try {
+      const result = await this.autointerpPost<GenerationTestResponse>('generation-test', request, 'Failed to run the generation test', AUTOINTERP_GENERATION_TIMEOUT_MS)
+      if (result.cost > 0) notifyCreditsChanged()
+      return result
+    } catch (err) {
+      // A test that failed part-way is still charged the tokens Claude used
+      notifyCreditsChanged()
+      throw err
+    }
+  }
+
+  /** Names of an atlas's communities (each one's newest, for the atlas as stored now). */
+  async communityNames(ref: { model: string; sae: SaeRef; corpus: string }): Promise<CommunityName[]> {
+    const result = await this.autointerpPost<{ names: CommunityName[] }>('communities', ref, 'Failed to load community names', ATLAS_READ_TIMEOUT_MS)
+    return result.names
+  }
+
+  /** Download every explanation an atlas shows, with its scores, as CSV or JSON. */
+  async exportExplanations(request: { model: string; sae: SaeRef; corpus: string; format: 'csv' | 'json' }, name: string): Promise<void> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/autointerp/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, ATLAS_READ_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Failed to export explanations')
+    const url = window.URL.createObjectURL(await response.blob())
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${name}.${request.format}`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
   }
 }
 

@@ -83,6 +83,11 @@ async def read_bytes(path: str) -> bytes:
     return data
 
 
+async def read_uncached(path: str) -> bytes:
+    """A file's bytes, read now and not kept (e.g. a job's results, read once). Raises FileNotFoundError."""
+    return await _read_raw(path)
+
+
 async def read_json(path: str):
     return json.loads(await read_bytes(path))
 

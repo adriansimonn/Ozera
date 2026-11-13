@@ -1,7 +1,11 @@
 import { useState, useCallback, useEffect } from 'react'
 import { SaeDeepLinkNote } from '../../components/sae/SaeDeepLinkNote'
 import { useSaeDeepLink } from '../../hooks/useSaeDeepLink'
-import { useCorpusStats } from '../../hooks/useCorpusStats'
+import { saeRef, useCorpusStats } from '../../hooks/useCorpusStats'
+import { useFeatureLabels } from '../../hooks/useFeatureLabels'
+import { FeatureExplanation } from '../../components/autointerp/FeatureExplanation'
+import { AutointerpView } from '../../components/autointerp/AutointerpView'
+import type { AtlasCorpusId } from '../../types/geometry'
 import { useAuthStore } from '../../stores/authStore'
 import { NavBar } from '../../components/common/NavBar'
 import {
@@ -23,6 +27,7 @@ import {
   Loader2,
   AlertCircle,
   Download,
+  Sparkles,
 } from 'lucide-react'
 import { saeClient, type SAEAnalyzeResponse, type SAEFeatureInfoResponse, type ExternalSAEInfo } from '../../api/client'
 import type {
@@ -39,7 +44,7 @@ interface SAEPageProps {
   onShowPurchaseCredits: () => void
 }
 
-type SAEMode = 'analyze' | 'browse' | 'dashboard' | 'compare' | 'load'
+type SAEMode = 'analyze' | 'browse' | 'dashboard' | 'compare' | 'load' | 'autointerp'
 
 // Transform API response to SequenceFeatureActivations format
 function transformAnalyzeResponse(response: SAEAnalyzeResponse): SequenceFeatureActivations {
@@ -292,6 +297,11 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
   const { isLight } = useTheme()
 
   const [mode, setMode] = useState<SAEMode>('analyze')
+  // The Autointerp view stays mounted once opened (its jobs and tables survive switching modes)
+  const [autointerpOpened, setAutointerpOpened] = useState(false)
+  useEffect(() => {
+    if (mode === 'autointerp') setAutointerpOpened(true)
+  }, [mode])
   // A link from the Probe Lab picks the SAE, the text, and a feature to show once analyzed
   const { link: deepLink, pendingFeature, clearPending } = useSaeDeepLink()
   const [saeSelection, setSaeSelection] = useState<SAESelection | null>(deepLink?.selection ?? null)
@@ -307,6 +317,9 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
   const [activations, setActivations] = useState<SequenceFeatureActivations | null>(null)
   const [featureCatalog, setFeatureCatalog] = useState<FeatureCatalog | null>(null)
   const [qualityMetrics, setQualityMetrics] = useState<SAEQualityMetrics | null>(null)
+  // Autointerp: the selected SAE, and labels of the features the heatmap shows
+  const selectedRef = saeRef(saeSelection)
+  const heatmapLabels = useFeatureLabels(selectedRef, activations?.most_active_features ?? [])
 
   // Feature selection state
   const [selectedFeature, setSelectedFeature] = useState<number | null>(null)
@@ -511,6 +524,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
     { id: 'browse', label: 'Browse', icon: Layers },
     { id: 'dashboard', label: 'Quality', icon: BarChart3 },
     { id: 'compare', label: 'Compare', icon: GitCompare },
+    { id: 'autointerp', label: 'Autointerp', icon: Sparkles },
     { id: 'load', label: 'Load', icon: Download },
   ]
 
@@ -586,8 +600,8 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
           </div>
         )}
 
-        {/* Text Input — hidden in compare & load modes */}
-        {mode !== 'compare' && mode !== 'load' && (
+        {/* Text Input — hidden in compare, load & autointerp modes */}
+        {mode !== 'compare' && mode !== 'load' && mode !== 'autointerp' && (
           <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
             <div className="ds-section-label" style={{ color: c.textSub }}>Input Text</div>
             {pendingFeature != null && <SaeDeepLinkNote feature={pendingFeature} />}
@@ -627,7 +641,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
         )}
 
         {/* Analysis summary — show when we have results */}
-        {analyzeResponse && mode !== 'compare' && mode !== 'load' && (
+        {analyzeResponse && mode !== 'compare' && mode !== 'load' && mode !== 'autointerp' && (
           <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
             <div className="ds-section-label" style={{ color: c.textSub }}>Analysis Summary</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
@@ -683,6 +697,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
                 selectedFeatures={selectedFeatures}
                 onFeatureSelect={handleFeatureSelect}
                 showTopK={10}
+                labels={heatmapLabels}
               />
             </div>
             {selectedFeature !== null && featureInfo ? (
@@ -725,6 +740,15 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
                 selectedFeature={selectedFeature ?? undefined}
               />
             </div>
+            {selectedFeature !== null && corpusAtlas && selectedRef && (
+              <div className="ds-section" style={{ paddingBottom: 0 }}>
+                <FeatureExplanation
+                  atlasRef={{ model: corpusAtlas.model, sae: selectedRef, corpus: corpusAtlas.corpus.id as AtlasCorpusId }}
+                  feature={selectedFeature}
+                  onShowPurchaseCredits={onShowPurchaseCredits}
+                />
+              </div>
+            )}
             {selectedFeature !== null && featureInfo ? (
               <div className="ds-section">
                 <FeatureTopTokens
@@ -758,6 +782,13 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
           </div>
         )}
 
+        {/* Autointerp Mode */}
+        {autointerpOpened && (
+          <div className="ds-section" hidden={mode !== 'autointerp'}>
+            <AutointerpView sae={selectedRef} onShowPurchaseCredits={onShowPurchaseCredits} />
+          </div>
+        )}
+
         {/* Load External SAEs Mode */}
         {mode === 'load' && (
           <div className="ds-section">
@@ -778,7 +809,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
         )}
 
         {/* Empty state */}
-        {!analyzing && !analyzeResponse && mode !== 'compare' && mode !== 'load' && !(mode === 'browse' && corpusCatalog) && (
+        {!analyzing && !analyzeResponse && mode !== 'compare' && mode !== 'load' && mode !== 'autointerp' && !(mode === 'browse' && corpusCatalog) && (
           <div className="ds-placeholder">
             <Search style={{ width: 36, height: 36, color: c.textSub, opacity: 0.3, marginBottom: '0.75rem' }} />
             <p style={{ color: c.textSub, fontSize: '0.8rem', margin: 0, maxWidth: 360, lineHeight: 1.5 }}>

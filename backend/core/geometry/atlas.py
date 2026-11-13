@@ -27,6 +27,10 @@ the SAE and keeps every token's active features (sparse). From those:
   community (Li et al.'s lobes).
 - Concepts: a community's most frequent firing words as values and the contexts it fires in as
   templates, each checked to tokenize cleanly with every value, so the Shape view can test it.
+- Autointerp (version 2): each live feature's explain and held-out score sets (see
+  core.autointerp.examples), the same for random-direction controls read in the same pass, and
+  the tokens each decoder row promotes and suppresses through the unembedding. Skipped for
+  dense SAEs (L0 over DENSE_L0_FRACTION of the width), whose features autointerp refuses.
 
 Activations (for group geometry) are kept for a random subset of tokens within a memory budget;
 latents for every token read. Tokens with massive activations aren't read: the first SKIP_TOKENS
@@ -49,15 +53,17 @@ from typing import Callable, Optional
 import numpy as np
 import torch
 
+from core.autointerp import examples as ai
+from core.autointerp.budget import DENSE_L0_FRACTION, MIN_RANDOM_NEGATIVES, MIN_SCORE_SEQUENCES
 from core.probes.capture import ResidualReader
-from core.probes.runner import ProbeTarget
+from core.probes.runner import EncodedText, ProbeTarget, forward_batches
 from core.probes.sae import LATENT_ELEMENTS, encode_latents
 
 from .budget import ATLAS_ASSUMED_L0, MAX_LATENT_ENTRIES, MAX_TEMPLATE_CHARS, MAX_VALUE_CHARS, MIN_TEMPLATES, MIN_VALUES, GeometryInputError
 from .concepts import PLACEHOLDER, builtin_concepts, validate_concept
 from .encoding import encode_example
 
-ATLAS_VERSION = 1
+ATLAS_VERSION = 2
 
 # Corpora on the datasets volume (services/modal_volumes generic datasets). Ozera charges for
 # jobs and shows the corpus's text, so only corpora whose licenses allow that are offered.
@@ -95,7 +101,8 @@ CHUNK_CHARS = 8 * SEQ_LEN
 SEQS_PER_BATCH = 32
 # Tokens whose residual norm is over this many times their batch's median aren't read
 MASSIVE_NORM = 10.0
-# Activations kept on the CPU for group geometry (float16)
+# Activations kept on the CPU for group geometry (bfloat16: Gemma 3's residual stream passes
+# float16's maximum of 65504 on ordinary tokens)
 ACTIVATION_BYTES = 8 << 30
 
 # Contexts kept per feature (from the strongest candidates, one per sequence), and the tokens
@@ -216,37 +223,41 @@ def _decode_with_offsets(encoding, ids: list[int]) -> tuple[str, list[int]]:
     return b"".join(token_bytes).decode("utf-8", errors="replace"), starts
 
 
+def tokenize_texts(target: ProbeTarget, texts: list[str], max_tokens: int) -> list[tuple[list[int], str, list[int]]]:
+    """
+    Each text's first max_tokens tokens (as the target tokenizes plain text, with any BOS), the
+    text they cover, and each token's end in it.
+    """
+    out: list[tuple[list[int], str, list[int]]] = []
+    if not texts:
+        return out
+    if target.model_type == "ozera":
+        encoding = getattr(target.tokenizer, "tokenizer", None)
+        for text in texts:
+            ids = target.tokenizer.encode(text)[:max_tokens]
+            if not ids:
+                out.append(([], "", []))
+            elif hasattr(encoding, "decode_tokens_bytes"):
+                decoded, starts = _decode_with_offsets(encoding, ids)
+                out.append((ids, decoded, _monotonic([int(e) for e in list(starts[1:]) + [len(decoded)]])))
+            else:
+                pieces = [target.tokenizer.decode([i]) for i in ids]
+                out.append((ids, "".join(pieces), _monotonic([int(e) for e in np.cumsum([len(p) for p in pieces])])))
+        return out
+
+    encoded = target.tokenizer(texts, return_offsets_mapping=True)
+    for text, ids, offsets in zip(texts, encoded["input_ids"], encoded["offset_mapping"]):
+        ends = _monotonic([int(e) for _, e in offsets[:max_tokens]])
+        out.append((list(ids[:max_tokens]), text[:ends[-1]] if ends else "", ends))
+    return out
+
+
 def tokenize_with_ends(target: ProbeTarget, texts: list[str], seq_len: int) -> list[Optional[tuple[list[int], str, list[int]]]]:
     """
     Each text's first seq_len tokens (as the target tokenizes plain text, with any BOS), the text
     they cover, and each token's end in it; None for texts with fewer tokens.
     """
-    out: list[Optional[tuple[list[int], str, list[int]]]] = []
-    if target.model_type == "ozera":
-        encoding = getattr(target.tokenizer, "tokenizer", None)
-        for text in texts:
-            ids = target.tokenizer.encode(text)[:seq_len]
-            if len(ids) < seq_len:
-                out.append(None)
-                continue
-            if hasattr(encoding, "decode_tokens_bytes"):
-                decoded, starts = _decode_with_offsets(encoding, ids)
-                ends = list(starts[1:]) + [len(decoded)]
-            else:
-                pieces = [target.tokenizer.decode([i]) for i in ids]
-                decoded = "".join(pieces)
-                ends = list(np.cumsum([len(p) for p in pieces]))
-            out.append((ids, decoded, _monotonic([int(e) for e in ends])))
-        return out
-
-    encoded = target.tokenizer(texts, return_offsets_mapping=True)
-    for text, ids, offsets in zip(texts, encoded["input_ids"], encoded["offset_mapping"]):
-        if len(ids) < seq_len:
-            out.append(None)
-            continue
-        ends = _monotonic([int(e) for _, e in offsets[:seq_len]])
-        out.append((list(ids[:seq_len]), text[:ends[-1]], ends))
-    return out
+    return [result if len(result[0]) >= seq_len else None for result in tokenize_texts(target, texts, seq_len)]
 
 
 def _chunks(text: str) -> list[str]:
@@ -322,12 +333,16 @@ class CorpusReadout:
     act_max: torch.Tensor  # [W] float32
     top_val: torch.Tensor  # [W, TOP_CANDIDATES], descending (-1 where empty)
     top_row: torch.Tensor  # [W, TOP_CANDIDATES] long
-    acts: torch.Tensor  # [n_act, d] float16 (CPU): the residual stream at a random subset of tokens
+    acts: torch.Tensor  # [n_act, d] bfloat16 (CPU): the residual stream at a random subset of tokens
     act_index: torch.Tensor  # [T] long: each token's row in acts, or -1
     l0: float
     fvu: Optional[float]
     stopped_early: bool
     massive: int  # Tokens not read for their massive activations (no latents, never stored)
+    read_mask: Optional[torch.Tensor] = None  # [T] bool: not massive
+    mean: Optional[torch.Tensor] = None  # [d] float32: the residual stream's mean over read tokens
+    # [T, C] float16: each token's cosine with the control directions, centred (-inf where not read)
+    control_proj: Optional[torch.Tensor] = None
 
     def position(self, r: int) -> tuple[int, int]:
         return r // self.per_seq, SKIP_TOKENS + r % self.per_seq
@@ -368,11 +383,13 @@ def read_corpus(
     activation_bytes: int = ACTIVATION_BYTES,
     max_entries: int = MAX_LATENT_ENTRIES,
     progress: Progress = _no_progress,
+    controls: Optional[torch.Tensor] = None,
 ) -> CorpusReadout:
     """
     Every read token through the SAE at one layer. Caller holds target.lock().
 
-    Stops early (stopped_early) once the latents kept would exceed max_entries.
+    Stops early (stopped_early) once the latents kept would exceed max_entries. With controls
+    ([d, C] directions), each read token's centred cosine with them is kept too (control_proj).
     """
     device = target.device
     width = sae.d_hidden
@@ -391,6 +408,7 @@ def read_corpus(
     top_row = torch.full((width, TOP_CANDIDATES), -1, dtype=torch.long, device=device)
     lengths, cols, vals = [], [], []
     acts, act_rows = [], []
+    read_masks, projections = [], []
     entries = 0
     sq_err = torch.zeros((), dtype=torch.float64, device=device)
     sum_x = torch.zeros(d, dtype=torch.float64, device=device)
@@ -399,6 +417,7 @@ def read_corpus(
     massive_tokens = 0
     stopped = False
     read = {}
+    control_center: Optional[torch.Tensor] = None
 
     def on_hidden(position: int, hidden: torch.Tensor) -> None:
         read["hidden"] = hidden
@@ -413,6 +432,19 @@ def read_corpus(
             norms = x_all.norm(dim=1)
             massive_all = norms > MASSIVE_NORM * norms.median()
             massive_tokens += int(massive_all.sum())
+            read_masks.append(~massive_all)
+            if controls is not None:
+                # By angle: the residual centred (on the first batch's mean, as the corpus mean
+                # isn't known until the pass ends) over its norm. Raw projections let tokens with
+                # outlying norms take every direction's tail (Gemma 3's apostrophes, at 2.2 times
+                # the median norm, topped 36 of 64 controls)
+                if control_center is None:
+                    ordinary_all = ~massive_all
+                    control_center = (x_all[ordinary_all] if bool(ordinary_all.any()) else x_all).mean(dim=0)
+                centred = x_all - control_center
+                projection = (centred / centred.norm(dim=1, keepdim=True).clamp_min(1e-6)) @ controls
+                projection[massive_all] = float("-inf")
+                projections.append(projection.half())
 
             for c0 in range(0, x_all.shape[0], rows_at_once):
                 x = x_all[c0:c0 + rows_at_once]
@@ -438,7 +470,7 @@ def read_corpus(
 
                 keep = (torch.rand(x.shape[0], generator=generator) < keep_share).to(device) & ordinary
                 if bool(keep.any()):
-                    acts.append(x[keep].half().cpu())
+                    acts.append(x[keep].to(torch.bfloat16).cpu())
                     act_rows.append(torch.nonzero(keep)[:, 0] + first_row + c0)
             tokens = b1 * per_seq
             progress("Reading the corpus", b1 / n_seq)
@@ -466,13 +498,73 @@ def read_corpus(
         act_max=act_max,
         top_val=top_val,
         top_row=top_row,
-        acts=torch.cat(acts) if acts else torch.zeros(0, d, dtype=torch.float16),
+        acts=torch.cat(acts) if acts else torch.zeros(0, d, dtype=torch.bfloat16),
         act_index=act_index,
         l0=entries / read_tokens,
         fvu=float(sq_err) / total_var if total_var > 0 else None,
         stopped_early=stopped,
         massive=massive_tokens,
+        read_mask=torch.cat(read_masks) if read_masks else torch.zeros(0, dtype=torch.bool, device=device),
+        mean=(sum_x / read_tokens).float(),
+        control_proj=torch.cat(projections) if projections else None,
     )
+
+
+def read_feature_on_texts(
+    target: ProbeTarget,
+    sae,
+    layer: int,
+    texts: list[str],
+    feature: int,
+    max_tokens: int = SEQ_LEN,
+) -> list[dict]:
+    """
+    One feature's activation on every token of each text, read the way read_corpus reads the
+    corpus (plain text with any BOS, the residual stream after the layer through the SAE; the
+    first SKIP_TOKENS positions and tokens with massive activations aren't read), so the
+    activations compare with the feature's maximum in an atlas. Caller holds target.lock().
+
+    Returns, per text: {"tokens": [str] (the text each token covers), "acts": [float] (0 where
+    the feature is inactive or the token isn't read), "read": [bool]}. Texts are cut at
+    max_tokens tokens.
+    """
+    device = target.device
+    tokenized = tokenize_texts(target, texts, max_tokens)
+    out = []
+    for ids, text, ends in tokenized:
+        starts = [0] + ends[:-1]
+        out.append({"tokens": [text[a:b] for a, b in zip(starts, ends)], "acts": [0.0] * len(ids), "read": [False] * len(ids)})
+
+    # Only texts with a token past the positions that aren't read reach the model
+    index = [i for i, (ids, _, _) in enumerate(tokenized) if len(ids) > SKIP_TOKENS]
+    encoded = [EncodedText(tokenized[i][0], SKIP_TOKENS, len(tokenized[i][0])) for i in index]
+    rows_at_once = max(1, LATENT_ELEMENTS // sae.d_hidden)
+    read = {}
+
+    def on_hidden(position: int, hidden: torch.Tensor) -> None:
+        read["hidden"] = hidden
+
+    with ResidualReader(target.layers, [layer + 1], on_hidden) as reader, torch.no_grad():
+        for batch in forward_batches(target, encoded):
+            reader.run(lambda: target.forward(batch.input_ids, batch.attention_mask))
+            hidden = read.pop("hidden")
+            seq = torch.arange(hidden.shape[1], device=device)
+            in_span = (seq[None, :] >= batch.starts[:, None]) & (seq[None, :] < batch.ends[:, None])
+            x_all = hidden[in_span].float()  # [T, d], text by text
+            norms = x_all.norm(dim=1)
+            ordinary = norms <= MASSIVE_NORM * norms.median()
+            acts = torch.zeros(x_all.shape[0], device=device)
+            for c0 in range(0, x_all.shape[0], rows_at_once):
+                acts[c0:c0 + rows_at_once] = encode_latents(sae, x_all[c0:c0 + rows_at_once])[:, feature]
+            acts[~ordinary] = 0
+            acts, ordinary = acts.cpu().tolist(), ordinary.cpu().tolist()
+            offset = 0
+            for i, length in zip(batch.idx.tolist(), (batch.ends - batch.starts).tolist()):
+                entry = out[index[i]]
+                entry["acts"][SKIP_TOKENS:] = acts[offset:offset + length]
+                entry["read"][SKIP_TOKENS:] = ordinary[offset:offset + length]
+                offset += length
+    return out
 
 
 def _row_entries(readout: CorpusReadout, rows: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -692,7 +784,12 @@ def _project(readout: CorpusReadout, W_dec: torch.Tensor, features: list[int], r
 def _explained(Y: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """(explained variance ratios, the centered points, the principal axes) of points [n, g]."""
     Yc = Y - Y.mean(dim=0)
-    _, S, Vh = torch.linalg.svd(Yc, full_matrices=False)
+    try:
+        _, S, Vh = torch.linalg.svd(Yc, full_matrices=False)
+    except torch.linalg.LinAlgError:
+        # cuSOLVER can fail to converge on ill-conditioned points; LAPACK in float64 doesn't
+        _, S, Vh = torch.linalg.svd(Yc.cpu().double(), full_matrices=False)
+        S, Vh = S.to(Yc), Vh.to(Yc)
     var = S ** 2
     return var / var.sum().clamp_min(1e-12), Yc, Vh
 
@@ -1004,6 +1101,369 @@ def community_concept(
     return concept, None, top_words
 
 
+# Autointerp example sets (see core.autointerp.examples)
+
+def control_directions(d: int, seed: int, device) -> torch.Tensor:
+    """ai.CONTROLS random unit directions in the residual stream, [d, C]."""
+    generator = torch.Generator().manual_seed(seed + 7919)
+    R = torch.randn(d, ai.CONTROLS, generator=generator)
+    return (R / R.norm(dim=0, keepdim=True)).to(device)
+
+
+def control_rate(readout: CorpusReadout, alive: torch.Tensor) -> float:
+    """The median live feature's share of the read tokens (how often each control is made to fire)."""
+    read = max(readout.tokens - readout.massive, 1)
+    return float(readout.count[alive].double().median()) / read if bool(alive.any()) else 0.0
+
+
+def control_columns(readout: CorpusReadout, controls: torch.Tensor, rate: float) -> list[tuple[np.ndarray, np.ndarray]]:
+    """
+    Each control's (rows, activations), rows ascending: ReLU(cos(x̃, r) − t_r), x̃ the centred
+    residual (read_corpus), with t_r set so the direction fires on rate of the read tokens.
+    """
+    read = max(readout.tokens - readout.massive, 1)
+    k = min(max(1, round(rate * read)), read - 1)
+    out = []
+    for c in range(controls.shape[1]):
+        v = readout.control_proj[:, c].float()
+        top = torch.topk(v, k + 1)
+        threshold = top.values[-1]
+        rows = top.indices[:k][top.values[:k] > threshold]
+        rows, _ = torch.sort(rows)
+        out.append((rows.cpu().numpy().astype(np.int64), (v[rows] - threshold).cpu().numpy().astype(np.float32)))
+    return out
+
+
+def column_values(readout: CorpusReadout) -> torch.Tensor:
+    """Every entry's activation in column order, aligned with column_index's rows."""
+    return readout.vals[torch.argsort(readout.cols, stable=True)]
+
+
+def _vocab_limit(target: ProbeTarget) -> Optional[int]:
+    """Tokens the tokenizer has (an unembedding can be padded past them)."""
+    try:
+        return len(target.tokenizer)
+    except TypeError:
+        return getattr(target.tokenizer, "vocab_size", None)
+
+
+def vocab_projection(target: ProbeTarget, directions: torch.Tensor, k: int = ai.VOCAB_TOKENS, chunk: int = 64) -> tuple[np.ndarray, ...]:
+    """
+    Each direction's k most promoted and k most suppressed tokens: the change it makes to the
+    next-token logits through the final norm and the unembedding (target.logits), scaled to the
+    residual's unit RMS and less the logits of a zero residual (any biases). Returns (promoted
+    [n, k] IDs, their logit changes, suppressed IDs, theirs).
+    """
+    n, d = directions.shape
+    dtype = next(target.layers[-1].parameters()).dtype
+    limit = _vocab_limit(target)
+    out = [np.zeros((n, k), dtype=np.int32), np.zeros((n, k), dtype=np.float16), np.zeros((n, k), dtype=np.int32), np.zeros((n, k), dtype=np.float16)]
+    with torch.no_grad():
+        zero = target.logits(torch.zeros(1, d, device=target.device, dtype=dtype)).float()
+        for c0 in range(0, n, chunk):
+            D = directions[c0:c0 + chunk].float()
+            D = D / D.norm(dim=1, keepdim=True).clamp_min(1e-12) * math.sqrt(d)
+            delta = target.logits(D.to(dtype)).float() - zero
+            if limit is not None and limit < delta.shape[1]:
+                delta = delta[:, :limit]
+            top = delta.topk(k, dim=1)
+            bottom = (-delta).topk(k, dim=1)
+            out[0][c0:c0 + chunk] = top.indices.cpu().numpy()
+            out[1][c0:c0 + chunk] = top.values.cpu().numpy()
+            out[2][c0:c0 + chunk] = bottom.indices.cpu().numpy()
+            out[3][c0:c0 + chunk] = (-bottom.values).cpu().numpy()
+    return tuple(out)
+
+
+class _SetCorpus:
+    """The read tokens every feature's example sets are drawn from (numpy, on the CPU)."""
+
+    def __init__(self, readout: CorpusReadout, sample: CorpusSample):
+        self.per_seq = readout.per_seq
+        self.seq_len = sample.seq_len
+        self.tokens = readout.tokens
+        rows = np.arange(readout.tokens)
+        self.token_of_row = sample.ids[: readout.tokens // readout.per_seq, SKIP_TOKENS:].reshape(-1).numpy().astype(np.int64)
+        read = readout.read_mask.cpu().numpy()
+        read_rows = rows[read]
+        order = np.argsort(self.token_of_row[read_rows], kind="stable")
+        self.by_token = read_rows[order]
+        self.token_ids, starts, self.token_counts = np.unique(self.token_of_row[self.by_token], return_index=True, return_counts=True)
+        self.token_starts = np.append(starts, self.by_token.size)
+        self.read_tokens = max(int(read.sum()), 1)
+
+    def rows_of(self, token_id: int) -> np.ndarray:
+        """Read rows holding a token."""
+        i = int(np.searchsorted(self.token_ids, token_id))
+        if i >= self.token_ids.size or self.token_ids[i] != token_id:
+            return self.by_token[:0]
+        return self.by_token[self.token_starts[i]:self.token_starts[i + 1]]
+
+    def windows(self, rows: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """The read rows [lo, hi) of the window around each row."""
+        s, p = rows // self.per_seq, SKIP_TOKENS + rows % self.per_seq
+        lo = s * self.per_seq + np.maximum(p - ai.WINDOW_BEFORE, SKIP_TOKENS) - SKIP_TOKENS
+        hi = s * self.per_seq + np.minimum(p + ai.WINDOW_AFTER + 1, self.seq_len) - SKIP_TOKENS
+        return lo, hi
+
+    def levels(self, frows: np.ndarray, fvals: np.ndarray, peak: float, centres: np.ndarray) -> np.ndarray:
+        """[n, WINDOW] uint8: the feature's level on each token of each window (0 inactive, else 1–100)."""
+        s, p = centres // self.per_seq, SKIP_TOKENS + centres % self.per_seq
+        positions = p[:, None] + np.arange(-ai.WINDOW_BEFORE, ai.WINDOW_AFTER + 1)[None, :]
+        valid = (positions >= SKIP_TOKENS) & (positions < self.seq_len)
+        rows = s[:, None] * self.per_seq + positions - SKIP_TOKENS
+        if frows.size == 0:
+            return np.zeros(rows.shape, dtype=np.uint8)
+        at = np.minimum(np.searchsorted(frows, rows), frows.size - 1)
+        hit = valid & (frows[at] == rows)
+        level = np.clip(np.rint(100 * fvals[at] / max(peak, 1e-12)), 1, 100)
+        return np.where(hit, level, 0).astype(np.uint8)
+
+    def top_tokens(self, frows: np.ndarray, n: int) -> tuple[np.ndarray, np.ndarray]:
+        """The tokens a feature fires on that most set it apart (count × log lift, as top_tokens ranks them), else its most frequent."""
+        ids, counts = np.unique(self.token_of_row[frows], return_counts=True)
+        base = self.token_counts[np.minimum(np.searchsorted(self.token_ids, ids), self.token_ids.size - 1)]
+        lift = (counts / max(frows.size, 1)) / (np.maximum(base, 1) / self.read_tokens)
+        score = np.where((counts >= MIN_TOKEN_COUNT) & (lift >= MIN_LIFT), counts * np.log(np.maximum(lift, 1e-12)), -1.0)
+        order = np.argsort(-score, kind="stable") if (score > 0).any() else np.argsort(-counts, kind="stable")
+        order = order[:n]
+        if (score > 0).any():
+            order = order[score[order] > 0]
+        return ids[order], counts[order]
+
+
+def _first_unused(order: np.ndarray, seqs: np.ndarray, used: set, n: int) -> list[int]:
+    """The first n indices in order whose sequences aren't used yet, one per sequence (marking them used)."""
+    out = []
+    for i in order:
+        if len(out) == n:
+            break
+        s = int(seqs[i])
+        if s not in used:
+            used.add(s)
+            out.append(int(i))
+    return out
+
+
+def feature_sets(
+    corpus: _SetCorpus, frows: np.ndarray, fvals: np.ndarray, rng: np.random.Generator,
+) -> tuple[list[tuple[int, int, int, float]], np.ndarray, np.ndarray, int]:
+    """
+    One feature's contexts from its firing rows (ascending) and activations, one per sequence:
+    the explain set (the strongest, then round-robin over the deciles from the top), the
+    held-out activating contexts (SCORE_PER_DECILE per decile), random inactive windows, and
+    inactive windows around its top firing token.
+
+    Returns ([(centre row, kind, decile, activation)], top token IDs, their counts, why it can't
+    be scored or SCORABLE).
+    """
+    n = frows.size
+    seqs = frows // corpus.per_seq
+    n_seq = int(np.unique(seqs).size)
+    rank = np.empty(n, dtype=np.int64)
+    rank[np.argsort(fvals, kind="stable")] = np.arange(n)
+    decile = (rank * ai.DECILES) // max(n, 1)
+    budget = min(ai.EXPLAIN_TOP + ai.EXPLAIN_PER_DECILE * ai.DECILES, n_seq, max(ai.MIN_EXPLAIN, n_seq - MIN_SCORE_SEQUENCES))
+    used: set = set()
+    contexts = []
+
+    def add(indices: list[int], kind: int) -> None:
+        contexts.extend((int(frows[i]), kind, int(decile[i]), float(fvals[i])) for i in indices)
+
+    add(_first_unused(np.argsort(-fvals, kind="stable"), seqs, used, min(ai.EXPLAIN_TOP, budget // 2)), ai.EXPLAIN_TOP_KIND)
+    perm = rng.permutation(n)
+    pools = [perm[decile[perm] == d] for d in range(ai.DECILES)]
+    cursor = [0] * ai.DECILES
+
+    def take(d: int) -> Optional[int]:
+        pool = pools[d]
+        while cursor[d] < pool.size:
+            i = int(pool[cursor[d]])
+            cursor[d] += 1
+            if int(seqs[i]) not in used:
+                used.add(int(seqs[i]))
+                return i
+        return None
+
+    remaining = budget - len(contexts)
+    while remaining > 0:
+        taken = 0
+        for d in reversed(range(ai.DECILES)):
+            if remaining == 0:
+                break
+            i = take(d)
+            if i is not None:
+                add([i], ai.EXPLAIN_DECILE_KIND)
+                remaining -= 1
+                taken += 1
+        if taken == 0:
+            break
+    held_out = 0
+    for d in range(ai.DECILES):
+        for _ in range(ai.SCORE_PER_DECILE):
+            i = take(d)
+            if i is None:
+                break
+            add([i], ai.SCORE_KIND)
+            held_out += 1
+
+    def negatives(candidates: np.ndarray, kind: int, wanted: int) -> int:
+        lo, hi = corpus.windows(candidates)
+        inactive = np.searchsorted(frows, lo) == np.searchsorted(frows, hi)
+        found = 0
+        for r in candidates[inactive]:
+            if found == wanted:
+                break
+            s = int(r) // corpus.per_seq
+            if s not in used:
+                used.add(s)
+                contexts.append((int(r), kind, ai.NO_DECILE, 0.0))
+                found += 1
+        return found
+
+    found = 0
+    for _ in range(4):
+        found += negatives(rng.integers(0, corpus.tokens, size=8 * ai.RANDOM_NEGATIVES), ai.RANDOM_KIND, ai.RANDOM_NEGATIVES - found)
+        if found >= ai.RANDOM_NEGATIVES:
+            break
+    top_ids, top_counts = corpus.top_tokens(frows, ai.TOP_TOKENS)
+    if top_ids.size:
+        same = corpus.rows_of(int(top_ids[0]))
+        if same.size > 64 * ai.TOKEN_NEGATIVES:
+            same = rng.choice(same, size=64 * ai.TOKEN_NEGATIVES, replace=False)
+        negatives(rng.permutation(same), ai.TOKEN_KIND, ai.TOKEN_NEGATIVES)
+
+    if held_out < MIN_SCORE_SEQUENCES:
+        unscored = ai.TOO_RARE
+    elif found < MIN_RANDOM_NEGATIVES:
+        unscored = ai.EVERYWHERE
+    else:
+        unscored = ai.SCORABLE
+    return contexts, top_ids, top_counts, unscored
+
+
+def _pad(values: np.ndarray, n: int, fill, dtype) -> np.ndarray:
+    out = np.full(n, fill, dtype=dtype)
+    out[:min(n, values.size)] = values[:n]
+    return out
+
+
+def write_autointerp(
+    out_dir: str,
+    target: ProbeTarget,
+    readout: CorpusReadout,
+    sample: CorpusSample,
+    csc: "Csc",
+    alive: torch.Tensor,
+    W_dec: torch.Tensor,
+    controls: torch.Tensor,
+    vocabulary: "_Vocabulary",
+    seed: int,
+    progress: Progress = _no_progress,
+) -> dict:
+    """
+    Write every live feature's and control's example sets, top tokens and vocabulary projection
+    to out_dir/autointerp/ (the layout in core.autointerp.examples). Returns what the summary
+    records about them.
+    """
+    directory = os.path.join(out_dir, ai.DIRECTORY)
+    os.makedirs(directory)
+    width = W_dec.shape[0]
+    corpus = _SetCorpus(readout, sample)
+    rng = np.random.default_rng(seed)
+    n_seq = readout.tokens // readout.per_seq
+
+    sample.ids[:n_seq].numpy().astype("<i4").tofile(os.path.join(directory, "tokens.bin"))
+    read = np.zeros((n_seq, sample.seq_len), dtype=np.uint8)
+    read[:, SKIP_TOKENS:] = readout.read_mask.cpu().numpy().reshape(n_seq, -1)
+    read.tofile(os.path.join(directory, "read.bin"))
+
+    # Each feature's firing rows and activations, then the controls'
+    alive_ids = torch.nonzero(alive)[:, 0].cpu().tolist()
+    colptr = csc.colptr.cpu().numpy()
+    col_rows = csc.rows.cpu().numpy()
+    col_vals = column_values(readout).float().cpu().numpy()
+    rate = control_rate(readout, alive)
+    control_cols = control_columns(readout, controls, rate)
+
+    def column(f: int) -> tuple[np.ndarray, np.ndarray]:
+        if f >= width:
+            return control_cols[f - width]
+        return col_rows[colptr[f]:colptr[f + 1]].astype(np.int64), col_vals[colptr[f]:colptr[f + 1]]
+
+    controls_live = [width + c for c, (rows, _) in enumerate(control_cols) if rows.size]
+    ids = alive_ids + controls_live
+    progress("Projecting decoder rows", 0.0)
+    directions = torch.cat([W_dec[torch.tensor(alive_ids, device=W_dec.device)].float(), controls.T.float().to(W_dec.device)])
+    promoted, promoted_logit, suppressed, suppressed_logit = vocab_projection(target, directions)
+    proj_row = {f: i for i, f in enumerate(alive_ids)}
+    proj_row.update({width + c: len(alive_ids) + c for c in range(controls.shape[1])})
+
+    named: set[int] = set()
+    scorable = 0
+    shards: dict[int, list[int]] = {}
+    for f in ids:
+        shards.setdefault(f // ai.SHARD, []).append(f)
+    done = 0
+    for n, members in sorted(shards.items()):
+        rows, kinds, deciles, acts, levels, offsets = [], [], [], [], [], [0]
+        top_ids = np.full((len(members), ai.TOP_TOKENS), -1, dtype=np.int32)
+        top_counts = np.zeros((len(members), ai.TOP_TOKENS), dtype=np.int32)
+        unscored = np.zeros(len(members), dtype=np.uint8)
+        for j, f in enumerate(members):
+            frows, fvals = column(f)
+            contexts, t_ids, t_counts, reason = feature_sets(corpus, frows, fvals, rng)
+            centres = np.array([c[0] for c in contexts], dtype=np.int64)
+            rows.append(centres)
+            kinds.append(np.array([c[1] for c in contexts], dtype=np.uint8))
+            deciles.append(np.array([c[2] for c in contexts], dtype=np.uint8))
+            acts.append(np.array([c[3] for c in contexts], dtype=np.float32))
+            levels.append(corpus.levels(frows, fvals, float(fvals.max()), centres))
+            offsets.append(offsets[-1] + len(contexts))
+            top_ids[j] = _pad(t_ids, ai.TOP_TOKENS, -1, np.int32)
+            top_counts[j] = _pad(t_counts, ai.TOP_TOKENS, 0, np.int32)
+            unscored[j] = reason
+            scorable += int(reason == ai.SCORABLE and f < width)
+            named.update(int(t) for t in t_ids)
+            done += 1
+            if done % 256 == 0:
+                progress("Building autointerp examples", done / len(ids))
+        at = [proj_row[f] for f in members]
+        named.update(promoted[at].ravel().tolist())
+        named.update(suppressed[at].ravel().tolist())
+        np.savez_compressed(
+            os.path.join(directory, f"{n}.npz"),
+            features=np.array(members, dtype=np.int32),
+            offsets=np.array(offsets, dtype=np.int32),
+            row=np.concatenate(rows).astype(np.int32),
+            kind=np.concatenate(kinds),
+            decile=np.concatenate(deciles),
+            act=np.concatenate(acts),
+            levels=np.concatenate(levels).reshape(-1, ai.WINDOW),
+            top_ids=top_ids,
+            top_counts=top_counts,
+            promoted=promoted[at],
+            promoted_logit=promoted_logit[at],
+            suppressed=suppressed[at],
+            suppressed_logit=suppressed_logit[at],
+            unscored=unscored,
+        )
+
+    # Token texts: as the corpus shows them, else as the tokenizer decodes them
+    in_corpus = np.unique(sample.ids[:n_seq].numpy()).tolist()
+    texts = {i: vocabulary(i) for i in in_corpus}
+    for i in sorted(named - set(texts)):
+        texts[i] = target.token_text(i)
+    with open(os.path.join(directory, "vocabulary.json"), "w") as f:
+        json.dump({"ids": list(texts), "texts": list(texts.values())}, f, ensure_ascii=False, separators=(",", ":"))
+
+    return {
+        "features": len(alive_ids),
+        "scorable": scorable,
+        "controls": {"count": len(controls_live), "first_id": width, "rate": _round(rate, 4), "seed": seed},
+    }
+
+
 # Putting it together
 
 def _round(values, digits: int = 4):
@@ -1170,6 +1630,8 @@ def build_atlas(
                        the file's vocabulary), co-active neighbors, community
       communities/C.json  a community's features, top contexts, geometry (3D points with their
                        contexts) and the concept made from it
+      autointerp/      each live feature's and control's explain and score sets, top tokens and
+                       vocabulary projection (core.autointerp.examples), unless the SAE is dense
 
     Caller holds target.lock() (the corpus pass uses the model). Returns meta.
     """
@@ -1180,7 +1642,8 @@ def build_atlas(
 
     progress("Reading the corpus", 0.0)
     sample = sample_corpus(target, corpus_file or corpus_path(corpus), num_tokens, seed)
-    readout = read_corpus(target, sae, layer, sample, seed, activation_bytes, progress=progress)
+    controls = control_directions(target.hidden_dim, seed, device)
+    readout = read_corpus(target, sae, layer, sample, seed, activation_bytes, progress=progress, controls=controls)
     if readout.tokens == 0:
         raise GeometryInputError("No tokens were read")
     vocabulary = _Vocabulary(sample)
@@ -1360,6 +1823,24 @@ def build_atlas(
     ], dim=1).numpy().astype("<f4")
     catalog.tofile(os.path.join(tmp, "catalog.bin"))
 
+    # Autointerp's example sets, unless the SAE is too dense for its features to be explained
+    autointerp = {
+        "version": ai.EXAMPLES_VERSION,
+        "eligible": readout.l0 <= DENSE_L0_FRACTION * width,
+        "reason": None,
+        "dense_l0_fraction": DENSE_L0_FRACTION,
+        "window": [ai.WINDOW_BEFORE, ai.WINDOW_AFTER],
+        "explain": {"top": ai.EXPLAIN_TOP, "per_decile": ai.EXPLAIN_PER_DECILE, "min": ai.MIN_EXPLAIN},
+        "score": {"per_decile": ai.SCORE_PER_DECILE, "random": ai.RANDOM_NEGATIVES, "token": ai.TOKEN_NEGATIVES},
+        "min_score_sequences": MIN_SCORE_SEQUENCES,
+        "min_random_negatives": MIN_RANDOM_NEGATIVES,
+    }
+    if autointerp["eligible"]:
+        progress("Building autointerp examples", 0.0)
+        autointerp.update(write_autointerp(tmp, target, readout, sample, csc, alive, W_dec, controls, vocabulary, seed, progress))
+    else:
+        autointerp["reason"] = f"L0 {readout.l0:.0f} is over {DENSE_L0_FRACTION:.0%} of the SAE's {width} features"
+
     meta = {
         **meta,
         "version": ATLAS_VERSION,
@@ -1372,12 +1853,13 @@ def build_atlas(
         "stopped_early": readout.stopped_early,
         "width": width,
         "seed": seed,
+        "l0": _round(readout.l0),
+        "autointerp": autointerp["eligible"],
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "seconds": round(time.time() - started, 1),
     }
     summary = {
         **meta,
-        "l0": _round(readout.l0),
         "fvu": _round(readout.fvu) if readout.fvu is not None else None,
         "alive": int(alive.sum()),
         "stored_tokens": int(readout.acts.shape[0]),
@@ -1402,6 +1884,7 @@ def build_atlas(
         },
         "communities": entries,
         "ranked": ranked,
+        "autointerp": autointerp,
         "map": {
             "method": map_method,
             "features": map_features,
