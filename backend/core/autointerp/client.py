@@ -26,12 +26,13 @@ BATCH_CREATE_TIMEOUT_SECONDS = 600
 
 @dataclass
 class Usage:
-    """Tokens a request was billed for, by type."""
+    """Tokens a request was billed for, by type (cache writes: 5-minute, and 1-hour ones apart)."""
 
     input_tokens: int = 0
     output_tokens: int = 0
     cache_write_tokens: int = 0
     cache_read_tokens: int = 0
+    cache_write_1h_tokens: int = 0
 
     def __add__(self, other: "Usage") -> "Usage":
         return Usage(
@@ -39,7 +40,13 @@ class Usage:
             self.output_tokens + other.output_tokens,
             self.cache_write_tokens + other.cache_write_tokens,
             self.cache_read_tokens + other.cache_read_tokens,
+            self.cache_write_1h_tokens + other.cache_write_1h_tokens,
         )
+
+    @property
+    def prompt_tokens(self) -> int:
+        """Every input token of the request, cached or not."""
+        return self.input_tokens + self.cache_write_tokens + self.cache_write_1h_tokens + self.cache_read_tokens
 
     def to_dict(self) -> dict:
         return {
@@ -47,6 +54,7 @@ class Usage:
             "output_tokens": self.output_tokens,
             "cache_write_tokens": self.cache_write_tokens,
             "cache_read_tokens": self.cache_read_tokens,
+            "cache_write_1h_tokens": self.cache_write_1h_tokens,
         }
 
     @classmethod
@@ -55,11 +63,16 @@ class Usage:
 
     @classmethod
     def from_api(cls, usage) -> "Usage":
+        """An API usage object (or one entry of usage.iterations), with 1-hour cache writes apart."""
+        written = getattr(usage, "cache_creation_input_tokens", None) or 0
+        breakdown = getattr(usage, "cache_creation", None)
+        one_hour = min(written, (getattr(breakdown, "ephemeral_1h_input_tokens", None) or 0) if breakdown is not None else 0)
         return cls(
             input_tokens=usage.input_tokens or 0,
             output_tokens=usage.output_tokens or 0,
-            cache_write_tokens=getattr(usage, "cache_creation_input_tokens", None) or 0,
+            cache_write_tokens=written - one_hour,
             cache_read_tokens=getattr(usage, "cache_read_input_tokens", None) or 0,
+            cache_write_1h_tokens=one_hour,
         )
 
 

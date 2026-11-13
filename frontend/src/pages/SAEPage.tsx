@@ -7,6 +7,8 @@
 import { useState, useCallback, useEffect } from 'react'
 import { SaeDeepLinkNote } from '../components/sae/SaeDeepLinkNote'
 import { useSaeDeepLink } from '../hooks/useSaeDeepLink'
+import { useAssistantPage } from '../hooks/useAssistantPage'
+import { saeBridge } from '../components/assistant/pages/sae'
 import { saeRef, useCorpusStats } from '../hooks/useCorpusStats'
 import { useFeatureLabels } from '../hooks/useFeatureLabels'
 import { FeatureExplanation } from '../components/autointerp/FeatureExplanation'
@@ -336,7 +338,7 @@ export default function SAEPage({
     if (mode === 'autointerp') setAutointerpOpened(true)
   }, [mode])
   // A link from the Probe Lab picks the SAE, the text, and a feature to show once analyzed
-  const { link: deepLink, pendingFeature, clearPending } = useSaeDeepLink()
+  const { link: deepLink, pendingFeature, clearPending, setPendingFeature } = useSaeDeepLink()
   const [saeSelection, setSaeSelection] = useState<SAESelection | null>(deepLink?.selection ?? null)
   // Corpus statistics from a Geometry Lab atlas of the SAE, when one exists (Browse uses them)
   const { isAuthenticated } = useAuthStore()
@@ -388,6 +390,17 @@ export default function SAEPage({
   }, [])
 
   // Run analysis when selection changes or text is submitted
+  // An analysis on screen: the Analyze button's, or an assistant run's
+  const applyAnalysis = useCallback((response: SAEAnalyzeResponse, selection: SAESelection) => {
+    setAnalyzeResponse(response)
+    setActivations(transformAnalyzeResponse(response))
+    setFeatureCatalog(generateFeatureCatalog(response, selection))
+    setQualityMetrics(generateQualityMetrics(response))
+    setSelectedFeature(null)
+    setSelectedFeatures([])
+    setFeatureInfo(null)
+  }, [])
+
   const runAnalysis = useCallback(async () => {
     if (!saeSelection || !inputText.trim()) return
 
@@ -418,13 +431,7 @@ export default function SAEPage({
         throw new Error(response.error)
       }
 
-      setAnalyzeResponse(response)
-      setActivations(transformAnalyzeResponse(response))
-      setFeatureCatalog(generateFeatureCatalog(response, saeSelection))
-      setQualityMetrics(generateQualityMetrics(response))
-      setSelectedFeature(null)
-      setSelectedFeatures([])
-      setFeatureInfo(null)
+      applyAnalysis(response, saeSelection)
     } catch (err) {
       if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') {
         setError('INSUFFICIENT_CREDITS')
@@ -435,7 +442,7 @@ export default function SAEPage({
     } finally {
       setAnalyzing(false)
     }
-  }, [saeSelection, inputText, onShowPurchaseCredits])
+  }, [saeSelection, inputText, onShowPurchaseCredits, applyAnalysis])
 
   // Load feature info when feature is selected
   useEffect(() => {
@@ -520,6 +527,23 @@ export default function SAEPage({
     })
   }, [])
 
+  // The assistant: what's on screen, and set_inputs
+  useAssistantPage('sae', saeBridge({
+    mode,
+    setMode,
+    selection: saeSelection,
+    setSelection: setSaeSelection,
+    text: inputText,
+    setText: setInputText,
+    analyzing,
+    analyzeResponse,
+    selectedFeature,
+    selectFeature: handleFeatureSelect,
+    setPendingFeature,
+    corpusAtlas,
+    loadAnalysis: applyAnalysis,
+  }))
+
   useEffect(() => {
     if (analyzeResponse && pendingFeature != null) {
       handleFeatureSelect(pendingFeature)
@@ -560,7 +584,7 @@ export default function SAEPage({
               </div>
 
               {/* Mode Selection */}
-              <div className="mode-tabs">
+              <div className="mode-tabs" data-assist="sae.mode">
                 {[
                   { id: 'analyze', label: 'Analyze Activations', icon: Search },
                   { id: 'browse', label: 'Browse Features', icon: Layers },
@@ -603,7 +627,7 @@ export default function SAEPage({
           </div>
 
           {/* Mode Selection */}
-          <div className="mode-tabs">
+          <div className="mode-tabs" data-assist="sae.mode">
             {[
               { id: 'analyze', label: 'Analyze Activations', icon: Search },
               { id: 'browse', label: 'Browse Features', icon: Layers },
@@ -625,12 +649,14 @@ export default function SAEPage({
 
           {/* SAE Selector - Hidden in Load mode */}
           {mode !== 'load' && (
-            <SAESelector
-              selection={saeSelection}
-              onSelectionChange={setSaeSelection}
-              refreshKey={saeRefreshKey}
-              className="mb-4"
-            />
+            <div data-assist="sae.sae">
+              <SAESelector
+                selection={saeSelection}
+                onSelectionChange={setSaeSelection}
+                refreshKey={saeRefreshKey}
+                className="mb-4"
+              />
+            </div>
           )}
 
           {pendingFeature != null && mode !== 'load' && <SaeDeepLinkNote feature={pendingFeature} />}
@@ -639,7 +665,7 @@ export default function SAEPage({
           {mode !== 'load' && mode !== 'autointerp' && (
             <div className="input-section mb-4">
               <div className="flex gap-3">
-                <div className="flex-1 relative">
+                <div className="flex-1 relative" data-assist="sae.text">
                   <textarea
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
@@ -654,6 +680,7 @@ export default function SAEPage({
                   onClick={runAnalysis}
                   disabled={analyzing || !saeSelection || !inputText.trim()}
                   className="analyze-button"
+                  data-assist="sae.analyze_button"
                 >
                   {analyzing ? (
                     <>
@@ -725,7 +752,7 @@ export default function SAEPage({
                     labels={heatmapLabels}
                   />
                 </div>
-                <div className="feature-detail-panel">
+                <div className="feature-detail-panel" data-assist="sae.feature">
                   {selectedFeature !== null && featureInfo ? (
                     <FeatureTopTokens
                       interpretation={featureInfo}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import TextGenerator from '../../components/model/TextGenerator'
 import type { GenerationStreamState, PlainGenerationResult } from '../../components/model/TextGenerator'
 import type { FinishReason } from '../../api/client'
@@ -15,6 +15,8 @@ import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, 
 import { Dropdown } from '../../components/common/Dropdown'
 import { ProbeMonitor } from '../../components/probes/ProbeMonitor'
 import { useTheme } from '../../hooks/useTheme'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { visualizationBridge } from '../../components/assistant/pages/generate'
 
 type RightPanelMode = 'visualizations' | 'outputs'
 
@@ -82,6 +84,22 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
   const { activationData, loading, layerLoading, error, summary, loadActivation } =
     useActivationData(selectedVisualization, selectedLayer)
+
+  // The assistant: which stored generation is open, and how it's shown
+  const navigate = useNavigate()
+  useAssistantPage('generate', visualizationBridge({
+    activationId: currentActivationId,
+    openActivation: (id) => {
+      setRightPanelMode('visualizations')
+      navigate(`/?id=${encodeURIComponent(id)}`)
+    },
+    loaded: summary ? { model: summary.model, prompt: summary.prompt?.slice(0, 300), tokens: summary.num_tokens } : null,
+    visualization: selectedVisualization,
+    setVisualization: setSelectedVisualization,
+    layer: selectedLayer,
+    head: selectedHead,
+    tokenIndex: selectedTokenIndex,
+  }))
 
   useEffect(() => {
     if (urlActivationId) {
@@ -315,7 +333,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
         {/* Right Panel */}
         <div className="df-right" style={{ background: c.bg }}>
           {rightPanelMode === 'visualizations' ? (
-            <div className="df-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className="df-panel" data-assist="generate.activation" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               {/* Unified toolbar */}
               <div className="df-toolbar" style={{ background: c.panelBg, borderBottom: `1px solid ${c.divider}` }}>
                 <div className="df-toolbar-left">
@@ -338,7 +356,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                   </div>
                 </div>
                 <div className="df-toolbar-right">
-                  <div className="df-toolbar-group">
+                  <div className="df-toolbar-group" data-assist="generate.visualization">
                     <span className="df-toolbar-label" style={{ color: c.textSub }}>Visualization:</span>
                     <Dropdown
                       id="df-vis-select"

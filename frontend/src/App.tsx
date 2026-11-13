@@ -21,6 +21,7 @@ import { AnimatedBackground } from './components/common/AnimatedBackground'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { PurchaseCreditsModal } from './components/payments/PurchaseCreditsModal'
 import { PurchaseCreditsProvider } from './contexts/PurchaseCreditsContext'
+import { AssistantHost } from './components/assistant/AssistantPanel'
 import { useAuthStore } from './stores/authStore'
 import { useTheme } from './hooks/useTheme'
 
@@ -151,6 +152,9 @@ function AppShell() {
               />
             </Routes>
           </main>
+
+          {/* The assistant: outside the routes, so it stays open across pages */}
+          {!isAuthPage && <AssistantHost />}
 
           {/* Purchase Credits Modal */}
           <PurchaseCreditsModal

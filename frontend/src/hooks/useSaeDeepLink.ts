@@ -40,5 +40,6 @@ export function useSaeDeepLink() {
   const [link] = useState(() => parseLink(params))
   const [pendingFeature, setPendingFeature] = useState<number | null>(link?.feature ?? null)
   const clearPending = useCallback(() => setPendingFeature(null), [])
-  return { link, pendingFeature, clearPending }
+  // The assistant can ask for a feature to be shown once the text is analyzed, as a link does
+  return { link, pendingFeature, clearPending, setPendingFeature }
 }

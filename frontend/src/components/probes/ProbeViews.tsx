@@ -23,7 +23,7 @@ const PROBE_VIEWS: { id: ProbeViewId; label: string; icon: LucideIcon }[] = [
 
 export function ProbeViewTabs({ lab }: { lab: ProbeLab }) {
   return (
-    <div className="pl-view-tabs" role="tablist" aria-label="Probe Lab views">
+    <div className="pl-view-tabs" role="tablist" aria-label="Probe Lab views" data-assist="probes.view">
       {PROBE_VIEWS.map(({ id, label, icon: Icon }) => (
         <button
           key={id}

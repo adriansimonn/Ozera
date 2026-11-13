@@ -18,7 +18,7 @@ export function RunSettings({ lab }: { lab: ProbeLab }) {
     <div className="pl-settings">
       {instruct && (
         <div className="pl-setting">
-          <label className="pl-check-row">
+          <label className="pl-check-row" data-assist="probes.chat_template">
             <input
               type="checkbox"
               checked={lab.chatTemplate}
@@ -46,7 +46,7 @@ export function RunSettings({ lab }: { lab: ProbeLab }) {
       )}
 
       <div className="pl-setting-row">
-        <div>
+        <div data-assist="probes.test_fraction">
           <div className="pl-control-label">Test split</div>
           <Segmented
             ariaLabel="Test split"
@@ -56,7 +56,7 @@ export function RunSettings({ lab }: { lab: ProbeLab }) {
             options={['0.1', '0.2', '0.3', '0.4'].map((v) => ({ value: v, label: `${Number(v) * 100}%` }))}
           />
         </div>
-        <div>
+        <div data-assist="probes.seed">
           <div className="pl-control-label">Seed</div>
           <input
             className="pl-input"
@@ -80,6 +80,7 @@ export function RunSettings({ lab }: { lab: ProbeLab }) {
       <button
         type="button"
         className="pl-train-button"
+        data-assist="probes.train_button"
         onClick={lab.train}
         disabled={lab.training || !lab.modelId || !lab.stats || (estimate != null && !estimate.within_limit)}
       >

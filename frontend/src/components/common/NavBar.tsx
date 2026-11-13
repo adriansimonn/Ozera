@@ -7,6 +7,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Cpu, Square, SplitSquareVertical, Sparkles, GraduationCap, Upload, Zap, Search, Layers, Microscope, Shapes } from 'lucide-react'
 import { UserMenu } from './UserMenu'
+import { AssistantButton } from '../assistant/AssistantPanel'
 import { useAuthStore } from '../../stores/authStore'
 
 type ViewMode = 'single' | 'split'
@@ -140,6 +141,8 @@ export function NavBar({
           )}
 
           {/* Auth Section - Show UserMenu if logged in, otherwise show Login/Signup buttons */}
+          {user && <AssistantButton />}
+
           {user ? (
             <UserMenu />
           ) : (

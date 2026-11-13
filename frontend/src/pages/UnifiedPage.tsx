@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import TextGenerator from '../components/model/TextGenerator'
 import type { GenerationStreamState } from '../components/model/TextGenerator'
 import ModelInfoBox from '../components/model/ModelInfoBox'
@@ -18,6 +18,8 @@ import { NavBar } from '../components/common/NavBar'
 import { useActivationData, type VisualizationType } from '../hooks/useActivationData'
 import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network } from 'lucide-react'
 import { Dropdown } from '../components/common/Dropdown'
+import { useAssistantPage } from '../hooks/useAssistantPage'
+import { visualizationBridge } from '../components/assistant/pages/generate'
 
 type ViewMode = 'single' | 'split'
 type SingleViewType = 'generator' | 'visualizations'
@@ -55,6 +57,21 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
   // Activation data state - uses lazy loading
   const { activationData, loading, layerLoading, error, summary, loadActivation } =
     useActivationData(selectedVisualization, selectedLayer)
+
+  // The assistant: which stored generation is open, and how it's shown
+  const navigate = useNavigate()
+  useAssistantPage('generate', visualizationBridge({
+    activationId: currentActivationId,
+    openActivation: (id) => {
+      navigate(`/?id=${encodeURIComponent(id)}`)
+    },
+    loaded: summary ? { model: summary.model, prompt: summary.prompt?.slice(0, 300), tokens: summary.num_tokens } : null,
+    visualization: selectedVisualization,
+    setVisualization: setSelectedVisualization,
+    layer: selectedLayer,
+    head: selectedHead,
+    tokenIndex: selectedTokenIndex,
+  }))
 
   useEffect(() => {
     if (urlActivationId) {
@@ -355,9 +372,9 @@ export function UnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
         )}
 
         {(viewMode === 'split' || singleViewType === 'visualizations') && (
-          <div className="visualization-section">
+          <div className="visualization-section" data-assist="generate.activation">
             <div className="visualization-header">
-              <div className="visualization-dropdown">
+              <div className="visualization-dropdown" data-assist="generate.visualization">
                 <label htmlFor="vis-select">Visualization:</label>
                 <Dropdown
                   id="vis-select"

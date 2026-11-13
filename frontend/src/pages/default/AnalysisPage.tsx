@@ -26,6 +26,8 @@ import {
   X,
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { analysisBridge } from '../../components/assistant/pages/analysis'
 import { useTheme } from '../../hooks/useTheme'
 
 interface AnalysisPageProps {
@@ -77,7 +79,7 @@ export default function DefaultAnalysisPage({
     try {
       const modelList = await apiClient.getPatchingModels()
       setModels(modelList)
-      if (modelList.length > 0) setSelectedModel(modelList[0].model_id)
+      if (modelList.length > 0) setSelectedModel((current) => current || modelList[0].model_id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load models')
     }
@@ -91,6 +93,33 @@ export default function DefaultAnalysisPage({
       console.error('Failed to load captured activations:', err)
     }
   }, [])
+
+  // The assistant: what's on screen, set_inputs, and a classify_heads run's result
+  useAssistantPage('analysis', analysisBridge({
+    mode,
+    setMode,
+    model: selectedModel,
+    setModel: (model) => {
+      setSelectedModel(model)
+      setSelectedActivation1('')
+      setSelectedActivation2('')
+    },
+    setModelOnly: setSelectedModel,
+    capturePrompt,
+    setCapturePrompt,
+    captured: capturedActivations,
+    refreshCaptured: loadCapturedActivations,
+    selected: [selectedActivation1, selectedActivation2],
+    setSelected: (first, second) => {
+      setSelectedActivation1(first)
+      setSelectedActivation2(second)
+    },
+    busy: loading || capturing,
+    classification: classificationResult,
+    setClassification: setClassificationResult,
+    comparison: comparisonResult,
+    mining: miningResult,
+  }))
 
   const filteredActivations = capturedActivations.filter(
     (a) => a.model_id === selectedModel
@@ -266,6 +295,7 @@ export default function DefaultAnalysisPage({
             {/* Model section */}
             <div className="da-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
               <div className="da-section-label" style={{ color: c.textSub }}>Model</div>
+              <div data-assist="analysis.model">
               <Dropdown
                 value={selectedModel}
                 onChange={(v) => {
@@ -278,12 +308,14 @@ export default function DefaultAnalysisPage({
                   label: `${model.display_name} (${model.num_layers}L, ${model.num_heads}H)`,
                 }))}
               />
+              </div>
             </div>
 
             {/* Capture Activations */}
             <div className="da-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
               <div className="da-section-label" style={{ color: c.textSub }}>Capture Activations</div>
               <textarea
+                data-assist="analysis.prompt"
                 value={capturePrompt}
                 onChange={(e) => setCapturePrompt(e.target.value)}
                 placeholder="Enter a prompt to capture activations..."
@@ -294,6 +326,7 @@ export default function DefaultAnalysisPage({
               />
               <button
                 onClick={handleCaptureActivations}
+                data-assist="analysis.capture_button"
                 disabled={capturing || !capturePrompt.trim()}
                 className="da-capture-btn"
                 style={{
@@ -320,6 +353,7 @@ export default function DefaultAnalysisPage({
             <div className="da-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
               <button
                 className="da-toggle-btn"
+                data-assist="analysis.activation"
                 onClick={() => setShowCapturedList(!showCapturedList)}
                 style={{ color: c.textMid }}
               >
@@ -418,7 +452,7 @@ export default function DefaultAnalysisPage({
             {/* Analysis Mode */}
             <div className="da-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
               <div className="da-section-label" style={{ color: c.textSub }}>Analysis Mode</div>
-              <div style={{ display: 'flex', gap: '0.375rem' }}>
+              <div style={{ display: 'flex', gap: '0.375rem' }} data-assist="analysis.mode">
                 {modes.map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
@@ -444,6 +478,7 @@ export default function DefaultAnalysisPage({
             <div className="da-section">
               <button
                 className="da-run-btn"
+                data-assist="analysis.run_button"
                 onClick={() => {
                   if (mode === 'classify') handleClassify()
                   else if (mode === 'compare') handleCompare()

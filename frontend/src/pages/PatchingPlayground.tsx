@@ -22,6 +22,8 @@ import type {
 import { Play, Zap, Trash2, AlertCircle, Info, ChevronDown, ChevronUp } from 'lucide-react'
 import { Dropdown, type DropdownGroup } from '../components/common/Dropdown'
 import { useAuthStore } from '../stores/authStore'
+import { useAssistantPage } from '../hooks/useAssistantPage'
+import { patchingBridge } from '../components/assistant/pages/patching'
 
 interface PatchingPlaygroundProps {
   onShowPurchaseCredits?: () => void
@@ -59,6 +61,28 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // The assistant: what's on screen, set_inputs, and a run_patching run's result
+  useAssistantPage('patching', patchingBridge({
+    model: selectedModel,
+    setModel: setSelectedModel,
+    layers: modelInfo?.num_layers ?? null,
+    heads: modelInfo?.num_heads ?? null,
+    sourcePrompt,
+    setSourcePrompt,
+    targetPrompt,
+    setTargetPrompt,
+    patches,
+    setPatches,
+    maxTokens,
+    setMaxTokens,
+    temperature,
+    setTemperature,
+    running,
+    result,
+    setResult,
+    captured: capturedActivations.length,
+  }))
+
   // Load available models on mount
   useEffect(() => {
     loadModels()
@@ -77,7 +101,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
       const modelList = await apiClient.getPatchingModels()
       setModels(modelList)
       if (modelList.length > 0) {
-        setSelectedModel(modelList[0].model_id)
+        setSelectedModel((current) => current || modelList[0].model_id)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load models')
@@ -255,6 +279,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
           <div className="left-column">
             <div className="section model-section">
               <h2>Model</h2>
+              <div data-assist="patching.model">
               <Dropdown
                 value={selectedModel}
                 onChange={v => setSelectedModel(v)}
@@ -277,6 +302,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
                   return groups
                 })()}
               />
+              </div>
               {modelInfo && (
                 <div className="model-info-row">
                   <span className="info-badge">{modelInfo.model_type.replace(/_/g, ' ')}</span>
@@ -295,6 +321,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
                     <span className="label-hint">Activations will be captured from this prompt</span>
                   </label>
                   <textarea
+                    data-assist="patching.source_prompt"
                     value={sourcePrompt}
                     onChange={e => setSourcePrompt(e.target.value)}
                     placeholder="Enter source prompt..."
@@ -322,6 +349,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
                   </span>
                 </label>
                 <textarea
+                  data-assist="patching.target_prompt"
                   value={targetPrompt}
                   onChange={e => setTargetPrompt(e.target.value)}
                   placeholder={requiresSourcePrompt ? 'Enter target prompt...' : 'Enter prompt...'}
@@ -338,6 +366,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
                   <label>Max Tokens</label>
                   <input
                     type="number"
+                    data-assist="patching.max_tokens"
                     value={maxTokens}
                     onChange={e => setMaxTokens(parseInt(e.target.value) || 20)}
                     min={1}
@@ -349,6 +378,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
                   <label>Temperature</label>
                   <input
                     type="number"
+                    data-assist="patching.temperature"
                     value={temperature}
                     onChange={e => setTemperature(parseFloat(e.target.value) || 0)}
                     min={0}
@@ -366,6 +396,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
 
             <button
               className="run-experiment-btn"
+              data-assist="patching.run_button"
               onClick={handleRunExperiment}
               disabled={running || !selectedModel || patches.length === 0}
             >
@@ -397,6 +428,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
 
             {/* Detailed Intervention Configuration */}
             <div className="section section-transparent">
+              <div data-assist="patching.patches">
               <PatchConfigPanel
                 modelId={selectedModel}
                 numLayers={numLayers}
@@ -408,6 +440,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
                 onClearPatches={handleClearPatches}
                 disabled={running}
               />
+              </div>
             </div>
 
             {/* Captured Activations */}

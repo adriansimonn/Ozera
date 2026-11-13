@@ -2,6 +2,8 @@
 Credit service for managing user credit balances and transactions.
 """
 import math
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, List, Tuple
@@ -46,6 +48,32 @@ class InsufficientBalanceError(Exception):
 def _to_decimal(value: float) -> Decimal:
     """Convert a float cost to Decimal for safe arithmetic with Numeric DB columns."""
     return Decimal(str(value))
+
+
+# What the charges and refunds made in the current context add up to (the assistant's run
+# tools report what a run's own service charged; see recording_charges)
+_recorder: ContextVar[Optional[list]] = ContextVar("charge_recorder", default=None)
+
+
+@contextmanager
+def recording_charges():
+    """
+    Record the charges (negative) and refunds (positive) made inside the block, in this task:
+    `with recording_charges() as charges: ...; charged = -sum(charges)`. Each asyncio task has a
+    context of its own, so parallel runs record apart.
+    """
+    entries: list = []
+    token = _recorder.set(entries)
+    try:
+        yield entries
+    finally:
+        _recorder.reset(token)
+
+
+def _note(amount: Decimal) -> None:
+    entries = _recorder.get()
+    if entries is not None:
+        entries.append(float(amount))
 
 
 # Modal list prices per second (https://modal.com/pricing, checked 2026-09-29).
@@ -471,6 +499,7 @@ def _deduct(
     db.add(transaction)
     db.commit()
     db.refresh(transaction)
+    _note(-cost_decimal)
 
     return transaction
 
@@ -990,17 +1019,27 @@ def calculate_atlas_cost(model_id: str, seconds: float) -> float:
     )
 
 
-# Autointerp: Claude API list prices per million tokens
-# (https://platform.claude.com/docs/en/about-claude/pricing, checked 2026-10-16). Cache reads
-# are a per-model fraction of input; 5-minute cache writes are 1.25x input; the Message
-# Batches API halves every token's price, cache reads and writes included.
-CLAUDE_PRICES_CHECKED = "2026-10-16"
+# Claude API list prices per million tokens (autointerp and the assistant; checked 2026-11-12
+# against Anthropic's model tables). Cache reads are a per-model fraction of input (0.05x on
+# Opus 5.5 and Sonnet 5.5, 0.1x elsewhere); 5-minute cache writes are 1.25x input and 1-hour
+# ones 2x; the Message Batches API halves every token's price, cache reads and writes included.
+# Haiku 5.5 has a second rate card for prompts over 100k tokens ("long"). Opus 5, Opus 4.8 and
+# Sonnet 5 are where the assistant's server-side refusal fallbacks may run a call.
+CLAUDE_PRICES_CHECKED = "2026-11-12"
 CLAUDE_PRICES = {
     "claude-haiku-4-5": {"input": 1.00, "output": 5.00, "cache_read": 0.10},
-    "claude-sonnet-5-5": {"input": 2.00, "output": 10.00, "cache_read": 0.20},
+    "claude-haiku-5-5": {
+        "input": 0.10, "output": 0.50, "cache_read": 0.01,
+        "long": {"above": 100_000, "input": 0.50, "output": 2.50, "cache_read": 0.05},
+    },
+    "claude-sonnet-5": {"input": 2.00, "output": 10.00, "cache_read": 0.20},
+    "claude-sonnet-5-5": {"input": 2.00, "output": 10.00, "cache_read": 0.10},
+    "claude-opus-4-8": {"input": 5.00, "output": 25.00, "cache_read": 0.50},
+    "claude-opus-5": {"input": 5.00, "output": 25.00, "cache_read": 0.50},
     "claude-opus-5-5": {"input": 4.00, "output": 20.00, "cache_read": 0.20},
 }
 CLAUDE_CACHE_WRITE_MULTIPLIER = 1.25
+CLAUDE_CACHE_WRITE_1H_MULTIPLIER = 2.0
 CLAUDE_BATCH_MULTIPLIER = 0.5
 
 for _model in autointerp_budget.MODELS:
@@ -1009,11 +1048,21 @@ for _model in autointerp_budget.MODELS:
 
 
 def claude_cost(model_id: str, usage: Usage, batch: bool = False) -> float:
-    """What Anthropic bills for a model's usage, in USD (no markup)."""
+    """
+    What Anthropic bills for a model's usage, in USD (no markup).
+
+    A model with a long-prompt rate card is priced on it when the usage's prompt is over its
+    threshold: exact for one request's usage, and never less than the bill for usage summed
+    over several requests.
+    """
     price = CLAUDE_PRICES[model_id]
+    long = price.get("long")
+    if long is not None and usage.prompt_tokens > long["above"]:
+        price = {**price, **long}
     cost = (
         usage.input_tokens * price["input"]
         + usage.cache_write_tokens * price["input"] * CLAUDE_CACHE_WRITE_MULTIPLIER
+        + usage.cache_write_1h_tokens * price["input"] * CLAUDE_CACHE_WRITE_1H_MULTIPLIER
         + usage.cache_read_tokens * price["cache_read"]
         + usage.output_tokens * price["output"]
     ) / 1e6
@@ -1203,6 +1252,7 @@ def charge_uncommitted(
     credit_balance.updated_at = datetime.utcnow()
     transaction = Transaction(user_id=user_id, amount_usd=-amount, transaction_type=transaction_type, description=description)
     db.add(transaction)
+    _note(-amount)
     return transaction
 
 
@@ -1212,14 +1262,17 @@ def credit_refund(
     amount_usd: float,
     transaction_type: TransactionType,
     description: str,
+    minimum: float = 0.01,
 ) -> Optional[Transaction]:
     """
     Give back part of a charge (e.g. a failed atlas job's unused GPU time).
 
     Doesn't commit: the caller commits it with whatever settles the charge, so a refund is
-    recorded exactly once. Returns None (nothing recorded) for amounts under a cent.
+    recorded exactly once. Returns None (nothing recorded) for amounts under `minimum` (a cent
+    by default; the assistant refunds down to the ledger's 4 decimal places, since its holds
+    are often only a cent or two).
     """
-    if amount_usd < 0.01:
+    if amount_usd < minimum or round(amount_usd, 4) <= 0:
         return None
     credit_balance = get_credit_balance_for_update(db, user_id)
     if credit_balance is None:
@@ -1234,6 +1287,7 @@ def credit_refund(
         description=description,
     )
     db.add(transaction)
+    _note(amount)
     return transaction
 
 

@@ -20,6 +20,8 @@ import type {
 } from '../types/geometry'
 import { READ_LABELS, bestPosition, defaultDims } from '../components/geometry/geometryUtils'
 import type { GeometryViewId } from '../components/geometry/GeometryViews'
+import { geometryBridge } from '../components/assistant/pages/geometry'
+import { useAssistantPage } from './useAssistantPage'
 
 export type ConceptSource = 'builtin' | 'custom'
 
@@ -205,6 +207,36 @@ export function useGeometryLab(onShowPurchaseCredits?: () => void) {
     setRunId(id)
   }, [])
 
+  // A finished run on screen: the Run button's, or an assistant run's
+  const addRun = (result: GeometryRun) => {
+    const id = nextId
+    setNextId(id + 1)
+    const label = `${result.concept.name} · ${modelName(result.model)} · ${READ_LABELS[result.read].toLowerCase()}`
+    setRuns((current) => [{ id, run: result, label }, ...current].slice(0, MAX_RUNS))
+    setRunId(id)
+    const tested = result.shapes?.dims ?? []
+    const m = tested.includes(dims) ? dims : defaultDims(tested)
+    setDims(m)
+    setPosition(bestPosition(result, Math.max(tested.indexOf(m), 0)))
+    setPcPair([0, 1])
+    return id
+  }
+
+  // An assistant run: its settings and result, as if the Run button had run it
+  const loadRun = (result: GeometryRun) => {
+    setModelIdState(result.model)
+    if (result.concept.builtin_id) {
+      setSource('builtin')
+      setBuiltinId(result.concept.builtin_id)
+    }
+    setRead(result.read)
+    setChatTemplate(result.chat_template)
+    setSeed(result.seed)
+    setError(null)
+    if (view === 'compare' || view === 'atlas') setView('shape')
+    addRun(result)
+  }
+
   const execute = async (model: string, concept: ConceptSpec, runRead: GeometryRead, runChatTemplate: boolean, runSeed: number) => {
     if (!isAuthenticated) {
       navigate('/auth')
@@ -214,17 +246,7 @@ export function useGeometryLab(onShowPurchaseCredits?: () => void) {
     setError(null)
     try {
       const result = await apiClient.runGeometry({ model, concept, read: runRead, chat_template: runChatTemplate, seed: runSeed })
-      const id = nextId
-      setNextId(id + 1)
-      const label = `${result.concept.name} · ${modelName(result.model)} · ${READ_LABELS[runRead].toLowerCase()}`
-      setRuns((current) => [{ id, run: result, label }, ...current].slice(0, MAX_RUNS))
-      setRunId(id)
-      const tested = result.shapes?.dims ?? []
-      const m = tested.includes(dims) ? dims : defaultDims(tested)
-      setDims(m)
-      setPosition(bestPosition(result, Math.max(tested.indexOf(m), 0)))
-      setPcPair([0, 1])
-      return id
+      return addRun(result)
     } catch (err) {
       if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') onShowPurchaseCredits?.()
       else setError(err instanceof Error ? err.message : 'Geometry run failed')
@@ -301,7 +323,7 @@ export function useGeometryLab(onShowPurchaseCredits?: () => void) {
     if (run && position > run.num_layers) setPosition(run.num_layers)
   }, [run, position])
 
-  return {
+  const lab = {
     isAuthenticated,
     showPurchaseCredits: onShowPurchaseCredits,
     // models
@@ -340,6 +362,7 @@ export function useGeometryLab(onShowPurchaseCredits?: () => void) {
     run,
     runId,
     selectRun,
+    loadRun,
     error,
     setError,
     // views
@@ -352,6 +375,9 @@ export function useGeometryLab(onShowPurchaseCredits?: () => void) {
     pcPair,
     setPcPair,
   }
+  // The assistant reads the lab and fills its settings (both layouts use this hook)
+  useAssistantPage('geometry', geometryBridge(lab))
+  return lab
 }
 
 export type GeometryLab = ReturnType<typeof useGeometryLab>

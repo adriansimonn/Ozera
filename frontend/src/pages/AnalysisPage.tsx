@@ -31,6 +31,8 @@ import {
   X,
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
+import { useAssistantPage } from '../hooks/useAssistantPage'
+import { analysisBridge } from '../components/assistant/pages/analysis'
 
 interface AnalysisPageProps {
   onShowPurchaseCredits?: () => void
@@ -82,7 +84,7 @@ export default function AnalysisPage({
       const modelList = await apiClient.getPatchingModels()
       setModels(modelList)
       if (modelList.length > 0) {
-        setSelectedModel(modelList[0].model_id)
+        setSelectedModel((current) => current || modelList[0].model_id)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load models')
@@ -97,6 +99,33 @@ export default function AnalysisPage({
       console.error('Failed to load captured activations:', err)
     }
   }, [])
+
+  // The assistant: what's on screen, set_inputs, and a classify_heads run's result
+  useAssistantPage('analysis', analysisBridge({
+    mode,
+    setMode,
+    model: selectedModel,
+    setModel: (model) => {
+      setSelectedModel(model)
+      setSelectedActivation1('')
+      setSelectedActivation2('')
+    },
+    setModelOnly: setSelectedModel,
+    capturePrompt,
+    setCapturePrompt,
+    captured: capturedActivations,
+    refreshCaptured: loadCapturedActivations,
+    selected: [selectedActivation1, selectedActivation2],
+    setSelected: (first, second) => {
+      setSelectedActivation1(first)
+      setSelectedActivation2(second)
+    },
+    busy: loading || capturing,
+    classification: classificationResult,
+    setClassification: setClassificationResult,
+    comparison: comparisonResult,
+    mining: miningResult,
+  }))
 
   // Filter activations by selected model
   const filteredActivations = capturedActivations.filter(
@@ -270,7 +299,7 @@ export default function AnalysisPage({
         </div>
 
         {/* Mode Selection */}
-        <div className="mode-tabs">
+        <div className="mode-tabs" data-assist="analysis.mode">
           {[
             { id: 'classify', label: 'Classify Heads', icon: Search },
             { id: 'compare', label: 'Compare Prompts', icon: GitCompare },
@@ -307,6 +336,7 @@ export default function AnalysisPage({
             {/* Model Selection */}
             <div className="section">
               <h2>Model</h2>
+              <div data-assist="analysis.model">
               <Dropdown
                 value={selectedModel}
                 onChange={(v) => {
@@ -319,6 +349,7 @@ export default function AnalysisPage({
                   label: `${model.display_name} (${model.num_layers}L, ${model.num_heads}H)`,
                 }))}
               />
+              </div>
             </div>
 
             {/* Capture New Activations */}
@@ -326,6 +357,7 @@ export default function AnalysisPage({
               <h2>Capture Activations</h2>
               <div className="capture-form">
                 <textarea
+                  data-assist="analysis.prompt"
                   value={capturePrompt}
                   onChange={(e) => setCapturePrompt(e.target.value)}
                   placeholder="Enter a prompt to capture activations..."
@@ -334,6 +366,7 @@ export default function AnalysisPage({
                 />
                 <button
                   onClick={handleCaptureActivations}
+                  data-assist="analysis.capture_button"
                   disabled={capturing || !capturePrompt.trim()}
                   className="capture-btn"
                 >
@@ -352,6 +385,7 @@ export default function AnalysisPage({
               <button
                 onClick={() => setShowCapturedList(!showCapturedList)}
                 className="section-toggle"
+                data-assist="analysis.activation"
               >
                 <h2>Captured Activations ({filteredActivations.length})</h2>
                 {showCapturedList ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -428,6 +462,7 @@ export default function AnalysisPage({
               }}
               disabled={loading || !selectedActivation1 || (mode === 'compare' && !selectedActivation2)}
               className="run-analysis-btn"
+              data-assist="analysis.run_button"
             >
               {loading ? (
                 <>

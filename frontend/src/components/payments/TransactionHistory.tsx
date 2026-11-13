@@ -17,6 +17,7 @@ import {
   Microscope,
   Shapes,
   Sparkles,
+  Bot,
 } from 'lucide-react';
 import { useTransactions, Transaction } from '../../hooks/useCredits';
 
@@ -52,6 +53,8 @@ function getTransactionIcon(type: Transaction['transaction_type']) {
       return <Sparkles size={16} className="text-amber-400" />;
     case 'autointerp_refund':
       return <RefreshCcw size={16} className="text-blue-400" />;
+    case 'assistant':
+      return <Bot size={16} className="text-sky-400" />;
     default:
       return <ArrowUpRight size={16} className="text-white" />;
   }
@@ -87,6 +90,8 @@ function getTransactionLabel(type: Transaction['transaction_type']) {
       return 'Autointerp';
     case 'autointerp_refund':
       return 'Autointerp Refund';
+    case 'assistant':
+      return 'Assistant';
     default:
       return 'Transaction';
   }

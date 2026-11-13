@@ -341,6 +341,38 @@ class ActivationStore:
             'data': to_wire(tensor_data)
         }
 
+    def get_top_k(self, activation_id: str, user_id: int, k: int) -> Optional[Dict[str, Any]]:
+        """
+        The top-k next-token predictions at every position (the assistant's get_activation):
+        {"tokens": [[str]], "probabilities": [[float]]}, from the stored top-k logits, or from the
+        full logits with the Ozera tokenizer. None if neither is stored.
+        """
+        data = self._get_owned(activation_id, user_id)
+        if data is None:
+            return None
+        activations = data['activations']
+        top = activations.get('top_k_logits')
+        if isinstance(top, dict) and 'decoded_tokens' in top:
+            return {
+                'tokens': [row[:k] for row in top['decoded_tokens']],
+                'probabilities': [row[:k] for row in top['probabilities']],
+            }
+        logits = activations.get('logits')
+        if not is_tensor_entry(logits):
+            return None
+        values = torch.from_numpy(np.array(to_float32(logits), dtype=np.float32))
+        if values.dim() == 3:
+            values = values[0]
+        probs = torch.softmax(values, dim=-1)
+        top_p, top_i = torch.topk(probs, min(k, probs.shape[-1]), dim=-1)
+        from core.tokenizer import get_tokenizer
+
+        tokenizer = get_tokenizer()
+        return {
+            'tokens': [[tokenizer.decode([int(i)]) for i in row] for row in top_i.tolist()],
+            'probabilities': top_p.tolist(),
+        }
+
     def list_activations(self, user_id: int) -> List[Dict[str, Any]]:
         """
         List the user's stored activations (summaries only).

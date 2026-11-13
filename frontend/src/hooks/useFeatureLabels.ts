@@ -70,6 +70,11 @@ async function lookup(sae: SaeRef, model: string | undefined, features: number[]
   return out
 }
 
+/** Labels of features of an SAE, outside React (the assistant's chat export); shares the hook's cache. */
+export function featureLabels(sae: SaeRef, features: number[], model?: string): Promise<FeatureLabels> {
+  return lookup(sae, model, [...new Set(features)])
+}
+
 /** Labels of features of an SAE (from its atlases on model, if given). */
 export function useFeatureLabels(sae: SaeRef | null | undefined, features: number[], model?: string): FeatureLabels {
   const { isAuthenticated } = useAuthStore()

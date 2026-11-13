@@ -15,7 +15,7 @@ export interface ModelChoice {
 
 const TYPE_LABELS = { ozera: 'Ozera Models', open_source: 'Open Source', custom: 'Custom Models' } as const
 
-export function ModelPicker({ lab, disabled }: { lab: ModelChoice; disabled?: boolean }) {
+export function ModelPicker({ lab, disabled, assist }: { lab: ModelChoice; disabled?: boolean; /** The assistant's highlight target */ assist?: string }) {
   const groups: DropdownGroup[] = lab.loadingModels
     ? [{ label: 'Models', options: [{ value: '', label: 'Loading models…' }] }]
     : (['ozera', 'open_source', 'custom'] as const)
@@ -30,5 +30,9 @@ export function ModelPicker({ lab, disabled }: { lab: ModelChoice; disabled?: bo
             })),
         }))
         .filter((group) => group.options.length > 0)
-  return <Dropdown value={lab.modelId} onChange={lab.setModelId} groups={groups} disabled={disabled || lab.loadingModels} />
+  return (
+    <div data-assist={assist}>
+      <Dropdown value={lab.modelId} onChange={lab.setModelId} groups={groups} disabled={disabled || lab.loadingModels} />
+    </div>
+  )
 }

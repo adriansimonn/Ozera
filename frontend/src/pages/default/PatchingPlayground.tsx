@@ -17,6 +17,8 @@ import type {
 import { Play, Zap, Trash2, AlertCircle, Info, ChevronDown, ChevronUp } from 'lucide-react'
 import { Dropdown, type DropdownGroup } from '../../components/common/Dropdown'
 import { useAuthStore } from '../../stores/authStore'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { patchingBridge } from '../../components/assistant/pages/patching'
 import { useTheme } from '../../hooks/useTheme'
 
 interface PatchingPlaygroundProps {
@@ -56,6 +58,28 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // The assistant: what's on screen, set_inputs, and a run_patching run's result
+  useAssistantPage('patching', patchingBridge({
+    model: selectedModel,
+    setModel: setSelectedModel,
+    layers: modelInfo?.num_layers ?? null,
+    heads: modelInfo?.num_heads ?? null,
+    sourcePrompt,
+    setSourcePrompt,
+    targetPrompt,
+    setTargetPrompt,
+    patches,
+    setPatches,
+    maxTokens,
+    setMaxTokens,
+    temperature,
+    setTemperature,
+    running,
+    result,
+    setResult,
+    captured: capturedActivations.length,
+  }))
+
   useEffect(() => { loadModels() }, [])
 
   useEffect(() => {
@@ -67,7 +91,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
       setLoadingModels(true)
       const modelList = await apiClient.getPatchingModels()
       setModels(modelList)
-      if (modelList.length > 0) setSelectedModel(modelList[0].model_id)
+      if (modelList.length > 0) setSelectedModel((current) => current || modelList[0].model_id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load models')
     } finally {
@@ -240,6 +264,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
             {/* Model section */}
             <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
               <div className="dp-section-label" style={{ color: c.textSub }}>Model</div>
+              <div data-assist="patching.model">
               <Dropdown
                 value={selectedModel}
                 onChange={v => setSelectedModel(v)}
@@ -262,6 +287,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
                   return groups
                 })()}
               />
+              </div>
               {modelInfo && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginTop: '0.625rem' }}>
                   <span style={{
@@ -294,6 +320,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
                     <div style={{ fontSize: '0.7rem', color: c.textSub }}>Activations captured from this prompt</div>
                   </div>
                   <textarea
+                    data-assist="patching.source_prompt"
                     value={sourcePrompt}
                     onChange={e => setSourcePrompt(e.target.value)}
                     placeholder="Enter source prompt..."
@@ -332,6 +359,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
                   </div>
                 </div>
                 <textarea
+                  data-assist="patching.target_prompt"
                   value={targetPrompt}
                   onChange={e => setTargetPrompt(e.target.value)}
                   placeholder={requiresSourcePrompt ? 'Enter target prompt...' : 'Enter prompt...'}
@@ -351,6 +379,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
                   <div style={{ fontSize: '0.7rem', color: c.textSub, marginBottom: '0.3rem', fontWeight: 500 }}>Max Tokens</div>
                   <input
                     type="number"
+                    data-assist="patching.max_tokens"
                     value={maxTokens}
                     onChange={e => setMaxTokens(parseInt(e.target.value) || 20)}
                     min={1} max={100}
@@ -363,6 +392,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
                   <div style={{ fontSize: '0.7rem', color: c.textSub, marginBottom: '0.3rem', fontWeight: 500 }}>Temperature</div>
                   <input
                     type="number"
+                    data-assist="patching.temperature"
                     value={temperature}
                     onChange={e => setTemperature(parseFloat(e.target.value) || 0)}
                     min={0} max={2} step={0.1}
@@ -382,6 +412,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
             <div className="dp-section">
               <button
                 className="dp-run-btn"
+                data-assist="patching.run_button"
                 onClick={handleRunExperiment}
                 disabled={running || !selectedModel || patches.length === 0}
                 style={{
@@ -421,6 +452,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
 
             {/* Intervention Configuration */}
             <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              <div data-assist="patching.patches">
               <PatchConfigPanel
                 modelId={selectedModel}
                 numLayers={numLayers}
@@ -432,6 +464,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
                 onClearPatches={handleClearPatches}
                 disabled={running}
               />
+              </div>
             </div>
 
             {/* Captured Activations */}

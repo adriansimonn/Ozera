@@ -244,6 +244,11 @@ async def run_geometry(
     Charged by the run's size (examples × tokens × model size), at least the model's GPU
     request minimum.
     """
+    return await run_geometry_for(db, current_user, body)
+
+
+async def run_geometry_for(db: Session, current_user: User, body: GeometryRunRequest) -> dict:
+    """POST /geometry/run as the user (also the assistant's run_geometry). Raises HTTPException as the route does."""
     model = resolve_model(db, current_user.id, body.model)
     _check_chat_template(body.model, body.chat_template)
     specs = await _model_specs(db, current_user.id, body.model)
@@ -783,6 +788,11 @@ async def submit_atlas_job(
     Charged its estimate when submitted (tokens × model size, plus tokens × SAE width); a job
     that fails is refunded all but the GPU time it used. Poll GET /geometry/atlas/jobs/{id}.
     """
+    return await submit_atlas_job_for(db, current_user, body)
+
+
+async def submit_atlas_job_for(db: Session, current_user: User, body: AtlasJobRequest) -> dict:
+    """POST /geometry/atlas/jobs as the user (also the assistant's build_atlas). Raises HTTPException as the route does."""
     specs, info = await _atlas_sae(db, current_user, body.model, body.sae)
     if not await check_generic_dataset_exists(body.corpus):
         raise HTTPException(status_code=400, detail=f"{CORPORA[body.corpus]['name']} isn't on the datasets volume")
@@ -925,6 +935,50 @@ async def atlas_features(
     }
 
 
+async def atlas_feature_data(directory: str, feature: int) -> dict:
+    """
+    One feature of a stored atlas over its corpus (the /atlas/feature response; see there).
+
+    Raises:
+        HTTPException: 404 without an atlas, 400 for a feature the SAE doesn't have
+    """
+    try:
+        meta = await atlas_store.read_json(f"{directory}/meta.json")
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="No atlas for this SAE and corpus yet")
+    if feature >= meta["width"]:
+        raise HTTPException(status_code=400, detail=f"This SAE has {meta['width']} features")
+    shard = feature // FEATURE_SHARD
+    try:
+        data = await atlas_store.read_json(f"{directory}/features/{shard}.json")
+    except FileNotFoundError:
+        data = {"vocabulary": {}, "features": {}}
+    entry = data["features"].get(str(feature))
+    tokens = meta["tokens"]
+    if entry is None:
+        return {
+            "id": feature, "tokens": 0, "freq": 0.0, "mean": 0.0, "max": 0.0, "community": None, "diversity": 0.0,
+            "corpus_tokens": tokens, "examples": [], "neighbors": [],
+        }
+    vocabulary = data["vocabulary"]
+    fired = [ex["ids"][ex["at"]] for ex in entry["examples"]]
+    return {
+        "id": feature,
+        "tokens": entry["tokens"],
+        "freq": entry["tokens"] / max(tokens, 1),
+        "mean": entry["mean"],
+        "max": entry["max"],
+        "community": entry["community"] if entry["community"] >= 0 else None,
+        "diversity": (len(set(fired)) - 1) / (len(fired) - 1) if len(fired) > 1 else 0.0,
+        "corpus_tokens": tokens,
+        "examples": [
+            {"tokens": [vocabulary[str(i)] for i in ex["ids"]], "at": ex["at"], "act": ex["act"], "levels": ex["levels"]}
+            for ex in entry["examples"]
+        ],
+        "neighbors": [{"id": j, "weight": w, "conditional": p} for j, w, p in entry["neighbors"]],
+    }
+
+
 @router.post("/atlas/feature", response_model=AtlasFeature)
 @limiter.limit("240/minute")
 async def atlas_feature(
@@ -938,41 +992,7 @@ async def atlas_feature(
     active on (with its activation on every token of each), and the features most often active with it.
     """
     directory = await _atlas_directory(db, current_user, body)
-    try:
-        meta = await atlas_store.read_json(f"{directory}/meta.json")
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="No atlas for this SAE and corpus yet")
-    if body.feature >= meta["width"]:
-        raise HTTPException(status_code=400, detail=f"This SAE has {meta['width']} features")
-    shard = body.feature // FEATURE_SHARD
-    try:
-        data = await atlas_store.read_json(f"{directory}/features/{shard}.json")
-    except FileNotFoundError:
-        data = {"vocabulary": {}, "features": {}}
-    feature = data["features"].get(str(body.feature))
-    tokens = meta["tokens"]
-    if feature is None:
-        return {
-            "id": body.feature, "tokens": 0, "freq": 0.0, "mean": 0.0, "max": 0.0, "community": None, "diversity": 0.0,
-            "corpus_tokens": tokens, "examples": [], "neighbors": [],
-        }
-    vocabulary = data["vocabulary"]
-    fired = [ex["ids"][ex["at"]] for ex in feature["examples"]]
-    return {
-        "id": body.feature,
-        "tokens": feature["tokens"],
-        "freq": feature["tokens"] / max(tokens, 1),
-        "mean": feature["mean"],
-        "max": feature["max"],
-        "community": feature["community"] if feature["community"] >= 0 else None,
-        "diversity": (len(set(fired)) - 1) / (len(fired) - 1) if len(fired) > 1 else 0.0,
-        "corpus_tokens": tokens,
-        "examples": [
-            {"tokens": [vocabulary[str(i)] for i in ex["ids"]], "at": ex["at"], "act": ex["act"], "levels": ex["levels"]}
-            for ex in feature["examples"]
-        ],
-        "neighbors": [{"id": j, "weight": w, "conditional": p} for j, w, p in feature["neighbors"]],
-    }
+    return await atlas_feature_data(directory, body.feature)
 
 
 @router.post("/atlas/lookup", response_model=AtlasLookup)

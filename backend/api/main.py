@@ -59,6 +59,7 @@ from api.probes import monitor_probe, router as probes_router
 from api.geometry import router as geometry_router
 from api.autointerp import router as autointerp_router
 from api.settings import router as settings_router
+from api.assistant import router as assistant_router
 from api.streaming import SSE_HEADERS, billed_generation_stream
 from services.generation_control import GENERATION_ID_PATTERN, new_generation_id, request_stop, stop_key
 from middleware.auth_middleware import get_current_user
@@ -142,6 +143,7 @@ app.include_router(probes_router)
 app.include_router(geometry_router)
 app.include_router(autointerp_router)
 app.include_router(settings_router)
+app.include_router(assistant_router)
 
 
 class GenerateRequest(BaseModel):
@@ -590,16 +592,31 @@ async def generate_with_activations(
     an activation_id is returned for later retrieval.
     Requires authentication and charges user credits.
     """
-    model = resolve_model(db, current_user.id, body.model)
-    await _check_visualizable(db, current_user.id, body)
+    return await generate_with_activations_for(db, current_user, body)
 
-    # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
-    estimated_cost = calculate_inference_cost(
+
+def generation_estimate(body: GenerateRequest) -> float:
+    """What a generation is checked against before it runs (its max_tokens, the prompt estimated from its words)."""
+    return calculate_inference_cost(
         prompt_tokens=len(body.prompt.split()) * 2,  # Rough estimate
         generated_tokens=body.max_tokens,
         model_id=body.model,
     )
-    if not check_sufficient_balance(db, current_user.id, estimated_cost):
+
+
+async def generate_with_activations_for(db: Session, current_user: User, body: GenerateRequest) -> dict:
+    """
+    Generate with activations as the user (the /generate/with-activations route, and the
+    assistant's generate tool): checked, run, stored and charged on the tokens it used.
+
+    Raises:
+        HTTPException: as the route reports it
+    """
+    model = resolve_model(db, current_user.id, body.model)
+    await _check_visualizable(db, current_user.id, body)
+
+    # Check if user has sufficient balance (estimate based on max_tokens, with model-based pricing)
+    if not check_sufficient_balance(db, current_user.id, generation_estimate(body)):
         raise HTTPException(
             status_code=402,
             detail="Insufficient credits. Please add more credits to continue."

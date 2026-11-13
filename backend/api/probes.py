@@ -367,6 +367,11 @@ async def train_probes(
     Charged by the run's size (examples × tokens × model size), at least the model's GPU
     request minimum.
     """
+    return await train_probes_for(db, current_user, body)
+
+
+async def train_probes_for(db: Session, current_user: User, body: TrainProbesRequest) -> dict:
+    """POST /probes/train as the user (also the assistant's train_probe). Raises HTTPException as the route does."""
     model = resolve_model(db, current_user.id, body.model)
     _check_chat_template(body.model, body.chat_template)
     specs = await _model_specs(db, current_user.id, body.model)
@@ -1206,6 +1211,11 @@ async def sae_probe(
     Charged by the run's size (examples × tokens × model size, plus the SAE), at least the
     model's GPU request minimum.
     """
+    return await sae_probe_for(db, current_user, body)
+
+
+async def sae_probe_for(db: Session, current_user: User, body: SaeProbeRequest) -> dict:
+    """The SAE comparison route's logic, callable without a request (the assistant's compare_probe_sae)."""
     model_id, probe = _resolve_probe(db, current_user.id, body.probe_id, body.probe, body.model)
     model, specs = await _probe_model(db, current_user.id, model_id, probe)
     info = _resolve_sae(db, current_user.id, model_id, specs, body.sae, probe.layer)

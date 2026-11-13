@@ -382,6 +382,57 @@ async def autointerp_status(
     }
 
 
+async def feature_detail(db: Session, user: User, model_id: str, sae: SaeRef, corpus: Optional[str], feature: int) -> dict:
+    """
+    A feature's explanation (its newest) with its scores, its percentile among the random
+    controls, its earlier versions, the user's hypotheses and generation tests of it, its top
+    firing tokens, and the tokens its decoder row promotes and suppresses (the Feature view's
+    data, and the assistant's get_feature).
+
+    Raises:
+        HTTPException: 404 without an atlas, 400 for a feature the SAE doesn't have (or as _atlas)
+    """
+    _, atlas = await _atlas(db, user, model_id, sae, corpus)
+    if atlas is None:
+        raise HTTPException(status_code=404, detail="No atlas for this SAE and corpus yet")
+    if feature >= atlas.width:
+        raise HTTPException(status_code=400, detail=f"This SAE has {atlas.width} features")
+    versions = autointerp.versions(db, atlas.directory, feature)
+    row = versions[0] if versions else None
+    percentile, controls = autointerp.control_percentile(
+        db, atlas.directory, row.score if row else None, row.explainer_model if row else None, row.scorer_model if row else None,
+    )
+    sets = await autointerp.feature_sets(atlas, feature) if autointerp.state(atlas.meta)[0] == "ready" else None
+
+    def weights(pairs) -> list[dict]:
+        return [{"token": token, "value": value} for token, value in pairs]
+
+    def percentile_of(score: Optional[float], explainer: Optional[str] = None, scorer: Optional[str] = None) -> Optional[float]:
+        return autointerp.control_percentile(db, atlas.directory, score, explainer, scorer)[0] if score is not None else None
+
+    return {
+        "feature": feature,
+        "explanation": _explanation(row, percentile) if row else None,
+        "versions": [
+            _explanation(v, percentile if v is row else percentile_of(v.score, v.explainer_model, v.scorer_model)) for v in versions
+        ],
+        "hypotheses": [
+            _hypothesis(h, percentile_of(h.score)) for h in autointerp.hypotheses(db, user.id, atlas.directory, feature)
+        ],
+        "tests": [_generation_test(t, user) for t in autointerp.generation_tests(db, user.id, atlas.directory, feature)],
+        "top_tokens": weights(sets.top_tokens) if sets else [],
+        "promoted": weights(sets.promoted) if sets else [],
+        "suppressed": weights(sets.suppressed) if sets else [],
+        "has_sets": sets is not None,
+        "scorable": bool(sets and sets.scorable),
+        "unscored_note": sets.note if sets else None,
+        "controls": controls,
+        # Not in the response model: which atlas it read
+        "corpus": atlas.corpus,
+        "atlas_directory": atlas.directory,
+    }
+
+
 @router.post("/feature", response_model=FeatureAutointerp)
 @limiter.limit("240/minute")
 async def autointerp_feature(
@@ -394,42 +445,7 @@ async def autointerp_feature(
     A feature's explanation (its newest) with its scores, its percentile among the random
     controls, its top firing tokens, and the tokens its decoder row promotes and suppresses.
     """
-    _, atlas = await _atlas(db, current_user, body.model, body.sae, body.corpus)
-    if atlas is None:
-        raise HTTPException(status_code=404, detail="No atlas for this SAE and corpus yet")
-    if body.feature >= atlas.width:
-        raise HTTPException(status_code=400, detail=f"This SAE has {atlas.width} features")
-    versions = autointerp.versions(db, atlas.directory, body.feature)
-    row = versions[0] if versions else None
-    percentile, controls = autointerp.control_percentile(
-        db, atlas.directory, row.score if row else None, row.explainer_model if row else None, row.scorer_model if row else None,
-    )
-    sets = await autointerp.feature_sets(atlas, body.feature) if autointerp.state(atlas.meta)[0] == "ready" else None
-
-    def weights(pairs) -> list[dict]:
-        return [{"token": token, "value": value} for token, value in pairs]
-
-    def percentile_of(score: Optional[float], explainer: Optional[str] = None, scorer: Optional[str] = None) -> Optional[float]:
-        return autointerp.control_percentile(db, atlas.directory, score, explainer, scorer)[0] if score is not None else None
-
-    return {
-        "feature": body.feature,
-        "explanation": _explanation(row, percentile) if row else None,
-        "versions": [
-            _explanation(v, percentile if v is row else percentile_of(v.score, v.explainer_model, v.scorer_model)) for v in versions
-        ],
-        "hypotheses": [
-            _hypothesis(h, percentile_of(h.score)) for h in autointerp.hypotheses(db, current_user.id, atlas.directory, body.feature)
-        ],
-        "tests": [_generation_test(t, current_user) for t in autointerp.generation_tests(db, current_user.id, atlas.directory, body.feature)],
-        "top_tokens": weights(sets.top_tokens) if sets else [],
-        "promoted": weights(sets.promoted) if sets else [],
-        "suppressed": weights(sets.suppressed) if sets else [],
-        "has_sets": sets is not None,
-        "scorable": bool(sets and sets.scorable),
-        "unscored_note": sets.note if sets else None,
-        "controls": controls,
-    }
+    return await feature_detail(db, current_user, body.model, body.sae, body.corpus, body.feature)
 
 
 @router.post("/explain", response_model=ExplainResponse)
@@ -449,6 +465,11 @@ async def explain_feature(
     upper bound (the exact input of every request plus their max_tokens of output), which is
     held while it runs. Two requests for the same feature at once run it once.
     """
+    return await explain_feature_for(db, current_user, body)
+
+
+async def explain_feature_for(db: Session, current_user: User, body: ExplainRequest) -> dict:
+    """POST /autointerp/explain as the user (also the assistant's explain_feature). Raises HTTPException as the route does."""
     explainer = body.explainer or DEFAULT_EXPLAINER
     scorer = body.scorer or DEFAULT_SCORER
     if explainer not in SINGLE_FEATURE_MODELS or scorer not in SINGLE_FEATURE_MODELS:
@@ -528,6 +549,11 @@ async def score_hypothesis(
     Charged its usage, at least MIN_HYPOTHESIS_CHARGE; it runs only if the balance covers its
     upper bound, which is held while it runs.
     """
+    return await score_hypothesis_for(db, current_user, body)
+
+
+async def score_hypothesis_for(db: Session, current_user: User, body: HypothesisRequest) -> dict:
+    """POST /autointerp/hypothesis as the user (also the assistant's test_hypothesis). Raises HTTPException as the route does."""
     scorer = _single_feature_model(body.scorer or DEFAULT_SCORER)
     _, info, atlas = await _feature_atlas(db, current_user, body)
     description = f"{info.name} ({body.model}, {atlas.corpus}), feature {body.feature}"
@@ -575,6 +601,11 @@ async def run_generation_test(
     or one of the user's hypotheses (hypothesis_id; private). Charged Claude's usage and the GPU
     call (at least the worker's request minimum); their upper bound is held while it runs.
     """
+    return await generation_test_for(db, current_user, body)
+
+
+async def generation_test_for(db: Session, current_user: User, body: GenerationTestRequest) -> dict:
+    """POST /autointerp/generation-test as the user (also the assistant's generation_test). Raises HTTPException as the route does."""
     generator = _single_feature_model(body.generator or DEFAULT_EXPLAINER)
     if (body.explanation_id is None) == (body.hypothesis_id is None):
         raise HTTPException(status_code=400, detail="Choose an explanation or a hypothesis to test")
@@ -728,6 +759,11 @@ async def estimate_job(
     naming communities: how many it would name (those with enough explained features, less those
     the model already named from as many).
     """
+    return await estimate_job_for(db, current_user, body)
+
+
+async def estimate_job_for(db: Session, current_user: User, body: JobRequest) -> dict:
+    """POST /autointerp/estimate as the user (also the assistant's start_autointerp_job price). Raises HTTPException as the route does."""
     _, _, features, scored, controls, skipped, naming = await _job_plan(db, current_user, body)
     expected, hold = _job_estimate(body, len(features), len(scored), len(controls), naming)
     return {
@@ -764,6 +800,11 @@ async def submit_job(
     request per community with enough explained features, from the explanations stored now
     (the explainer model writes the names). It explains and scores nothing.
     """
+    return await submit_job_for(db, current_user, body)
+
+
+async def submit_job_for(db: Session, current_user: User, body: JobRequest) -> dict:
+    """POST /autointerp/jobs as the user (also the assistant's start_autointerp_job). Raises HTTPException as the route does."""
     if not autointerp.available():
         raise HTTPException(status_code=503, detail="Autointerp isn't configured on this server")
     info, atlas, features, scored, controls, skipped, naming = await _job_plan(db, current_user, body)

@@ -131,7 +131,7 @@ export function DatasetPanel({ lab, disabled }: { lab: ProbeLab; disabled?: bool
   const detail = preview ? lab.datasetDetails[preview] : null
 
   return (
-    <div className="pl-dataset">
+    <div className="pl-dataset" data-assist="probes.dataset">
       <Segmented
         ariaLabel="Dataset source"
         value={lab.source}

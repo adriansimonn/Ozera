@@ -14,6 +14,8 @@ import type { MonitorProbeInfo, MonitorTrace, SavedProbe } from '../../types/pro
 import { Dropdown, type DropdownGroup } from '../common/Dropdown'
 import { ProbeMonitor } from '../probes/ProbeMonitor'
 import { monitorProbeInfo } from '../probes/probeUtils'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { generatorBridge } from '../assistant/pages/generate'
 
 export type GenerationMode = 'visualize' | 'tokens'
 
@@ -131,11 +133,42 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
   }, [isAuthenticated, model])
   const monitorProbe = monitorProbes.find((p) => String(p.id) === monitorId) ?? null
 
-  // Instruct models generate until their end-of-turn token by default, as chat models do
+  // Instruct models generate until their end-of-turn token by default, as chat models do. When
+  // the assistant sets a model and "until EOS" together, its choice applies after the default.
   const isInstruct = openSourceModels.find(m => m.id === model)?.is_instruct ?? false
+  const assistModelChange = useRef(false)
+  const assistUntilEos = useRef<boolean | null>(null)
   useEffect(() => {
-    setUntilEos(isInstruct)
+    const chosen = assistUntilEos.current
+    assistModelChange.current = false
+    assistUntilEos.current = null
+    setUntilEos(chosen ?? isInstruct)
   }, [model, isInstruct])
+
+  useAssistantPage('generate', generatorBridge({
+    prompt,
+    setPrompt,
+    model,
+    setModel: (m) => {
+      if (m === model) return
+      assistModelChange.current = true
+      handleModelChange(m)
+    },
+    maxTokens,
+    setMaxTokens,
+    untilEos,
+    setUntilEos: (on) => {
+      if (assistModelChange.current) assistUntilEos.current = on
+      else setUntilEos(on)
+    },
+    temperature,
+    setTemperature,
+    topK,
+    setTopK,
+    mode: generationMode,
+    setMode: setGenerationMode,
+    busy,
+  }))
 
   // Clear warmup timer on unmount
   useEffect(() => {
@@ -261,7 +294,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       </div>
 
       <div className="controls">
-        <div className="control-group">
+        <div className="control-group" data-assist="generate.model">
           <label htmlFor="model-select">Model:</label>
           <Dropdown
             id="model-select"
@@ -290,7 +323,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           />
         </div>
 
-        <div className="control-group">
+        <div className="control-group" data-assist="generate.max_tokens">
           <label htmlFor="max-tokens">
             Tokens: <span className="control-value-display">{untilEos ? `up to ${EOS_MAX_TOKENS}` : maxTokens}</span>
           </label>
@@ -318,7 +351,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
               disabled={busy || untilEos}
             />
           </div>
-          <label className={`eos-toggle ${busy ? 'disabled' : ''}`}>
+          <label className={`eos-toggle ${busy ? 'disabled' : ''}`} data-assist="generate.until_eos">
             <input
               type="checkbox"
               checked={untilEos}
@@ -331,7 +364,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       </div>
 
       <div className="controls">
-        <div className="control-group">
+        <div className="control-group" data-assist="generate.temperature">
           <label htmlFor="temperature">
             Temperature: <span className="control-value-display">{temperature.toFixed(2)}</span>
           </label>
@@ -362,7 +395,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           </div>
         </div>
 
-        <div className="control-group">
+        <div className="control-group" data-assist="generate.top_k">
           <label htmlFor="top-k">
             Top-K: <span className="control-value-display">{topK}</span>
           </label>
@@ -423,7 +456,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         </div>
       )}
 
-      <div className="prompt-area">
+      <div className="prompt-area" data-assist="generate.prompt">
         <label htmlFor="prompt">Prompt:</label>
         <textarea
           id="prompt"
@@ -451,7 +484,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
             )}
           </button>
         ) : (
-          <div className="generate-dropdown" ref={dropdownRef}>
+          <div className="generate-dropdown" ref={dropdownRef} data-assist="generate.generate_button">
             <button
               onClick={handleGenerateClick}
               disabled={!prompt.trim()}
@@ -462,6 +495,8 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
               className="btn-generate-toggle"
+              data-assist="generate.mode"
+              title="Generation mode"
             >
               <ChevronDown size={16} className={dropdownOpen ? 'chevron-up' : ''} />
             </button>

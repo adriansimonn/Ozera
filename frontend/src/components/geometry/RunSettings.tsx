@@ -17,7 +17,7 @@ export function GeometryRunSettings({ lab }: { lab: GeometryLab }) {
 
   return (
     <div className="gl-settings">
-      <div className="gl-setting">
+      <div className="gl-setting" data-assist="geometry.read">
         <div className="pl-control-label">Read at</div>
         <Segmented
           ariaLabel="Read position"
@@ -34,12 +34,12 @@ export function GeometryRunSettings({ lab }: { lab: GeometryLab }) {
 
       <div className="gl-setting-row">
         {lab.model?.is_instruct && (
-          <label className="pl-check-row" title="Read each example as a user message in the model's chat template">
+          <label className="pl-check-row" title="Read each example as a user message in the model's chat template" data-assist="geometry.chat_template">
             <input type="checkbox" checked={lab.chatTemplate} disabled={disabled} onChange={(e) => lab.setChatTemplate(e.target.checked)} />
             Chat template
           </label>
         )}
-        <div>
+        <div data-assist="geometry.seed">
           <div className="pl-control-label" title="Seed for the held-out template folds and the shuffled baselines">
             Seed
           </div>
@@ -65,6 +65,7 @@ export function GeometryRunSettings({ lab }: { lab: GeometryLab }) {
       <button
         type="button"
         className="pl-train-button"
+        data-assist="geometry.run_button"
         onClick={lab.start}
         disabled={lab.running || !lab.modelId || !lab.conceptSpec || (estimate != null && !estimate.within_limit)}
       >

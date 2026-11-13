@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react'
 import { SaeDeepLinkNote } from '../../components/sae/SaeDeepLinkNote'
 import { useSaeDeepLink } from '../../hooks/useSaeDeepLink'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { saeBridge } from '../../components/assistant/pages/sae'
 import { saeRef, useCorpusStats } from '../../hooks/useCorpusStats'
 import { useFeatureLabels } from '../../hooks/useFeatureLabels'
 import { FeatureExplanation } from '../../components/autointerp/FeatureExplanation'
@@ -303,7 +305,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
     if (mode === 'autointerp') setAutointerpOpened(true)
   }, [mode])
   // A link from the Probe Lab picks the SAE, the text, and a feature to show once analyzed
-  const { link: deepLink, pendingFeature, clearPending } = useSaeDeepLink()
+  const { link: deepLink, pendingFeature, clearPending, setPendingFeature } = useSaeDeepLink()
   const [saeSelection, setSaeSelection] = useState<SAESelection | null>(deepLink?.selection ?? null)
   // Corpus statistics from a Geometry Lab atlas of the SAE, when one exists (Browse uses them)
   const { isAuthenticated } = useAuthStore()
@@ -354,6 +356,17 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
     }
   }, [])
 
+  // An analysis on screen: the Analyze button's, or an assistant run's
+  const applyAnalysis = useCallback((response: SAEAnalyzeResponse, selection: SAESelection) => {
+    setAnalyzeResponse(response)
+    setActivations(transformAnalyzeResponse(response))
+    setFeatureCatalog(generateFeatureCatalog(response, selection))
+    setQualityMetrics(generateQualityMetrics(response))
+    setSelectedFeature(null)
+    setSelectedFeatures([])
+    setFeatureInfo(null)
+  }, [])
+
   const runAnalysis = useCallback(async () => {
     if (!saeSelection || !inputText.trim()) return
 
@@ -383,13 +396,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
         throw new Error(response.error)
       }
 
-      setAnalyzeResponse(response)
-      setActivations(transformAnalyzeResponse(response))
-      setFeatureCatalog(generateFeatureCatalog(response, saeSelection))
-      setQualityMetrics(generateQualityMetrics(response))
-      setSelectedFeature(null)
-      setSelectedFeatures([])
-      setFeatureInfo(null)
+      applyAnalysis(response, saeSelection)
     } catch (err) {
       if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') {
         setError('INSUFFICIENT_CREDITS')
@@ -400,7 +407,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
     } finally {
       setAnalyzing(false)
     }
-  }, [saeSelection, inputText, onShowPurchaseCredits])
+  }, [saeSelection, inputText, onShowPurchaseCredits, applyAnalysis])
 
   // Load feature info when feature is selected
   useEffect(() => {
@@ -478,6 +485,23 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
     })
   }, [])
 
+  // The assistant: what's on screen, and set_inputs
+  useAssistantPage('sae', saeBridge({
+    mode,
+    setMode,
+    selection: saeSelection,
+    setSelection: setSaeSelection,
+    text: inputText,
+    setText: setInputText,
+    analyzing,
+    analyzeResponse,
+    selectedFeature,
+    selectFeature: handleFeatureSelect,
+    setPendingFeature,
+    corpusAtlas,
+    loadAnalysis: applyAnalysis,
+  }))
+
   useEffect(() => {
     if (analyzeResponse && pendingFeature != null) {
       handleFeatureSelect(pendingFeature)
@@ -534,7 +558,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
         {/* Analysis Mode — always first */}
         <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
           <div className="ds-section-label" style={{ color: c.textSub }}>View</div>
-          <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+          <div data-assist="sae.mode" style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
             {modes.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -590,7 +614,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
 
         {/* SAE Selection — hidden in compare & load modes */}
         {mode !== 'compare' && mode !== 'load' && (
-          <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+          <div className="ds-section" data-assist="sae.sae" style={{ borderBottom: `1px solid ${c.divider}` }}>
             <div className="ds-section-label" style={{ color: c.textSub }}>SAE Selection</div>
             <SAESelector
               selection={saeSelection}
@@ -612,12 +636,14 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
               placeholder="Enter text to analyze with the SAE..."
               rows={3}
               disabled={analyzing}
+              data-assist="sae.text"
               className="ds-textarea"
               style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
             />
             <button
               onClick={runAnalysis}
               disabled={analyzing || !saeSelection || !inputText.trim()}
+              data-assist="sae.analyze_button"
               className="ds-run-btn"
               style={{
                 background: analyzing ? c.controlBg : (isLight ? '#1d1d1f' : '#ffffff'),
@@ -690,7 +716,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
       <div className="ds-right-scroll">
         {/* Analyze Activations Mode */}
         {mode === 'analyze' && !analyzing && analyzeResponse && activations && (
-          <div className="ds-results">
+          <div className="ds-results" data-assist="sae.feature">
             <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
               <FeatureActivationDisplay
                 activations={activations}

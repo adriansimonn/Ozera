@@ -8,6 +8,7 @@ from typing import Optional
 from sqlalchemy import (
     Boolean,
     Column,
+    Date,
     DateTime,
     Enum,
     Float,
@@ -77,6 +78,9 @@ class User(Base):
     generation_tests = relationship(
         "GenerationTest", back_populates="user", cascade="all, delete-orphan"
     )
+    assistant_chats = relationship(
+        "AssistantChat", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
@@ -126,6 +130,8 @@ class TransactionType(PyEnum):
     GEOMETRY_REFUND = "geometry_refund"
     AUTOINTERP_CHARGE = "autointerp_charge"
     AUTOINTERP_REFUND = "autointerp_refund"
+    # The assistant's Claude calls: each call's hold (negative) and what it didn't use (positive)
+    ASSISTANT = "assistant"
 
 
 class Transaction(Base):
@@ -611,3 +617,79 @@ class CommunityName(Base):
 
     def __repr__(self):
         return f"<CommunityName(atlas_key={self.atlas_key}, community={self.community}, name={self.name})>"
+
+
+class AssistantChat(Base):
+    """
+    One of a user's chats with the assistant (services/assistant.py). Private to the user.
+
+    status: idle, or running while a turn runs (one at a time; updated_at says since when, so a
+    turn whose process died doesn't lock the chat). tokens: the size of the chat's last prompt
+    and reply (what the next call reads at least). cost_usd: what its turns were charged.
+    allowance_usd: what runs may cost in all without the user's click (0: off, every run asks);
+    allowance_spent_usd: what runs that started without a click have taken from it.
+    """
+
+    __tablename__ = "assistant_chats"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    model = Column(String(100), nullable=False)
+    status = Column(String(20), nullable=False, default="idle")
+    pending = Column(JSON, nullable=True)  # Runs waiting for approval (Phase 2)
+    tokens = Column(Integer, nullable=False, default=0)
+    cost_usd = Column(Numeric(precision=10, scale=4), nullable=False, default=0)
+    allowance_usd = Column(Numeric(precision=10, scale=4), nullable=False, default=0)
+    allowance_spent_usd = Column(Numeric(precision=10, scale=4), nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    user = relationship("User", back_populates="assistant_chats")
+    messages = relationship(
+        "AssistantMessage", back_populates="chat", cascade="all, delete-orphan", order_by="AssistantMessage.seq",
+    )
+
+    def __repr__(self):
+        return f"<AssistantChat(id={self.id}, user_id={self.user_id}, model={self.model})>"
+
+
+class AssistantMessage(Base):
+    """
+    One message of a chat, exactly as it's sent to the Messages API (content), in order (seq).
+    A turn is a user message and everything the assistant did before replying (turn numbers
+    them). Stored content is never edited: thinking blocks are bound to the conversation, and
+    any edit breaks the prompt cache from that point on. meta holds what the panel shows
+    (the user's text, tool chips, how the turn ended) and may change.
+    """
+
+    __tablename__ = "assistant_messages"
+    __table_args__ = (Index("ix_assistant_messages_chat_seq", "chat_id", "seq", unique=True),)
+
+    id = Column(Integer, primary_key=True)
+    chat_id = Column(Integer, ForeignKey("assistant_chats.id", ondelete="CASCADE"), nullable=False)
+    seq = Column(Integer, nullable=False)
+    turn = Column(Integer, nullable=False)
+    role = Column(String(20), nullable=False)  # user, assistant
+    content = Column(JSON, nullable=False)
+    snapshot = Column(JSON, nullable=True)  # The page state the user's message came with
+    usage = Column(JSON, nullable=True)  # An assistant message's call: tokens by attempt
+    cost_usd = Column(Numeric(precision=10, scale=4), nullable=True)
+    free = Column(Boolean, nullable=False, default=False)
+    meta = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    chat = relationship("AssistantChat", back_populates="messages")
+
+    def __repr__(self):
+        return f"<AssistantMessage(chat_id={self.chat_id}, seq={self.seq}, role={self.role})>"
+
+
+class AssistantFreeUsage(Base):
+    """Free assistant messages a user has started on a day (UTC)."""
+
+    __tablename__ = "assistant_free_usage"
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    day = Column(Date, primary_key=True)
+    count = Column(Integer, nullable=False, default=0)

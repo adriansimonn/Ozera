@@ -184,7 +184,7 @@ function Custom({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
 
 export function ConceptPanel({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
   return (
-    <div className="gl-concept">
+    <div className="gl-concept" data-assist="geometry.concept">
       <Segmented
         ariaLabel="Concept source"
         value={lab.source}

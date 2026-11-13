@@ -112,7 +112,7 @@ function shapeFindings(run: GeometryRun, position: number, dims: number): Findin
 
 function LayerSlider({ lab, run }: { lab: GeometryLab; run: GeometryRun }) {
   return (
-    <div className="gl-slider">
+    <div className="gl-slider" data-assist="geometry.layer">
       <div className="pl-control-label">{layerName(lab.position)}</div>
       <input
         type="range"

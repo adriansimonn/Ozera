@@ -22,6 +22,8 @@ import type {
 import { bestPosition, type EvalSet, type SweepMetric } from '../components/probes/probeUtils'
 import type { HeatmapSource } from '../components/probes/TokenHeatmap'
 import type { ProbeViewId } from '../components/probes/ProbeViews'
+import { probeBridge } from '../components/assistant/pages/probes'
+import { useAssistantPage } from './useAssistantPage'
 
 export type DatasetSource = 'builtin' | 'upload'
 
@@ -237,6 +239,31 @@ export function useProbeLab(onShowPurchaseCredits?: () => void) {
     return upload ? { rows: upload.rows, name: upload.filename, label_names: upload.label_names, ...ood } : null
   }
 
+  // A sweep on screen: the Train button's, or an assistant run's
+  const showRun = (result: ProbeRunResult, fraction: number) => {
+    setRun(result)
+    setRunTestFraction(fraction)
+    setPosition(bestPosition(result, pooling, method))
+    setEvalSet('test')
+    setHeatmapSource('sweep')
+    setCausalSource('sweep')
+  }
+
+  // An assistant run: its settings and result, as if the Train button had run it
+  const loadRun = (result: ProbeRunResult, fraction: number) => {
+    setModelIdState(result.model)
+    setChatTemplate(result.chat_template)
+    if (result.dataset.builtin_id) {
+      setSource('builtin')
+      setBuiltinId(result.dataset.builtin_id)
+    }
+    setTestFraction(fraction)
+    setSeed(result.seed)
+    setError(null)
+    setView('sweep')
+    showRun(result, fraction)
+  }
+
   const train = async () => {
     if (!isAuthenticated) {
       navigate('/auth')
@@ -259,12 +286,7 @@ export function useProbeLab(onShowPurchaseCredits?: () => void) {
         test_fraction: testFraction,
         seed,
       })
-      setRun(result)
-      setRunTestFraction(testFraction)
-      setPosition(bestPosition(result, pooling, method))
-      setEvalSet('test')
-      setHeatmapSource('sweep')
-      setCausalSource('sweep')
+      showRun(result, testFraction)
     } catch (err) {
       if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') onShowPurchaseCredits?.()
       else setError(err instanceof Error ? err.message : 'Probe training failed')
@@ -273,7 +295,7 @@ export function useProbeLab(onShowPurchaseCredits?: () => void) {
     }
   }
 
-  return {
+  const lab = {
     isAuthenticated,
     // models
     models,
@@ -315,6 +337,7 @@ export function useProbeLab(onShowPurchaseCredits?: () => void) {
     training,
     train,
     run,
+    loadRun,
     runTestFraction,
     error,
     setError,
@@ -349,6 +372,9 @@ export function useProbeLab(onShowPurchaseCredits?: () => void) {
     setCausalMethod,
     datasetSpec,
   }
+  // The assistant reads the lab and fills its settings (both layouts use this hook)
+  useAssistantPage('probes', probeBridge(lab))
+  return lab
 }
 
 export type ProbeLab = ReturnType<typeof useProbeLab>

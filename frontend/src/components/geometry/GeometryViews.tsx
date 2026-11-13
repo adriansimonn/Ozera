@@ -28,7 +28,7 @@ const GEOMETRY_VIEWS: { id: GeometryViewId; label: string; icon: LucideIcon }[] 
 
 export function GeometryViewTabs({ lab }: { lab: GeometryLab }) {
   return (
-    <div className="pl-view-tabs" role="tablist" aria-label="Geometry Lab views">
+    <div className="pl-view-tabs" role="tablist" aria-label="Geometry Lab views" data-assist="geometry.view">
       {GEOMETRY_VIEWS.map(({ id, label, icon: Icon }) => (
         <button
           key={id}

@@ -103,7 +103,7 @@ export function LayerSweepChart({ run, pooling, method, metric, evalSet, positio
   ]
 
   return (
-    <div className="pl-sweep">
+    <div className="pl-sweep" data-assist="probes.layer">
       <div className="pl-card-title">
         <h3>
           {metricName} by layer · {setName}
@@ -353,7 +353,7 @@ export function SweepControls({
 }) {
   return (
     <div className="pl-controls-row">
-      <div>
+      <div data-assist="probes.pooling">
         <div className="pl-control-label">Pooling</div>
         <Segmented
           ariaLabel="Pooling"
@@ -366,7 +366,7 @@ export function SweepControls({
           ]}
         />
       </div>
-      <div>
+      <div data-assist="probes.method">
         <div className="pl-control-label">Method</div>
         <Segmented
           ariaLabel="Probe method"

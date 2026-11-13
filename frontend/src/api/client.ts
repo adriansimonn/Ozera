@@ -111,6 +111,13 @@ import type {
   SummaryResponse,
 } from '../types/autointerp'
 import type {
+  AssistantModelId,
+  AssistantModels,
+  AssistantStreamHandlers,
+  ChatDetail,
+  ChatInfo,
+} from '../types/assistant'
+import type {
   PresetInfo,
   AttentionHeatmapExportRequest,
   MultiHeadHeatmapExportRequest,
@@ -3043,6 +3050,147 @@ export interface SAECompareLayersResponse {
 
 // Export SAE client singleton
 export const saeClient = new SAEAPIClient()
+
+/**
+ * The assistant (backend/api/assistant.py): chats, and messages streamed back as Server-Sent
+ * Events. A turn runs on the backend whatever happens to the stream, so aborting only stops
+ * listening; stop() stops the turn.
+ */
+class AssistantAPIClient {
+  private baseUrl: string
+
+  constructor(baseUrl: string = API_BASE_URL) {
+    this.baseUrl = baseUrl
+  }
+
+  private async json<T>(path: string, init: RequestInit = {}, fallback = 'Request failed'): Promise<T> {
+    const response = await fetchWithTimeout(`${this.baseUrl}${path}`, {
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(), ...(init.headers ?? {}) },
+    })
+    if (!response.ok) throw await responseError(response, fallback)
+    return response.json()
+  }
+
+  models(): Promise<AssistantModels> {
+    return this.json('/assistant/models', {}, 'Failed to load the assistant')
+  }
+
+  async chats(): Promise<ChatInfo[]> {
+    return (await this.json<{ chats: ChatInfo[] }>('/assistant/chats', {}, 'Failed to load chats')).chats
+  }
+
+  createChat(model?: AssistantModelId, allowance?: number): Promise<ChatInfo> {
+    return this.json(
+      '/assistant/chats',
+      { method: 'POST', body: JSON.stringify({ model: model ?? null, allowance: allowance ?? null }) },
+      'Failed to start a chat',
+    )
+  }
+
+  chat(id: number): Promise<ChatDetail> {
+    return this.json(`/assistant/chats/${id}`, {}, 'Failed to load the chat')
+  }
+
+  updateChat(id: number, patch: { title?: string; model?: AssistantModelId; allowance?: number }): Promise<ChatInfo> {
+    return this.json(`/assistant/chats/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }, 'Failed to update the chat')
+  }
+
+  async deleteChat(id: number): Promise<void> {
+    await this.json(`/assistant/chats/${id}`, { method: 'DELETE' }, 'Failed to delete the chat')
+  }
+
+  async stop(id: number): Promise<void> {
+    await this.json(`/assistant/chats/${id}/stop`, { method: 'POST' }, 'Failed to stop')
+  }
+
+  /** Send a message with the page's snapshot, dispatching the turn's events to the handlers. */
+  async send(id: number, text: string, snapshot: Record<string, unknown>, handlers: AssistantStreamHandlers, signal?: AbortSignal): Promise<void> {
+    await this.stream(`/assistant/chats/${id}/messages`, { text, snapshot }, handlers, signal)
+  }
+
+  /** Run or skip a paused turn's runs (each call ID: 'run' or 'skip'), dispatching the rest of the turn's events. */
+  async approve(id: number, decisions: Record<string, 'run' | 'skip'>, handlers: AssistantStreamHandlers, signal?: AbortSignal): Promise<void> {
+    await this.stream(`/assistant/chats/${id}/approvals`, { decisions }, handlers, signal)
+  }
+
+  private async stream(path: string, body: unknown, handlers: AssistantStreamHandlers, signal?: AbortSignal): Promise<void> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(body),
+      signal,
+    })
+    if (!response.ok) throw await responseError(response, 'The assistant failed')
+
+    const reader = response.body?.getReader()
+    if (!reader) throw new Error('Failed to get response reader')
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+    let ended = false
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          let event: any
+          try {
+            event = JSON.parse(line.slice(6))
+          } catch {
+            continue
+          }
+          switch (event.type) {
+            case 'start':
+              handlers.onStart?.(event)
+              break
+            case 'call':
+              handlers.onCall?.(event.index)
+              break
+            case 'text':
+              if (event.text) handlers.onText?.(event.text)
+              break
+            case 'tool':
+              handlers.onTool?.(event)
+              break
+            case 'ui':
+              handlers.onUi?.(event.action)
+              break
+            case 'result':
+              handlers.onResult?.(event)
+              break
+            case 'approval':
+              handlers.onApproval?.(event.runs ?? [])
+              break
+            case 'status':
+              handlers.onStatus?.(event.status, event.seconds)
+              break
+            case 'refusal':
+              handlers.onRefusal?.(event.category ?? null)
+              break
+            case 'done':
+              ended = true
+              handlers.onDone?.(event)
+              break
+            case 'error':
+              ended = true
+              handlers.onError?.({ ...event, message: event.message || 'The assistant failed' })
+              break
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock()
+      notifyCreditsChanged()
+    }
+    if (!ended) handlers.onError?.({ message: 'The connection was lost; the reply is saved when it finishes' })
+  }
+}
+
+export const assistantClient = new AssistantAPIClient()
 
 // Export singleton instance
 export const apiClient = new OzeraAPIClient()

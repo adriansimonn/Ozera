@@ -24,6 +24,7 @@ class TransactionTypeEnum(str, Enum):
     GEOMETRY_REFUND = "geometry_refund"
     AUTOINTERP_CHARGE = "autointerp_charge"
     AUTOINTERP_REFUND = "autointerp_refund"
+    ASSISTANT = "assistant"
 
 
 class CreditBalanceResponse(BaseModel):

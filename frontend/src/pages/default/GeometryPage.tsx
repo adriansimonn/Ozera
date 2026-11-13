@@ -46,7 +46,7 @@ export default function DefaultGeometryPage({ onShowPurchaseCredits }: GeometryP
             )}
             <section className="pl-panel">
               <h2>Model</h2>
-              <ModelPicker lab={lab} disabled={lab.running} />
+              <ModelPicker lab={lab} disabled={lab.running} assist="geometry.model" />
             </section>
             <section className="pl-panel">
               <h2>Concept</h2>

@@ -41,7 +41,7 @@ export default function ProbesPage({ onShowPurchaseCredits }: ProbesPageProps) {
           <div className="pl-setup">
             <section className="pl-panel">
               <h2>Model</h2>
-              <ModelPicker lab={lab} disabled={lab.training} />
+              <ModelPicker lab={lab} disabled={lab.training} assist="probes.model" />
             </section>
             <section className="pl-panel">
               <h2>Dataset</h2>
