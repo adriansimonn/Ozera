@@ -111,6 +111,7 @@ import type {
   SummaryResponse,
 } from '../types/autointerp'
 import type {
+  AssistantMode,
   AssistantModelId,
   AssistantModels,
   AssistantStreamHandlers,
@@ -494,9 +495,10 @@ async function fetchWithTimeout(
  * A failed response's message: FastAPI's detail (a string, or a list of validation errors).
  */
 async function responseError(response: Response, fallback: string): Promise<Error> {
-  if (response.status === 402) return new Error('INSUFFICIENT_CREDITS')
   const body = await response.json().catch(() => ({}))
   const detail = body?.detail
+  // A 402 is a short balance, except an assistant chat's budget (BUDGET_REACHED, OVER_BUDGET)
+  if (response.status === 402) return new Error(detail === 'BUDGET_REACHED' || detail === 'OVER_BUDGET' ? detail : 'INSUFFICIENT_CREDITS')
   if (typeof detail === 'string') return new Error(detail)
   if (Array.isArray(detail) && detail.length > 0) {
     const first = detail[0]
@@ -3080,10 +3082,10 @@ class AssistantAPIClient {
     return (await this.json<{ chats: ChatInfo[] }>('/assistant/chats', {}, 'Failed to load chats')).chats
   }
 
-  createChat(model?: AssistantModelId, allowance?: number): Promise<ChatInfo> {
+  createChat(model?: AssistantModelId, mode?: AssistantMode, budget?: number | null): Promise<ChatInfo> {
     return this.json(
       '/assistant/chats',
-      { method: 'POST', body: JSON.stringify({ model: model ?? null, allowance: allowance ?? null }) },
+      { method: 'POST', body: JSON.stringify({ model: model ?? null, mode: mode ?? null, budget: budget ?? null }) },
       'Failed to start a chat',
     )
   }
@@ -3092,7 +3094,8 @@ class AssistantAPIClient {
     return this.json(`/assistant/chats/${id}`, {}, 'Failed to load the chat')
   }
 
-  updateChat(id: number, patch: { title?: string; model?: AssistantModelId; allowance?: number }): Promise<ChatInfo> {
+  /** budget: null removes it; left out, it stays */
+  updateChat(id: number, patch: { title?: string; model?: AssistantModelId; mode?: AssistantMode; budget?: number | null }): Promise<ChatInfo> {
     return this.json(`/assistant/chats/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }, 'Failed to update the chat')
   }
 
@@ -3109,7 +3112,7 @@ class AssistantAPIClient {
     await this.stream(`/assistant/chats/${id}/messages`, { text, snapshot }, handlers, signal)
   }
 
-  /** Run or skip a paused turn's runs (each call ID: 'run' or 'skip'), dispatching the rest of the turn's events. */
+  /** Allow or skip a paused turn's waiting calls (each call ID: 'run' or 'skip'), dispatching the rest of the turn's events. */
   async approve(id: number, decisions: Record<string, 'run' | 'skip'>, handlers: AssistantStreamHandlers, signal?: AbortSignal): Promise<void> {
     await this.stream(`/assistant/chats/${id}/approvals`, { decisions }, handlers, signal)
   }

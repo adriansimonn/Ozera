@@ -5,18 +5,24 @@ has to stop and resume across HTTP requests to wait for approvals).
 Each call holds an upper bound on its cost first (Turn.hold), streams its text to the panel,
 and is settled on the usage each attempt reports (Turn.settle). Then, by stop reason:
 - end_turn: the reply is stored and the turn ends;
-- tool_use: read and ui tools run in parallel. Without run tools, all their results go back in
-  one user message and the next call follows. With run tools, each is priced (Turn.quote).
-  When the chat's allowance covers them all (Turn.reserve), they run at once and the turn goes
-  on; otherwise it pauses for the user's approval (Turn.pause keeps the answered results with
-  the priced runs), and resume_turn then runs the approved ones, sends every result back in
+- tool_use: run tools are priced (Turn.quote); runs that don't fit in what's left of the chat's
+  budget are answered as not run. In auto mode (Turn.auto) read and ui tools run at once, in
+  parallel, and so do the runs (when the balance covers them); in manual mode every call waits.
+  With nothing waiting, all the results go back in one user message and the next call follows.
+  Otherwise the turn pauses for the user's approval (Turn.pause keeps the answered results with
+  the waiting calls), and resume_turn then runs the approved ones, sends every result back in
   one user message, and goes on with the next call;
-- max_tokens: the reply is stored and the panel offers Continue;
+- max_tokens: the reply is stored and the panel offers Continue (or, when the budget had cut
+  the call's max_tokens, the turn ends at the budget);
 - refusal: Claude declined (the whole fallback chain did); the panel says so with the category
   and the partial output is discarded (it's still billed).
 The call before the last allowed one ends its tool results with a note to answer without tools
 (forced tool_choice isn't available on these models, and changing tool_choice would break the
 cache). A Stop cancels the stream at once.
+
+A chat's hard budget covers its calls and its runs. Before each call Turn.plan_call sizes its
+max_tokens so the call can't pass what's left (max_tokens isn't part of the cached prefix), or
+ends the turn when even a short call doesn't fit; a budget lowered mid-call stops it at once.
 
 Stored messages are exactly what's sent back, and are never edited: thinking blocks are bound
 to the conversation, and any edit would break the cache from that point. In long chats the API
@@ -114,7 +120,7 @@ class CallResult:
 
 @dataclass
 class TurnEnd:
-    status: str  # done, max_tokens, refused, stopped, limit, full, error
+    status: str  # done, max_tokens, refused, stopped, budget, limit, full, error
     detail: dict = field(default_factory=dict)
 
 
@@ -130,6 +136,8 @@ class Turn(ABC):
     """One user message and everything the assistant does before replying, as the loop sees it."""
 
     model: AssistantModel
+    # How a stopped turn ends: stopped (the user's Stop), or budget (the chat's budget stopped it)
+    stop_status: str = "stopped"
 
     @abstractmethod
     def messages(self) -> list[dict]:
@@ -144,8 +152,11 @@ class Turn(ABC):
         """Hold the next call's bound. Raises InsufficientCredits."""
 
     @abstractmethod
-    def settle(self, held: Any, attempts: list[tuple[str, Usage]]) -> float:
-        """Settle a call's hold on its attempts' usage; returns what it was charged."""
+    def settle(self, held: Any, attempts: list[tuple[str, Usage]], known: bool = True) -> float:
+        """
+        Settle a call's hold on its attempts' usage; returns what it was charged. known: False
+        when the usage is only a bound (a call stopped before the API reported anything).
+        """
 
     @abstractmethod
     def keep(self, held: Any, why: str) -> float:
@@ -179,15 +190,27 @@ class Turn(ABC):
         """How many of the oldest tool results the chat's last call cleared."""
         return 0
 
-    def reserve(self, amount: float) -> Optional[float]:
-        """
-        Take runs' price (what the balance must cover) from the chat's allowance, all or none:
-        the allowance left after it, or None when the runs wait for approval.
-        """
+    def auto(self) -> bool:
+        """Whether the chat is in auto mode (its tool calls run without the user's approval)."""
+        return False
+
+    def budget_left(self) -> Optional[float]:
+        """What's left of the chat's budget (below 0 once it's passed), or None when it has none."""
         return None
 
-    def spend(self, reserved: float, charged: float) -> None:
-        """Settle an allowance reservation on what its runs were charged."""
+    def plan_call(self, input_tokens: int, static_tokens: int, clear: int) -> Optional[int]:
+        """
+        The next call's max_tokens: fewer than MAX_TOKENS near the chat's budget, or None when
+        the budget can't cover a call (input_tokens: about its prompt; clear: what it clears).
+        """
+        return MAX_TOKENS
+
+    def covers(self, amount: float) -> bool:
+        """Whether the balance covers runs' price (what they need to start), for runs that start without approval."""
+        return True
+
+    def run_charges(self, charged: float) -> None:
+        """Record what runs were charged (they count toward the chat's budget)."""
 
 
 # The static prefix (system prompt and tools) counted once per model, by the API
@@ -196,14 +219,14 @@ _static_tokens: dict[str, int] = {}
 STATIC_MARGIN_TOKENS = 512
 
 
-def request_params(model: AssistantModel, messages: list[dict], clear: int = 0) -> dict:
+def request_params(model: AssistantModel, messages: list[dict], clear: int = 0, max_tokens: int = MAX_TOKENS) -> dict:
     """
     A call's request: the shared prefix cached for an hour, the chat's tail cached automatically,
     and the oldest `clear` tool results cleared from what Claude sees.
     """
     params = {
         "model": model.id,
-        "max_tokens": MAX_TOKENS,
+        "max_tokens": max_tokens,
         "system": system_blocks(),
         "tools": definitions(),
         "messages": messages,
@@ -310,9 +333,24 @@ def quote_dict(quote: RunQuote) -> dict:
             "hold": round(quote.hold, 4) if quote.hold is not None else None, "note": quote.note}
 
 
+def quote_needs(quote: Optional[dict]) -> float:
+    """What a stored quote needs the balance (and budget) to cover; 0 for an unpriced call."""
+    if not quote:
+        return 0.0
+    return max(float(quote.get("estimate") or 0), float(quote.get("hold") or 0))
+
+
 def approval_runs(pending: dict) -> list[dict]:
-    """A paused turn's runs as the approval card shows them."""
-    return [{"id": r["id"], "name": r["name"], "chip": pending["chips"][r["id"]]["chip"], **r["quote"]} for r in pending["runs"]]
+    """
+    A paused turn's waiting calls as the approval card shows them (pending["runs"] holds them
+    all: priced runs, and in manual mode read and ui calls, which have no quote).
+    """
+    out = []
+    for r in pending["runs"]:
+        chip = pending["chips"][r["id"]]
+        quote = r.get("quote") or {"title": chip.get("chip") or r["name"], "details": [], "estimate": 0.0, "hold": None, "note": ""}
+        out.append({"id": r["id"], "name": r["name"], "kind": chip.get("kind"), "chip": chip.get("chip"), **quote})
+    return out
 
 
 def reply_text(content: list[dict]) -> str:
@@ -436,11 +474,12 @@ def _finish_chip(chip: dict, outcome: ToolOutcome, emit: Emit) -> dict:
     return chip
 
 
-async def _run_tools(turn: Turn, uses: list[dict], emit: Emit) -> tuple[dict, dict, dict]:
+async def _run_tools(turn: Turn, uses: list[dict], emit: Emit, manual: bool = False) -> tuple[dict, dict, dict]:
     """
-    A reply's tool calls: read and ui tools run in parallel, run tools are priced. Returns
-    (tool_result blocks by call ID, chips by call ID, quotes by call ID) - a run tool that can't
-    run is answered with its error instead of a quote.
+    A reply's tool calls: run tools are priced; read and ui tools run in parallel, or in manual
+    mode wait for approval with the runs. Returns (tool_result blocks by call ID, chips by call
+    ID, the waiting calls by call ID: a run's quote, None for a read or ui call) - a call with
+    bad input, an unknown tool, or a run that can't run is answered with its error instead.
     """
 
     async def one(use: dict) -> tuple[str, Optional[dict], dict, Optional[RunQuote]]:
@@ -448,13 +487,17 @@ async def _run_tools(turn: Turn, uses: list[dict], emit: Emit) -> tuple[dict, di
         args = use.get("input") if isinstance(use.get("input"), dict) else {}
         chip = _chip_of(use)
         use_id = use.get("id")
-        problem = check_input(spec, use.get("input")) if spec is not None else None
+        if spec is None:
+            emit({"type": "tool", **chip, "status": "running"})
+            unknown = ToolOutcome({"error": f"There's no tool named {use.get('name')}"}, error=True)
+            return use_id, _result_block(use_id, unknown), _finish_chip(chip, unknown, emit), None
+        problem = check_input(spec, use.get("input"))
         if problem:
             # Most tools aren't strict (see core.assistant.tools): say what's wrong so Claude can call again
             emit({"type": "tool", **chip, "status": "running"})
             bad = ToolOutcome({"error": f"Bad input: {problem}. Nothing ran; call {spec.name} again with its schema's arguments."}, error=True)
             return use_id, _result_block(use_id, bad), _finish_chip(chip, bad, emit), None
-        if spec is not None and spec.kind == RUN:
+        if spec.kind == RUN:
             emit({"type": "tool", **chip, "status": "pricing"})
             try:
                 quoted = await turn.quote(spec.name, args)
@@ -468,25 +511,57 @@ async def _run_tools(turn: Turn, uses: list[dict], emit: Emit) -> tuple[dict, di
                 emit({"type": "tool", **chip})
                 return use_id, None, chip, quoted
             return use_id, _result_block(use_id, quoted), _finish_chip(chip, quoted, emit), None
+        if manual:
+            chip["status"] = "approval"
+            emit({"type": "tool", **chip})
+            return use_id, None, chip, None
         emit({"type": "tool", **chip, "status": "running"})
-        if spec is None:
-            outcome = ToolOutcome({"error": f"There's no tool named {use.get('name')}"}, error=True)
-        else:
-            try:
-                outcome = await turn.run_tool(spec.name, args)
-            except Exception:
-                logger.exception("Assistant tool %s failed", spec.name)
-                outcome = ToolOutcome({"error": "This tool failed; try again or answer without it"}, error=True)
+        try:
+            outcome = await turn.run_tool(spec.name, args)
+        except Exception:
+            logger.exception("Assistant tool %s failed", spec.name)
+            outcome = ToolOutcome({"error": "This tool failed; try again or answer without it"}, error=True)
         return use_id, _result_block(use_id, outcome), _finish_chip(chip, outcome, emit), None
 
-    answered, chips, quotes = {}, {}, {}
+    answered, chips, waiting = {}, {}, {}
     for use_id, block, chip, quoted in await asyncio.gather(*(one(u) for u in uses)):
         chips[use_id] = chip
-        if quoted is not None:
-            quotes[use_id] = quoted
+        if block is None:
+            waiting[use_id] = quoted
         else:
             answered[use_id] = block
-    return answered, chips, quotes
+    return answered, chips, waiting
+
+
+def over_budget(needs: float, left: float) -> str:
+    return (
+        f"Not run: it needs up to ${needs:.4f} and this chat's budget has ${max(0.0, left):.4f} left. "
+        "The user can raise the budget in the panel's settings."
+    )
+
+
+def _fit_budget(turn: Turn, entries: list[dict], answered: dict, chips: dict, emit: Emit) -> list[dict]:
+    """
+    The waiting calls that fit in what's left of the chat's budget, in call order: a run that
+    doesn't is answered as not run (its chip says why); unpriced calls always fit.
+    """
+    if not any(e["quote"] for e in entries):
+        return entries
+    left = turn.budget_left()
+    if left is None:
+        return entries
+    kept = []
+    for entry in entries:
+        needs = quote_needs(entry["quote"])
+        if not entry["quote"] or needs <= left + 1e-9:
+            left -= needs
+            kept.append(entry)
+            continue
+        outcome = ToolOutcome({"error": over_budget(needs, left)}, error=True)
+        answered[entry["id"]] = _result_block(entry["id"], outcome)
+        chips[entry["id"]]["blocked"] = "budget"
+        _finish_chip(chips[entry["id"]], outcome, emit)
+    return kept
 
 
 def _tools_message(turn: Turn, order: list[str], answered: dict, chips: dict, last_call: bool) -> None:
@@ -510,14 +585,10 @@ def skipped_results(pending: dict, why: str = SKIPPED_BY_MESSAGE) -> tuple[list[
     return [answered[i] for i in pending["order"]], [chips[i] for i in pending["order"]]
 
 
-ALLOWED = "Ran without a card: it fit in this chat's allowance"
-
-
-async def _run_runs(turn: Turn, entries: list[dict], answered: dict, chips: dict, emit: Emit, allowance_left: Optional[float] = None) -> float:
+async def _run_runs(turn: Turn, entries: list[dict], answered: dict, chips: dict, emit: Emit) -> float:
     """
-    Run approved runs in parallel (each charged by its own service), filling in their results and
-    chips. allowance_left: set when the chat's allowance approved them (their results say so).
-    Returns what they were charged in all.
+    Run approved calls in parallel (a run charged by its own service), filling in their results
+    and chips. Returns what they were charged in all.
     """
     charged = 0.0
 
@@ -532,8 +603,6 @@ async def _run_runs(turn: Turn, entries: list[dict], answered: dict, chips: dict
             logger.exception("Assistant run %s failed", entry["name"])
             outcome = ToolOutcome({"error": "The run failed; check the page's transactions for any charge"}, error=True)
         charged += max(0.0, outcome.charged or 0.0)
-        if allowance_left is not None and isinstance(outcome.content, dict):
-            outcome.content = {**outcome.content, "approved": ALLOWED, "allowance_left_usd": round(allowance_left, 4)}
         answered[entry["id"]] = _result_block(entry["id"], outcome)
         _finish_chip(chip, outcome, emit)
 
@@ -545,8 +614,8 @@ async def resume_turn(
     turn: Turn, pending: dict, decisions: dict, client, emit: Emit, stop: asyncio.Event, errors: Optional[dict] = None,
 ) -> TurnEnd:
     """
-    Go on with a turn paused for approval: run the approved runs (decisions: call ID -> "run"
-    or "skip"; in parallel, each charged by its own service), answer the others as skipped (or
+    Go on with a turn paused for approval: run the approved calls (decisions: call ID -> "run"
+    or "skip"; in parallel, a run charged by its own service), answer the others as skipped (or
     with errors' message, for an approved run that can no longer run), send every result back
     in one message, and continue the turn from its next call.
     """
@@ -565,10 +634,10 @@ async def resume_turn(
             answered[entry["id"]] = {"type": "tool_result", "tool_use_id": entry["id"], "content": SKIPPED}
             chips[entry["id"]]["status"] = "skipped"
         emit({"type": "tool", **chips[entry["id"]]})
-    await _run_runs(turn, approved, answered, chips, emit)
+    turn.run_charges(await _run_runs(turn, approved, answered, chips, emit))
     _tools_message(turn, pending["order"], answered, chips, pending.get("last_call", False))
     if stop.is_set():
-        return TurnEnd("stopped")
+        return TurnEnd(turn.stop_status)
     return await run_turn(turn, client, emit, stop, first_call=pending["calls"])
 
 
@@ -579,20 +648,24 @@ async def run_turn(turn: Turn, client, emit: Emit, stop: asyncio.Event, first_ca
     result, approval, status and refusal events.
 
     A pause stores (Turn.pause) {"calls": the next call's index, "order": the reply's tool
-    call IDs, "answered": tool_result blocks by ID, "chips": chips by ID, "runs": [{"id",
-    "name", "args", "quote"}], "last_call": whether the results end with LAST_CALL_NOTE}.
-    Runs the chat's allowance covers run at once instead; their chips carry "auto" (their quote).
+    call IDs, "answered": tool_result blocks by ID, "chips": chips by ID, "runs": the waiting
+    calls, [{"id", "name", "args", "quote"}] (quote None for a read or ui call), "last_call":
+    whether the results end with LAST_CALL_NOTE}. In auto mode the runs start at once instead;
+    their chips carry "auto" (their quote).
     """
     model = turn.model
     static = await static_tokens(client, model)
     for call in range(first_call, MAX_CALLS_PER_TURN):
         if stop.is_set():
-            return TurnEnd("stopped")
+            return TurnEnd(turn.stop_status)
         bound = turn.input_bound(static)
         estimate = turn.input_estimate(static)
         clear, freed = clearing(turn.messages(), turn.cleared(), estimate)
         if estimate - freed > CHAT_TOKEN_CAP:
             return TurnEnd("full", {"message": "This chat is at its length limit; start a new chat to go on"})
+        max_tokens = turn.plan_call(estimate - freed, static, clear)
+        if max_tokens is None:
+            return TurnEnd("budget")
         try:
             held = turn.hold(bound)
         except InsufficientCredits:
@@ -600,7 +673,7 @@ async def run_turn(turn: Turn, client, emit: Emit, stop: asyncio.Event, first_ca
 
         emit({"type": "call", "index": call})
         try:
-            result = await _call(client, request_params(model, turn.messages(), clear), emit, stop)
+            result = await _call(client, request_params(model, turn.messages(), clear, max_tokens), emit, stop)
         except CallFailed as e:
             (turn.keep(held, str(e)) if e.billed else turn.release(held))
             return TurnEnd("error", {"message": str(e)})
@@ -611,19 +684,19 @@ async def run_turn(turn: Turn, client, emit: Emit, stop: asyncio.Event, first_ca
                 turn.release(held)
             elif result.started is None:
                 # Cancelled before its first event: no output yet, input at most the bound
-                turn.settle(held, [(m, Usage(cache_write_1h_tokens=bound)) for m in (model.id, *model.fallback_models[:1])])
+                turn.settle(held, [(m, Usage(cache_write_1h_tokens=bound)) for m in (model.id, *model.fallback_models[:1])], known=False)
             elif result.started_model == model.id:
                 # Its input is known from message_start; its output is at most max_tokens
                 turn.settle(held, [(model.id, Usage(
                     input_tokens=result.started.input_tokens, cache_write_tokens=result.started.cache_write_tokens,
                     cache_write_1h_tokens=result.started.cache_write_1h_tokens, cache_read_tokens=result.started.cache_read_tokens,
-                    output_tokens=MAX_TOKENS,
+                    output_tokens=max_tokens,
                 ))])
             else:
                 turn.keep(held, "stopped after a fallback")
             if result.timed_out:
                 return TurnEnd("error", {"message": "Claude took too long to answer"})
-            return TurnEnd("stopped")
+            return TurnEnd(turn.stop_status)
 
         message = result.message
         attempts = attempts_of(message, model.id)
@@ -641,33 +714,36 @@ async def run_turn(turn: Turn, client, emit: Emit, stop: asyncio.Event, first_ca
         if stop_reason == "tool_use" and uses:
             if call == MAX_CALLS_PER_TURN - 1:
                 return TurnEnd("limit", {"message": "The turn reached its call limit"})
-            answered, chips, quotes = await _run_tools(turn, uses, emit)
+            auto = turn.auto()
+            answered, chips, waiting = await _run_tools(turn, uses, emit, manual=not auto)
             order = [u.get("id") for u in uses]
             last_call = call + 1 == MAX_CALLS_PER_TURN - 1
-            if quotes:
-                runs = [
-                    {"id": i, "name": u.get("name"), "args": u.get("input") if isinstance(u.get("input"), dict) else {},
-                     "quote": quote_dict(quotes[i])}
-                    for u in uses if (i := u.get("id")) in quotes
-                ]
-                needs = sum(q.needs for q in quotes.values())
-                left = None if stop.is_set() else turn.reserve(needs)
-                if left is not None:
-                    # The allowance covers them: they run now, each still shown with its quote and charge
-                    for entry in runs:
+            entries = [
+                {"id": i, "name": u.get("name"), "args": u.get("input") if isinstance(u.get("input"), dict) else {},
+                 "quote": quote_dict(waiting[i]) if waiting[i] is not None else None}
+                for u in uses if (i := u.get("id")) in waiting
+            ]
+            entries = _fit_budget(turn, entries, answered, chips, emit)
+            needs = sum(quote_needs(e["quote"]) for e in entries)
+            if entries and auto and not stop.is_set() and turn.covers(needs):
+                # Auto mode: the runs start now, each still shown with its quote and charge
+                for entry in entries:
+                    if entry["quote"]:
                         chips[entry["id"]]["auto"] = entry["quote"]
-                    spent = await _run_runs(turn, runs, answered, chips, emit, allowance_left=left)
-                    turn.spend(needs, spent)
-                    _tools_message(turn, order, answered, chips, last_call)
-                    if stop.is_set():
-                        return TurnEnd("stopped")
-                    continue
-                pending = {"calls": call + 1, "order": order, "answered": answered, "chips": chips, "runs": runs, "last_call": last_call}
+                turn.run_charges(await _run_runs(turn, entries, answered, chips, emit))
+                entries = []
+            if entries:
+                pending = {"calls": call + 1, "order": order, "answered": answered, "chips": chips, "runs": entries, "last_call": last_call}
                 turn.pause(pending)
                 emit({"type": "approval", "runs": approval_runs(pending)})
-                return TurnEnd("approval", {"runs": len(runs)})
+                return TurnEnd("approval", {"runs": len(entries)})
             _tools_message(turn, order, answered, chips, last_call)
+            if stop.is_set():
+                return TurnEnd(turn.stop_status)
             continue
+        if stop_reason == "max_tokens" and max_tokens < MAX_TOKENS:
+            # The budget cut this call short
+            return TurnEnd("budget")
         if stop_reason in ("max_tokens", "model_context_window_exceeded"):
             return TurnEnd("max_tokens")
         if stop_reason == "pause_turn":

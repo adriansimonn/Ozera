@@ -16,6 +16,7 @@ import { assistantClient } from '../api/client'
 import { forgetLabels } from '../hooks/useFeatureLabels'
 import { PAGE_ROUTES, parseSaeKey } from '../components/assistant/pages/common'
 import type {
+  AssistantMode,
   AssistantModelId,
   AssistantModels,
   AssistantStreamHandlers,
@@ -131,10 +132,11 @@ interface AssistantState {
   queued: RunResult[]
   /** The latest runs' results, by tool call ID */
   results: Record<string, RunResult>
-  /** Set when Run found a price had gone up (the card shows the new one) */
+  /** Set when Allow found a price had gone up (the card shows the new one) or the runs over the budget */
   notice: string | null
-  /** The allowance the next new chat starts with (0: off) */
-  newAllowance: number
+  /** The mode and budget the next new chat starts with */
+  newMode: AssistantMode
+  newBudget: number | null
   navigator: ((route: string) => void) | null
   queryClient: QueryClient | null
   abort: AbortController | null
@@ -151,7 +153,8 @@ interface AssistantState {
   rename: (id: number, title: string) => Promise<void>
   remove: (id: number) => Promise<void>
   setModel: (model: AssistantModelId) => Promise<void>
-  setAllowance: (allowance: number) => Promise<void>
+  setMode: (mode: AssistantMode) => Promise<void>
+  setBudget: (budget: number | null) => Promise<void>
   send: (text: string) => Promise<void>
   approve: (decisions: Record<string, 'run' | 'skip'>) => Promise<void>
   stop: () => Promise<void>
@@ -180,7 +183,8 @@ export const useAssistantStore = create<AssistantState>()((set, get) => ({
   queued: [],
   results: {},
   notice: null,
-  newAllowance: 0,
+  newMode: 'manual',
+  newBudget: null,
   navigator: null,
   queryClient: null,
   abort: null,
@@ -226,8 +230,8 @@ export const useAssistantStore = create<AssistantState>()((set, get) => ({
 
   newChat: () => {
     if (get().draft) return
-    // A new chat starts with every run asking, until its allowance is set
-    set({ chat: null, error: null, newAllowance: 0 })
+    // A new chat starts in manual mode without a budget
+    set({ chat: null, error: null, newMode: 'manual', newBudget: null })
   },
 
   rename: async (id, title) => {
@@ -258,17 +262,37 @@ export const useAssistantStore = create<AssistantState>()((set, get) => ({
     }
   },
 
-  setAllowance: async (allowance) => {
+  setMode: async (mode) => {
     const { chat } = get()
     if (!chat) {
-      set({ newAllowance: allowance })
+      set({ newMode: mode })
+      return
+    }
+    // Shown at once; it applies from the chat's next tool calls on
+    set((s) => ({ chat: s.chat ? { ...s.chat, mode } : s.chat }))
+    try {
+      const updated = await assistantClient.updateChat(chat.id, { mode })
+      set((s) => ({ chat: s.chat ? { ...s.chat, ...updated } : s.chat, chats: s.chats.map((c) => (c.id === updated.id ? updated : c)) }))
+    } catch (err) {
+      set((s) => ({ chat: s.chat ? { ...s.chat, mode: chat.mode } : s.chat, error: err instanceof Error ? err.message : 'Failed to switch modes' }))
+    }
+  },
+
+  setBudget: async (budget) => {
+    const { chat } = get()
+    if (!chat) {
+      set({ newBudget: budget })
       return
     }
     try {
-      const updated = await assistantClient.updateChat(chat.id, { allowance })
-      set((s) => ({ chat: s.chat ? { ...s.chat, ...updated } : s.chat, chats: s.chats.map((c) => (c.id === updated.id ? updated : c)) }))
+      const updated = await assistantClient.updateChat(chat.id, { budget })
+      set((s) => ({
+        chat: s.chat ? { ...s.chat, ...updated } : s.chat,
+        chats: s.chats.map((c) => (c.id === updated.id ? updated : c)),
+        error: s.error === 'BUDGET_REACHED' ? null : s.error,
+      }))
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to set the allowance' })
+      set({ error: err instanceof Error ? err.message : 'Failed to set the budget' })
     }
   },
 
@@ -279,7 +303,7 @@ export const useAssistantStore = create<AssistantState>()((set, get) => ({
     let chatId = get().chat?.id
     try {
       if (chatId == null) {
-        const created = await assistantClient.createChat(get().models?.default, get().newAllowance || undefined)
+        const created = await assistantClient.createChat(get().models?.default, get().newMode, get().newBudget)
         chatId = created.id
         set((s) => ({ chat: { ...created, turns: [] }, chats: [created, ...s.chats] }))
       }
@@ -436,6 +460,8 @@ async function streamTurn(chatId: number, start: (handlers: AssistantStreamHandl
   } catch (err) {
     if (err instanceof Error && err.message === 'PRICE_CHANGED') {
       set({ notice: 'A price went up since the card was shown. Check it and run again.' })
+    } else if (err instanceof Error && err.message === 'OVER_BUDGET') {
+      set({ notice: 'Over this chat’s budget. Raise it in settings, or leave runs out.' })
     } else if (!(err instanceof DOMException && err.name === 'AbortError')) {
       set({ error: err instanceof Error ? err.message : 'The assistant failed' })
     }

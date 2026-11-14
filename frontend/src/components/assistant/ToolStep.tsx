@@ -1,7 +1,7 @@
 /**
  * A tool call in the reply's sequence, as a row the way agentic coding tools show them: its
  * status, what it did in plain words (e.g. "Read feature 1234 · Gemma Scope 270M L9"), and a run's
- * charge. A run the chat's allowance started without asking expands to its quote; while a run's
+ * charge. A run started in auto mode expands to its quote; while a run's
  * result is still in memory, Open shows it on its page again.
  */
 
@@ -41,7 +41,9 @@ export function ToolStep({ tool }: { tool: ToolChipInfo }) {
               : tool.kind === 'run'
                 ? Play
                 : Check
-  const end = failed
+  const end = tool.blocked === 'budget'
+    ? 'over budget'
+    : failed
     ? 'failed'
     : tool.status === 'skipped'
       ? 'skipped'
@@ -63,7 +65,7 @@ export function ToolStep({ tool }: { tool: ToolChipInfo }) {
     </>
   )
   const sentence = detail ? `${says} ${detail}` : says
-  const title = failed ? `${sentence}: failed` : tool.status === 'approval' ? `${sentence}: waiting for Run or Skip` : sentence
+  const title = failed ? `${sentence}: failed` : tool.status === 'approval' ? `${sentence}: waiting for approval` : sentence
   return (
     <div className={`ast-step${failed ? ' ast-step--error' : ''}${tool.status === 'skipped' ? ' ast-step--skipped' : ''}`}>
       <div className="ast-step-row">
@@ -93,7 +95,7 @@ export function ToolStep({ tool }: { tool: ToolChipInfo }) {
               </div>
             ))}
           </dl>
-          <div className="ast-approval-note">Within allowance · est. {estimate(quote.estimate)}</div>
+          <div className="ast-approval-note">Auto · est. {estimate(quote.estimate)}</div>
         </div>
       )}
     </div>

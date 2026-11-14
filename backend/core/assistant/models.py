@@ -72,8 +72,14 @@ CLEAR_TRIGGER_TOKENS = 60_000
 CLEAR_TARGET_TOKENS = 35_000
 KEEP_TOOL_RESULTS = 4
 
-# A chat's allowance (Phase 3): runs up to this much in total start without the user's click
-MAX_ALLOWANCE_USD = 50.0
+# A chat's mode: manual (every tool call waits for the user's approval) or auto (tool calls run
+# without asking). New chats start in manual.
+MODES = ("manual", "auto")
+DEFAULT_MODE = "manual"
+# A chat's hard budget (none by default): what it may cost in all, its replies and runs. Near it, a
+# call's max_tokens shrinks so the call can't pass it; below MIN_CALL_TOKENS the turn stops.
+MAX_BUDGET_USD = 1000.0
+MIN_CALL_TOKENS = 1024
 
 # An input bound is the previous call's reported prompt plus what was appended since, at least
 # a token per UTF-8 byte (a token is at least one byte), plus this many tokens per message and

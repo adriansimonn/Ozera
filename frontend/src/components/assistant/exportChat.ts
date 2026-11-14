@@ -19,9 +19,10 @@ const STATUS: Partial<Record<ChatTurn['status'], string>> = {
   max_tokens: 'Cut off at the reply limit.',
   limit: 'Reached the limit of tool calls.',
   full: 'The chat was full.',
-  skipped: 'Runs skipped.',
+  skipped: 'Skipped.',
+  budget: 'Reached the chat’s budget.',
   refused: 'Claude declined.',
-  awaiting_approval: 'Runs waiting for approval.',
+  awaiting_approval: 'Waiting for approval.',
 }
 
 interface FeatureRef {
@@ -110,7 +111,7 @@ function runLine(tool: ToolChipInfo): string {
   const verb = state ? 'Run' : 'Ran'
   if (tool.auto) {
     const details = tool.auto.details.map(([label, value]) => `${label}: ${plain(value)}`).join('; ')
-    return `- ${verb} ${plain(tool.auto.title)} (${details}), within the allowance${charged ? `: ${charged}` : ''}${state ? `: ${state}` : ''}`
+    return `- ${verb} ${plain(tool.auto.title)} (${details}), in auto mode${charged ? `: ${charged}` : ''}${state ? `: ${state}` : ''}`
   }
   return `- ${verb} ${plain(tool.chip || tool.name)}${charged ? `: ${charged}` : ''}${state ? `: ${state}` : ''}`
 }

@@ -211,8 +211,8 @@ class Recorder:
             self.calls.append({"bound_tokens": bound, "hold": h.amount})
             return h
 
-        def settled(h, attempts):
-            charged = settle(h, attempts)
+        def settled(h, attempts, known=True):
+            charged = settle(h, attempts, known)
             cost, charge = billing.attempts_cost(attempts)
             self.calls[-1].update(charged=charged, charge=charge, anthropic=cost,
                                   attempts=[{"model": m, **u.to_dict()} for m, u in attempts])

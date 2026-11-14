@@ -3,17 +3,18 @@ API endpoints for the assistant (ASSISTANT_PLAN.md): a user's chats, and sending
 which streams the turn back as Server-Sent Events.
 
 Events: start, call (a new API call began), text (reply text), tool (a tool call's chip and
-status: running, pricing, approval, done, error, skipped; a run the chat's allowance started
-without asking carries its quote as `auto`), ui (an action for the page:
-navigate, set_inputs, highlight), result (a run's full result for its page), approval (runs
-waiting for the user, with their prices), status (busy, fallback), refusal (Claude declined:
-drop the call's text), then done or error (how the turn ended - status approval when it
-waits for Run or Skip - its cost, the chat's cost and tokens, free messages left).
+status: running, pricing, approval, done, error, skipped; a run started in auto mode carries
+its quote as `auto`, one over the chat's budget `blocked: "budget"`), ui (an action for the
+page: navigate, set_inputs, highlight), result (a run's full result for its page), approval
+(calls waiting for the user, runs with their prices), status (busy, fallback), refusal (Claude
+declined: drop the call's text), then done or error (how the turn ended - status approval when
+it waits for Allow or Skip, budget when the chat's budget stopped it - its cost, the chat's
+cost and tokens, free messages left).
 
 A chat runs one turn at a time (409 otherwise). The turn runs in a background task, so a client
 that disconnects doesn't stop it: its reply is stored and its charges settled. POST .../stop
-stops it. POST .../approvals answers a paused turn's runs (Run or Skip each) and streams the
-rest of the turn the same way.
+stops it. POST .../approvals answers a paused turn's waiting calls (Allow or Skip each) and
+streams the rest of the turn the same way.
 """
 
 import asyncio
@@ -40,23 +41,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/assistant", tags=["Assistant"])
 
 ModelId = Literal["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"]
+Mode = Literal["manual", "auto"]
 
-
-ALLOWANCE = Field(
-    default=None, ge=0, le=am.MAX_ALLOWANCE_USD,
-    description="What runs may cost in all in this chat without the user's click (USD; 0 turns it off)",
+MODE = Field(default=None, description="manual: every tool call waits for the user's approval; auto: tool calls run without asking")
+BUDGET = Field(
+    default=None, ge=0, le=am.MAX_BUDGET_USD,
+    description="A hard cap on everything the chat costs, its replies and runs (USD; null or 0: none)",
 )
 
 
 class CreateChatRequest(BaseModel):
     model: Optional[ModelId] = Field(default=None, description="The chat's model (by default Sonnet 5.5, or Haiku 5.5 when only free messages are affordable)")
-    allowance: Optional[float] = ALLOWANCE
+    mode: Optional[Mode] = MODE
+    budget: Optional[float] = BUDGET
 
 
 class UpdateChatRequest(BaseModel):
     title: Optional[str] = Field(default=None, max_length=200)
     model: Optional[ModelId] = None
-    allowance: Optional[float] = ALLOWANCE
+    mode: Optional[Mode] = MODE
+    budget: Optional[float] = BUDGET
 
 
 class MessageRequest(BaseModel):
@@ -116,7 +120,7 @@ async def create_chat(
     db: Session = Depends(get_db),
 ):
     """Start a chat."""
-    return assistant.chat_info(assistant.create_chat(db, current_user.id, body.model, body.allowance))
+    return assistant.chat_info(assistant.create_chat(db, current_user.id, body.model, body.mode, body.budget))
 
 
 @router.get("/chats/{chat_id}")
@@ -138,13 +142,15 @@ async def update_chat(
     db: Session = Depends(get_db),
 ):
     """
-    Rename a chat, switch its model, or set its allowance (runs up to that much in all start
-    without asking; 0 turns it off). An allowance change applies from the next runs on.
+    Rename a chat, switch its model, its mode (from its next tool calls on), or set its budget
+    (null or 0: none; sent only to change it). A budget applies at once: a running turn it no
+    longer covers stops.
     """
     chat = _chat_or_404(db, current_user, chat_id)
     if chat.status == "running" and body.model is not None and body.model != chat.model:
         raise HTTPException(status_code=409, detail="Wait for the reply before switching models")
-    return assistant.chat_info(assistant.update_chat(db, chat, body.title, body.model, body.allowance))
+    budget = body.budget if "budget" in body.model_fields_set else assistant._UNSET
+    return assistant.chat_info(assistant.update_chat(db, chat, body.title, body.model, body.mode, budget))
 
 
 @router.delete("/chats/{chat_id}")
@@ -176,7 +182,7 @@ async def send_message(
     """
     Send a message (with the page's snapshot) and stream the turn (see the module docstring).
     Each call is held and settled on its usage; the day's first free messages on Haiku 5.5
-    charge nothing.
+    charge nothing. 402 BUDGET_REACHED when the chat's budget can't cover a reply.
     """
     chat = _chat_or_404(db, current_user, chat_id)
     if not assistant.available():
@@ -185,6 +191,8 @@ async def send_message(
     if not text:
         raise HTTPException(status_code=400, detail="Write a message")
     free_possible = chat.model == am.FREE_MODEL and assistant.free_left(db, current_user.id) > 0
+    if not free_possible and assistant.budget_reached(chat):
+        raise HTTPException(status_code=402, detail="BUDGET_REACHED")
     if not free_possible and assistant.available_balance(db, current_user.id) < billing.first_hold(chat.model):
         raise HTTPException(status_code=402, detail="INSUFFICIENT_CREDITS")
     try:
@@ -226,10 +234,11 @@ async def approve(
     db: Session = Depends(get_db),
 ):
     """
-    Run or skip a paused turn's runs, and stream the rest of the turn. Each approved run is
-    priced again and the balance checked first: 409 PRICE_CHANGED when a price rose (the
-    chat's pending runs show the new prices), 402 INSUFFICIENT_CREDITS when the balance doesn't
-    cover them. Runs are charged by their own services, as from their pages.
+    Allow or skip a paused turn's waiting calls, and stream the rest of the turn. Each approved
+    run is priced again and the budget and balance checked first: 409 PRICE_CHANGED when a price
+    rose (the chat's pending runs show the new prices), 402 OVER_BUDGET when they don't fit in
+    what's left of the chat's budget, 402 INSUFFICIENT_CREDITS when the balance doesn't cover
+    them. Runs are charged by their own services, as from their pages.
     """
     chat = _chat_or_404(db, current_user, chat_id)
     if not assistant.available():
@@ -240,6 +249,8 @@ async def approve(
         raise HTTPException(status_code=409, detail="Nothing in this chat is waiting for approval")
     except assistant.PricesChanged:
         raise HTTPException(status_code=409, detail="PRICE_CHANGED")
+    except assistant.OverBudget:
+        raise HTTPException(status_code=402, detail="OVER_BUDGET")
     except assistant.BalanceShort:
         raise HTTPException(status_code=402, detail="INSUFFICIENT_CREDITS")
     try:

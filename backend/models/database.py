@@ -625,9 +625,9 @@ class AssistantChat(Base):
 
     status: idle, or running while a turn runs (one at a time; updated_at says since when, so a
     turn whose process died doesn't lock the chat). tokens: the size of the chat's last prompt
-    and reply (what the next call reads at least). cost_usd: what its turns were charged.
-    allowance_usd: what runs may cost in all without the user's click (0: off, every run asks);
-    allowance_spent_usd: what runs that started without a click have taken from it.
+    and reply (what the next call reads at least). cost_usd: what its turns' calls were charged;
+    run_cost_usd: what its runs were charged. mode: manual (every tool call waits for approval) or
+    auto. budget_usd: a hard cap on cost_usd + run_cost_usd (null: none).
     """
 
     __tablename__ = "assistant_chats"
@@ -640,8 +640,9 @@ class AssistantChat(Base):
     pending = Column(JSON, nullable=True)  # Runs waiting for approval (Phase 2)
     tokens = Column(Integer, nullable=False, default=0)
     cost_usd = Column(Numeric(precision=10, scale=4), nullable=False, default=0)
-    allowance_usd = Column(Numeric(precision=10, scale=4), nullable=False, default=0)
-    allowance_spent_usd = Column(Numeric(precision=10, scale=4), nullable=False, default=0)
+    run_cost_usd = Column(Numeric(precision=10, scale=4), nullable=False, default=0)
+    mode = Column(String(10), nullable=False, default="manual")
+    budget_usd = Column(Numeric(precision=10, scale=4), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 

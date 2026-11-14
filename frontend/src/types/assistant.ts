@@ -2,6 +2,9 @@
 
 export type AssistantModelId = 'claude-sonnet-5-5' | 'claude-opus-5-5' | 'claude-haiku-5-5'
 
+/** manual: every tool call waits for the user's approval; auto: tool calls run without asking */
+export type AssistantMode = 'manual' | 'auto'
+
 export interface AssistantModelInfo {
   id: AssistantModelId
   name: string
@@ -21,10 +24,14 @@ export interface AssistantModels {
   models: AssistantModelInfo[]
 }
 
-/** A run waiting for the user's approval (services/assistant_runs.py's quote). */
+/**
+ * A tool call waiting for the user's approval: a run with its quote (services/assistant_runs.py),
+ * or in manual mode a read or ui call (free: no details, estimate 0).
+ */
 export interface PendingRun {
   id: string
   name: string
+  kind: 'read' | 'ui' | 'run' | null
   chip: string
   title: string
   /** [label, value] pairs: what runs */
@@ -45,16 +52,19 @@ export interface ChatInfo {
   cost: number
   created_at: string
   updated_at: string
-  /** Runs waiting for Run or Skip */
+  /** Tool calls waiting for Allow or Skip */
   pending: PendingRun[] | null
-  /** What runs may cost in all without asking (USD; 0: every run asks) */
-  allowance: number
-  /** What runs that started without asking have taken from it */
-  allowance_spent: number
+  mode: AssistantMode
+  /** A hard cap on everything the chat costs (USD), or null */
+  budget: number | null
+  /** What its runs were charged (cost is its replies) */
+  run_cost: number
+  /** Everything it has cost: replies and runs */
+  spent: number
 }
 
 /** A run's quote, as its approval card shows it */
-export type RunQuote = Omit<PendingRun, 'id' | 'name' | 'chip'>
+export type RunQuote = Omit<PendingRun, 'id' | 'name' | 'chip' | 'kind'>
 
 export interface ToolChipInfo {
   id: string
@@ -65,12 +75,14 @@ export interface ToolChipInfo {
   status?: 'running' | 'pricing' | 'approval' | 'done' | 'error' | 'skipped'
   /** A run: what its service charged */
   charged?: number
-  /** A run the chat's allowance started without asking: its quote */
+  /** A run started in auto mode: its quote */
   auto?: RunQuote
+  /** A run that wasn't run because it didn't fit in the chat's budget */
+  blocked?: 'budget'
 }
 
 export type TurnStatus =
-  | 'running' | 'done' | 'max_tokens' | 'refused' | 'stopped' | 'limit' | 'full' | 'error' | 'approval' | 'awaiting_approval' | 'skipped'
+  | 'running' | 'done' | 'max_tokens' | 'refused' | 'stopped' | 'budget' | 'limit' | 'full' | 'error' | 'approval' | 'awaiting_approval' | 'skipped'
 
 /** A reply's text and tool calls in the order it made them (a tool by its ID in tools) */
 export type TurnPart = { type: 'text'; text: string } | { type: 'tool'; id: string }

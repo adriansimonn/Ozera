@@ -1,14 +1,16 @@
 /**
- * The runs a reply asked for, waiting for the user (ASSISTANT_PLAN.md, Phase 2): what each runs,
- * its estimate and hold, and Run / Skip. Several runs from one reply share the card; each can be
- * left out. The backend prices them again and checks the balance when Run is pressed. (A run the
- * chat's allowance started without asking shows as its ToolStep instead.)
+ * The tool calls a reply made, waiting for the user: runs with what each runs, its estimate and
+ * hold, and in manual mode reads and page actions too (free), with Allow (Run when they're all
+ * runs) / Skip. A reply's calls share the card; each can be left out. The backend prices the runs
+ * again and checks the budget and balance when they're allowed. (In auto mode calls run at once
+ * and show only as their ToolSteps.)
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { Play } from 'lucide-react'
+import { Check, Play } from 'lucide-react'
 import { useCreditBalance } from '../../hooks/useCredits'
 import type { PendingRun } from '../../types/assistant'
+import { describeTool } from './toolWords'
 
 function money(value: number): string {
   if (value === 0) return 'free'
@@ -17,6 +19,11 @@ function money(value: number): string {
 
 function needs(run: PendingRun): number {
   return Math.max(run.estimate, run.hold ?? 0)
+}
+
+/** A run (priced), rather than a read or page action; an older backend's entries are all runs */
+function priced(run: PendingRun): boolean {
+  return run.kind !== 'read' && run.kind !== 'ui'
 }
 
 export function ApprovalCard({
@@ -36,18 +43,21 @@ export function ApprovalCard({
   const [chosen, setChosen] = useState<Set<string>>(() => new Set(runs.map((r) => r.id)))
   const key = runs.map((r) => `${r.id}:${r.estimate}:${r.hold}`).join('|')
 
-  // A new card (or new prices) starts with every run chosen, and reads the balance again
+  const anyRun = runs.some(priced)
+
+  // A new card (or new prices) starts with every call chosen, and reads the balance again
   useEffect(() => {
     setChosen(new Set(runs.map((r) => r.id)))
-    fetchBalance()
+    if (anyRun) fetchBalance()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
 
   const picked = useMemo(() => runs.filter((r) => chosen.has(r.id)), [runs, chosen])
   const total = picked.reduce((sum, r) => sum + r.estimate, 0)
   const required = picked.reduce((sum, r) => sum + needs(r), 0)
-  const available = balance?.available_balance
+  const available = anyRun ? balance?.available_balance : undefined
   const short = available != null && required > 0 && available < required
+  const verb = runs.every(priced) ? 'Run' : 'Allow'
 
   const decide = (run: boolean) => {
     const decisions: Record<string, 'run' | 'skip'> = {}
@@ -66,10 +76,36 @@ export function ApprovalCard({
     })
 
   return (
-    <div className="ast-approval" role="group" aria-label="Runs waiting for approval">
+    <div className="ast-approval" role="group" aria-label="Tool calls waiting for approval">
       {notice && <div className="ast-approval-notice">{notice}</div>}
-      {runs.map((run) => (
-        <div key={run.id} className={`ast-approval-run${chosen.has(run.id) ? '' : ' ast-approval-run--off'}`}>
+      {runs.map((run) => {
+        const off = chosen.has(run.id) ? '' : ' ast-approval-run--off'
+        if (!priced(run)) {
+          const [says, detail] = describeTool({ id: run.id, name: run.name, kind: run.kind, chip: run.chip, status: 'approval' })
+          const label = (
+            <span className="ast-approval-call">
+              <span className="ast-step-says">{says}</span>
+              {detail && <span className="ast-step-arg"> {detail}</span>}
+            </span>
+          )
+          return (
+            <div key={run.id} className={`ast-approval-run ast-approval-run--call${off}`}>
+              <div className="ast-approval-head">
+                {runs.length > 1 ? (
+                  <label className="ast-approval-title">
+                    <input type="checkbox" checked={chosen.has(run.id)} onChange={() => toggle(run.id)} disabled={busy} />
+                    {label}
+                  </label>
+                ) : (
+                  <span className="ast-approval-title">{label}</span>
+                )}
+                <span className="ast-approval-price ast-approval-free">free</span>
+              </div>
+            </div>
+          )
+        }
+        return (
+        <div key={run.id} className={`ast-approval-run${off}`}>
           <div className="ast-approval-head">
             {runs.length > 1 ? (
               <label className="ast-approval-title">
@@ -94,10 +130,11 @@ export function ApprovalCard({
             {run.note}
           </div>
         </div>
-      ))}
+        )
+      })}
       <div className="ast-approval-footer">
         <span className={short ? 'ast-warn' : undefined}>
-          {picked.length ? `${money(total)}` : 'Nothing chosen'}
+          {picked.length ? (anyRun ? money(total) : `${picked.length} chosen`) : 'Nothing chosen'}
           {available != null ? ` · balance $${available.toFixed(2)}` : ''}
         </span>
         {short && (
@@ -110,8 +147,8 @@ export function ApprovalCard({
             Skip
           </button>
           <button type="button" className="ast-approval-go" onClick={() => decide(true)} disabled={busy || !picked.length || short}>
-            <Play aria-hidden="true" />
-            {runs.length > 1 ? `Run ${picked.length}` : 'Run'}
+            {verb === 'Run' ? <Play aria-hidden="true" /> : <Check aria-hidden="true" />}
+            {runs.length > 1 ? `${verb} ${picked.length}` : verb}
           </button>
         </div>
       </div>

@@ -10,7 +10,8 @@ ledger's 4 decimal places (credit_refund's usual one-cent floor would keep most 
 call's hold).
 
 A free turn (FREE_MESSAGES_PER_DAY on Haiku 5.5, paid by Ozera) holds and charges nothing; its
-calls' costs are still recorded on their messages.
+calls' costs are still recorded on their messages. Under a chat's budget, services/assistant.py
+caps a call's charge at what's left, never below the call's cost.
 """
 
 import logging
@@ -22,7 +23,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from core.assistant.models import MAX_TOKENS, MODELS, TYPICAL_FIRST_PROMPT_TOKENS, TYPICAL_TURN_TOKENS
+from core.assistant.models import MAX_TOKENS, MIN_CALL_TOKENS, MODELS, TYPICAL_FIRST_PROMPT_TOKENS, TYPICAL_TURN_TOKENS
 from core.autointerp.client import Usage
 from models.database import Transaction, TransactionType
 from services.credit_service import (
@@ -54,6 +55,19 @@ def _priced(model_id: str, usage: Usage) -> float:
         return claude_cost(model_id, usage)
     logger.error("No price for %s; charging it as the dearest model", model_id)
     return max(claude_cost(m, usage) for m in CLAUDE_PRICES)
+
+
+priced = _priced
+
+
+def output_price(model_id: str) -> float:
+    """What one output token costs Anthropic on a model (USD, no markup)."""
+    return _priced(model_id, Usage(output_tokens=1_000_000)) / 1e6
+
+
+def min_call_charge(model_id: str) -> float:
+    """The least a chat's budget must have left for a call (MIN_CALL_TOKENS of output, with markup)."""
+    return MIN_CALL_TOKENS * output_price(model_id) * PRICE_MARKUP
 
 
 def call_bound(model_id: str, input_tokens: int) -> float:

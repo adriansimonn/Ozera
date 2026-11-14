@@ -12,23 +12,31 @@ user nothing. One is claimed before the turn's first call, with a conditional up
 that's stopped or fails still counts, and parallel chats can't claim more than the day has.
 They cover the assistant's tokens only.
 
-Approvals: a reply that calls run tools pauses its turn. The chat is then awaiting_approval and
-its pending column keeps the reply's answered tool results and its priced runs (the loop's
-pause). The user's Run or Skip (approve) re-prices the approved runs and re-checks the balance,
-then resumes the same turn in the background: the runs run, every result goes back in one
-message, and the turn goes on. A new message instead answers the runs as skipped first.
+Mode: a chat in manual mode (the default) pauses a turn on every reply that calls tools; in
+auto mode its tool calls run without asking, runs included (unless the balance doesn't cover
+them, when they wait like manual ones). Each user message tells Claude the mode and what's left
+of the budget (an <ozera_note> before the page state); a mode change applies from the next tool
+calls on, even mid-turn.
 
-Allowance (Phase 3, off by default): a chat's user can let runs costing up to allowance_usd in
-all start without a click. A reply's runs go ahead only if all of them fit in what's left and
-the balance covers them; their price (what the balance must cover) is taken from the allowance
-with a conditional update before they start, and settled to what their services charged once
-they've run. Each user message tells Claude what's left (an <ozera_note> before the page state).
+Approvals: a paused turn's chat is awaiting_approval and its pending column keeps the reply's
+answered tool results and its waiting calls (the loop's pause). The user's Allow or Skip
+(approve) re-prices the approved runs and re-checks the balance and the budget, then resumes
+the same turn in the background: the calls run, every result goes back in one message, and the
+turn goes on. A new message instead answers the waiting calls as skipped first.
+
+Budget (none by default): a hard cap on everything a chat costs, its calls (cost_usd) and its
+runs (run_cost_usd). A run that doesn't fit in what's left isn't run. A call's max_tokens is
+sized so its likely input and full output fit (ChatTurn.plan_call), and its charge is capped at
+what's left, but never below what the call cost Ozera (so the cap can only give up markup). A
+budget lowered mid-turn stops the turn at once when it no longer covers the call in flight.
 """
 
 import asyncio
 import json
 import logging
+import math
 import os
+import time
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, Optional
@@ -46,20 +54,23 @@ from core.assistant.loop import (
     approval_runs,
     live_tool_uses,
     quote_dict,
+    quote_needs,
     reply_text,
     resume_turn,
     run_turn,
     skipped_results,
 )
 from core.assistant.context import result_sizes
-from core.assistant.models import BLOCK_MARGIN_TOKENS, CUT_BYTES_PER_TOKEN, FREE_MESSAGES_PER_DAY, MAX_ALLOWANCE_USD, MODELS
+from core.assistant.models import (
+    BLOCK_MARGIN_TOKENS, CUT_BYTES_PER_TOKEN, DEFAULT_MODE, FREE_MESSAGES_PER_DAY, MAX_BUDGET_USD, MAX_TOKENS, MIN_CALL_TOKENS, MODELS,
+)
 from core.assistant.pages import page_for_route
-from core.assistant.prompt import allowance_block, snapshot_block
+from core.assistant.prompt import mode_block, snapshot_block
 from core.autointerp.client import Usage
 from db import SessionLocal
 from models.database import AssistantChat, AssistantFreeUsage, AssistantMessage
 from services import assistant_billing as billing
-from services.credit_service import InsufficientBalanceError, get_credit_balance
+from services.credit_service import PRICE_MARKUP, InsufficientBalanceError, get_credit_balance
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +93,10 @@ class NothingPending(Exception):
 
 class PricesChanged(Exception):
     """An approved run's price went up since the card showed it (the card is updated)."""
+
+
+class OverBudget(Exception):
+    """The approved runs don't fit in what's left of the chat's budget."""
 
 
 class BalanceShort(Exception):
@@ -164,16 +179,36 @@ def get_chat(db: Session, user_id: int, chat_id: int) -> Optional[AssistantChat]
     return db.query(AssistantChat).filter(AssistantChat.id == chat_id, AssistantChat.user_id == user_id).first()
 
 
-def _allowance(amount: float) -> Decimal:
-    """An allowance as stored: in cents, from 0 (off) to MAX_ALLOWANCE_USD."""
-    return Decimal(str(round(min(max(float(amount), 0.0), MAX_ALLOWANCE_USD), 2)))
+def _budget(amount: Optional[float]) -> Optional[Decimal]:
+    """A budget as stored: in cents, up to MAX_BUDGET_USD; None (or 0) is no budget."""
+    if amount is None or float(amount) <= 0:
+        return None
+    return Decimal(str(max(0.01, round(min(float(amount), MAX_BUDGET_USD), 2))))
 
 
-def create_chat(db: Session, user_id: int, model_id: Optional[str] = None, allowance: Optional[float] = None) -> AssistantChat:
+def spent(chat: AssistantChat) -> float:
+    """Everything a chat has cost: its calls and its runs."""
+    return float(chat.cost_usd or 0) + float(chat.run_cost_usd or 0)
+
+
+def budget_left(chat: AssistantChat) -> Optional[float]:
+    """What's left of a chat's budget (below 0 once it's passed), or None when it has none."""
+    return None if chat.budget_usd is None else float(chat.budget_usd) - spent(chat)
+
+
+def budget_reached(chat: AssistantChat) -> bool:
+    """Whether a chat's budget can't cover even a short call on its model."""
+    left = budget_left(chat)
+    return left is not None and left < billing.min_call_charge(chat.model)
+
+
+def create_chat(
+    db: Session, user_id: int, model_id: Optional[str] = None, mode: Optional[str] = None, budget: Optional[float] = None,
+) -> AssistantChat:
     now = datetime.utcnow()
     chat = AssistantChat(
         user_id=user_id, title=DEFAULT_TITLE, model=model_id or initial_model(db, user_id), status="idle",
-        tokens=0, cost_usd=0, allowance_usd=_allowance(allowance or 0), allowance_spent_usd=0, created_at=now, updated_at=now,
+        tokens=0, cost_usd=0, run_cost_usd=0, mode=mode or DEFAULT_MODE, budget_usd=_budget(budget), created_at=now, updated_at=now,
     )
     db.add(chat)
     db.commit()
@@ -181,22 +216,33 @@ def create_chat(db: Session, user_id: int, model_id: Optional[str] = None, allow
     return chat
 
 
+_UNSET: Any = object()
+
+
 def update_chat(
-    db: Session, chat: AssistantChat, title: Optional[str] = None, model_id: Optional[str] = None, allowance: Optional[float] = None,
+    db: Session, chat: AssistantChat, title: Optional[str] = None, model_id: Optional[str] = None, mode: Optional[str] = None,
+    budget: Optional[float] = _UNSET,
 ) -> AssistantChat:
     """
-    Rename a chat, switch its model (the next call reads the chat uncached on the new model), or
-    set its allowance (0 turns it off; what runs already took from it stays taken).
+    Rename a chat, switch its model (the next call reads the chat uncached on the new model), its
+    mode (from its next tool calls on), or set its budget (None or 0: none). A budget changed
+    while a turn runs applies at once (budget_changed).
     """
     if title is not None:
         chat.title = title.strip()[:200] or DEFAULT_TITLE
     if model_id is not None:
         am.model(model_id)
         chat.model = model_id
-    if allowance is not None:
-        chat.allowance_usd = _allowance(allowance)
+    if mode is not None:
+        if mode not in am.MODES:
+            raise ValueError(f"Unknown mode: {mode}")
+        chat.mode = mode
+    if budget is not _UNSET:
+        chat.budget_usd = _budget(budget)
     db.commit()
     db.refresh(chat)
+    if budget is not _UNSET:
+        budget_changed(chat.id, budget_left(chat))
     return chat
 
 
@@ -216,7 +262,8 @@ def chat_info(chat: AssistantChat) -> dict:
         "id": chat.id, "title": chat.title, "model": chat.model, "status": chat.status, "tokens": chat.tokens,
         "cost": float(chat.cost_usd or 0), "created_at": chat.created_at, "updated_at": chat.updated_at,
         "pending": approval_runs(chat.pending) if chat.pending else None,
-        "allowance": float(chat.allowance_usd or 0), "allowance_spent": float(chat.allowance_spent_usd or 0),
+        "mode": chat.mode or DEFAULT_MODE, "budget": float(chat.budget_usd) if chat.budget_usd is not None else None,
+        "run_cost": float(chat.run_cost_usd or 0), "spent": round(spent(chat), 4),
     }
 
 
@@ -325,6 +372,11 @@ class ChatTurn(Turn):
         self.streamed = ""
         # The last settled call's cost (stored with its message)
         self.last_call: dict = {}
+        # The call being made (not on a free turn): {"left": what its chat's budget had left
+        # before it, None without one; "cost": about the most it costs Ozera at its max_tokens};
+        # calling while it's in flight
+        self._plan: Optional[dict] = None
+        self.calling = False
 
     def messages(self) -> list[dict]:
         return [{"role": r["role"], "content": r["content"]} for r in self._rows]
@@ -355,45 +407,99 @@ class ChatTurn(Turn):
                 return int(r["usage"].get("clear") or 0)
         return 0
 
-    def reserve(self, amount: float) -> Optional[float]:
-        """
-        Take runs' price from the chat's allowance, if it's on and covers it (a conditional update,
-        so it can't be overdrawn) and the balance covers it too: what's left of it, or None.
-        """
-        add = Decimal(str(billing.round_up(amount)))
+    def _chat(self) -> Optional[AssistantChat]:
         db = SessionLocal()
         try:
             chat = db.get(AssistantChat, self.chat_id)
-            if chat is None or (chat.allowance_usd or 0) <= 0:
-                return None
-            if available_balance(db, self.user_id) < float(add):
-                return None
-            taken = (
-                db.query(AssistantChat)
-                .filter(AssistantChat.id == self.chat_id, AssistantChat.allowance_spent_usd + add <= AssistantChat.allowance_usd)
-                .update({AssistantChat.allowance_spent_usd: AssistantChat.allowance_spent_usd + add}, synchronize_session=False)
-            )
-            db.commit()
-            if not taken:
-                return None
-            db.refresh(chat)
-            return max(0.0, float(chat.allowance_usd) - float(chat.allowance_spent_usd))
+            if chat is not None:
+                db.expunge(chat)
+            return chat
         finally:
             db.close()
 
-    def spend(self, reserved: float, charged: float) -> None:
-        """Settle a reservation on what the runs' services charged."""
-        delta = Decimal(str(billing.round_up(max(0.0, charged)))) - Decimal(str(billing.round_up(reserved)))
-        if not delta:
+    def auto(self) -> bool:
+        chat = self._chat()
+        return chat is not None and chat.mode == "auto"
+
+    def budget_left(self) -> Optional[float]:
+        chat = self._chat()
+        return budget_left(chat) if chat is not None else None
+
+    def covers(self, amount: float) -> bool:
+        if amount <= 0:
+            return True
+        db = SessionLocal()
+        try:
+            return available_balance(db, self.user_id) >= amount
+        finally:
+            db.close()
+
+    def run_charges(self, charged: float) -> None:
+        amount = Decimal(str(billing.round_up(max(0.0, charged))))
+        if not amount:
             return
         db = SessionLocal()
         try:
             db.query(AssistantChat).filter(AssistantChat.id == self.chat_id).update(
-                {AssistantChat.allowance_spent_usd: AssistantChat.allowance_spent_usd + delta}, synchronize_session=False,
+                {AssistantChat.run_cost_usd: AssistantChat.run_cost_usd + amount}, synchronize_session=False,
             )
             db.commit()
         finally:
             db.close()
+
+    def _input_cost(self, input_tokens: int, static_tokens: int, clear: int) -> float:
+        """
+        About what the next call's input costs Anthropic: the last call's prompt read from the
+        cache when it was on this model, recent and cleared the same, else the system prompt and
+        tools read (or written at the 1-hour price when no call on this model wrote them lately),
+        and the rest written to the cache.
+        """
+        cached = 0
+        for r in reversed(self._rows):
+            usage = r.get("usage") or {}
+            if r["role"] == "assistant" and usage.get("prompt"):
+                fresh = r.get("at") is not None and (datetime.utcnow() - r["at"]).total_seconds() < CACHE_SECONDS
+                if usage.get("model") == self.model.id and int(usage.get("clear") or 0) == clear and fresh:
+                    cached = min(int(usage["prompt"]), input_tokens)
+                break
+        if cached:
+            usage = Usage(cache_read_tokens=cached, cache_write_tokens=input_tokens - cached)
+        else:
+            static = min(static_tokens, input_tokens)
+            warm = time.monotonic() - _prefix_written.get(self.model.id, -PREFIX_SECONDS) < PREFIX_SECONDS
+            usage = Usage(
+                cache_read_tokens=static if warm else 0, cache_write_1h_tokens=0 if warm else static,
+                cache_write_tokens=input_tokens - static,
+            )
+        return billing.priced(self.model.id, usage)
+
+    def plan_call(self, input_tokens: int, static_tokens: int, clear: int) -> Optional[int]:
+        """
+        The next call's max_tokens. Under a budget, the call's likely input cost and its output
+        at max_tokens, with markup, must fit in what's left: max_tokens shrinks near it, and None
+        means even MIN_CALL_TOKENS doesn't fit. A free turn's calls cost nothing.
+        """
+        self._plan = None
+        tokens = MAX_TOKENS
+        if not self.free:
+            left = self.budget_left()
+            input_cost = self._input_cost(input_tokens, static_tokens, clear)
+            per_token = billing.output_price(self.model.id)
+            if left is not None:
+                fits = math.floor((left / PRICE_MARKUP - input_cost) / per_token) if left > 0 else 0
+                if fits < MIN_CALL_TOKENS:
+                    return None
+                tokens = min(MAX_TOKENS, fits)
+            self._plan = {"left": left, "cost": input_cost + tokens * per_token}
+        self.calling = True
+        return tokens
+
+    def _capped(self, charge: float, cost: float) -> float:
+        """A call's charge under the chat's budget: at most what was left, but never below what it cost Ozera."""
+        if self._plan is None or self._plan["left"] is None:
+            return charge
+        cap = math.floor(max(0.0, self._plan["left"]) * 10_000) / 10_000
+        return max(billing.round_up(cost), min(charge, cap))
 
     def _describe(self) -> str:
         return f"Assistant · {self.model.name}"
@@ -433,8 +539,13 @@ class ChatTurn(Turn):
                 db.close()
         return amount
 
-    def settle(self, held, attempts: list[tuple[str, Usage]]) -> float:
+    def settle(self, held, attempts: list[tuple[str, Usage]], known: bool = True) -> float:
+        self.calling = False
+        _prefix_written[self.model.id] = time.monotonic()
         cost, charge = billing.attempts_cost(attempts)
+        if self._plan is not None and self._plan["left"] is not None:
+            # A bound (no usage was reported) is held to the call's own estimate under a budget
+            charge = self._capped(charge, cost if known else min(cost, self._plan["cost"]))
         self.last_call = {"anthropic_usd": round(cost, 6), "charge_usd": charge}
         if held.free:
             self._charged(0.0)
@@ -446,11 +557,21 @@ class ChatTurn(Turn):
             db.close()
 
     def keep(self, held, why: str) -> float:
+        self.calling = False
         logger.warning("Keeping an assistant call's hold of $%.4f (%s)", held.amount, why)
         self.last_call = {"kept": why}
+        if self._plan is not None and self._plan["left"] is not None and not held.free:
+            capped = self._capped(held.amount, self._plan["cost"])
+            if capped < held.amount:
+                db = SessionLocal()
+                try:
+                    return self._charged(billing.settle(db, self.user_id, held, capped, f"{self._describe()} (budget)"))
+                finally:
+                    db.close()
         return self._charged(held.amount)
 
     def release(self, held) -> float:
+        self.calling = False
         self.last_call = {}
         if held.free:
             return 0.0
@@ -478,7 +599,7 @@ class ChatTurn(Turn):
         finally:
             db.close()
         self._seq += 1
-        self._rows.append({"role": role, "content": content, "usage": usage})
+        self._rows.append({"role": role, "content": content, "usage": usage, "at": datetime.utcnow()})
         self.streamed = ""
 
     async def run_tool(self, name: str, args: dict) -> ToolOutcome:
@@ -506,6 +627,10 @@ class ChatTurn(Turn):
                 db.commit()
         finally:
             db.close()
+
+
+def _history_row(row: AssistantMessage) -> dict:
+    return {"role": row.role, "content": row.content, "usage": row.usage, "at": row.created_at}
 
 
 def _unanswered(rows: list[AssistantMessage]) -> list[str]:
@@ -542,8 +667,8 @@ def release_turn(chat_id: int, status: str = "idle") -> None:
 
 def start_turn(db: Session, chat: AssistantChat, user_id: int, text_: str, snapshot: Any) -> ChatTurn:
     """
-    Store a user's message (after any unanswered tool calls' results, with the chat's allowance
-    and the page's snapshot) and set up its turn; the chat must be claimed. A free message is
+    Store a user's message (after any unanswered tool calls' results, with the chat's mode and
+    budget and the page's snapshot) and set up its turn; the chat must be claimed. A free message is
     claimed here.
     """
     rows = _rows(db, chat.id)
@@ -564,8 +689,8 @@ def start_turn(db: Session, chat: AssistantChat, user_id: int, text_: str, snaps
             {"type": "tool_result", "tool_use_id": tool_use_id, "content": "Not run: the turn ended before this call ran", "is_error": True}
             for tool_use_id in _unanswered(rows)
         ]
-    note = allowance_block(float(chat.allowance_usd or 0), float(chat.allowance_spent_usd or 0))
-    content += ([note] if note else []) + [block, {"type": "text", "text": text_}]
+    budget = float(chat.budget_usd) if chat.budget_usd is not None else None
+    content += [mode_block(chat.mode or DEFAULT_MODE, budget, spent(chat)), block, {"type": "text", "text": text_}]
     seq = (rows[-1].seq + 1) if rows else 0
     db.add(AssistantMessage(
         chat_id=chat.id, seq=seq, turn=turn_no, role="user", content=content, snapshot=stored_snapshot, free=free,
@@ -574,8 +699,8 @@ def start_turn(db: Session, chat: AssistantChat, user_id: int, text_: str, snaps
     if chat.title == DEFAULT_TITLE and not rows:
         chat.title = " ".join(text_.split())[:TITLE_CHARS] or DEFAULT_TITLE
     db.commit()
-    history = [{"role": r.role, "content": r.content, "usage": r.usage} for r in rows]
-    history.append({"role": "user", "content": content, "usage": None})
+    history = [_history_row(r) for r in rows]
+    history.append({"role": "user", "content": content, "usage": None, "at": datetime.utcnow()})
     return ChatTurn(chat.id, user_id, chat.model, turn_no, free, page.id if page else None, history, seq + 1)
 
 
@@ -598,19 +723,16 @@ def _set_turn_status(db: Session, chat_id: int, turn_no: Optional[int], status: 
 
 # Approvals
 
-def _needs(quote: dict) -> float:
-    return max(float(quote.get("estimate") or 0), float(quote.get("hold") or 0))
-
-
 async def check_approval(db: Session, chat: AssistantChat, user_id: int, decisions: dict) -> tuple[dict, dict, dict]:
     """
-    Check a Run or Skip of a chat's pending runs before it resumes: every approved run is priced
-    again (one that can't run any more is answered with its error), and the balance must cover
-    them. Returns (the pending turn, the decisions, errors by call ID).
+    Check an Allow or Skip of a chat's waiting calls before it resumes: every approved run is
+    priced again (one that can't run any more is answered with its error), and the chat's budget
+    and the balance must cover them. Returns (the pending turn, the decisions, errors by call ID).
 
     Raises:
-        NothingPending: no runs are waiting
+        NothingPending: nothing is waiting
         PricesChanged: a run's price rose past PRICE_TOLERANCE (the chat's pending shows the new one)
+        OverBudget: the approved runs don't fit in what's left of the chat's budget
         BalanceShort: the available balance doesn't cover the approved runs
     """
     from services import assistant_runs
@@ -626,11 +748,11 @@ async def check_approval(db: Session, chat: AssistantChat, user_id: int, decisio
     runs = []
     for entry in pending["runs"]:
         entry = dict(entry)
-        if decisions[entry["id"]] == "run":
+        if decisions[entry["id"]] == "run" and entry.get("quote"):
             fresh = await assistant_runs.quote(entry["name"], ToolContext(user_id=user_id, page=pending.get("page")), entry["args"])
             if isinstance(fresh, RunQuote):
                 share, dollars = PRICE_TOLERANCE
-                if fresh.needs > _needs(entry["quote"]) * (1 + share) + dollars:
+                if fresh.needs > quote_needs(entry["quote"]) * (1 + share) + dollars:
                     changed = True
                 entry["quote"] = quote_dict(fresh)
             else:
@@ -640,7 +762,10 @@ async def check_approval(db: Session, chat: AssistantChat, user_id: int, decisio
         chat.pending = {**pending, "runs": runs}
         db.commit()
         raise PricesChanged()
-    needed = sum(_needs(r["quote"]) for r in runs if decisions[r["id"]] == "run" and r["id"] not in errors)
+    needed = sum(quote_needs(r.get("quote")) for r in runs if decisions[r["id"]] == "run" and r["id"] not in errors)
+    left = budget_left(chat)
+    if needed > 0 and left is not None and needed > left + 1e-9:
+        raise OverBudget()
     available = available_balance(db, user_id)
     if needed > 0 and available < needed:
         raise BalanceShort(needed, available)
@@ -665,7 +790,7 @@ def resume(db: Session, chat: AssistantChat, user_id: int, pending: dict) -> Cha
     row = _turn_row(db, chat.id, pending["turn"])
     meta = (row.meta or {}) if row is not None else {}
     free = bool(row is not None and row.free and chat.model == am.FREE_MODEL)
-    history = [{"role": r.role, "content": r.content, "usage": r.usage} for r in rows]
+    history = [_history_row(r) for r in rows]
     return ChatTurn(
         chat.id, user_id, chat.model, pending["turn"], free, pending.get("page"), history, (rows[-1].seq + 1) if rows else 0,
         charged=float(meta.get("cost") or 0.0), calls=int(meta.get("calls") or 0),
@@ -679,7 +804,7 @@ def _finish(turn: ChatTurn, end: TurnEnd) -> None:
         row = _turn_row(db, turn.chat_id, turn.turn)
         if row is not None:
             detail = dict(end.detail)
-            if end.status == "stopped" and turn.streamed:
+            if end.status in ("stopped", "budget") and turn.streamed:
                 detail["partial"] = turn.streamed
             status = "awaiting_approval" if end.status == "approval" else end.status
             row.meta = {**(row.meta or {}), "status": status, "detail": detail, "cost": round(turn.charged, 4), "calls": turn.calls}
@@ -688,17 +813,45 @@ def _finish(turn: ChatTurn, end: TurnEnd) -> None:
         db.close()
 
 
-# Turns running in this process: chat ID -> its stop event
+# Turns running in this process: chat ID -> its stop event, and the turn
 _running: dict[int, asyncio.Event] = {}
+_turns: dict[int, ChatTurn] = {}
 _tasks: set[asyncio.Task] = set()
 
+# When a call on each model last wrote or read the shared prefix (the system prompt and tools,
+# cached for an hour), for budget estimates; and how long a chat's own tail stays cached
+_prefix_written: dict[str, float] = {}
+PREFIX_SECONDS = 55 * 60
+CACHE_SECONDS = 270
 
-def request_stop(chat_id: int) -> bool:
+
+def request_stop(chat_id: int, status: str = "stopped") -> bool:
+    """Stop a chat's running turn: the user's Stop, or (status budget) its budget."""
     event = _running.get(chat_id)
     if event is None:
         return False
+    turn = _turns.get(chat_id)
+    if turn is not None and status != "stopped":
+        turn.stop_status = status
     event.set()
     return True
+
+
+def budget_changed(chat_id: int, left: Optional[float]) -> None:
+    """
+    Apply a chat's new budget to its running turn: the call in flight is capped at it, and the
+    turn stops at once when it's used up or no longer covers that call. Runs already started
+    finish (and are charged); later calls and runs read the budget themselves.
+    """
+    turn = _turns.get(chat_id)
+    if turn is None or turn.free:
+        return
+    if turn._plan is not None:
+        turn._plan["left"] = left
+    if left is None:
+        return
+    if left <= 0 or (turn.calling and turn._plan is not None and left < turn._plan["cost"] * PRICE_MARKUP):
+        request_stop(chat_id, "budget")
 
 
 async def run(turn: ChatTurn, events: asyncio.Queue, client=None, approval: Optional[tuple[dict, dict, dict]] = None) -> None:
@@ -709,6 +862,7 @@ async def run(turn: ChatTurn, events: asyncio.Queue, client=None, approval: Opti
     """
     stop = asyncio.Event()
     _running[turn.chat_id] = stop
+    _turns[turn.chat_id] = turn
 
     def emit(event: dict) -> None:
         if event.get("type") == "text":
@@ -730,6 +884,7 @@ async def run(turn: ChatTurn, events: asyncio.Queue, client=None, approval: Opti
         logger.exception("Assistant turn failed in chat %s", turn.chat_id)
     finally:
         _running.pop(turn.chat_id, None)
+        _turns.pop(turn.chat_id, None)
         try:
             _finish(turn, end)
         except Exception:

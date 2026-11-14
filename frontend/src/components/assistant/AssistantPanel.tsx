@@ -5,15 +5,16 @@
  *
  * Chats are private and stored on the backend; replies stream in, and ui actions the assistant
  * sends (open a page, fill inputs, point at a control) go to the page through the store. A reply's
- * tool calls show as rows between its text, in the order it made them. Runs a reply asks for wait
- * under it on an approval card; their results open on their pages. With an allowance set for the
- * chat, runs that fit in it start at once (their rows expand to their quotes and show their
- * charges). The model and allowance menus open up from the composer. A chat exports as Markdown.
+ * tool calls show as rows between its text, in the order it made them. In manual mode a reply's
+ * tool calls wait under it on an approval card; in auto mode they run at once (a run's row expands
+ * to its quote and shows its charge). Run results open on their pages. The composer's bar holds
+ * the chat's settings (its hard budget) and model, which open upward, and the mode toggle beside
+ * Send. A chat exports as Markdown.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ArrowUp, Bot, Check, ChevronDown, ChevronUp, Download, Pencil, Plus, Square, Trash2, X } from 'lucide-react'
+import { ArrowUp, Bot, Check, ChevronDown, ChevronUp, Download, Hand, Pencil, Plus, Settings2, Square, Trash2, X, Zap } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { MAX_WIDTH, MIN_WIDTH, useAssistantStore, type DraftPart } from '../../stores/assistantStore'
 import { usePurchaseCredits } from '../../contexts/PurchaseCreditsContext'
@@ -48,7 +49,8 @@ const STATUS_TEXT: Partial<Record<ChatTurn['status'], string>> = {
   max_tokens: 'Cut off at the reply limit.',
   limit: 'Reached this message’s limit of tool calls.',
   full: 'This chat is full. Start a new one.',
-  skipped: 'Runs skipped.',
+  skipped: 'Skipped.',
+  budget: 'Reached this chat’s budget.',
 }
 
 function money(value: number): string {
@@ -64,8 +66,9 @@ function dollars(value: number): string {
   return `$${value.toFixed(2)}`
 }
 
-// The allowance choices (USD in all, per chat; 0 asks before every run)
-const ALLOWANCES = [0, 0.25, 1, 5, 20]
+// Budget presets (USD for the whole chat, replies and runs) and the most a budget can be
+const BUDGETS = [1, 5, 20]
+const MAX_BUDGET = 1000
 
 type Item = { type: 'text'; text: string; key: string } | { type: 'tools'; tools: ToolChipInfo[]; key: string }
 
@@ -196,61 +199,122 @@ function ModelControl({ disabled }: { disabled: boolean }) {
   )
 }
 
-/** The chat's allowance: what runs may cost in all without asking. */
-function AllowanceControl() {
-  const chat = useAssistantStore((s) => s.chat)
-  const newAllowance = useAssistantStore((s) => s.newAllowance)
-  const setAllowance = useAssistantStore((s) => s.setAllowance)
-  const { open, setOpen, ref } = useMenu()
-  const allowance = chat ? chat.allowance ?? 0 : newAllowance
-  const spent = chat?.allowance_spent ?? 0
-  const left = Math.max(0, allowance - spent)
+type Menu = ReturnType<typeof useMenu>
 
-  const options = [...new Set([...ALLOWANCES, allowance])].sort((a, b) => a - b)
+/** The chat's settings: its hard budget (replies and runs stop once the chat has cost that much). */
+function SettingsControl({ menu }: { menu: Menu }) {
+  const chat = useAssistantStore((s) => s.chat)
+  const newBudget = useAssistantStore((s) => s.newBudget)
+  const setBudget = useAssistantStore((s) => s.setBudget)
+  const { open, setOpen, ref } = menu
+  const budget = chat ? chat.budget : newBudget
+  const spent = chat?.spent ?? 0
+  const [custom, setCustom] = useState('')
+
+  useEffect(() => {
+    if (open) setCustom(budget != null && !BUDGETS.includes(budget) ? String(budget) : '')
+  }, [open, budget])
+
+  const choose = (value: number | null) => {
+    if (value !== budget) setBudget(value)
+    setOpen(false)
+  }
+  const typed = Number(custom)
+  const valid = custom.trim() !== '' && Number.isFinite(typed) && typed >= 0.01 && typed <= MAX_BUDGET
+  const options = [...new Set([...BUDGETS, ...(budget != null ? [budget] : [])])].sort((a, b) => a - b)
   return (
     <div className="ast-bar-control" ref={ref}>
       <button
         type="button"
-        className={`ast-bar-button${allowance > 0 ? ' on' : ''}`}
+        className="ast-bar-icon"
         onClick={() => setOpen((o) => !o)}
-        aria-haspopup="menu"
+        aria-haspopup="dialog"
         aria-expanded={open}
-        title="Runs up to this much in all start without asking"
+        aria-label="Chat settings"
+        title="Chat settings"
       >
-        {allowance > 0 ? `${dollars(left)} left` : 'Ask'}
+        <Settings2 aria-hidden="true" />
       </button>
       {open && (
-        <div className="ast-menu ast-menu--up" role="menu">
-          <div className="ast-menu-head">Run without asking</div>
-          {options.map((value) => (
-            <button
-              key={value}
-              type="button"
-              role="menuitemradio"
-              aria-checked={value === allowance}
-              className="ast-menu-item"
-              onClick={() => {
-                setAllowance(value)
-                setOpen(false)
-              }}
-            >
-              {value === allowance ? <Check aria-hidden="true" /> : <span className="ast-menu-check" />}
-              {value === 0 ? 'Off' : `Up to ${dollars(value)}`}
+        <div className="ast-menu ast-menu--up ast-settings" role="dialog" aria-label="Chat settings">
+          <div className="ast-menu-head" title="Everything this chat costs, replies and runs. It stops as soon as it reaches this.">
+            Budget
+          </div>
+          <div role="radiogroup" aria-label="Budget">
+            <button type="button" role="radio" aria-checked={budget == null} className="ast-menu-item" onClick={() => choose(null)}>
+              {budget == null ? <Check aria-hidden="true" /> : <span className="ast-menu-check" />}
+              No limit
             </button>
-          ))}
-          {spent > 0 && <div className="ast-menu-foot">{money(spent)} used in this chat</div>}
+            {options.map((value) => (
+              <button key={value} type="button" role="radio" aria-checked={value === budget} className="ast-menu-item" onClick={() => choose(value)}>
+                {value === budget ? <Check aria-hidden="true" /> : <span className="ast-menu-check" />}
+                {dollars(value)}
+              </button>
+            ))}
+          </div>
+          <form
+            className="ast-budget"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (valid) choose(Math.round(typed * 100) / 100)
+            }}
+          >
+            <span className="ast-budget-input">
+              <span aria-hidden="true">$</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0.01}
+                max={MAX_BUDGET}
+                step={0.01}
+                value={custom}
+                placeholder="Custom"
+                aria-label="Custom budget in dollars"
+                onChange={(e) => setCustom(e.target.value)}
+              />
+            </span>
+            <button type="submit" className="ast-budget-set" disabled={!valid}>
+              Set
+            </button>
+          </form>
+          {chat && (
+            <div className={`ast-menu-foot${budget != null && spent >= budget ? ' ast-warn' : ''}`}>
+              {budget != null ? `${money(spent)} of ${dollars(budget)} used` : `${money(spent)} used`}
+            </div>
+          )}
         </div>
       )}
     </div>
   )
 }
 
+/** Manual (every tool call waits for approval) or auto (tool calls run without asking); a click switches. */
+function ModeControl() {
+  const chat = useAssistantStore((s) => s.chat)
+  const newMode = useAssistantStore((s) => s.newMode)
+  const setMode = useAssistantStore((s) => s.setMode)
+  const auto = (chat ? chat.mode : newMode) === 'auto'
+  return (
+    <button
+      type="button"
+      className="ast-bar-button ast-mode"
+      onClick={() => setMode(auto ? 'manual' : 'auto')}
+      aria-pressed={auto}
+      title={auto ? 'Auto: tool calls run without asking. Click for manual.' : 'Manual: each tool call waits for your approval. Click for auto.'}
+    >
+      {auto ? <Zap aria-hidden="true" /> : <Hand aria-hidden="true" />}
+      <span>{auto ? 'Auto' : 'Manual'}</span>
+    </button>
+  )
+}
+
 function TurnView({
-  turn, last, onContinue, busy, approval,
+  turn, last, onContinue, onBudget, busy, approval,
 }: {
   turn: ChatTurn
   last: boolean
   onContinue: () => void
+  onBudget: () => void
   busy: boolean
   /** The approval card, under the turn whose runs wait */
   approval: React.ReactNode
@@ -271,6 +335,11 @@ function TurnView({
         {last && turn.status === 'max_tokens' && (
           <button type="button" className="ast-link" onClick={onContinue} disabled={busy}>
             Continue
+          </button>
+        )}
+        {last && turn.status === 'budget' && (
+          <button type="button" className="ast-link" onClick={onBudget}>
+            Raise budget
           </button>
         )}
         <span className="ast-cost">{turn.free ? 'free' : money(turn.cost)}</span>
@@ -327,7 +396,7 @@ function ChatsMenu({ onClose }: { onClose: () => void }) {
             <>
               <button type="button" className="ast-menu-item ast-menu-title" onClick={() => { selectChat(c.id); onClose() }} title={c.title}>
                 <span>{c.title}</span>
-                <span className="ast-cost">{money(c.cost)}</span>
+                <span className="ast-cost">{money(c.spent ?? c.cost)}</span>
               </button>
               <button type="button" className="ast-icon" aria-label="Rename chat" onClick={() => { setEditing(c.id); setTitle(c.title) }}>
                 <Pencil aria-hidden="true" />
@@ -354,7 +423,7 @@ function ChatsMenu({ onClose }: { onClose: () => void }) {
 }
 
 export function AssistantPanel({ docked }: { docked: boolean }) {
-  const { models, chat, draft, sending, error, notice, width, setOpen, setWidth, send, approve, stop, setError, load } = useAssistantStore()
+  const { models, chat, draft, sending, error, notice, width, newBudget, setOpen, setWidth, send, approve, stop, setError, load } = useAssistantStore()
   const { showPurchaseCredits } = usePurchaseCredits()
   const location = useLocation()
   const [text, setText] = useState('')
@@ -364,6 +433,7 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
   const scroller = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLTextAreaElement>(null)
   const pinned = useRef(true)
+  const settings = useMenu()
 
   useEffect(() => {
     if (!models) load()
@@ -425,10 +495,14 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
   const priceLabel = current
     ? `${shortName(current.name)} · ${current.free && freeLeft > 0 ? `free (${freeLeft} left today)` : `~${money(current.per_message)}/msg`}`
     : ''
-  const spend = chat ? `chat ${money(chat.cost)}, ${tokens(chat.tokens)} tokens` : ''
+  const spend = chat
+    ? `chat ${money(chat.spent ?? chat.cost)}${chat.budget != null ? ` of ${dollars(chat.budget)}` : ''}, ${tokens(chat.tokens)} tokens`
+    : newBudget != null
+      ? `budget ${dollars(newBudget)}`
+      : ''
   const notes = [
     lastTurn && !busy && lastTurn.status === 'running' ? 'reply saving…' : '',
-    !busy && chat?.status === 'awaiting_approval' ? 'a new message skips the waiting runs' : '',
+    !busy && chat?.status === 'awaiting_approval' ? 'a new message skips the waiting calls' : '',
   ].filter(Boolean)
 
   const exportChat = async () => {
@@ -507,6 +581,7 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
               last={last && !busy}
               busy={busy}
               onContinue={() => submit('Continue.')}
+              onBudget={() => settings.setOpen(true)}
               approval={pending && <ApprovalCard runs={pending} busy={busy} notice={notice} onDecide={approve} onAddCredits={showPurchaseCredits} />}
             />
           )
@@ -537,7 +612,14 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
       <footer className="ast-footer">
         {error && (
           <div className="ast-error" role="alert">
-            {error === 'INSUFFICIENT_CREDITS' ? (
+            {error === 'BUDGET_REACHED' ? (
+              <>
+                <span>This chat has used its budget.</span>
+                <button type="button" className="ast-link" onClick={() => settings.setOpen(true)}>
+                  Raise budget
+                </button>
+              </>
+            ) : error === 'INSUFFICIENT_CREDITS' ? (
               <>
                 <span>Your balance doesn’t cover this model{freeLeft > 0 ? `; Haiku 5.5 has ${freeLeft} free messages today` : ''}.</span>
                 <button type="button" className="ast-link" onClick={showPurchaseCredits}>
@@ -577,17 +659,20 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
             }}
           />
           <div className="ast-composer-bar">
-            <AllowanceControl />
+            <SettingsControl menu={settings} />
             <ModelControl disabled={busy} />
-            {busy ? (
-              <button type="button" className="ast-send" aria-label="Stop" title="Stop" onClick={stop} disabled={draft?.status === 'stopping'}>
-                <Square aria-hidden="true" />
-              </button>
-            ) : (
-              <button type="button" className="ast-send" aria-label="Send" title="Send (Enter)" onClick={() => submit(text)} disabled={!text.trim()}>
-                <ArrowUp aria-hidden="true" />
-              </button>
-            )}
+            <div className="ast-bar-end">
+              <ModeControl />
+              {busy ? (
+                <button type="button" className="ast-send" aria-label="Stop" title="Stop" onClick={stop} disabled={draft?.status === 'stopping'}>
+                  <Square aria-hidden="true" />
+                </button>
+              ) : (
+                <button type="button" className="ast-send" aria-label="Send" title="Send (Enter)" onClick={() => submit(text)} disabled={!text.trim()}>
+                  <ArrowUp aria-hidden="true" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
         {(priceLabel || spend) && (
@@ -596,7 +681,7 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
               {priceLabel}
             </span>
             {spend && (
-              <span className="ast-footnote-chat" title="What this chat has cost, and the size of its context">
+              <span className="ast-footnote-chat" title="What this chat has cost (replies and runs), its budget, and the size of its context">
                 {spend}
               </span>
             )}

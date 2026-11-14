@@ -89,7 +89,7 @@ export function AssistantStyles() {
       .ast-panel .ast-menu-title { min-width: 0; justify-content: space-between; }
       .ast-panel .ast-menu-title span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .ast-panel .ast-menu-head { padding: 0.35rem 0.5rem 0.25rem; font-size: 0.72rem; color: var(--ast-faint); }
-      .ast-panel .ast-menu-foot { padding: 0.35rem 0.5rem 0.25rem; font-size: 0.72rem; color: var(--ast-faint); border-top: 1px solid var(--ast-border); margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+      .ast-panel .ast-menu-foot { padding: 0.35rem 0.5rem 0.25rem; font-size: 0.72rem; color: var(--ast-strong); border-top: 1px solid var(--ast-border); margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
       .ast-panel .ast-menu-check { display: inline-block; width: 17px; height: 17px; flex-shrink: 0; }
       .ast-panel .ast-menu--up { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; width: 210px; }
       .ast-panel .ast-menu-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -103,7 +103,34 @@ export function AssistantStyles() {
       .ast-panel .ast-bar-button svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--ast-strong); margin-right: -0.2rem; }
       .ast-panel .ast-bar-button:hover:not(:disabled) { background: var(--ast-surface); }
       .ast-panel .ast-bar-button:disabled { opacity: 0.4; cursor: default; }
-      .ast-panel .ast-bar-button.on { color: var(--ast-accent); border-color: var(--ast-accent); }
+      .ast-panel .ast-mode { min-width: 5.6rem; justify-content: center; }
+      .ast-panel .ast-mode svg { margin: 0 0 0 -0.1rem; }
+      .ast-panel .ast-bar-icon {
+        display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; cursor: pointer;
+        background: transparent; border: 1px solid var(--ast-border); color: var(--ast-strong);
+      }
+      .ast-panel .ast-bar-icon svg { width: 18px; height: 18px; }
+      .ast-panel .ast-bar-icon:hover, .ast-panel .ast-bar-icon[aria-expanded="true"] { background: var(--ast-surface); }
+      .ast-panel .ast-bar-end { margin-left: auto; display: flex; align-items: center; gap: 0.45rem; }
+      .ast-panel .ast-settings { width: 220px; }
+      .ast-panel .ast-budget { display: flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.5rem 0.4rem; }
+      .ast-panel .ast-budget-input {
+        flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.25rem; height: 28px; padding: 0 0.45rem;
+        background: var(--ast-surface); border: 1px solid var(--ast-border); font-variant-numeric: tabular-nums;
+      }
+      .ast-panel .ast-budget-input:focus-within { border-color: var(--ast-strong); }
+      .ast-panel .ast-budget-input input {
+        flex: 1; min-width: 0; width: 100%; background: transparent; border: none; outline: none; color: var(--ast-text);
+        font: inherit; font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield;
+      }
+      .ast-panel .ast-budget-input input::-webkit-outer-spin-button, .ast-panel .ast-budget-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+      .ast-panel .ast-budget-input input::placeholder { color: var(--ast-faint); }
+      .ast-panel .ast-budget-set {
+        height: 28px; padding: 0 0.7rem; cursor: pointer; font-size: 0.78rem; font-weight: 500;
+        background: var(--ast-text); color: var(--ast-bg) !important; border: none;
+      }
+      .ast-panel .ast-budget-set:disabled { opacity: 0.35; cursor: default; }
+      .ast-panel .ast-menu-foot.ast-warn { color: var(--ast-warn); }
       .ast-panel .ast-rename {
         flex: 1; min-width: 0; padding: 0.3rem 0.45rem; background: var(--ast-surface); color: var(--ast-text);
         border: 1px solid var(--ast-border); font: inherit; outline: none;
@@ -160,6 +187,9 @@ export function AssistantStyles() {
       .ast-panel .ast-approval-notice { padding: 0.45rem 0.7rem; font-size: 0.75rem; color: var(--ast-warn); border-bottom: 1px solid var(--ast-border); }
       .ast-panel .ast-approval-run { padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--ast-border); display: flex; flex-direction: column; gap: 0.35rem; }
       .ast-panel .ast-approval-run--off { opacity: 0.5; }
+      .ast-panel .ast-approval-run--call { padding: 0.45rem 0.7rem; }
+      .ast-panel .ast-approval-call { min-width: 0; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .ast-panel .ast-approval-price.ast-approval-free { font-weight: 400; color: var(--ast-soft); font-size: 0.8rem; }
       .ast-panel .ast-approval-head { display: flex; align-items: baseline; gap: 0.5rem; }
       .ast-panel .ast-approval-title { flex: 1; min-width: 0; font-weight: 600; display: flex; align-items: center; gap: 0.4rem; }
       .ast-panel .ast-approval-title input { accent-color: var(--ast-accent); margin: 0; }
@@ -237,7 +267,7 @@ export function AssistantStyles() {
         display: flex; align-items: center; gap: 0.55rem; padding: 0.35rem 0.4rem; border-top: 1px solid var(--ast-border); cursor: default;
       }
       .ast-panel .ast-send {
-        margin-left: auto; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex-shrink: 0;
+        display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex-shrink: 0;
         background: var(--ast-strong); color: var(--ast-bg) !important; border: none; cursor: pointer;
       }
       .ast-panel .ast-send svg { width: 18px; height: 18px; stroke-width: 2.5; }
