@@ -9,6 +9,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { apiClient } from '../api/axios'
 import { supabase } from '../lib/supabase'
+import { APP_PAGES, landingPath } from '../lib/appPages'
 import {
   Eye,
   EyeOff,
@@ -377,15 +378,9 @@ export default function SettingsPage() {
             <div>
               <label className="block text-base text-white mb-2">Default Landing Page</label>
               <Dropdown
-                value={settings?.ui.default_page ?? '/'}
+                value={landingPath(settings)}
                 onChange={(v) => handleUISetting('default_page', v)}
-                options={[
-                  { value: '/', label: 'Generate' },
-                  { value: '/training', label: 'Custom Models' },
-                  { value: '/patching', label: 'Activation Patching' },
-                  { value: '/analysis', label: 'Attention Analysis' },
-                  { value: '/sae', label: 'SAE Analysis' },
-                ]}
+                options={APP_PAGES.map((p) => ({ value: p.path, label: p.label }))}
               />
             </div>
           </div>

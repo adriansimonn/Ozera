@@ -25,6 +25,7 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  initialized: boolean; // initialize() has finished: the session (and so the user) is known
 
   // Actions
   initialize: () => Promise<void>;
@@ -39,6 +40,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   isAuthenticated: false,
   isLoading: false,
+  initialized: false,
 
   // Called once on app mount — hydrates user from existing Supabase session
   initialize: async () => {
@@ -53,13 +55,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     } catch (error) {
       console.error('Failed to initialize auth:', error);
     } finally {
-      set({ isLoading: false });
+      set({ isLoading: false, initialized: true });
     }
 
     // Keep store in sync when Supabase session changes (token refresh, sign-out in another tab, etc.)
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         set({ user: null, isAuthenticated: false });
+        useSettingsStore.getState().clear();
         return;
       }
 
@@ -84,7 +87,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // Fetch local user record from our backend
       const response = await apiClient.get('/auth/me');
       set({ user: response.data, isAuthenticated: true, isLoading: false });
-      useSettingsStore.getState().fetchSettings();
+      await useSettingsStore.getState().fetchSettings(); // the landing page comes from them
     } catch (error: any) {
       set({ isLoading: false });
       throw new Error(error.message || 'Login failed. Please check your credentials.');

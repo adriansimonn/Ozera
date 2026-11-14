@@ -16,6 +16,7 @@ import { PurchaseCreditsProvider } from './contexts/PurchaseCreditsContext'
 import { AssistantHost } from './components/assistant/AssistantPanel'
 import { useAuthStore } from './stores/authStore'
 import { useTheme } from './hooks/useTheme'
+import { useLandingRedirect } from './hooks/useLandingRedirect'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,6 +33,7 @@ function AppShell() {
   const { background } = useTheme()
   const location = useLocation()
   const isAuthPage = location.pathname === '/auth'
+  const landingPending = useLandingRedirect()
 
   const handleShowPurchaseCredits = useCallback(() => setShowPurchaseCredits(true), [])
 
@@ -45,7 +47,7 @@ function AppShell() {
     <div className="min-h-screen bg-black" data-bg={isAuthPage ? undefined : background}>
       <main className="content-container">
             <Routes>
-              <Route path="/" element={<UnifiedPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
+              <Route path="/" element={landingPending ? null : <UnifiedPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/training" element={<TrainingPage />} />
               <Route path="/patching" element={<PatchingPlayground onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/analysis" element={<AnalysisPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />

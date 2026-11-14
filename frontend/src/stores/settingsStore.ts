@@ -4,6 +4,7 @@
  */
 import { create } from 'zustand';
 import { apiClient } from '../api/axios';
+import { cacheLandingPath, landingPath } from '../lib/appPages';
 
 export interface UserSettings {
   credits: {
@@ -80,3 +81,8 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     set({ settings: null });
   },
 }));
+
+// Remember the landing page in this browser, so a fresh visit to "/" can go there at once
+useSettingsStore.subscribe((state, prev) => {
+  if (state.settings !== prev.settings) cacheLandingPath(state.settings ? landingPath(state.settings) : null);
+});

@@ -3,15 +3,17 @@
  */
 
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Cpu, Sparkles, Zap, Search, Layers, Microscope, Shapes } from 'lucide-react'
 import { UserMenu } from './UserMenu'
 import { AssistantButton } from '../assistant/AssistantPanel'
 import { useAuthStore } from '../../stores/authStore'
+import { useSettingsStore } from '../../stores/settingsStore'
+import { APP_PAGES, landingPath } from '../../lib/appPages'
 
 export function NavBar() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const landing = useSettingsStore((s) => landingPath(s.settings))
 
   const isActive = (path: string) => location.pathname === path
 
@@ -19,60 +21,17 @@ export function NavBar() {
     <nav className="navbar">
       <div className="navbar-content">
         <div className="navbar-left">
-          <Link to="/" className="navbar-logo">
+          <Link to={landing} className="navbar-logo">
             <img src="/LogoTransparentWhiteText.png" alt="Ozera" />
           </Link>
 
           <div className="navbar-links">
-            <Link
-              to="/"
-              className={`nav-link ${isActive('/') ? 'active' : ''}`}
-            >
-              <Sparkles className="nav-icon" />
-              Generate
-            </Link>
-            <Link
-              to="/training"
-              className={`nav-link ${isActive('/training') ? 'active' : ''}`}
-            >
-              <Cpu className="nav-icon" />
-              Custom Models
-            </Link>
-            <Link
-              to="/patching"
-              className={`nav-link ${isActive('/patching') ? 'active' : ''}`}
-            >
-              <Zap className="nav-icon" />
-              Activation Patching
-            </Link>
-            <Link
-              to="/analysis"
-              className={`nav-link ${isActive('/analysis') ? 'active' : ''}`}
-            >
-              <Search className="nav-icon" />
-              Attention Analysis
-            </Link>
-            <Link
-              to="/sae"
-              className={`nav-link ${isActive('/sae') ? 'active' : ''}`}
-            >
-              <Layers className="nav-icon" />
-              SAE Analysis
-            </Link>
-            <Link
-              to="/probes"
-              className={`nav-link ${isActive('/probes') ? 'active' : ''}`}
-            >
-              <Microscope className="nav-icon" />
-              Probe Lab
-            </Link>
-            <Link
-              to="/geometry"
-              className={`nav-link ${isActive('/geometry') ? 'active' : ''}`}
-            >
-              <Shapes className="nav-icon" />
-              Geometry Lab
-            </Link>
+            {APP_PAGES.map(({ path, label, icon: Icon }) => (
+              <Link key={path} to={path} className={`nav-link ${isActive(path) ? 'active' : ''}`}>
+                <Icon className="nav-icon" />
+                {label}
+              </Link>
+            ))}
           </div>
         </div>
 

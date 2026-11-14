@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import authVideo from '../assets/videos/AuthAnimation.mp4'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
+import { useSettingsStore } from '../stores/settingsStore'
+import { landingPath } from '../lib/appPages'
 
 type AuthMode = 'login' | 'signup'
 
@@ -12,6 +14,7 @@ const INFLUENCE_RADIUS = 160
 
 export default function AuthPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { login, signup, isLoading } = useAuthStore()
   const [mode, setMode] = useState<AuthMode>('login')
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -72,6 +75,12 @@ export default function AuthPage() {
     setCheckEmail(false)
   }
 
+  // Back to the page that sent the user here; opened directly, to their landing page
+  const leave = () => {
+    if (location.key === 'default') navigate(landingPath(useSettingsStore.getState().settings), { replace: true })
+    else navigate(-1)
+  }
+
   const switchMode = (newMode: AuthMode) => {
     resetForm()
     setMode(newMode)
@@ -82,7 +91,7 @@ export default function AuthPage() {
     setError(null)
     try {
       await login(email, password)
-      navigate(-1)
+      leave()
     } catch (err: any) {
       setError(err.message)
     }
@@ -101,7 +110,7 @@ export default function AuthPage() {
     }
     try {
       await signup(email, password, fullName || undefined)
-      navigate(-1)
+      leave()
     } catch (err: any) {
       if (err.message === 'CHECK_EMAIL') {
         setCheckEmail(true)
