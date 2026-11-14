@@ -827,6 +827,18 @@ code {
   font-size: 0.9em;
 }
 
+/* Text selection highlight: white on black (dark), black on white (light) */
+::selection {
+  background: #ffffff;
+  color: #000000;
+  text-shadow: none;
+}
+
+[data-bg="light"] ::selection {
+  background: #000000;
+  color: #ffffff;
+}
+
 /* Prevent text selection on UI elements */
 .no-select {
   -webkit-user-select: none;
