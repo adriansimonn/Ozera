@@ -17,6 +17,8 @@ import { Dropdown } from '../common/Dropdown'
 import { ChartTooltip, Findings, Placeholder, RunBar, Segmented, StatTiles, type Finding, type Tile, type TooltipRow } from '../lab/chartKit'
 import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { READ_LABELS, downloadSvg, formatPercent, formatValue, layerName, linePath, sequentialColor, valueColors } from './geometryUtils'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { steerPart } from '../assistant/pages/geometry'
 
 const METHODS: { id: SteerMethodId; label: string; title: string }[] = [
   { id: 'manifold', label: 'Manifold', title: "Sets the activation's coordinates in the subspace to the spline's point and leaves the rest alone" },
@@ -226,6 +228,15 @@ function SteerBody({ lab, run, result, onResult }: { lab: GeometryLab; run: Geom
   const [error, setError] = useState<string | null>(null)
   const position = lab.position
 
+  // The assistant fills the walk, reads the result, and opens this run's steer_geometry results here
+  useAssistantPage(
+    'geometry',
+    steerPart({
+      runId: run.run_id ?? null, values, source, setSource, target, setTarget, steps, setSteps, dims, setDims,
+      evalTemplate, setEvalTemplate, estimate: estimate?.estimated_cost ?? null, result, onResult,
+    }),
+  )
+
   const templateOk = evalTemplate.split('{x}').length === 2 && evalTemplate.replace('{x}', '').trim().length > 0
   const problem = !evalTemplate.trim()
     ? 'Write an eval prompt'
@@ -308,13 +319,13 @@ function SteerBody({ lab, run, result, onResult }: { lab: GeometryLab; run: Geom
               aria-valuetext={layerName(position)}
             />
           </div>
-          <div>
+          <div data-assist="geometry.steer_dims">
             <div className="pl-control-label" title="The class means' top components the manifold lives in">
               Dims
             </div>
             <Segmented ariaLabel="Subspace size" value={String(dims)} onChange={(v) => setDims(Number(v))} options={options.map((m) => ({ value: String(m), label: String(m) }))} />
           </div>
-          <div>
+          <div data-assist="geometry.steer_steps">
             <div className="pl-control-label" title="Steps of the walk; each method edits the prompt at steps + 1 points">
               Steps
             </div>
@@ -326,13 +337,17 @@ function SteerBody({ lab, run, result, onResult }: { lab: GeometryLab; run: Geom
             <div className="pl-control-label" title="The value filled into the eval prompt, where the walk starts">
               From
             </div>
-            <Dropdown value={String(source)} onChange={(v) => setSource(Number(v))} options={valueOptions} />
+            <div data-assist="geometry.steer_source">
+              <Dropdown value={String(source)} onChange={(v) => setSource(Number(v))} options={valueOptions} />
+            </div>
           </div>
           <div className="gl-value-pick">
             <div className="pl-control-label" title={run.concept.structure === 'cyclic' ? 'Where the walk ends, the shorter way round' : 'Where the walk ends'}>
               To
             </div>
-            <Dropdown value={String(target)} onChange={(v) => setTarget(Number(v))} options={valueOptions} />
+            <div data-assist="geometry.steer_target">
+              <Dropdown value={String(target)} onChange={(v) => setTarget(Number(v))} options={valueOptions} />
+            </div>
           </div>
           <div className="gl-eval">
             <div className="pl-control-label" title="Ends where the model would say a value; {x} is the source value. The readout is the next token.">
@@ -340,6 +355,7 @@ function SteerBody({ lab, run, result, onResult }: { lab: GeometryLab; run: Geom
             </div>
             <input
               className="pl-input"
+              data-assist="geometry.steer_template"
               value={evalTemplate}
               onChange={(e) => setEvalTemplate(e.target.value)}
               placeholder="Today is {x}. Tomorrow is"
@@ -371,6 +387,7 @@ function SteerBody({ lab, run, result, onResult }: { lab: GeometryLab; run: Geom
           running={running}
           disabled={!lab.isAuthenticated || problem != null || (estimate != null && !estimate.within_limit)}
           onRun={steer}
+          assist="geometry.steer_button"
         />
         {error && <div className="pl-error-note">{error}</div>}
       </section>

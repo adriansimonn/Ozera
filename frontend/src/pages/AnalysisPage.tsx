@@ -100,7 +100,7 @@ export default function AnalysisPage({
     }
   }, [])
 
-  // The assistant: what's on screen, set_inputs, and a classify_heads run's result
+  // The assistant: what's on screen, set_inputs, and its classify, compare and mine runs' results
   useAssistantPage('analysis', analysisBridge({
     mode,
     setMode,
@@ -124,7 +124,9 @@ export default function AnalysisPage({
     classification: classificationResult,
     setClassification: setClassificationResult,
     comparison: comparisonResult,
+    setComparison: setComparisonResult,
     mining: miningResult,
+    setMining: setMiningResult,
   }))
 
   // Filter activations by selected model

@@ -15,6 +15,8 @@ import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { FeatureLink } from '../lab/FeatureLink'
 import { formatWidth, refKey } from '../lab/saeLinks'
 import { estimateText, formatMetric, formatPercent, formatScore } from './probeUtils'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { saePart } from '../assistant/pages/probes'
 
 type FeatureOrder = 'contribution' | 'cosine'
 
@@ -338,6 +340,12 @@ export function SaePanel({ probe, lab, onShowPurchaseCredits }: { probe: CausalP
   const atLayer = (saes ?? []).filter((s) => s.layer === probe.layer)
   const usable = atLayer.filter((s) => !s.unusable_reason)
   const sae = usable.find((s) => refKey(s.ref) === choice) ?? usable[0] ?? null
+
+  // The assistant picks the SAE, reads the result, and opens a compare_probe_sae run's result here
+  useAssistantPage(
+    'probes',
+    saePart({ probeKey: probe.key, sae: sae ? refKey(sae.ref) : choice || null, setChoice, estimate: estimate?.estimated_cost ?? null, result, setResult }),
+  )
   const otherLayers = [...new Set((saes ?? []).filter((s) => !s.unusable_reason).map((s) => s.layer))].filter((l) => l !== probe.layer)
   const stats = lab.stats
   const instruct = lab.models.find((m) => m.model_id === probe.model)?.is_instruct ?? false
@@ -412,7 +420,9 @@ export function SaePanel({ probe, lab, onShowPurchaseCredits }: { probe: CausalP
       ) : (
         <>
           <div className="pl-control-label">SAE</div>
-          <Dropdown value={sae ? refKey(sae.ref) : ''} onChange={setChoice} options={options} placeholder="Choose an SAE" disabled={running} />
+          <div data-assist="probes.sae">
+            <Dropdown value={sae ? refKey(sae.ref) : ''} onChange={setChoice} options={options} placeholder="Choose an SAE" disabled={running} />
+          </div>
           <div className="pl-note" style={{ marginTop: '0.6rem' }}>
             Dataset: {stats ? `${stats.name} · ${stats.numRows} examples${stats.ood ? ` + ${stats.ood.rows} OOD` : ''}` : 'none chosen'}
           </div>
@@ -424,6 +434,7 @@ export function SaePanel({ probe, lab, onShowPurchaseCredits }: { probe: CausalP
             running={running}
             disabled={!sae || !stats || chatMismatch || (estimate != null && !estimate.within_limit)}
             onRun={run}
+            assist="probes.sae_button"
           />
         </>
       )}

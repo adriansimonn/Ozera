@@ -94,7 +94,7 @@ export default function DefaultAnalysisPage({
     }
   }, [])
 
-  // The assistant: what's on screen, set_inputs, and a classify_heads run's result
+  // The assistant: what's on screen, set_inputs, and its classify, compare and mine runs' results
   useAssistantPage('analysis', analysisBridge({
     mode,
     setMode,
@@ -118,7 +118,9 @@ export default function DefaultAnalysisPage({
     classification: classificationResult,
     setClassification: setClassificationResult,
     comparison: comparisonResult,
+    setComparison: setComparisonResult,
     mining: miningResult,
+    setMining: setMiningResult,
   }))
 
   const filteredActivations = capturedActivations.filter(

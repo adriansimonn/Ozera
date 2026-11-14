@@ -176,6 +176,9 @@ class GeometryRunResponse(BaseModel):
     shapes: Optional[ShapeTests] = Field(..., description="None when no hypothesis applies (categorical without groups)")
     total_tokens: int
     cost: float
+    run_id: Optional[str] = Field(
+        default=None, description="The run's ID while the server keeps it (a few hours), to compare, steer or read an SAE by"
+    )
 
 
 # Compare

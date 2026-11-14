@@ -83,7 +83,7 @@ export function GeometryRunSettings({ lab }: { lab: GeometryLab }) {
       </button>
 
       {lab.runs.length > 0 && (
-        <div className="gl-runs">
+        <div className="gl-runs" data-assist="geometry.run">
           <div className="pl-control-label">Runs</div>
           {lab.runs.map((r) => {
             const active = r.id === lab.runId

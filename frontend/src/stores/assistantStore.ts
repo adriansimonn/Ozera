@@ -5,9 +5,12 @@
  * Pages register a bridge while mounted (hooks/useAssistantPage): a snapshot of what's on screen
  * (sent with every message), an apply function for set_inputs, and a load function that opens a
  * run's result. A page can register in parts (the Generate page's generator and its
- * visualizations); their snapshots merge. Actions and results for a page that isn't mounted yet
- * wait here until it registers. The latest runs' results are kept (in memory only) so their
- * chips can open them again.
+ * visualizations, a lab's views); their snapshots merge. A part names the controls it fills and
+ * the tools whose results it opens; every part sees every field and result (a lab switches to
+ * the view a field is for), and fields or results no mounted part takes (or that the part
+ * refuses, returning false: say a result for another run) wait here until one registers that
+ * does, for a while. The latest runs' results are kept (in memory only) so their chips can open
+ * them again.
  */
 
 import { create } from 'zustand'
@@ -34,9 +37,23 @@ export type Snapshot = Record<string, unknown>
 
 export interface PageBridge {
   page: string
+  /** The controls it fills (all of them when unset) */
+  controls?: readonly string[]
+  /** The tools whose results it opens (all of them when unset) */
+  tools?: readonly string[]
   snapshot: () => Snapshot
-  apply: (fields: Record<string, FieldValue>) => void
-  load: (tool: string, data: unknown) => void
+  /** false: not for it now (they wait for another part) */
+  apply: (fields: Record<string, FieldValue>) => boolean | void
+  load: (tool: string, data: unknown) => boolean | void
+}
+
+// How long fields and results wait for the page or part that takes them
+const WAIT_MS = 10 * 60_000
+
+type Waiting<T> = T & { at: number }
+
+function owns(list: readonly string[] | undefined, name: string): boolean {
+  return !list || list.includes(name)
 }
 
 /** A streamed turn's part: text keeps the API call it came in (a declined call's text is dropped). */
@@ -103,9 +120,10 @@ function draftText(parts: DraftPart[]): string {
     .join('\n\n')
 }
 
-/** Scroll to a control and make it pulse. */
+/** Scroll to a control and make it pulse (the one on screen: hidden views stay mounted). */
 function pulse(page: string, control: string): boolean {
-  const element = document.querySelector(`[data-assist="${page}.${control}"]`)
+  const matches = Array.from(document.querySelectorAll(`[data-assist="${page}.${control}"]`))
+  const element = matches.find((e) => e instanceof HTMLElement && e.offsetParent !== null) ?? matches[0]
   if (!(element instanceof HTMLElement)) return false
   element.scrollIntoView({ behavior: 'smooth', block: 'center' })
   element.classList.remove('ast-pulse')
@@ -127,9 +145,10 @@ interface AssistantState {
   sending: string | null
   error: string | null
   bridges: PageBridge[]
-  pending: UiAction[]
-  /** Run results waiting for their page to mount */
-  queued: RunResult[]
+  /** UI actions (or a set_inputs' fields) waiting for their page or part to mount */
+  pending: Waiting<UiAction>[]
+  /** Run results waiting for their page or part to mount */
+  queued: Waiting<RunResult>[]
   /** The latest runs' results, by tool call ID */
   results: Record<string, RunResult>
   /** Set when Allow found a price had gone up (the card shows the new one) or the runs over the budget */
@@ -335,14 +354,19 @@ export const useAssistantStore = create<AssistantState>()((set, get) => ({
 
   register: (bridge) => {
     set((s) => ({ bridges: [...s.bridges, bridge] }))
-    // Actions and results waiting for this page, applied once it has mounted
+    // Actions and results waiting for this page (or a part of it), offered again once it has mounted
     window.setTimeout(() => {
-      const waiting = get().pending.filter((a) => a.page === bridge.page)
-      const results = get().queued.filter((r) => r.page === bridge.page)
-      if (!waiting.length && !results.length) return
-      set((s) => ({ pending: s.pending.filter((a) => a.page !== bridge.page), queued: s.queued.filter((r) => r.page !== bridge.page) }))
-      waiting.forEach((a) => get().applyAction(a))
-      results.forEach((r) => deliver(get().bridges.filter((b) => b.page === r.page), r))
+      const fresh = Date.now() - WAIT_MS
+      const waiting = get().pending.filter((a) => a.page === bridge.page && a.at > fresh)
+      const results = get().queued.filter((r) => r.page === bridge.page && r.at > fresh)
+      set((s) => ({
+        pending: s.pending.filter((a) => a.page !== bridge.page && a.at > fresh),
+        queued: s.queued.filter((r) => r.page !== bridge.page && r.at > fresh),
+      }))
+      waiting.forEach(({ at: _, ...a }) => get().applyAction(a as UiAction))
+      results.forEach(({ at: _, ...r }) => {
+        if (!deliver(get().bridges.filter((b) => b.page === r.page), r)) set((s) => ({ queued: [...s.queued, { ...r, at: Date.now() }] }))
+      })
     }, 0)
     return () => set((s) => ({ bridges: s.bridges.filter((b) => b !== bridge) }))
   },
@@ -354,17 +378,23 @@ export const useAssistantStore = create<AssistantState>()((set, get) => ({
     }
     const bridges = get().bridges.filter((b) => b.page === action.page)
     if (!bridges.length) {
-      set((s) => ({ pending: [...s.pending, action] }))
+      set((s) => ({ pending: [...s.pending, { ...action, at: Date.now() }] }))
       return
     }
     if (action.type === 'set_inputs') {
+      // Every part sees every field; a field no part took waits for one that does
+      const taken = new Set<string>()
       bridges.forEach((b) => {
+        let took: boolean | void = undefined
         try {
-          b.apply(action.fields)
+          took = b.apply(action.fields)
         } catch (err) {
           console.error('Assistant set_inputs failed:', err)
         }
+        if (took !== false) Object.keys(action.fields).forEach((name) => owns(b.controls, name) && taken.add(name))
       })
+      const left = Object.entries(action.fields).filter(([name]) => !taken.has(name))
+      if (left.length) set((s) => ({ pending: [...s.pending, { ...action, fields: Object.fromEntries(left), at: Date.now() }] }))
     } else if (action.type === 'highlight') {
       // After any inputs set in the same reply have rendered
       window.setTimeout(() => pulse(action.page, action.control), 150)
@@ -383,19 +413,24 @@ export const useAssistantStore = create<AssistantState>()((set, get) => ({
     const bridges = get().bridges.filter((b) => b.page === result.page)
     if (result.route) get().navigator?.(result.route)
     else if (!bridges.length) get().navigator?.(PAGE_ROUTES[result.page]?.route ?? '/')
-    if (bridges.length) deliver(bridges, result)
-    else set((s) => ({ queued: [...s.queued.filter((r) => r.id !== result.id), result] }))
+    if (bridges.length && deliver(bridges, result)) return
+    set((s) => ({ queued: [...s.queued.filter((r) => r.id !== result.id), { ...result, at: Date.now() }] }))
   },
 }))
 
-function deliver(bridges: PageBridge[], result: RunResult) {
+/** A result offered to a page's parts: whether a part that opens its tool took it. */
+function deliver(bridges: PageBridge[], result: RunResult): boolean {
+  let taken = false
   bridges.forEach((b) => {
+    let took: boolean | void = undefined
     try {
-      b.load(result.tool, result.data)
+      took = b.load(result.tool, result.data)
     } catch (err) {
       console.error('Assistant result failed to open:', err)
     }
+    if (took !== false && owns(b.tools, result.tool)) taken = true
   })
+  return taken
 }
 
 function newDraft(resumed: boolean): Draft {

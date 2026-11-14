@@ -131,12 +131,12 @@ export function ProbeCausal({
     <div className="pl-causal">
       <section className="pl-panel">
         <div className="pl-causal-pick">
-          <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+          <div style={{ flex: '1 1 320px', minWidth: 0 }} data-assist="probes.probe">
             <div className="pl-control-label">Probe</div>
             <Dropdown value={probe ? lab.causalSource : ''} onChange={lab.setCausalSource} options={options} placeholder="Choose a probe" />
           </div>
           {lab.causalSource === 'sweep' && sweepAvailable && (
-            <div>
+            <div data-assist="probes.direction">
               <div className="pl-control-label">Direction</div>
               <Segmented
                 ariaLabel="Direction"

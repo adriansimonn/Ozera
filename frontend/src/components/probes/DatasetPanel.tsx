@@ -75,14 +75,14 @@ function ParsedSummary({
   return (
     <div className="pl-parsed" style={{ borderColor: colors.border, background: colors.panel }}>
       <div className="pl-parsed-head">
-        <span className="pl-parsed-name" title={parsed.filename}>
+        <span className="pl-parsed-name" title={parsed.filename} data-assist="probes.dataset_name">
           {parsed.filename}
         </span>
         <button type="button" className="pl-icon-button" onClick={onClear} disabled={disabled} aria-label="Remove file" style={{ color: colors.text }}>
           <X className="pl-icon" />
         </button>
       </div>
-      <div className="pl-parsed-counts">
+      <div className="pl-parsed-counts" data-assist="probes.label_names">
         <span>
           <span className="pl-legend-dot" style={{ background: colors.classes[0] }} /> {parsed.label_names[0]}:{' '}
           {parsed.rows.length - positives}
@@ -216,7 +216,7 @@ export function DatasetPanel({ lab, disabled }: { lab: ProbeLab; disabled?: bool
           ))}
         </div>
       ) : (
-        <div className="pl-upload">
+        <div className="pl-upload" data-assist="probes.rows">
           <div className="pl-hint" style={{ margin: '0.75rem 0 0.5rem' }}>
             CSV, TSV or JSONL with <code>text</code> and <code>label</code> columns (<code>group</code> optional)
           </div>

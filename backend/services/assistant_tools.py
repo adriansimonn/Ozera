@@ -449,165 +449,88 @@ async def get_balance(db: Session, user: User, ctx: ToolContext, args: dict) -> 
 
 
 async def estimate(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
+    """A run's quote, as its approval card would show it, for the run's own input (nothing runs)."""
+    import json
+
+    from core.assistant.tools import RUN, check_input, tool
+    from services import assistant_runs
+
     action = args.get("action", "")
-    handler = ESTIMATES.get(action)
-    if handler is None:
-        return ToolOutcome({"error": f"Unknown action {action}"}, error=True)
-    result = await handler(db, user, args)
-    return ToolOutcome({"action": action, **result}, chip=f"Estimate · {action.replace('_', ' ')}")
+    spec = tool(action)
+    chip = f"Estimate · {action.replace('_', ' ')}"
+    if spec is None or spec.kind != RUN:
+        return ToolOutcome({"error": f"{action} isn't a run tool"}, error=True, chip=chip)
+    try:
+        run_args = json.loads(args.get("input") or "{}")
+    except ValueError:
+        return ToolOutcome({"error": "input is the run tool's input as a JSON object"}, error=True, chip=chip)
+    problem = check_input(spec, run_args)
+    if problem:
+        return ToolOutcome({"error": problem.replace("the input", "input", 1)}, error=True, chip=chip)
+    quoted = await assistant_runs.quote(action, ctx, run_args)
+    if isinstance(quoted, ToolOutcome):
+        quoted.chip = chip
+        return quoted
+    out = {"action": action, "title": quoted.title, "estimate_usd": round(quoted.estimate, 4),
+           "details": {label: value for label, value in quoted.details}, "note": quoted.note}
+    if quoted.hold is not None and quoted.hold > quoted.estimate:
+        out["hold_usd"] = round(quoted.hold, 4)
+    return ToolOutcome(out, chip=chip)
 
 
-# Estimates, by action: the same functions the pages' estimates call
+async def compare_geometry(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
+    """Two kept Geometry Lab runs compared as the Compare view compares them (free, on the CPU)."""
+    import torch
 
-async def _estimate_generate(db: Session, user: User, args: dict) -> dict:
-    from core.open_source import OPEN_SOURCE_MODELS
-    from services.credit_service import calculate_inference_cost
-    from services.custom_models import resolve_model
+    from api.geometry import compare_coords
+    from core.tensor_codec import to_float32
+    from services import lab_runs
 
-    model, text = args.get("model", ""), args.get("text", "")
-    resolve_model(db, user.id, model)
-    max_tokens = int(args.get("count") or 100)
-    if model in OPEN_SOURCE_MODELS:
-        prompt_tokens = max(1, len(text) // 4)
-    else:
-        from core.tokenizer import get_tokenizer
+    run_id, other_id = (args.get("run_id") or "").strip(), (args.get("other_run_id") or "").strip()
+    chip = f"Geometry · {run_id} vs {other_id}"
+    runs = {}
+    for rid in dict.fromkeys((run_id, other_id)):
+        kept = lab_runs.get(user.id, "geometry", rid)
+        if kept is None:
+            return ToolOutcome({"error": f"No kept run {rid!r}: runs are kept on the server for a few hours after they "
+                                         "run (run_geometry runs one again)"}, error=True, chip=chip)
+        runs[rid] = kept[0]
+    a, b = runs[run_id], runs[other_id]
+    values = a["concept"]["values"]
+    if values != b["concept"]["values"]:
+        return ToolOutcome({"error": "Both runs must read the same values, in the same order"}, error=True, chip=chip)
+    layer = int(args.get("layer", 0))
+    if not 0 <= layer <= a["num_layers"]:
+        return ToolOutcome({"error": f"layer is 0 to {a['num_layers']}"}, error=True, chip=chip)
+    dims = int(args.get("dims", 0))
+    if dims not in (0, 2, 3, 4, 6, 8):
+        return ToolOutcome({"error": "dims is 2, 3, 4, 6 or 8, or 0 for all"}, error=True, chip=chip)
+    means_a, means_b = to_float32(a["means"]), to_float32(b["means"])
+    result = await compare_coords(torch.from_numpy(means_a[layer].copy()), torch.from_numpy(means_b.copy()),
+                                  len(values), dims or None, None, 0)
 
-        prompt_tokens = len(get_tokenizer().encode(text)) or 1
-    cost = calculate_inference_cost(prompt_tokens, max_tokens, model_id=model)
-    return {"estimate_usd": round(cost, 4), "detail": f"{prompt_tokens} prompt + up to {max_tokens} generated tokens; settled on the tokens used"}
+    def at(values, i):
+        return _round(values[i]) if values and i < len(values) else None
 
+    best = result["position"]
+    shuffled_r2, shuffled_cka = result["shuffled_r2"], result["shuffled_cka"]
 
-async def _estimate_analyze_sae(db: Session, user: User, args: dict) -> dict:
-    from services.credit_service import MIN_SAE_CHARGE, estimate_sae_cost
+    def label(run: dict) -> str:
+        return f"{run['concept']['name']} · {run['model']} · {run['read']}"
 
-    ref, _ = _parse_sae(args.get("sae", ""))
-    model = ref["model"] if ref["kind"] == "ozera" else "external"
-    cost = estimate_sae_cost(len(args.get("text", "")), model, "analyze")
-    return {"estimate_usd": round(cost, 4), "detail": f"charged by tokens read, at least ${MIN_SAE_CHARGE:.2f}"}
-
-
-async def _estimate_explain(db: Session, user: User, args: dict) -> dict:
-    from api.autointerp import _explain_price
-
-    await _atlas(db, user, args.get("model", ""), args.get("sae", ""))
-    return {"estimate_usd": _explain_price(), "detail": "Sonnet 5.5 explains, Haiku 4.5 scores; charged its usage"}
-
-
-async def _estimate_hypothesis(db: Session, user: User, args: dict) -> dict:
-    from api.autointerp import _hypothesis_price
-
-    await _atlas(db, user, args.get("model", ""), args.get("sae", ""))
-    return {"estimate_usd": _hypothesis_price(), "detail": "Haiku 4.5 scores it; charged its usage"}
-
-
-async def _estimate_generation_test(db: Session, user: User, args: dict) -> dict:
-    from api.autointerp import _atlas_specs, _generation_test_price
-
-    _, ref = _parse_sae(args.get("sae", ""))
-    specs, _, atlas = await _atlas_specs(db, user, args.get("model", ""), ref, None)
-    if atlas is None:
-        raise HTTPException(status_code=404, detail="No atlas for this SAE yet")
-    return {"estimate_usd": _generation_test_price(atlas.model_id, specs, atlas.width), "detail": "Claude writes the texts; one GPU call reads them"}
-
-
-async def _estimate_autointerp_job(db: Session, user: User, args: dict) -> dict:
-    from core.autointerp.budget import DEFAULT_EXPLAINER, DEFAULT_SCORER, MAX_JOB_FEATURES
-    from services import autointerp, autointerp_jobs
-    from services.credit_service import estimate_autointerp_job
-
-    info, atlas = await _atlas(db, user, args.get("model", ""), args.get("sae", ""))
-    if atlas is None:
-        raise HTTPException(status_code=404, detail="No atlas for this SAE yet")
-    state, reason = autointerp.state(atlas.meta)
-    if state != "ready":
-        raise HTTPException(status_code=400, detail=reason)
-    done = autointerp_jobs.explained_with(db, atlas.directory, DEFAULT_EXPLAINER, DEFAULT_SCORER, True)
-    features = max(1, min(int(args.get("count") or 1000), MAX_JOB_FEATURES))
-    controls = len(autointerp_jobs.controls_to_run(atlas.width, done))
-    expected, hold = estimate_autointerp_job(DEFAULT_EXPLAINER, DEFAULT_SCORER, features, features, controls)
-    return {"estimate_usd": round(expected, 2), "hold_usd": round(hold, 2),
-            "detail": f"{features} features (most frequent first, already explained ones skipped) and {controls} controls, scored; through the Batch API"}
-
-
-async def _estimate_build_atlas(db: Session, user: User, args: dict) -> dict:
-    from api.geometry import estimate_atlas
-    from api.schemas.geometry import AtlasJobRequest
-
-    _, ref = _parse_sae(args.get("sae", ""))
-    tokens = int(args.get("count") or 2_000_000)
-    tokens = min((1_000_000, 2_000_000, 5_000_000), key=lambda t: abs(t - tokens))
-    result = await estimate_atlas(body=AtlasJobRequest(model=args.get("model", ""), sae=ref, tokens=tokens), current_user=user, db=db)
-    return {"estimate_usd": round(result["estimated_cost"], 2), "tokens": tokens,
-            "minutes": round(result["estimated_seconds"] / 60, 1), "within_limit": result["within_limit"]}
-
-
-async def _estimate_train_probe(db: Session, user: User, args: dict) -> dict:
-    from api.probes import estimate_run
-    from api.schemas.probes import EstimateProbesRequest
-    from core.probes.datasets import builtin_datasets, dataset_summary
-
-    dataset = builtin_datasets().get(args.get("item", ""))
-    if dataset is None:
-        raise HTTPException(status_code=404, detail="Unknown built-in dataset")
-    summary = dataset_summary(dataset)
-    ood = summary.get("ood") or {}
-    body = EstimateProbesRequest(
-        model=args.get("model", ""), num_examples=summary["num_rows"] + (ood.get("num_rows") or 0),
-        total_chars=summary["total_chars"] + (ood.get("total_chars") or 0),
-    )
-    result = await estimate_run(body=body, current_user=user, db=db)
-    return {"estimate_usd": round(result["estimated_cost"], 2), "examples": body.num_examples,
-            "seconds": round(result["estimated_seconds"]), "within_limit": result["within_limit"]}
-
-
-async def _estimate_run_geometry(db: Session, user: User, args: dict) -> dict:
-    from api.geometry import estimate_run
-    from api.schemas.geometry import ConceptSpec, EstimateGeometryRequest
-
-    body = EstimateGeometryRequest(model=args.get("model", ""), concept=ConceptSpec(builtin_id=args.get("item", "")))
-    result = await estimate_run(body=body, current_user=user, db=db)
-    return {"estimate_usd": round(result["estimated_cost"], 2), "examples": result["num_examples"],
-            "seconds": round(result["estimated_seconds"]), "within_limit": result["within_limit"]}
-
-
-async def _estimate_classify_heads(db: Session, user: User, args: dict) -> dict:
-    from services.assistant_runs import quote_classify_heads
-
-    quoted = await quote_classify_heads(db, user, ToolContext(user.id), {"model": args.get("model", ""), "prompt": args.get("text", ""), "activation_id": ""})
-    return {"estimate_usd": round(quoted.estimate, 4), "detail": quoted.note}
-
-
-async def _estimate_compare_probe_sae(db: Session, user: User, args: dict) -> dict:
-    from services.assistant_runs import quote_compare_probe_sae
-
-    quoted = await quote_compare_probe_sae(db, user, ToolContext(user.id), {"probe_id": int(args.get("count") or 0), "sae": args.get("sae", "")})
-    return {"estimate_usd": round(quoted.estimate, 4), "detail": quoted.note}
-
-
-async def _estimate_patching(db: Session, user: User, args: dict) -> dict:
-    from services.credit_service import estimate_patching_cost
-    from services.custom_models import resolve_model
-
-    model, text = args.get("model", ""), args.get("text", "")
-    resolve_model(db, user.id, model)
-    cost = estimate_patching_cost(len(text), len(text), int(args.get("count") or 20), model)
-    return {"estimate_usd": round(cost, 4), "detail": "one patch; more patches cost a little more"}
-
-
-ESTIMATES: dict[str, Callable[[Session, User, dict], Awaitable[dict]]] = {
-    "analyze_sae": _estimate_analyze_sae,
-    "autointerp_job": _estimate_autointerp_job,
-    "build_atlas": _estimate_build_atlas,
-    "classify_heads": _estimate_classify_heads,
-    "compare_probe_sae": _estimate_compare_probe_sae,
-    "explain_feature": _estimate_explain,
-    "generate": _estimate_generate,
-    "generation_test": _estimate_generation_test,
-    "run_geometry": _estimate_run_geometry,
-    "run_patching": _estimate_patching,
-    "test_hypothesis": _estimate_hypothesis,
-    "train_probe": _estimate_train_probe,
-}
+    return ToolOutcome({
+        "run": label(a), "layer": layer, "other_run": label(b), "dims": result["dims"], "shuffles": result["shuffles"],
+        "best_aligned": {"layer": best, "r2": at(result["r2"], best), "shuffled_max_r2": at(shuffled_r2["max"], best),
+                         "cka": at(result["cka"], best), "shuffled_max_cka": at(shuffled_cka["max"], best)},
+        "by_layer": [
+            {"layer": p, "r2": at(result["r2"], p), "shuffled_max_r2": at(shuffled_r2["max"], p), "cka": at(result["cka"], p)}
+            for p in range(len(result["r2"]))
+        ],
+        "note": "Layers are residual stream positions (0 the embeddings). An alignment counts only where its R² beats the "
+                "shuffled pairings' max; in many dimensions even shuffled pairings align well. Opened in the Geometry Lab's compare view",
+    }, chip=chip, result={
+        "page": "geometry", "data": {"run_id": run_id, "layer": layer, "other_run_id": other_id, "dims": dims},
+    })
 
 
 # UI tools: checked here, applied by the browser
@@ -655,6 +578,12 @@ async def set_inputs(db: Session, user: User, ctx: ToolContext, args: dict) -> T
         if problem is None and control.id == "model":
             problem = _check_model(db, user, str(value).strip())
             value = str(value).strip()
+        if problem is None and page.id == "probes" and control.id == "probe":
+            value = str(value).strip().lower()
+            if value != "sweep":
+                saved = int(value) if value.isdigit() else None
+                if saved is None or db.query(Probe).filter(Probe.id == saved, Probe.user_id == user.id).first() is None:
+                    problem = "probe is sweep or one of the user's saved probes' IDs (list_probes gives them)"
         if problem is None and control.kind == "sae":
             ref = sae_ref(str(value))
             if ref["kind"] == "external" and db.query(UserExternalSAE).filter_by(user_id=user.id, sae_id=ref["sae_id"]).first() is None:
@@ -687,6 +616,7 @@ async def highlight(db: Session, user: User, ctx: ToolContext, args: dict) -> To
 
 
 EXECUTORS: dict[str, Callable[[Session, User, ToolContext, dict], Awaitable[ToolOutcome]]] = {
+    "compare_geometry": compare_geometry,
     "estimate": estimate,
     "get_activation": get_activation,
     "get_atlas": get_atlas,

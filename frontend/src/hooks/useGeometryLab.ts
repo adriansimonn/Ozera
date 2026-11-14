@@ -228,6 +228,18 @@ export function useGeometryLab(onShowPurchaseCredits?: () => void) {
     if (result.concept.builtin_id) {
       setSource('builtin')
       setBuiltinId(result.concept.builtin_id)
+    } else {
+      // The user's own concept, in the concept panel's fields
+      const c = result.concept
+      setDraft({
+        name: c.name,
+        structure: c.structure,
+        values: c.values.map((v, i) => (c.groups ? `${v} | ${c.groups[i]}` : v)).join('\n'),
+        templates: c.templates.join('\n'),
+        evalTemplates: c.eval_templates.join('\n'),
+      })
+      setCopiedFrom(null)
+      setSource('custom')
     }
     setRead(result.read)
     setChatTemplate(result.chat_template)

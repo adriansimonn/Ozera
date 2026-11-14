@@ -3163,7 +3163,8 @@ class AssistantAPIClient {
               handlers.onUi?.(event.action)
               break
             case 'result':
-              handlers.onResult?.(event)
+              // Runs' results carry tensors in the wire format, as their pages' own responses do
+              handlers.onResult?.({ ...event, data: decodeTensorData(event.data) })
               break
             case 'approval':
               handlers.onApproval?.(event.runs ?? [])

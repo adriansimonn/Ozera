@@ -94,6 +94,7 @@ from services.credit_service import (
     check_sufficient_balance,
     min_gpu_request_charge,
 )
+from services import lab_runs
 from services.custom_models import ModelRef, list_custom_model_names, resolve_model
 from services.model_specs import BASE_MODEL_CONFIGS, ModelSpecs, model_specs
 
@@ -437,7 +438,7 @@ async def train_probes_for(db: Session, current_user: User, body: TrainProbesReq
 
     n_main = n_train + n_test
     ood_texts = run_texts[n_main:]
-    return {
+    out = {
         "model": body.model,
         "num_layers": result["num_layers"],
         "hidden_dim": result["hidden_dim"],
@@ -466,6 +467,9 @@ async def train_probes_for(db: Session, current_user: User, body: TrainProbesReq
             for i in result["pca_ood_indices"]
         ],
     }
+    # Kept for a while so the assistant can save one of its probes (services/lab_runs.py)
+    out["run_id"] = lab_runs.keep(current_user.id, "sweep", out, test_fraction=body.test_fraction)
+    return out
 
 
 # Scoring
@@ -545,6 +549,11 @@ async def score_probe(
     The probe is one of the user's saved probes (probe_id) or given inline (e.g. picked from
     a layer sweep). Charged as one GPU request (the model's per-request minimum).
     """
+    return await score_probe_for(db, current_user, body)
+
+
+async def score_probe_for(db: Session, current_user: User, body: ScoreProbeRequest) -> dict:
+    """POST /probes/score as the user (also the assistant's). Raises HTTPException as the route does."""
     model_id, probe = _resolve_probe(db, current_user.id, body.probe_id, body.probe, body.model)
     model, specs = await _probe_model(db, current_user.id, model_id, probe)
     if model_id not in OPEN_SOURCE_MODELS:
@@ -633,6 +642,11 @@ async def steer_probe(
     Charged per token like other generation (every generation and its read-back), at least a
     lone GPU request's cost.
     """
+    return await steer_probe_for(db, current_user, body)
+
+
+async def steer_probe_for(db: Session, current_user: User, body: SteerProbeRequest) -> dict:
+    """POST /probes/steer as the user (also the assistant's). Raises HTTPException as the route does."""
     model_id, probe = _resolve_probe(db, current_user.id, body.probe_id, body.probe, body.model)
     model, specs = await _probe_model(db, current_user.id, model_id, probe)
 
@@ -744,6 +758,11 @@ async def ablate_probe(
     The dataset is split like a training run with the same test fraction and seed. Charged by
     the run's size, at least the model's GPU request minimum.
     """
+    return await ablate_probe_for(db, current_user, body)
+
+
+async def ablate_probe_for(db: Session, current_user: User, body: AblateProbeRequest) -> dict:
+    """POST /probes/ablate as the user (also the assistant's). Raises HTTPException as the route does."""
     model_id, probe = _resolve_probe(db, current_user.id, body.probe_id, body.probe, body.model)
     model, specs = await _probe_model(db, current_user.id, model_id, probe)
     if not np.any(np.asarray(probe.weights)):
@@ -967,6 +986,11 @@ async def generalize_probes(
     Charged by the run's size (examples × tokens × model size × models), at least the
     model's GPU request minimum.
     """
+    return await generalize_probes_for(db, current_user, body)
+
+
+async def generalize_probes_for(db: Session, current_user: User, body: GeneralizeRequest) -> dict:
+    """POST /probes/generalize as the user (also the assistant's). Raises HTTPException as the route does."""
     model = resolve_model(db, current_user.id, body.model)
     specs = await _model_specs(db, current_user.id, body.model)
     _check_transfer(body.model, body.transfer_model)

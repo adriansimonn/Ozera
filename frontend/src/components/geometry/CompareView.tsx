@@ -15,6 +15,8 @@ import { Dropdown } from '../common/Dropdown'
 import { ChartTooltip, Findings, Placeholder, Segmented, StatTiles, type Finding } from '../lab/chartKit'
 import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { closedPath, downloadSvg, encodeWire, formatValue, layerName, linePath, positionLabel, sameValues, valueColors } from './geometryUtils'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { comparePart } from '../assistant/pages/geometry'
 
 type CompareDims = number | 'all'
 
@@ -82,6 +84,17 @@ function CompareBody({ lab, run, runId }: { lab: GeometryLab; run: GeometryRun; 
     }
   }, [run, other.run, position, m, overlayAt])
 
+  // The assistant picks the other run and dims, reads the result, and opens a compare_geometry run's here
+  useAssistantPage(
+    'geometry',
+    comparePart({
+      runId: run.run_id ?? null,
+      // Every kept run: a result's run may become the current one in the same update
+      runs: lab.runs.map((r) => ({ id: r.id, runId: r.run.run_id ?? null, label: r.label })),
+      otherId: other.id, setOtherId, dims, setDims, result,
+    }),
+  )
+
   const at = result?.position ?? 0
   const findings: Finding[] = []
   if (result) {
@@ -123,7 +136,7 @@ function CompareBody({ lab, run, runId }: { lab: GeometryLab; run: GeometryRun; 
           <strong>{layerName(position)}</strong> of {candidates.find((r) => r.id === runId)?.label} against every layer of:
         </div>
         <div className="pl-controls-row">
-          <div style={{ minWidth: 260, flex: 1, maxWidth: 480 }}>
+          <div style={{ minWidth: 260, flex: 1, maxWidth: 480 }} data-assist="geometry.compare_with">
             <div className="pl-control-label" title="Runs of the same values, in the same order">
               Compare with
             </div>
@@ -133,7 +146,7 @@ function CompareBody({ lab, run, runId }: { lab: GeometryLab; run: GeometryRun; 
             <div className="pl-control-label">This run: {layerName(position)}</div>
             <input type="range" min={0} max={run.num_layers} value={position} onChange={(e) => lab.setPosition(Number(e.target.value))} aria-label="Layer of this run" />
           </div>
-          <div>
+          <div data-assist="geometry.compare_dims">
             <div className="pl-control-label" title="Both configurations are cut to their top components before aligning">
               Dims
             </div>

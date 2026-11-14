@@ -14,6 +14,8 @@ import type { CausalProbe } from './CausalPanel'
 import { ChartTooltip, RunBar, Segmented } from '../lab/chartKit'
 import { divergingColor, inkOn, pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { formatScore } from './probeUtils'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { steerPart } from '../assistant/pages/probes'
 
 const DEFAULT_ALPHAS = '-4, -2, 2, 4'
 const MAX_ALPHAS = 6
@@ -322,6 +324,15 @@ export function SteeringPanel({
   const { alphas, error: alphaError } = useMemo(() => parseAlphas(alphaText), [alphaText])
   const canSteer = probe.classGap != null && probe.classGap > 0
 
+  // The assistant fills the inputs, reads the result, and opens a steer_probe run's result here
+  useAssistantPage(
+    'probes',
+    steerPart({
+      probeKey: probe.key, prompt, setPrompt, alphaText, setAlphaText, maxTokens, setMaxTokens, temperature, setTemperature,
+      generatedOnly, setGeneratedOnly, ablate, setAblate, estimate: estimate?.estimated_cost ?? null, result, setResult,
+    }),
+  )
+
   useEffect(() => {
     if (!isAuthenticated || alphaError) {
       setEstimate(null)
@@ -380,6 +391,7 @@ export function SteeringPanel({
         <>
           <textarea
             className="pl-textarea"
+            data-assist="probes.steer_prompt"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Prompt to continue…"
@@ -394,6 +406,7 @@ export function SteeringPanel({
               </div>
               <input
                 className="pl-input"
+                data-assist="probes.steer_alphas"
                 title={`In class gaps: α = 1 adds ${formatScore(probe.classGap ?? 0)} along the direction`}
                 value={alphaText}
                 onChange={(e) => setAlphaText(e.target.value)}
@@ -408,6 +421,7 @@ export function SteeringPanel({
                 type="number"
                 min={1}
                 max={MAX_TOKENS}
+                data-assist="probes.steer_max_tokens"
                 value={maxTokens}
                 onChange={(e) => setMaxTokens(Math.max(1, Math.min(MAX_TOKENS, Math.floor(Number(e.target.value) || 1))))}
                 style={{ width: '5.5rem', borderColor: colors.border, background: colors.panel, color: colors.text }}
@@ -421,13 +435,14 @@ export function SteeringPanel({
                 min={0}
                 max={2}
                 step={0.1}
+                data-assist="probes.steer_temperature"
                 value={temperature}
                 title="0 decodes greedily; above 0, every column samples from the same seed"
                 onChange={(e) => setTemperature(Math.max(0, Math.min(2, Number(e.target.value) || 0)))}
                 style={{ width: '5.5rem', borderColor: colors.border, background: colors.panel, color: colors.text }}
               />
             </label>
-            <div>
+            <div data-assist="probes.steer_generated_only">
               <div className="pl-control-label">Steer</div>
               <Segmented
                 ariaLabel="Positions to steer"
@@ -439,7 +454,7 @@ export function SteeringPanel({
                 ]}
               />
             </div>
-            <label className="pl-check-row" style={{ alignSelf: 'center' }}>
+            <label className="pl-check-row" style={{ alignSelf: 'center' }} data-assist="probes.steer_ablate">
               <input type="checkbox" checked={ablate} onChange={(e) => setAblate(e.target.checked)} />
               Also ablate
             </label>
@@ -457,6 +472,7 @@ export function SteeringPanel({
             running={running}
             disabled={!isAuthenticated || !prompt.trim() || alphaError != null || (alphas.length === 0 && !ablate)}
             onRun={run}
+            assist="probes.steer_button"
           />
         </>
       )}

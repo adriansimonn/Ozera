@@ -134,6 +134,8 @@ export interface GeometryRun {
   shapes: ShapeTests | null
   total_tokens: number
   cost: number
+  /** The run's ID while the server keeps it (the assistant compares, steers and reads SAEs by it) */
+  run_id?: string | null
 }
 
 export interface WireTensor {

@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.assistant.pages import PAGES, check_patches, check_value, sae_key, sae_ref  # noqa: E402
+from core.assistant.pages import PAGES, ControlNames, check_patches, check_value, control_names, sae_key, sae_ref  # noqa: E402
 from core.assistant.prompt import ROLE, render_guide, system_prompt  # noqa: E402
 from core.assistant.tools import BY_NAME, ESTIMATE_ACTIONS, MAX_STRICT_TOOLS, RUN_TOOLS, TOOLS, check_input, definitions  # noqa: E402
 
@@ -117,12 +117,12 @@ def test_check_input():
 
 def test_run_tools_can_be_priced_and_run():
     from services.assistant_runs import RUNS
-    from services.assistant_tools import ESTIMATES, EXECUTORS
+    from services.assistant_tools import EXECUTORS
 
     assert set(RUN_TOOLS) == set(RUNS), "every run tool has a quote and an executor, and nothing else does"
     assert not set(RUN_TOOLS) & set(EXECUTORS), "run tools only run through assistant_runs, after approval"
     assert {t.name for t in TOOLS if t.kind != "run"} == set(EXECUTORS)
-    assert set(ESTIMATE_ACTIONS) == set(ESTIMATES)
+    assert set(ESTIMATE_ACTIONS) == set(RUN_TOOLS), "estimate prices every run (with the run's own quote)"
 
 
 def test_patches_are_checked():
@@ -157,6 +157,24 @@ def _frontend_files() -> list[str]:
 
 
 @pytest.mark.skipif(not os.path.isdir(BRIDGES), reason="needs the frontend next to the backend")
+def test_control_ids_are_shown_as_labels():
+    assert control_names("To run it, press geometry.run_button. The estimate is $0.12.") == "To run it, press **Run**. The estimate is $0.12."
+    assert control_names("Set `probes.seed` to 0 and press **`probes.ablate_button`**") == "Set **Seed** to 0 and press **Run ablation**"
+    # The longest ID wins; links, other words and plain page names are left alone
+    assert control_names("geometry.run picks it") == "**Runs** picks it"
+    assert control_names("[Geometry Lab](ozera:page/geometry) and geometry.running") == "[Geometry Lab](ozera:page/geometry) and geometry.running"
+
+    reply = "Filled it in. Press `geometry.run_button` (**Run**), then probes.steer_button.\n\n- sae.text: done"
+    expected = control_names(reply)
+    assert "_button" not in expected and "sae.text" not in expected
+    for cut in range(len(reply) + 1):
+        for step in (1, 3):
+            names = ControlNames()
+            pieces = [reply[:cut]] + [reply[i:i + step] for i in range(cut, len(reply), step)]
+            out = "".join(names.feed(piece) for piece in pieces) + names.flush()
+            assert out == expected, (cut, step)
+
+
 def test_frontend_registers_the_same_controls():
     for page in PAGES.values():
         if not page.bridged:

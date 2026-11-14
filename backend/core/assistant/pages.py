@@ -29,7 +29,8 @@ class Control:
     id: str
     label: str
     # text, number, select, toggle, sae (an SAE key, see sae_key), patches (a JSON array of
-    # patches, see check_patches), or action (highlight only)
+    # patches, see check_patches), rows (a JSON array of labeled examples, see check_rows),
+    # labels (two names, comma-separated), or action (highlight only)
     kind: str
     note: str = ""
     options: tuple[str, ...] = ()
@@ -72,7 +73,7 @@ PAGES: dict[str, Page] = {
         Control("mode", "Generation mode", "select", "visualize captures activations; tokens is text only", ("visualize", "tokens")),
         Control("visualization", "Visualization", "select", options=("network", "attention", "activations", "journey", "flow")),
         Control("activation", "Stored generation", "text", "an activation ID; opens that generation's visualizations (free)"),
-        Control("generate_button", "Generate", "action"),
+        Control("generate_button", "Generate", "action", "reads Generate + Visualize in visualize mode"),
     )),
     "training": Page("training", "/training", "Custom Models", False),
     "patching": Page("patching", "/patching", "Activation Patching", True, (
@@ -90,7 +91,7 @@ PAGES: dict[str, Page] = {
         Control("prompt", "Capture prompt", "text"),
         Control("activation", "Captured activations", "text", "a capture's ID from the page state; selects it"),
         Control("capture_button", "Capture", "action"),
-        Control("run_button", "Run analysis", "action"),
+        Control("run_button", "Run analysis", "action", "reads Classify Heads, Compare Patterns or Mine Patterns, by mode"),
     )),
     "sae": Page("sae", "/sae", "SAE Analysis", True, (
         Control("mode", "View", "select", options=("analyze", "browse", "dashboard", "compare", "autointerp", "load")),
@@ -103,6 +104,9 @@ PAGES: dict[str, Page] = {
         Control("view", "View", "select", options=("sweep", "score", "generalize", "steer", "ablate", "sae")),
         Control("model", "Model", "text", "a model ID from list_models"),
         Control("dataset", "Dataset", "select", "a built-in dataset", _dataset_ids()),
+        Control("rows", "Your rows", "rows", "your own labeled examples instead of a built-in dataset (at least 10 per label)"),
+        Control("label_names", "Label names", "labels", "with rows: label 0's name, then label 1's"),
+        Control("dataset_name", "Dataset name", "text", "with rows"),
         Control("chat_template", "Chat template", "toggle", "instruct models only"),
         Control("test_fraction", "Test split", "select", options=("0.1", "0.2", "0.3", "0.4")),
         Control("seed", "Seed", "number", minimum=0, integer=True),
@@ -110,16 +114,56 @@ PAGES: dict[str, Page] = {
         Control("method", "Method", "select", "logistic regression or difference in means", ("logreg", "diff_means")),
         Control("layer", "Layer", "number", "the residual stream position shown (0 is the embeddings)", minimum=0, integer=True),
         Control("train_button", "Train probes", "action"),
+        Control("probe", "Probe", "text", "the score, steer, ablate and sae views' probe: sweep (the sweep's selection) or a saved probe's ID"),
+        Control("direction", "Direction", "select", "a sweep probe's direction in the steer, ablate and sae views", ("diff_means", "logreg")),
+        Control("score_text", "Text to score", "text", "score view"),
+        Control("score_button", "Score text", "action"),
+        Control("steer_prompt", "Steering prompt", "text", "steer view"),
+        Control("steer_alphas", "Strengths", "text", "steer view: comma-separated, e.g. -4, -2, 2, 4"),
+        Control("steer_max_tokens", "Max tokens", "number", "steer view", minimum=1, maximum=200, integer=True),
+        Control("steer_temperature", "Temperature", "number", "steer view", minimum=0, maximum=2),
+        Control("steer_generated_only", "Steer generated tokens only", "toggle", "steer view"),
+        Control("steer_ablate", "Also ablate", "toggle", "steer view"),
+        Control("steer_button", "Steer", "action"),
+        Control("ablate_button", "Run ablation", "action"),
+        Control("sae", "SAE", "sae", "sae view: an SAE at the probe's layer"),
+        Control("sae_button", "Compare with SAE", "action"),
+        Control("gen_datasets", "Datasets", "text", "generalize view: 2 to 6 built-in dataset IDs, comma-separated (id:ood for an OOD set)"),
+        Control("gen_transfer", "Base/instruct transfer", "toggle", "generalize view"),
+        Control("gen_pooling", "Pooling", "select", "generalize view", ("mean", "last", "max")),
+        Control("gen_test_fraction", "Test split", "select", "generalize view", ("0.2", "0.3", "0.4", "0.5")),
+        Control("gen_chat_template", "Chat template", "toggle", "generalize view"),
+        Control("gen_button", "Run matrix", "action"),
     )),
     "geometry": Page("geometry", "/geometry", "Geometry Lab", True, (
         Control("view", "View", "select", options=("shape", "layers", "similarity", "compare", "steer", "sae", "atlas")),
         Control("model", "Model", "text", "a model ID from list_models"),
+        Control("run", "Runs", "text", "a kept run's run_id from the page state"),
         Control("concept", "Concept", "select", "a built-in concept", _concept_ids()),
+        Control("concept_name", "Concept name", "text", "your own concept (setting any of these switches to it)"),
+        Control("structure", "Structure", "select", "your own concept", ("cyclic", "ordinal", "categorical")),
+        Control("values", "Values", "text", "your own concept: one per line, in order (value | group for grouped categorical ones)"),
+        Control("templates", "Templates", "text", "your own concept: one per line, each with {x} once"),
+        Control("eval_templates", "Eval prompts", "text", "your own concept, for steering: one per line, each with {x}"),
         Control("read", "Read at", "select", "the value's last token, the mean over its tokens, or the template's last token", ("value_last", "value_mean", "template_last")),
         Control("chat_template", "Chat template", "toggle", "instruct models only"),
         Control("seed", "Seed", "number", minimum=0, integer=True),
         Control("layer", "Layer", "number", "the residual stream position shown", minimum=0, integer=True),
         Control("run_button", "Run", "action"),
+        Control("compare_with", "Compare with", "text", "compare view: another kept run's run_id (or the same one for its own layers)"),
+        Control("compare_dims", "Dims", "select", "compare view", ("2", "3", "4", "6", "8", "all")),
+        Control("steer_source", "From", "text", "steer view: a value of the run's concept"),
+        Control("steer_target", "To", "text", "steer view: a value of the run's concept"),
+        Control("steer_steps", "Steps", "number", "steer view", minimum=4, maximum=32, integer=True),
+        Control("steer_dims", "Dims", "number", "steer view", minimum=1, maximum=16, integer=True),
+        Control("steer_template", "Eval prompt", "text", "steer view: with {x} once"),
+        Control("steer_button", "Steer", "action"),
+        Control("sae", "SAE", "sae", "sae view"),
+        Control("sae_button", "Read with SAE", "action"),
+        Control("atlas_sae", "SAE", "sae", "atlas view"),
+        Control("atlas_corpus", "Corpus", "select", "atlas view", ("openwebtext", "wikitext", "tinystories")),
+        Control("atlas_tokens", "Tokens", "select", "atlas view", ("1000000", "2000000", "5000000")),
+        Control("atlas_button", "Compute atlas", "action", "reads Recompute once the atlas exists"),
     )),
     "settings": Page("settings", "/settings", "Settings", False),
 }
@@ -151,6 +195,40 @@ def sae_key(ref: dict) -> str:
 def page_for_route(route: str) -> Optional[Page]:
     path = (route or "").split("?")[0].rstrip("/") or "/"
     return next((p for p in PAGES.values() if p.route == path), None)
+
+
+# Control IDs (page.control) in the assistant's text, with any code or bold marks around them:
+# the user sees each as its label instead. The prompt asks for labels; this catches the rest.
+_LABELS = {f"{p.id}.{c.id}": c.label for p in PAGES.values() for c in p.controls}
+_CONTROL_ID = re.compile(
+    r"(?:\*\*)?`?(?<![\w/:.-])("
+    + "|".join(re.escape(k) for k in sorted(_LABELS, key=len, reverse=True))
+    + r")(?![\w-])`?(?:\*\*)?"
+)
+# The end of streamed text that may be the start of a control ID
+_HELD = re.compile(r"[\w.`*]+\Z")
+
+
+def control_names(text: str) -> str:
+    """Text with the control IDs in it written as their labels (e.g. **Run**)."""
+    return _CONTROL_ID.sub(lambda m: f"**{_LABELS[m.group(1)]}**", text) if text else text
+
+
+class ControlNames:
+    """control_names for streamed text: holds back a fragment's end until the next shows what it is."""
+
+    def __init__(self):
+        self.held = ""
+
+    def feed(self, text: str) -> str:
+        text = self.held + text
+        tail = _HELD.search(text)
+        self.held = tail.group(0) if tail else ""
+        return control_names(text[: len(text) - len(self.held)])
+
+    def flush(self) -> str:
+        text, self.held = self.held, ""
+        return control_names(text)
 
 
 def check_patches(value) -> tuple[Optional[list], Optional[str]]:
@@ -195,6 +273,47 @@ def check_patches(value) -> tuple[Optional[list], Optional[str]]:
     return patches, None
 
 
+# A labeled dataset's limits (core.probes.budget)
+MIN_ROWS_PER_LABEL = 10
+MAX_ROWS = 2000
+MAX_ROW_CHARS = 2000
+
+
+def check_rows(value) -> tuple[Optional[list], Optional[str]]:
+    """Labeled examples (a list, or JSON text of one) as {text, label} dicts: (rows, None), or (None, why not)."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return None, "rows is a JSON array of {text, label}"
+    if not isinstance(value, list) or not value:
+        return None, "rows is a non-empty array of {text, label}"
+    if len(value) > MAX_ROWS:
+        return None, f"At most {MAX_ROWS} rows"
+    rows = []
+    for i, r in enumerate(value):
+        if not isinstance(r, dict) or not isinstance(r.get("text"), str) or not r["text"].strip():
+            return None, f"Row {i + 1} needs a text"
+        if len(r["text"]) > MAX_ROW_CHARS:
+            return None, f"Row {i + 1} is over {MAX_ROW_CHARS} characters"
+        if r.get("label") not in (0, 1) or isinstance(r.get("label"), bool):
+            return None, f"Row {i + 1}'s label is 0 or 1"
+        rows.append({"text": r["text"], "label": r["label"]})
+    counts = [sum(1 for r in rows if r["label"] == label) for label in (0, 1)]
+    if min(counts) < MIN_ROWS_PER_LABEL:
+        return None, f"Each label needs at least {MIN_ROWS_PER_LABEL} rows (these have {counts[0]} and {counts[1]})"
+    return rows, None
+
+
+def check_labels(value) -> tuple[Optional[list], Optional[str]]:
+    """Two label names (a list, or text with a comma between them): (names, None), or (None, why not)."""
+    names = value if isinstance(value, list) else str(value).split(",")
+    names = [str(n).strip() for n in names]
+    if len(names) != 2 or not all(names) or any(len(n) > 60 for n in names):
+        return None, "Give two label names, label 0's first"
+    return names, None
+
+
 def check_value(control: Control, value: str) -> tuple[Optional[object], Optional[str]]:
     """A value for a control, parsed and checked: (value, None), or (None, why it's refused)."""
     text = value.strip() if control.kind != "text" else value
@@ -206,6 +325,10 @@ def check_value(control: Control, value: str) -> tuple[Optional[object], Optiona
         return (text, None) if sae_ref(text) else (None, f"{control.id} takes an SAE key such as ozera:nano:3 (see list_saes)")
     if control.kind == "patches":
         return check_patches(text)
+    if control.kind == "rows":
+        return check_rows(text)
+    if control.kind == "labels":
+        return check_labels(text)
     if control.kind == "toggle":
         lowered = text.lower()
         if lowered in ("true", "on", "yes", "1"):

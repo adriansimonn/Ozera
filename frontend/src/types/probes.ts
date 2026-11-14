@@ -153,6 +153,8 @@ export interface ProbeRunResult {
   ood_examples: ProbeExample[]
   pca_examples: ProbeExample[]
   pca_ood_examples: ProbeExample[]
+  /** The sweep's ID while the server keeps it (the assistant saves its probes by it) */
+  run_id?: string | null
 }
 
 export interface InlineProbe {

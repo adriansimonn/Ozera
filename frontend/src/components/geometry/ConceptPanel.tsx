@@ -111,7 +111,9 @@ function Custom({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
         onChange={(e) => setDraft({ ...draft, name: e.target.value })}
         style={field}
         aria-label="Concept name"
+        data-assist="geometry.concept_name"
       />
+      <div data-assist="geometry.structure">
       <Segmented
         ariaLabel="Structure"
         value={draft.structure}
@@ -119,6 +121,7 @@ function Custom({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
         disabled={disabled}
         options={(['cyclic', 'ordinal', 'categorical'] as const).map((s) => ({ value: s, label: STRUCTURE_LABELS[s], title: STRUCTURE_TITLES[s] }))}
       />
+      </div>
       <div>
         <div className="pl-control-label" title="One per line, in order. Optional group after a bar: Monday | weekday">
           Values
@@ -132,6 +135,7 @@ function Custom({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
           onChange={(e) => setDraft({ ...draft, values: e.target.value })}
           style={field}
           aria-label="Values"
+          data-assist="geometry.values"
         />
       </div>
       <div>
@@ -147,6 +151,7 @@ function Custom({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
           onChange={(e) => setDraft({ ...draft, templates: e.target.value })}
           style={field}
           aria-label="Templates"
+          data-assist="geometry.templates"
         />
       </div>
       <div>
@@ -162,6 +167,7 @@ function Custom({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
           onChange={(e) => setDraft({ ...draft, evalTemplates: e.target.value })}
           style={{ ...field, minHeight: 52 }}
           aria-label="Eval prompts"
+          data-assist="geometry.eval_templates"
         />
       </div>
       <div className="pl-hint">

@@ -87,7 +87,7 @@ from db import get_db
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import limiter
 from models.database import AtlasJob, TransactionType, User, UserExternalSAE
-from services import atlas_jobs, atlas_store
+from services import atlas_jobs, atlas_store, lab_runs
 from services.credit_service import (
     InsufficientBalanceError,
     calculate_atlas_cost,
@@ -291,7 +291,7 @@ async def run_geometry_for(db: Session, current_user: User, body: GeometryRunReq
         raise HTTPException(status_code=500, detail="Geometry run failed")
 
     result = _finite(result)
-    return {
+    out = {
         "model": body.model,
         "num_layers": result["num_layers"],
         "hidden_dim": result["hidden_dim"],
@@ -315,6 +315,9 @@ async def run_geometry_for(db: Session, current_user: User, body: GeometryRunReq
         "total_tokens": result["total_tokens"],
         "cost": cost,
     }
+    # Kept for a while so the assistant can compare, steer or read an SAE by it (services/lab_runs.py)
+    out["run_id"] = lab_runs.keep(current_user.id, "geometry", out)
+    return out
 
 
 # Compare
@@ -352,14 +355,18 @@ async def compare(
         raise HTTPException(status_code=400, detail="Both runs must read the same values, in the same order")
     a = _decode(body.a.coords, 2, "a")
     b = _decode(body.b.coords, 3, "b")
-    k = len(body.a.values)
+    return await compare_coords(a, b, len(body.a.values), body.dims, body.position, body.seed)
+
+
+async def compare_coords(a: torch.Tensor, b: torch.Tensor, k: int, dims: Optional[int], position: Optional[int], seed: int) -> dict:
+    """The comparison POST /geometry/compare computes, of a [k, r] and b [positions, k, r] (also the assistant's compare_geometry)."""
     if a.shape[0] != k or b.shape[1] != k:
         raise HTTPException(status_code=400, detail="The coordinates don't have a row per value")
-    if body.position is not None and body.position >= b.shape[0]:
+    if position is not None and position >= b.shape[0]:
         raise HTTPException(status_code=400, detail=f"b has {b.shape[0]} positions")
-    dims = min(body.dims or max(a.shape[1], b.shape[2]), max(a.shape[1], b.shape[2]))
+    dims = min(dims or max(a.shape[1], b.shape[2]), max(a.shape[1], b.shape[2]))
 
-    result = await asyncio.to_thread(compare_configurations, a, b, dims, body.position, COMPARE_SHUFFLES, body.seed)
+    result = await asyncio.to_thread(compare_configurations, a, b, dims, position, COMPARE_SHUFFLES, seed)
     return {**_finite(result), "dims": dims, "shuffles": COMPARE_SHUFFLES}
 
 
@@ -454,6 +461,11 @@ async def steer(
 
     Charged by the run's size, at least the model's GPU request minimum.
     """
+    return await steer_for(db, current_user, body)
+
+
+async def steer_for(db: Session, current_user: User, body: SteerRequest) -> dict:
+    """POST /geometry/steer as the user (also the assistant's). Raises HTTPException as the route does."""
     model = resolve_model(db, current_user.id, body.model)
     _check_chat_template(body.model, body.chat_template)
     specs = await _model_specs(db, current_user.id, body.model)
@@ -584,6 +596,11 @@ async def sae_geometry(
     Charged by the run's size (examples × tokens × model size, plus the SAE), at least the
     model's GPU request minimum.
     """
+    return await sae_geometry_for(db, current_user, body)
+
+
+async def sae_geometry_for(db: Session, current_user: User, body: GeometrySaeRequest) -> dict:
+    """POST /geometry/sae as the user (also the assistant's). Raises HTTPException as the route does."""
     model = resolve_model(db, current_user.id, body.model)
     _check_chat_template(body.model, body.chat_template)
     specs = await _model_specs(db, current_user.id, body.model)

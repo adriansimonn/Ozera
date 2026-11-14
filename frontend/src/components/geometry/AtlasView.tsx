@@ -35,6 +35,8 @@ import { pointerIn, useElementWidth, useLabColors, type LabColors } from '../lab
 import { FeatureLink } from '../lab/FeatureLink'
 import { formatWidth, refKey } from '../lab/saeLinks'
 import { STRUCTURE_LABELS, downloadSvg, estimateText, formatPercent, formatValue } from './geometryUtils'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { atlasPart } from '../assistant/pages/geometry'
 
 const ShapeScene = lazy(() => import('./ShapeScene'))
 
@@ -173,6 +175,18 @@ function AtlasBody({ lab, model }: { lab: GeometryLab; model: string }) {
   const job = status?.jobs.find((j) => j.corpus === corpus) ?? null
   const active = job != null && (job.status === 'queued' || job.status === 'running') ? job : null
 
+  // The assistant picks the SAE, corpus and size, and shows a build_atlas run's job here
+  useAssistantPage(
+    'geometry',
+    atlasPart({
+      model, sae: saeKey || choice, setChoice, corpus, setCorpus, tokens, setTokens,
+      estimate: estimate?.estimated_cost ?? null,
+      built: atlas ? atlas.created_at : null,
+      job: active ? active.status : null,
+      refresh: () => setStatusKey((k) => k + 1),
+    }),
+  )
+
   useEffect(() => {
     if (!active) return
     const timer = setInterval(() => {
@@ -271,7 +285,7 @@ function AtlasBody({ lab, model }: { lab: GeometryLab; model: string }) {
         ) : (
           <>
             <div className="gl-atlas-head">
-              <div className="gl-atlas-sae">
+              <div className="gl-atlas-sae" data-assist="geometry.atlas_sae">
                 <div className="pl-control-label" title="SAEs that read this model's residual stream after a layer">
                   SAE
                 </div>
@@ -282,7 +296,7 @@ function AtlasBody({ lab, model }: { lab: GeometryLab; model: string }) {
                   disabled={submitting}
                 />
               </div>
-              <div>
+              <div data-assist="geometry.atlas_corpus">
                 <div className="pl-control-label" title="Text the model reads; its license allows showing it">
                   Corpus
                 </div>
@@ -297,7 +311,7 @@ function AtlasBody({ lab, model }: { lab: GeometryLab; model: string }) {
                   }))}
                 />
               </div>
-              <div>
+              <div data-assist="geometry.atlas_tokens">
                 <div className="pl-control-label" title="Corpus tokens to read (an SAE with many active features per token reads fewer)">
                   Tokens
                 </div>
@@ -336,6 +350,7 @@ function AtlasBody({ lab, model }: { lab: GeometryLab; model: string }) {
                 running={submitting}
                 disabled={!sae || !estimate || !estimate.within_limit || !estimate.corpus_available}
                 onRun={compute}
+                assist="geometry.atlas_button"
               />
             )}
           </>

@@ -1,7 +1,8 @@
 /**
  * The Attention Analysis page's assistant bridge, shared by its glass and default variants: the
  * mode, model and captures, the results on screen (head types, comparisons, mined patterns),
- * set_inputs, and a classify_heads run's result opening on the page.
+ * set_inputs, and classify_heads, compare_attention and mine_patterns runs' results opening on
+ * the page.
  */
 
 import type { BridgeParts } from '../../../hooks/useAssistantPage'
@@ -39,7 +40,9 @@ export interface AnalysisBridgeArgs {
   classification: ClassifyHeadsResponse | null
   setClassification: (result: ClassifyHeadsResponse) => void
   comparison: CompareAttentionResponse | null
+  setComparison: (result: CompareAttentionResponse) => void
   mining: MinePatternResponse | null
+  setMining: (result: MinePatternResponse) => void
 }
 
 function classificationSummary(r: ClassifyHeadsResponse) {
@@ -107,13 +110,28 @@ export function analysisBridge(a: AnalysisBridgeArgs): BridgeParts {
       }
     },
     load: (tool, data) => {
-      if (tool !== 'classify_heads') return
-      const { model, activation_id, result } = data as { model: string; activation_id: string; result: ClassifyHeadsResponse }
-      a.setMode('classify')
-      a.setModelOnly(model)
-      a.refreshCaptured()
-      a.setSelected(activation_id, '')
-      a.setClassification(result)
+      if (tool === 'classify_heads') {
+        const { model, activation_id, result } = data as { model: string; activation_id: string; result: ClassifyHeadsResponse }
+        a.setMode('classify')
+        a.setModelOnly(model)
+        a.refreshCaptured()
+        a.setSelected(activation_id, '')
+        a.setClassification(result)
+      } else if (tool === 'compare_attention') {
+        const { model, activation_ids, result } = data as { model: string; activation_ids: [string, string]; result: CompareAttentionResponse }
+        a.setMode('compare')
+        a.setModelOnly(model)
+        a.refreshCaptured()
+        a.setSelected(activation_ids[0], activation_ids[1])
+        a.setComparison(result)
+      } else if (tool === 'mine_patterns') {
+        const { model, activation_id, result } = data as { model: string; activation_id: string; result: MinePatternResponse }
+        a.setMode('mine')
+        a.setModelOnly(model)
+        a.refreshCaptured()
+        a.setSelected(activation_id, '')
+        a.setMining(result)
+      }
     },
   }
 }

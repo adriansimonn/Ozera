@@ -249,13 +249,16 @@ export function useProbeLab(onShowPurchaseCredits?: () => void) {
     setCausalSource('sweep')
   }
 
-  // An assistant run: its settings and result, as if the Train button had run it
-  const loadRun = (result: ProbeRunResult, fraction: number) => {
+  // An assistant run: its settings and result, as if the Train button had run it (its rows as the upload)
+  const loadRun = (result: ProbeRunResult, fraction: number, rows?: ParsedProbeDataset | null) => {
     setModelIdState(result.model)
     setChatTemplate(result.chat_template)
     if (result.dataset.builtin_id) {
       setSource('builtin')
       setBuiltinId(result.dataset.builtin_id)
+    } else if (rows) {
+      setUpload(rows)
+      setSource('upload')
     }
     setTestFraction(fraction)
     setSeed(result.seed)
@@ -319,6 +322,11 @@ export function useProbeLab(onShowPurchaseCredits?: () => void) {
     parsing,
     parseFile,
     clearUpload: () => setUpload(null),
+    /** Rows the assistant gave, as an upload */
+    setUploadRows: (rows: ParsedProbeDataset) => {
+      setUpload(rows)
+      setSource('upload')
+    },
     clearOodUpload: () => setOodUpload(null),
     swapUploadLabels: () => setUpload((current) => (current ? swapLabels(current) : current)),
     swapOodLabels: () => setOodUpload((current) => (current ? swapLabels(current) : current)),
@@ -357,7 +365,8 @@ export function useProbeLab(onShowPurchaseCredits?: () => void) {
     // saved probes
     savedProbes,
     loadingSaved,
-    addSaved: (probe: SavedProbe) => setSavedProbes((current) => [probe, ...current]),
+    addSaved: (probe: SavedProbe) => setSavedProbes((current) => [probe, ...current.filter((p) => p.id !== probe.id)]),
+    refreshSaved,
     removeSaved: (id: number) => {
       setSavedProbes((current) => current.filter((p) => p.id !== id))
       setHeatmapSource((current) => (current === `saved:${id}` ? 'sweep' : current))

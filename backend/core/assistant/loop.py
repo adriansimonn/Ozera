@@ -54,6 +54,7 @@ from .models import (
     RETRY_WAIT_SECONDS,
     AssistantModel,
 )
+from .pages import ControlNames
 from .prompt import LAST_CALL_NOTE, dumps, fit, system_blocks
 from .tools import RUN, check_input, definitions, tool
 
@@ -369,6 +370,11 @@ def _retry_after(error: Exception) -> float:
 async def _stream(client, params: dict, emit: Emit, stop: asyncio.Event) -> CallResult:
     """One call, streaming its text, cancelled when stop is set (or it runs out of time)."""
     result = CallResult()
+    names = ControlNames()
+
+    def text(value: str) -> None:
+        if value:
+            emit({"type": "text", "text": value})
 
     async def consume():
         async with client.beta.messages.stream(**params) as stream:
@@ -378,9 +384,12 @@ async def _stream(client, params: dict, emit: Emit, stop: asyncio.Event) -> Call
                     result.started = Usage.from_api(event.message.usage)
                     result.started_model = getattr(event.message, "model", None)
                 elif kind == "text":
-                    emit({"type": "text", "text": event.text})
+                    text(names.feed(event.text))
+                elif kind == "content_block_stop":
+                    text(names.flush())
                 elif kind == "content_block_start" and getattr(event.content_block, "type", None) == "fallback":
                     emit({"type": "status", "status": "fallback"})
+            text(names.flush())
             return await stream.get_final_message()
 
     task = asyncio.ensure_future(consume())
@@ -400,6 +409,7 @@ async def _stream(client, params: dict, emit: Emit, stop: asyncio.Event) -> Call
         await task
     except BaseException:
         pass
+    text(names.flush())
     result.stopped = True
     result.timed_out = not stop.is_set()
     return result

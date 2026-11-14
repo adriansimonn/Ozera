@@ -215,6 +215,9 @@ class ProbeRunResponse(BaseModel):
     ood_examples: list[ProbeExample]
     pca_examples: list[ProbeExample]
     pca_ood_examples: list[ProbeExample]
+    run_id: Optional[str] = Field(
+        default=None, description="The sweep's ID while the server keeps it (a few hours), to save its probes by"
+    )
 
 
 # Scoring

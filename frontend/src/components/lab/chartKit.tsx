@@ -66,6 +66,7 @@ export function RunBar({
   running,
   disabled,
   onRun,
+  assist,
 }: {
   note?: string | null
   warn?: boolean
@@ -73,6 +74,8 @@ export function RunBar({
   running: boolean
   disabled?: boolean
   onRun: () => void
+  /** The assistant's highlight target for the button ("page.control") */
+  assist?: string
 }) {
   const colors = useLabColors()
   return (
@@ -83,6 +86,7 @@ export function RunBar({
       <button
         type="button"
         className="pl-button"
+        data-assist={assist}
         onClick={onRun}
         disabled={running || disabled}
         style={{ borderColor: colors.border, color: colors.text }}

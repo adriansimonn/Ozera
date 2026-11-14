@@ -99,10 +99,13 @@ TURN_STALE_SECONDS = 1800
 # Per-turn estimates for the model picker, from the pilot (scripts/assistant_pilot.py, 2026-11-12:
 # 30 single-question turns in fresh chats, 2 calls each at the median): tokens a turn writes to
 # the cache, reads from it, and generates. Turns later in a chat read more, and cost more.
-TYPICAL_TURN_TOKENS = {"written": 700, "read": 16_200, "output": 550}
-# A first call's input bound: the static prefix (8,086 tokens counted, plus its margin) and a
-# short message with its snapshot (the pilot's median first bound was 8,978)
-TYPICAL_FIRST_PROMPT_TOKENS = 9_000
+# Scaled 2026-11-13 for the lab tools, which grew the static prefix from 8,086 counted tokens to
+# about 12,100 (by characters, at the old prefix's tokens per character): the 2 reads grew by 4,000
+# each. Count it again (and rerun the pilot) to replace these.
+TYPICAL_TURN_TOKENS = {"written": 700, "read": 24_200, "output": 550}
+# A first call's input bound: the static prefix (about 12,100 tokens, plus its margin) and a
+# short message with its snapshot (the pilot's median first bound was 8,978 with an 8,086 prefix)
+TYPICAL_FIRST_PROMPT_TOKENS = 13_000
 
 
 def model(model_id: str) -> AssistantModel:

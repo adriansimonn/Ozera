@@ -13,6 +13,8 @@ import type { CausalProbe } from './CausalPanel'
 import { ChartTooltip, Findings, RunBar, Segmented, StatTiles, type Finding, type TooltipRow } from '../lab/chartKit'
 import { pointerIn, useElementWidth, useLabColors, type LabColors } from '../lab/labTheme'
 import { estimateText, formatMetric, formatPercent, positionLabel } from './probeUtils'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { ablatePart } from '../assistant/pages/probes'
 
 const CURVE_LABELS: Record<AblationCurve, string> = {
   clean: 'Clean model',
@@ -288,6 +290,9 @@ export function AblationPanel({
   const [result, setResult] = useState<{ key: string; response: AblateProbeResponse } | null>(null)
   const [view, setView] = useState<'chart' | 'table'>('chart')
 
+  // The assistant reads the result and opens an ablate_probe run's result here
+  useAssistantPage('probes', ablatePart({ probeKey: probe.key, estimate: estimate?.estimated_cost ?? null, result, setResult }))
+
   const stats = lab.stats
   const instruct = lab.models.find((m) => m.model_id === probe.model)?.is_instruct ?? false
   const chatMismatch = probe.chatTemplate && !instruct
@@ -364,6 +369,7 @@ export function AblationPanel({
         running={running}
         disabled={!lab.isAuthenticated || !stats || chatMismatch || (estimate != null && !estimate.within_limit)}
         onRun={run}
+        assist="probes.ablate_button"
       />
 
       {error && <div className="pl-error-note">{error}</div>}

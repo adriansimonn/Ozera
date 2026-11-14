@@ -64,7 +64,7 @@ from core.assistant.context import result_sizes
 from core.assistant.models import (
     BLOCK_MARGIN_TOKENS, CUT_BYTES_PER_TOKEN, DEFAULT_MODE, FREE_MESSAGES_PER_DAY, MAX_BUDGET_USD, MAX_TOKENS, MIN_CALL_TOKENS, MODELS,
 )
-from core.assistant.pages import page_for_route
+from core.assistant.pages import control_names, page_for_route
 from core.assistant.prompt import mode_block, snapshot_block
 from core.autointerp.client import Usage
 from db import SessionLocal
@@ -271,6 +271,7 @@ def _add_text(parts: list[dict], text_: str) -> None:
     """Text after the turn's parts so far: joined to text just before it, as its own paragraph(s)."""
     if not text_:
         return
+    text_ = control_names(text_)
     if parts and parts[-1]["type"] == "text":
         parts[-1]["text"] += "\n\n" + text_
     else:
@@ -311,7 +312,7 @@ def turns(db: Session, chat: AssistantChat) -> list[dict]:
         elif not out:
             continue
         elif row.role == "assistant":
-            text_ = reply_text(row.content)
+            text_ = control_names(reply_text(row.content))
             if text_:
                 out[-1]["reply"] += ("\n\n" if out[-1]["reply"] else "") + text_
             _call_parts(out[-1]["parts"], row.content)

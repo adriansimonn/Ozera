@@ -35,14 +35,27 @@ const PHRASES: Record<string, { says: [string, string, string]; prefix: RegExp }
   start_autointerp_job: { says: ['Start an autointerp job for', 'Starting an autointerp job for', 'Started an autointerp job for'], prefix: /^(Autointerp job|Job started) · / },
   test_hypothesis: { says: ['Test a hypothesis on feature', 'Testing a hypothesis on feature', 'Tested a hypothesis on feature'], prefix: /^Hypothesis (scored · )?/ },
   train_probe: { says: ['Train probes on', 'Training probes on', 'Trained probes on'], prefix: /^Probes( trained)? · / },
+  save_probe: { says: ['Save probe', 'Saving probe', 'Saved probe'], prefix: /^Saved? probe · / },
+  score_probe: { says: ['Score text with', 'Scoring text with', 'Scored text with'], prefix: /^Scored? · / },
+  steer_probe: { says: ['Steer with', 'Steering with', 'Steered with'], prefix: /^Steer(ed)? · / },
+  ablate_probe: { says: ['Ablate the direction of', 'Ablating the direction of', 'Ablated the direction of'], prefix: /^Ablat(e|ed) · / },
+  generalize_probes: { says: ['Test probe generalization on', 'Testing probe generalization on', 'Tested probe generalization on'], prefix: /^Generalization · / },
+  compare_geometry: { says: ['Compare geometry runs', 'Comparing geometry runs', 'Compared geometry runs'], prefix: /^Geometry · / },
+  steer_geometry: { says: ['Steer the concept from', 'Steering the concept from', 'Steered the concept from'], prefix: /^Steer(ed)? · / },
+  geometry_sae: { says: ['Read the concept through', 'Reading the concept through', 'Read the concept through'], prefix: /^Geometry SAE · / },
+  compare_attention: { says: ['Compare attention on', 'Comparing attention on', 'Compared attention on'], prefix: /^Compared? attention · / },
+  mine_patterns: { says: ['Mine attention patterns on', 'Mining attention patterns on', 'Mined attention patterns on'], prefix: /^Mined? patterns · / },
 }
 
 // What an estimate was for (its chip names the action)
 const ACTIONS: Record<string, string> = {
   generate: 'a generation', analyze_sae: 'an SAE analysis', explain_feature: 'a feature explanation',
-  test_hypothesis: 'a hypothesis test', generation_test: 'a generation test', autointerp_job: 'an autointerp job',
+  test_hypothesis: 'a hypothesis test', generation_test: 'a generation test', start_autointerp_job: 'an autointerp job',
   build_atlas: 'an atlas', train_probe: 'probe training', run_geometry: 'a geometry run', run_patching: 'a patching run',
-  classify_heads: 'head classification', compare_probe_sae: 'a probe and SAE comparison',
+  classify_heads: 'head classification', compare_probe_sae: 'a probe and SAE comparison', save_probe: 'saving a probe',
+  score_probe: 'probe scoring', steer_probe: 'probe steering', ablate_probe: 'a probe ablation',
+  generalize_probes: 'a generalization matrix', steer_geometry: 'concept steering', geometry_sae: 'a concept SAE read',
+  compare_attention: 'an attention comparison', mine_patterns: 'pattern mining',
 }
 
 /** A tool call in words, as [what it does, what on]: "to do" until it runs, then "doing", then "done". */
@@ -57,6 +70,6 @@ export function describeTool(tool: ToolChipInfo): [string, string] {
   let detail = phrase.prefix.test(chip) ? chip.replace(phrase.prefix, '').trim() : chip
   if (tool.name === 'estimate') detail = ACTIONS[detail.replace(/ /g, '_')] ?? detail
   // A phrase that ends in a joining word drops it when there's nothing to join
-  const says = detail ? phrase.says[form] : phrase.says[form].replace(/ (of|for|with|on|to|in)$/, '')
+  const says = detail ? phrase.says[form] : phrase.says[form].replace(/ (of|for|with|on|to|in|through|from)$/, '')
   return [says, detail]
 }

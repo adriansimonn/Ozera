@@ -19,6 +19,8 @@ import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { FeatureLink } from '../lab/FeatureLink'
 import { formatWidth, refKey, saeBrowserUrl } from '../lab/saeLinks'
 import { READ_LABELS, closedPath, downloadSvg, exampleText, formatPercent, formatValue, layerName, linePath, sameValues, sequentialColor } from './geometryUtils'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { saePart } from '../assistant/pages/geometry'
 
 const VERDICTS: Record<SaeVerdict, { label: string; title: string; level: Finding['level'] }> = {
   capture: {
@@ -280,6 +282,22 @@ function SaeBody({
   const isGemma = run.model.startsWith('gemma-3')
   const note = !lab.isAuthenticated ? 'Sign in to read SAEs' : estimate ? estimateNote(estimate) : null
 
+  // The assistant picks the SAE, reads the result shown, and opens this run's geometry_sae results here
+  useAssistantPage(
+    'geometry',
+    saePart({
+      runId: run.run_id ?? null,
+      sae: sae ? refKey(sae.ref) : choice || null,
+      pick,
+      estimate: estimate?.estimated_cost ?? null,
+      result: shown?.result ?? null,
+      onResult: (result, key) => {
+        setShownId(onResult(result, key))
+        lab.setPosition(result.position)
+      },
+    }),
+  )
+
   return (
     <div className="gl-sae">
       <section className="pl-panel">
@@ -297,7 +315,7 @@ function SaeBody({
             .
           </div>
         ) : (
-          <div className="gl-sae-pick">
+          <div className="gl-sae-pick" data-assist="geometry.sae">
             <div className="pl-control-label" title="SAEs that read this model's residual stream after a layer; choosing one moves the layer">
               SAE
             </div>
@@ -317,6 +335,7 @@ function SaeBody({
           running={running}
           disabled={!lab.isAuthenticated || !sae || (estimate != null && !estimate.within_limit)}
           onRun={go}
+          assist="geometry.sae_button"
         />
         {error && <div className="pl-error-note">{error}</div>}
       </section>

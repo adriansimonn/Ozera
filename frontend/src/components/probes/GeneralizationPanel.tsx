@@ -22,6 +22,8 @@ import { ChartTooltip, Findings, RunBar, Segmented, type Finding, type TooltipRo
 import { FileButton } from './DatasetPanel'
 import { inkOn, pointerIn, transferColor, useElementWidth, useLabColors, type LabColors } from '../lab/labTheme'
 import { METHOD_LABELS, POOLING_LABELS, estimateText, formatMetric, formatPercent, positionLabel } from './probeUtils'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { generalizePart } from '../assistant/pages/probes'
 
 const MAX_DATASETS = 6
 
@@ -637,6 +639,43 @@ export function ProbeGeneralization({ lab, onShowPurchaseCredits }: { lab: Probe
   const positions = result ? result.num_layers + 1 : 0
   const metricName = metric === 'auroc' ? 'AUROC' : 'Accuracy'
 
+  // The assistant fills the setup, reads the result, and opens a generalize_probes run's result here
+  useAssistantPage(
+    'probes',
+    generalizePart({
+      datasets: entries.map((e) => e.key),
+      setDatasets: (items) =>
+        edit(
+          items.flatMap(({ id, part }) => {
+            const d = lab.datasets.find((x) => x.id === id)
+            return d && (part === 'main' || d.ood) ? [builtinEntry(d, part)] : []
+          }).slice(0, MAX_DATASETS),
+        ),
+      transfer, setTransfer, pooling, setPooling, testFraction, setTestFraction, chatTemplate, setChatTemplate,
+      estimate: estimate?.estimated_cost ?? null,
+      result,
+      show: (request, response) => {
+        edit(
+          request.datasets.flatMap((spec, i) => {
+            if (spec.builtin_id) {
+              const d = lab.datasets.find((x) => x.id === spec.builtin_id)
+              return d ? [builtinEntry(d, spec.part ?? 'main')] : []
+            }
+            const rows = spec.rows ?? []
+            const names: [string, string] = spec.label_names?.length === 2 ? [spec.label_names[0], spec.label_names[1]] : ['0', '1']
+            return [uploadEntry({ filename: spec.name ?? `Your rows ${i + 1}`, rows, label_names: names, warnings: [] }, `rows:${i}`)]
+          }),
+        )
+        setTransfer(request.transfer_model != null)
+        setPooling(request.pooling ?? 'mean')
+        setTestFraction(request.test_fraction ?? 0.3)
+        setChatTemplate(!!request.chat_template)
+        setResult(response)
+        setPosition(defaultPosition(response, method, lab))
+      },
+    }),
+  )
+
   return (
     <section className="pl-panel pl-generalize">
       <div className="pl-card-title">
@@ -645,7 +684,7 @@ export function ProbeGeneralization({ lab, onShowPurchaseCredits }: { lab: Probe
 
       <div className="pl-generalize-setup">
         <div style={{ minWidth: 0 }}>
-          <div className="pl-control-label">
+          <div className="pl-control-label" data-assist="probes.gen_datasets">
             Datasets ({entries.length} of {MAX_DATASETS})
           </div>
           <div className="pl-matrix-datasets">
@@ -689,19 +728,19 @@ export function ProbeGeneralization({ lab, onShowPurchaseCredits }: { lab: Probe
 
         <div className="pl-generalize-settings">
           {sibling && (
-            <label className="pl-check-row">
+            <label className="pl-check-row" data-assist="probes.gen_transfer">
               <input type="checkbox" checked={transfer} disabled={running} onChange={(e) => setTransfer(e.target.checked)} />
               Include {sibling.display_name}
             </label>
           )}
           {anyInstruct && (
-            <label className="pl-check-row">
+            <label className="pl-check-row" data-assist="probes.gen_chat_template">
               <input type="checkbox" checked={chatTemplate} disabled={running} onChange={(e) => setChatTemplate(e.target.checked)} />
               Use chat template (instruct only)
             </label>
           )}
           <div className="pl-setting-row">
-            <div>
+            <div data-assist="probes.gen_pooling">
               <div className="pl-control-label">Pooling</div>
               <Segmented
                 ariaLabel="Pooling"
@@ -711,7 +750,7 @@ export function ProbeGeneralization({ lab, onShowPurchaseCredits }: { lab: Probe
                 options={(['last', 'mean', 'max'] as Pooling[]).map((p) => ({ value: p, label: POOLING_LABELS[p] }))}
               />
             </div>
-            <div>
+            <div data-assist="probes.gen_test_fraction">
               <div className="pl-control-label">Test split</div>
               <Segmented
                 ariaLabel="Test split"
@@ -737,6 +776,7 @@ export function ProbeGeneralization({ lab, onShowPurchaseCredits }: { lab: Probe
             running={running}
             disabled={!lab.isAuthenticated || !lab.modelId || entries.length < 2 || (estimate != null && !estimate.within_limit)}
             onRun={run}
+            assist="probes.gen_button"
           />
         </div>
       </div>

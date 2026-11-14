@@ -5,12 +5,14 @@
 
 import { useState } from 'react'
 import { ScanText } from 'lucide-react'
-import type { Pooling, ProbeMethod, ProbeRunResult, SavedProbe, ScoreProbeResponse } from '../../types/probes'
+import type { Pooling, ProbeMethod, ProbeRunResult, SavedProbe } from '../../types/probes'
 import { apiClient } from '../../api/client'
 import { Dropdown } from '../common/Dropdown'
 import { Placeholder, RunBar } from '../lab/chartKit'
 import { divergingColor, inkOn, useLabColors } from '../lab/labTheme'
 import { METHOD_SHORT, POOLING_LABELS, formatScore, inlineProbe } from './probeUtils'
+import { useAssistantPage } from '../../hooks/useAssistantPage'
+import { scorePart, type ScoredResult } from '../assistant/pages/probes'
 
 /** "sweep" for the probe selected in the layer sweep, or "saved:<id>" */
 export type HeatmapSource = string
@@ -26,12 +28,7 @@ interface TokenHeatmapProps {
   onShowPurchaseCredits?: () => void
 }
 
-interface ScoredView {
-  response: ScoreProbeResponse
-  scale: number
-  labelNames: [string, string]
-  description: string
-}
+type ScoredView = ScoredResult
 
 function labelNamesOf(dataset: Record<string, unknown>): [string, string] {
   const names = dataset.label_names
@@ -58,6 +55,9 @@ export function TokenHeatmap({
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<ScoredView | null>(null)
   const [hovered, setHovered] = useState<number | null>(null)
+
+  // The assistant fills the text, reads the result, and opens a score_probe run's result here
+  useAssistantPage('probes', scorePart({ source, text, setText, scored: view, setScored: setView }))
 
   const sweepAvailable = run != null && position > 0
   const savedId = source.startsWith('saved:') ? Number(source.slice(6)) : null
@@ -129,7 +129,9 @@ export function TokenHeatmap({
       ) : (
         <>
           <div className="pl-control-label">Probe</div>
-          <Dropdown value={ready ? source : ''} onChange={onSourceChange} options={options} placeholder="Choose a probe" />
+          <div data-assist="probes.probe">
+            <Dropdown value={ready ? source : ''} onChange={onSourceChange} options={options} placeholder="Choose a probe" />
+          </div>
           {saved?.model_changed && (
             <div className="pl-note" style={{ color: colors.warning, marginTop: '0.4rem' }}>
               Model changed since this probe was saved
@@ -137,6 +139,7 @@ export function TokenHeatmap({
           )}
           <textarea
             className="pl-textarea"
+            data-assist="probes.score_text"
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Text to score…"
@@ -144,7 +147,7 @@ export function TokenHeatmap({
             rows={3}
             style={{ marginTop: '0.625rem', borderColor: colors.border, background: colors.panel, color: colors.text }}
           />
-          <RunBar label="Score text" running={scoring} disabled={!text.trim() || !ready} onRun={handleScore} />
+          <RunBar label="Score text" running={scoring} disabled={!text.trim() || !ready} onRun={handleScore} assist="probes.score_button" />
         </>
       )}
 
