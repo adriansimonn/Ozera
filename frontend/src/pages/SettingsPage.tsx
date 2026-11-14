@@ -373,19 +373,6 @@ export default function SettingsPage() {
               />
             </div>
 
-            {/* Default View Mode */}
-            <div>
-              <label className="block text-base text-white mb-2">Default View Mode</label>
-              <Dropdown
-                value={settings?.ui.default_view_mode ?? 'split'}
-                onChange={(v) => handleUISetting('default_view_mode', v)}
-                options={[
-                  { value: 'split', label: 'Split' },
-                  { value: 'single', label: 'Single' },
-                ]}
-              />
-            </div>
-
             {/* Default Landing Page */}
             <div>
               <label className="block text-base text-white mb-2">Default Landing Page</label>

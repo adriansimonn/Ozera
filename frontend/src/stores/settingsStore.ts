@@ -12,7 +12,6 @@ export interface UserSettings {
   };
   ui: {
     background: 'dark' | 'light' | 'system';
-    default_view_mode: 'single' | 'split';
     default_page: string;
   };
 }

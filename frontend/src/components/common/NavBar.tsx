@@ -1,35 +1,14 @@
 /**
  * Navigation bar component.
- * Supports view mode toggle for pages that use split/single view.
- * Supports custom models page mode toggle (training/upload).
  */
 
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Cpu, Square, SplitSquareVertical, Sparkles, GraduationCap, Upload, Zap, Search, Layers, Microscope, Shapes } from 'lucide-react'
+import { Cpu, Sparkles, Zap, Search, Layers, Microscope, Shapes } from 'lucide-react'
 import { UserMenu } from './UserMenu'
 import { AssistantButton } from '../assistant/AssistantPanel'
 import { useAuthStore } from '../../stores/authStore'
 
-type ViewMode = 'single' | 'split'
-export type CustomModelsMode = 'training' | 'upload'
-
-interface NavBarProps {
-  viewMode?: ViewMode
-  onViewModeChange?: (mode: ViewMode) => void
-  showViewToggle?: boolean
-  customModelsMode?: CustomModelsMode
-  onCustomModelsModeChange?: (mode: CustomModelsMode) => void
-  showCustomModelsToggle?: boolean
-}
-
-export function NavBar({
-  viewMode,
-  onViewModeChange,
-  showViewToggle = false,
-  customModelsMode,
-  onCustomModelsModeChange,
-  showCustomModelsToggle = false,
-}: NavBarProps) {
+export function NavBar() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user } = useAuthStore()
@@ -98,48 +77,6 @@ export function NavBar({
         </div>
 
         <div className="navbar-right">
-          {showViewToggle && onViewModeChange && (
-            <div className="view-mode-toggle">
-              <button
-                onClick={() => onViewModeChange('single')}
-                className={`mode-btn ${viewMode === 'single' ? 'active' : ''}`}
-                title="Single View Mode"
-              >
-                <Square className="mode-icon" />
-                Single
-              </button>
-              <button
-                onClick={() => onViewModeChange('split')}
-                className={`mode-btn ${viewMode === 'split' ? 'active' : ''}`}
-                title="Split Screen Mode"
-              >
-                <SplitSquareVertical className="mode-icon" />
-                Split
-              </button>
-            </div>
-          )}
-
-          {showCustomModelsToggle && onCustomModelsModeChange && (
-            <div className="view-mode-toggle">
-              <button
-                onClick={() => onCustomModelsModeChange('training')}
-                className={`mode-btn ${customModelsMode === 'training' ? 'active' : ''}`}
-                title="Train a custom model"
-              >
-                <GraduationCap className="mode-icon" />
-                Train
-              </button>
-              <button
-                onClick={() => onCustomModelsModeChange('upload')}
-                className={`mode-btn ${customModelsMode === 'upload' ? 'active' : ''}`}
-                title="Upload a model file"
-              >
-                <Upload className="mode-icon" />
-                Upload
-              </button>
-            </div>
-          )}
-
           {/* Auth Section - Show UserMenu if logged in, otherwise show Login/Signup buttons */}
           {user && <AssistantButton />}
 
@@ -255,70 +192,6 @@ export function NavBar({
           gap: 1rem;
         }
 
-        .view-mode-toggle {
-          display: flex;
-          gap: 0.25rem;
-          background: rgba(0, 0, 0, 0.3);
-          padding: 0.25rem;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-        }
-
-        [data-bg="light"] .view-mode-toggle {
-          background: rgba(0, 0, 0, 0.05);
-          border-color: rgba(0, 0, 0, 0.1);
-        }
-
-        .mode-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.5rem 1rem;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #ffffff;
-          font-size: 0.8rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-        }
-
-        .mode-btn:hover {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        .mode-btn.active {
-          background: rgba(255, 255, 255, 0.15);
-          border-color: rgba(255, 255, 255, 0.3);
-          color: #ffffff;
-          box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
-        }
-
-        [data-bg="light"] .mode-btn {
-          background: rgba(0, 0, 0, 0.03);
-          border-color: rgba(0, 0, 0, 0.1);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .mode-btn:hover {
-          background: rgba(0, 0, 0, 0.06);
-          border-color: rgba(0, 0, 0, 0.15);
-        }
-
-        [data-bg="light"] .mode-btn.active {
-          background: rgba(0, 0, 0, 0.1);
-          border-color: rgba(0, 0, 0, 0.2);
-          color: #1d1d1f;
-          box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
-        }
-
-        .mode-icon {
-          width: 14px;
-          height: 14px;
-        }
-
         .auth-buttons {
           display: flex;
           align-items: center;
@@ -400,11 +273,6 @@ export function NavBar({
           .nav-link {
             padding: 0.5rem 0.75rem;
             font-size: 0.8rem;
-          }
-
-          .mode-btn {
-            padding: 0.4rem 0.75rem;
-            font-size: 0.75rem;
           }
 
           .auth-btn {

@@ -13,7 +13,6 @@ DEFAULT_SETTINGS = {
     },
     "ui": {
         "background": "system",
-        "default_view_mode": "single",
         "default_page": "/",
     },
 }
@@ -30,23 +29,12 @@ def deep_merge(defaults: dict, overrides: dict) -> dict:
     return result
 
 
-def _drop_retired_ui(overrides: dict) -> dict:
-    """Strip UI values that no longer exist (the glass interface and glow background) from stored overrides."""
-    ui = overrides.get("ui")
-    if not isinstance(ui, dict) or ("interface" not in ui and ui.get("background") != "glow"):
-        return overrides
-    ui = {k: v for k, v in ui.items() if k != "interface"}
-    if ui.get("background") == "glow":
-        ui["background"] = "dark"
-    return {**overrides, "ui": ui}
-
-
 def get_user_settings(db: Session, user_id: int) -> dict:
     """Get user settings merged with defaults."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return copy.deepcopy(DEFAULT_SETTINGS)
-    return deep_merge(DEFAULT_SETTINGS, _drop_retired_ui(user.settings or {}))
+    return deep_merge(DEFAULT_SETTINGS, user.settings or {})
 
 
 def update_user_settings(db: Session, user_id: int, updates: dict) -> dict:
@@ -56,7 +44,7 @@ def update_user_settings(db: Session, user_id: int, updates: dict) -> dict:
         raise ValueError("User not found")
 
     current_overrides = user.settings or {}
-    new_overrides = _drop_retired_ui(deep_merge(current_overrides, updates))
+    new_overrides = deep_merge(current_overrides, updates)
     user.settings = new_overrides
     db.commit()
     db.refresh(user)
