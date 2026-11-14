@@ -4,25 +4,25 @@
  * routes). Docked, the page gets right padding; below DOCK_MIN_VIEWPORT it overlays the page.
  *
  * Chats are private and stored on the backend; replies stream in, and ui actions the assistant
- * sends (open a page, fill inputs, point at a control) go to the page through the store. Runs a
- * reply asks for wait under it on an approval card; their results open on their pages. With an
- * allowance set for the chat, runs that fit in it start at once and show as cards with their
- * charges. A chat exports as Markdown.
+ * sends (open a page, fill inputs, point at a control) go to the page through the store. A reply's
+ * tool calls show as rows between its text, in the order it made them. Runs a reply asks for wait
+ * under it on an approval card; their results open on their pages. With an allowance set for the
+ * chat, runs that fit in it start at once (their rows expand to their quotes and show their
+ * charges). The model and allowance menus open up from the composer. A chat exports as Markdown.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ArrowUp, Bot, Check, ChevronDown, Download, Pencil, Plus, Square, Trash2, X } from 'lucide-react'
+import { ArrowUp, Bot, Check, ChevronDown, ChevronUp, Download, Pencil, Plus, Square, Trash2, X } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
-import { MAX_WIDTH, MIN_WIDTH, useAssistantStore } from '../../stores/assistantStore'
+import { MAX_WIDTH, MIN_WIDTH, useAssistantStore, type DraftPart } from '../../stores/assistantStore'
 import { usePurchaseCredits } from '../../contexts/PurchaseCreditsContext'
 import { useQueryClient } from '@tanstack/react-query'
-import type { AssistantModelId, ChatTurn, PendingRun, ToolChipInfo } from '../../types/assistant'
+import type { ChatTurn, PendingRun, ToolChipInfo, TurnPart } from '../../types/assistant'
 import { ConfirmModal } from '../common/ConfirmModal'
-import { Dropdown } from '../common/Dropdown'
-import { ApprovalCard, AutoRunCard } from './ApprovalCard'
+import { ApprovalCard } from './ApprovalCard'
 import { AssistantMessage } from './AssistantMessage'
-import { ToolChip } from './ToolChip'
+import { ToolStep } from './ToolStep'
 import { AssistantStyles } from './AssistantStyles'
 import { downloadChat } from './exportChat'
 
@@ -67,23 +67,132 @@ function dollars(value: number): string {
 // The allowance choices (USD in all, per chat; 0 asks before every run)
 const ALLOWANCES = [0, 0.25, 1, 5, 20]
 
-/** A turn's tools: chips for what it read and did, cards for the runs its allowance started. */
-function ToolsView({ tools }: { tools: ToolChipInfo[] }) {
-  const chips = tools.filter((t) => !t.auto)
-  const auto = tools.filter((t) => t.auto)
+type Item = { type: 'text'; text: string; key: string } | { type: 'tools'; tools: ToolChipInfo[]; key: string }
+
+/**
+ * A reply as it reads: its text, and each run of consecutive tool calls as one group, in order.
+ * A tool no part names (or every tool, from a backend without parts) goes last.
+ */
+function sequence(parts: (TurnPart | DraftPart)[], tools: ToolChipInfo[]): Item[] {
+  const byId = new Map(tools.map((t) => [t.id, t]))
+  const seen = new Set<string>()
+  const items: Item[] = []
+  const addTool = (tool: ToolChipInfo) => {
+    if (seen.has(tool.id)) return
+    seen.add(tool.id)
+    const last = items[items.length - 1]
+    if (last?.type === 'tools') last.tools.push(tool)
+    else items.push({ type: 'tools', tools: [tool], key: `tools-${tool.id}` })
+  }
+  for (const part of parts) {
+    if (part.type === 'tool') {
+      const tool = byId.get(part.id)
+      if (tool) addTool(tool)
+    } else if (part.text.trim()) {
+      const last = items[items.length - 1]
+      if (last?.type === 'text') last.text += `\n\n${part.text}`
+      else items.push({ type: 'text', text: part.text, key: `text-${items.length}` })
+    }
+  }
+  tools.forEach(addTool)
+  return items
+}
+
+function ReplyView({ parts, tools }: { parts: (TurnPart | DraftPart)[]; tools: ToolChipInfo[] }) {
+  const items = useMemo(() => sequence(parts, tools), [parts, tools])
   return (
     <>
-      {chips.length > 0 && (
-        <div className="ast-tools">
-          {chips.map((t) => (
-            <ToolChip key={t.id} tool={t} />
+      {items.map((item) =>
+        item.type === 'text' ? (
+          <AssistantMessage key={item.key} text={item.text} />
+        ) : (
+          <div key={item.key} className="ast-steps">
+            {item.tools.map((t) => (
+              <ToolStep key={t.id} tool={t} />
+            ))}
+          </div>
+        ),
+      )}
+    </>
+  )
+}
+
+/** A menu that opens up from the composer, and closes on a click outside it or Escape. */
+function useMenu() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const away = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', away)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('mousedown', away)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [open])
+  return { open, setOpen, ref }
+}
+
+function shortName(name: string): string {
+  return name.replace('Claude ', '')
+}
+
+/** The chat's model (switching waits for the reply). */
+function ModelControl({ disabled }: { disabled: boolean }) {
+  const models = useAssistantStore((s) => s.models)
+  const chat = useAssistantStore((s) => s.chat)
+  const setModel = useAssistantStore((s) => s.setModel)
+  const { open, setOpen, ref } = useMenu()
+  const current = models?.models.find((m) => m.id === (chat?.model ?? models?.default))
+
+  useEffect(() => {
+    if (disabled) setOpen(false)
+  }, [disabled, setOpen])
+
+  if (!models || !current) return null
+  return (
+    <div className="ast-bar-control" ref={ref}>
+      <button
+        type="button"
+        className="ast-bar-button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Model"
+      >
+        <span>{shortName(current.name)}</span>
+        <ChevronUp aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="ast-menu ast-menu--up" role="menu">
+          <div className="ast-menu-head">Model</div>
+          {models.models.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={m.id === current.id}
+              className="ast-menu-item"
+              onClick={() => {
+                if (m.id !== current.id) setModel(m.id)
+                setOpen(false)
+              }}
+            >
+              {m.id === current.id ? <Check aria-hidden="true" /> : <span className="ast-menu-check" />}
+              <span className="ast-menu-label">{shortName(m.name)}</span>
+              <span className="ast-menu-price">{m.free && models.free_left > 0 ? 'free' : `~${money(m.per_message)}/msg`}</span>
+            </button>
           ))}
         </div>
       )}
-      {auto.map((t) => (
-        <AutoRunCard key={t.id} tool={t} />
-      ))}
-    </>
+    </div>
   )
 }
 
@@ -92,27 +201,17 @@ function AllowanceControl() {
   const chat = useAssistantStore((s) => s.chat)
   const newAllowance = useAssistantStore((s) => s.newAllowance)
   const setAllowance = useAssistantStore((s) => s.setAllowance)
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const { open, setOpen, ref } = useMenu()
   const allowance = chat ? chat.allowance ?? 0 : newAllowance
   const spent = chat?.allowance_spent ?? 0
   const left = Math.max(0, allowance - spent)
 
-  useEffect(() => {
-    if (!open) return
-    const away = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', away)
-    return () => document.removeEventListener('mousedown', away)
-  }, [open])
-
   const options = [...new Set([...ALLOWANCES, allowance])].sort((a, b) => a - b)
   return (
-    <div className="ast-allowance" ref={ref}>
+    <div className="ast-bar-control" ref={ref}>
       <button
         type="button"
-        className={`ast-allowance-button${allowance > 0 ? ' on' : ''}`}
+        className={`ast-bar-button${allowance > 0 ? ' on' : ''}`}
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -121,7 +220,7 @@ function AllowanceControl() {
         {allowance > 0 ? `${dollars(left)} left` : 'Ask'}
       </button>
       {open && (
-        <div className="ast-menu ast-allowance-menu" role="menu">
+        <div className="ast-menu ast-menu--up" role="menu">
           <div className="ast-menu-head">Run without asking</div>
           {options.map((value) => (
             <button
@@ -165,8 +264,7 @@ function TurnView({
   return (
     <div className="ast-turn">
       <div className="ast-user">{turn.text}</div>
-      {turn.reply && <AssistantMessage text={turn.reply} />}
-      <ToolsView tools={turn.tools} />
+      <ReplyView parts={turn.parts ?? (turn.reply ? [{ type: 'text', text: turn.reply }] : [])} tools={turn.tools} />
       {approval}
       <div className="ast-meta">
         {status && <span className={turn.status === 'error' || turn.status === 'refused' ? 'ast-warn' : undefined}>{status}</span>}
@@ -256,7 +354,7 @@ function ChatsMenu({ onClose }: { onClose: () => void }) {
 }
 
 export function AssistantPanel({ docked }: { docked: boolean }) {
-  const { models, chat, draft, sending, error, notice, width, setOpen, setWidth, setModel, send, approve, stop, setError, load } = useAssistantStore()
+  const { models, chat, draft, sending, error, notice, width, setOpen, setWidth, send, approve, stop, setError, load } = useAssistantStore()
   const { showPurchaseCredits } = usePurchaseCredits()
   const location = useLocation()
   const [text, setText] = useState('')
@@ -272,8 +370,7 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
     input.current?.focus()
   }, [models, load])
 
-  const modelId: AssistantModelId | undefined = chat?.model ?? models?.default
-  const current = models?.models.find((m) => m.id === modelId)
+  const current = models?.models.find((m) => m.id === (chat?.model ?? models?.default))
   const freeLeft = models?.free_left ?? 0
   const page = PAGE_OF_ROUTE[location.pathname] ?? 'other'
   const turns = chat?.turns ?? []
@@ -316,11 +413,6 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
     target.addEventListener('pointerup', up)
   }
 
-  const modelOptions = useMemo(
-    () => (models?.models ?? []).map((m) => ({ value: m.id, label: m.name.replace('Claude ', '') })),
-    [models],
-  )
-
   // The composer grows with its lines up to its CSS max-height, then scrolls
   useLayoutEffect(() => {
     const el = input.current
@@ -331,10 +423,10 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
 
   const lastTurn = turns[turns.length - 1]
   const priceLabel = current
-    ? `${current.name.replace('Claude ', '')} · ${current.free && freeLeft > 0 ? `free (${freeLeft} left today)` : `~${money(current.per_message)}/msg`}`
+    ? `${shortName(current.name)} · ${current.free && freeLeft > 0 ? `free (${freeLeft} left today)` : `~${money(current.per_message)}/msg`}`
     : ''
-  const footnote = [
-    chat ? `chat ${money(chat.cost)}, ${tokens(chat.tokens)} tokens` : '',
+  const spend = chat ? `chat ${money(chat.cost)}, ${tokens(chat.tokens)} tokens` : ''
+  const notes = [
     lastTurn && !busy && lastTurn.status === 'running' ? 'reply saving…' : '',
     !busy && chat?.status === 'awaiting_approval' ? 'a new message skips the waiting runs' : '',
   ].filter(Boolean)
@@ -384,11 +476,6 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
           </button>
           {menu && <ChatsMenu onClose={() => setMenu(false)} />}
         </div>
-        <div className="ast-header-row ast-model">
-          {modelId && (
-            <Dropdown value={modelId} onChange={(v) => setModel(v as AssistantModelId)} options={modelOptions} disabled={busy} />
-          )}
-        </div>
       </header>
 
       <div
@@ -427,8 +514,7 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
         {draft && (sending || draft.resumed) && (
           <div className="ast-turn">
             {sending && <div className="ast-user">{sending}</div>}
-            {draft.text && <AssistantMessage text={draft.text} />}
-            <ToolsView tools={draft.tools} />
+            <ReplyView parts={draft.parts} tools={draft.tools} />
             <div className="ast-meta">
               <span className="ast-working">
                 {draft.status === 'stopping'
@@ -492,9 +578,7 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
           />
           <div className="ast-composer-bar">
             <AllowanceControl />
-            <span className="ast-composer-model" title={priceLabel}>
-              {priceLabel}
-            </span>
+            <ModelControl disabled={busy} />
             {busy ? (
               <button type="button" className="ast-send" aria-label="Stop" title="Stop" onClick={stop} disabled={draft?.status === 'stopping'}>
                 <Square aria-hidden="true" />
@@ -506,11 +590,19 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
             )}
           </div>
         </div>
-        {footnote.length > 0 && (
-          <div className="ast-footnote" title="What this chat has cost, and the size of its context">
-            {footnote.join(' · ')}
+        {(priceLabel || spend) && (
+          <div className="ast-footnote">
+            <span className="ast-footnote-model" title={priceLabel}>
+              {priceLabel}
+            </span>
+            {spend && (
+              <span className="ast-footnote-chat" title="What this chat has cost, and the size of its context">
+                {spend}
+              </span>
+            )}
           </div>
         )}
+        {notes.length > 0 && <div className="ast-footnote-note">{notes.join(' · ')}</div>}
       </footer>
     </aside>
   )

@@ -220,8 +220,34 @@ def chat_info(chat: AssistantChat) -> dict:
     }
 
 
+def _add_text(parts: list[dict], text_: str) -> None:
+    """Text after the turn's parts so far: joined to text just before it, as its own paragraph(s)."""
+    if not text_:
+        return
+    if parts and parts[-1]["type"] == "text":
+        parts[-1]["text"] += "\n\n" + text_
+    else:
+        parts.append({"type": "text", "text": text_})
+
+
+def _call_parts(parts: list[dict], content: list[dict]) -> None:
+    """A reply's text and tool calls, in the order it made them."""
+    text_ = ""
+    for block in content if isinstance(content, list) else []:
+        if block.get("type") == "text":
+            text_ += block.get("text", "")
+        elif block.get("type") == "tool_use" and block.get("id"):
+            _add_text(parts, text_)
+            text_ = ""
+            parts.append({"type": "tool", "id": block["id"]})
+    _add_text(parts, text_)
+
+
 def turns(db: Session, chat: AssistantChat) -> list[dict]:
-    """A chat as the panel shows it: each turn's message, the reply's text, the tools it used, and how it ended."""
+    """
+    A chat as the panel shows it: each turn's message, the reply's text, the tools it used, and how
+    it ended. parts: the reply's text and tool calls (by ID, from tools) in order.
+    """
     out: list[dict] = []
     for row in _rows(db, chat.id):
         meta = row.meta or {}
@@ -231,8 +257,9 @@ def turns(db: Session, chat: AssistantChat) -> list[dict]:
                 out[-1]["tools"] += meta["answered_tools"]
             out.append({
                 "turn": row.turn, "text": meta["text"], "page": (row.snapshot or {}).get("page"),
-                "reply": "", "tools": [], "status": meta.get("status", "running"), "detail": meta.get("detail") or {},
-                "cost": meta.get("cost", 0.0), "free": row.free, "created_at": row.created_at,
+                "reply": "", "parts": [], "tools": [], "status": meta.get("status", "running"),
+                "detail": meta.get("detail") or {}, "cost": meta.get("cost", 0.0), "free": row.free,
+                "created_at": row.created_at,
             })
         elif not out:
             continue
@@ -240,6 +267,7 @@ def turns(db: Session, chat: AssistantChat) -> list[dict]:
             text_ = reply_text(row.content)
             if text_:
                 out[-1]["reply"] += ("\n\n" if out[-1]["reply"] else "") + text_
+            _call_parts(out[-1]["parts"], row.content)
         elif meta.get("tools"):
             out[-1]["tools"] += meta["tools"]
     for turn in out:
@@ -247,6 +275,7 @@ def turns(db: Session, chat: AssistantChat) -> list[dict]:
         partial = turn["detail"].pop("partial", "")
         if partial:
             turn["reply"] += ("\n\n" if turn["reply"] else "") + partial
+            _add_text(turn["parts"], partial)
     # A turn waiting for approval: its tools so far, the runs among them waiting
     if chat.pending and out and out[-1]["turn"] == chat.pending.get("turn"):
         out[-1]["tools"] += [chat.pending["chips"][i] for i in chat.pending["order"]]

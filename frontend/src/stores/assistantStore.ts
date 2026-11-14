@@ -38,10 +38,15 @@ export interface PageBridge {
   load: (tool: string, data: unknown) => void
 }
 
-/** The turn being streamed: its text per API call, its tools, and how it's going. */
+/** A streamed turn's part: text keeps the API call it came in (a declined call's text is dropped). */
+export type DraftPart = { type: 'text'; text: string; call: number } | { type: 'tool'; id: string }
+
+/** The turn being streamed: its text and tool calls in order, its tools, and how it's going. */
 export interface Draft {
   text: string
-  segments: string[]
+  parts: DraftPart[]
+  /** The API call streaming */
+  call: number
   tools: ToolChipInfo[]
   status: 'waiting' | 'streaming' | 'busy' | 'stopping' | 'running'
   declined: string | null | undefined
@@ -90,8 +95,11 @@ function currentSnapshot(bridges: PageBridge[]): Snapshot {
 }
 
 /** A turn's text: each API call's text as its own paragraph(s). */
-function joinSegments(segments: string[]): string {
-  return segments.filter((s) => s.trim()).join('\n\n')
+function draftText(parts: DraftPart[]): string {
+  return parts
+    .map((p) => (p.type === 'text' ? p.text : ''))
+    .filter((t) => t.trim())
+    .join('\n\n')
 }
 
 /** Scroll to a control and make it pulse. */
@@ -367,7 +375,7 @@ function deliver(bridges: PageBridge[], result: RunResult) {
 }
 
 function newDraft(resumed: boolean): Draft {
-  return { text: '', segments: [''], tools: [], status: resumed ? 'running' : 'waiting', declined: undefined, resumed }
+  return { text: '', parts: [], call: -1, tools: [], status: resumed ? 'running' : 'waiting', declined: undefined, resumed }
 }
 
 /**
@@ -383,22 +391,22 @@ async function streamTurn(chatId: number, start: (handlers: AssistantStreamHandl
   let summary: Partial<TurnSummary> | null = null
   try {
     await start({
-      onCall: () =>
-        update((d) => ({
-          segments: d.segments.length === 1 && !d.segments[0] ? d.segments : [...d.segments, ''],
-          status: d.status === 'stopping' ? 'stopping' : 'streaming',
-        })),
+      onCall: (index) =>
+        update((d) => ({ call: index, status: d.status === 'stopping' ? 'stopping' : 'streaming' })),
       onText: (chunk) =>
         update((d) => {
-          const segments = [...d.segments]
-          segments[segments.length - 1] += chunk
-          return { segments, text: joinSegments(segments), status: d.status === 'stopping' ? 'stopping' : 'streaming' }
+          const parts = [...d.parts]
+          const last = parts[parts.length - 1]
+          if (last?.type === 'text' && last.call === d.call) parts[parts.length - 1] = { ...last, text: last.text + chunk }
+          else parts.push({ type: 'text', text: chunk, call: d.call })
+          return { parts, text: draftText(parts), status: d.status === 'stopping' ? 'stopping' : 'streaming' }
         }),
       onTool: (tool) =>
         update((d) => {
           const known = d.tools.some((t) => t.id === tool.id)
           return {
             tools: known ? d.tools.map((t) => (t.id === tool.id ? { ...t, ...tool } : t)) : [...d.tools, tool],
+            parts: known ? d.parts : [...d.parts, { type: 'tool', id: tool.id }],
             status: tool.kind === 'run' && tool.status === 'running' ? 'running' : d.status,
           }
         }),
@@ -414,8 +422,8 @@ async function streamTurn(chatId: number, start: (handlers: AssistantStreamHandl
       onRefusal: (category) =>
         update((d) => {
           // A declined call's text isn't kept
-          const segments = [...d.segments.slice(0, -1), '']
-          return { segments, text: joinSegments(segments), declined: category }
+          const parts = d.parts.filter((p) => p.type !== 'text' || p.call !== d.call)
+          return { parts, text: draftText(parts), declined: category }
         }),
       onDone: (s) => {
         summary = s

@@ -1,17 +1,14 @@
 /**
  * The runs a reply asked for, waiting for the user (ASSISTANT_PLAN.md, Phase 2): what each runs,
  * its estimate and hold, and Run / Skip. Several runs from one reply share the card; each can be
- * left out. The backend prices them again and checks the balance when Run is pressed.
- *
- * AutoRunCard is the card of a run the chat's allowance started without asking (Phase 3): what
- * ran, its estimate, and what it was charged.
+ * left out. The backend prices them again and checks the balance when Run is pressed. (A run the
+ * chat's allowance started without asking shows as its ToolStep instead.)
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2, Play } from 'lucide-react'
+import { Play } from 'lucide-react'
 import { useCreditBalance } from '../../hooks/useCredits'
-import { useAssistantStore } from '../../stores/assistantStore'
-import type { PendingRun, ToolChipInfo } from '../../types/assistant'
+import type { PendingRun } from '../../types/assistant'
 
 function money(value: number): string {
   if (value === 0) return 'free'
@@ -20,48 +17,6 @@ function money(value: number): string {
 
 function needs(run: PendingRun): number {
   return Math.max(run.estimate, run.hold ?? 0)
-}
-
-function charge(value: number): string {
-  return value < 0.01 ? `$${value.toFixed(4)}` : `$${value.toFixed(3)}`
-}
-
-/** A run that started without asking, within the chat's allowance. */
-export function AutoRunCard({ tool }: { tool: ToolChipInfo }) {
-  // Its full result while it's still in memory, to open on its page again
-  const result = useAssistantStore((s) => s.results[tool.id])
-  const quote = tool.auto
-  if (!quote) return null
-  const running = tool.status === 'running'
-  const failed = tool.error || tool.status === 'error'
-  return (
-    <div className="ast-approval ast-approval--auto" role="group" aria-label="Run within the allowance">
-      <div className="ast-approval-run">
-        <div className="ast-approval-head">
-          <span className="ast-approval-title">{quote.title}</span>
-          <span className={`ast-approval-price${failed ? ' ast-warn' : ''}`}>
-            {running ? <Loader2 className="ast-spin" aria-label="Running" /> : failed ? 'failed' : tool.charged != null ? charge(tool.charged) : money(quote.estimate)}
-          </span>
-        </div>
-        <dl className="ast-approval-details">
-          {quote.details.map(([label, value]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>{value}</dd>
-            </div>
-          ))}
-        </dl>
-        <div className="ast-approval-auto-foot">
-          <span className="ast-approval-note">Within allowance · est. {money(quote.estimate)}</span>
-          {result?.page && !failed && (
-            <button type="button" className="ast-link" onClick={() => useAssistantStore.getState().applyResult(result)}>
-              Open
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
 }
 
 export function ApprovalCard({

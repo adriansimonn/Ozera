@@ -32,7 +32,7 @@ export function AssistantStyles() {
         --ast-bg: #0d0d0e; --ast-surface: rgba(255, 255, 255, 0.04); --ast-border: rgba(255, 255, 255, 0.1);
         --ast-text: #ffffff; --ast-faint: rgba(255, 255, 255, 0.55); --ast-user: rgba(255, 255, 255, 0.07);
         --ast-accent: rgba(96, 165, 250, 0.95); --ast-warn: #fab219; --ast-code: rgba(255, 255, 255, 0.08);
-        --ast-strong: #ffffff;
+        --ast-strong: #ffffff; --ast-soft: rgba(255, 255, 255, 0.8); --ast-rail: rgba(255, 255, 255, 0.2);
         position: fixed; top: 0; right: 0; height: 125vh; z-index: 120;
         display: flex; flex-direction: column; background: var(--ast-bg); color: var(--ast-text);
         border-left: 1px solid var(--ast-border); font-size: 0.875rem; line-height: 1.5;
@@ -41,7 +41,7 @@ export function AssistantStyles() {
         --ast-bg: #ffffff; --ast-surface: rgba(0, 0, 0, 0.03); --ast-border: rgba(0, 0, 0, 0.1);
         --ast-text: #1d1d1f; --ast-faint: rgba(0, 0, 0, 0.55); --ast-user: rgba(0, 0, 0, 0.05);
         --ast-accent: #2563eb; --ast-warn: #b77900; --ast-code: rgba(0, 0, 0, 0.06);
-        --ast-strong: #000000;
+        --ast-strong: #000000; --ast-soft: rgba(0, 0, 0, 0.72); --ast-rail: rgba(0, 0, 0, 0.18);
       }
       [data-interface="glass"]:not([data-bg="light"]) .ast-panel {
         background: rgba(8, 8, 10, 0.82); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -73,10 +73,6 @@ export function AssistantStyles() {
       .ast-panel .ast-chat-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .ast-panel .ast-chat-title svg { width: 17px; height: 17px; flex-shrink: 0; color: var(--ast-strong); }
       .ast-panel .ast-chat-title:hover:not(:disabled) { background: var(--ast-surface); }
-      .ast-panel .ast-model { justify-content: space-between; }
-      .ast-panel .ast-model > div:first-child { flex: 1; min-width: 0; }
-      .ast-panel .ozera-dropdown__chevron { width: 17px; height: 17px; }
-      .ast-panel .ast-chat-cost { color: var(--ast-faint); font-size: 0.75rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
       .ast-panel .ast-menu {
         position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 5; max-height: 60vh; overflow-y: auto;
@@ -95,15 +91,19 @@ export function AssistantStyles() {
       .ast-panel .ast-menu-head { padding: 0.35rem 0.5rem 0.25rem; font-size: 0.72rem; color: var(--ast-faint); }
       .ast-panel .ast-menu-foot { padding: 0.35rem 0.5rem 0.25rem; font-size: 0.72rem; color: var(--ast-faint); border-top: 1px solid var(--ast-border); margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
       .ast-panel .ast-menu-check { display: inline-block; width: 17px; height: 17px; flex-shrink: 0; }
-      .ast-panel .ast-allowance { position: relative; flex-shrink: 0; }
-      .ast-panel .ast-allowance-button {
-        display: inline-flex; align-items: center; height: 28px; padding: 0 0.6rem; cursor: pointer;
+      .ast-panel .ast-menu--up { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; width: 210px; }
+      .ast-panel .ast-menu-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .ast-panel .ast-menu-price { font-size: 0.72rem; color: var(--ast-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .ast-panel .ast-bar-control { position: relative; flex-shrink: 0; }
+      .ast-panel .ast-bar-button {
+        display: inline-flex; align-items: center; gap: 0.3rem; height: 28px; padding: 0 0.6rem; cursor: pointer;
         background: transparent; border: 1px solid var(--ast-border); color: var(--ast-text); font-size: 0.78rem;
         font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap;
       }
-      .ast-panel .ast-allowance-button:hover { background: var(--ast-surface); }
-      .ast-panel .ast-allowance-button.on { color: var(--ast-accent); border-color: var(--ast-accent); }
-      .ast-panel .ast-allowance-menu { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; width: 200px; }
+      .ast-panel .ast-bar-button svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--ast-strong); margin-right: -0.2rem; }
+      .ast-panel .ast-bar-button:hover:not(:disabled) { background: var(--ast-surface); }
+      .ast-panel .ast-bar-button:disabled { opacity: 0.4; cursor: default; }
+      .ast-panel .ast-bar-button.on { color: var(--ast-accent); border-color: var(--ast-accent); }
       .ast-panel .ast-rename {
         flex: 1; min-width: 0; padding: 0.3rem 0.45rem; background: var(--ast-surface); color: var(--ast-text);
         border: 1px solid var(--ast-border); font: inherit; outline: none;
@@ -124,19 +124,37 @@ export function AssistantStyles() {
         align-self: flex-end; max-width: 88%; padding: 0.5rem 0.7rem; background: var(--ast-user);
         white-space: pre-wrap; overflow-wrap: anywhere;
       }
-      .ast-panel .ast-tools { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-      .ast-panel .ast-tool {
-        display: inline-flex; align-items: center; gap: 0.3rem; max-width: 100%; padding: 0.15rem 0.45rem;
-        font-size: 0.72rem; color: var(--ast-faint); border: 1px solid var(--ast-border); background: var(--ast-surface);
+      .ast-panel .ast-steps {
+        display: flex; flex-direction: column; gap: 0.05rem; padding: 0.1rem 0 0.1rem 0.6rem;
+        border-left: 2px solid var(--ast-rail); font-size: 0.8rem;
       }
-      .ast-panel .ast-tool span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .ast-panel .ast-tool svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--ast-strong); }
-      .ast-panel .ast-tool--error, .ast-panel .ast-tool--error svg { color: var(--ast-warn); }
-      .ast-panel .ast-tool--run { color: var(--ast-text); }
-      .ast-panel .ast-tool--skipped { opacity: 0.6; }
-      .ast-panel .ast-tool .ast-tool-cost { color: var(--ast-faint); font-variant-numeric: tabular-nums; flex-shrink: 0; }
-      .ast-panel button.ast-tool--open { cursor: pointer; font-size: 0.72rem; }
-      .ast-panel button.ast-tool--open:hover { border-color: var(--ast-accent); }
+      .ast-panel .ast-step-row { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+      .ast-panel .ast-step-main {
+        flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.45rem; padding: 0.2rem 0.3rem; margin-left: -0.3rem;
+        background: transparent; border: none; text-align: left;
+      }
+      .ast-panel button.ast-step-main { cursor: pointer; }
+      .ast-panel button.ast-step-main:hover { background: var(--ast-surface); }
+      .ast-panel .ast-step-main > svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--ast-strong); }
+      .ast-panel .ast-step-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .ast-panel .ast-step-says { font-weight: 500; color: var(--ast-strong); }
+      .ast-panel .ast-step-arg { color: var(--ast-soft); }
+      .ast-panel .ast-step-end { margin-left: auto; padding-left: 0.4rem; flex-shrink: 0; font-size: 0.75rem; color: var(--ast-soft); font-variant-numeric: tabular-nums; }
+      .ast-panel .ast-step-main > .ast-step-chevron { width: 15px; height: 15px; margin-left: auto; transition: transform 0.15s; }
+      .ast-panel .ast-step-end + .ast-step-chevron { margin-left: 0; }
+      .ast-panel .ast-step-main > .ast-step-chevron.open { transform: rotate(90deg); }
+      .ast-panel .ast-step-open {
+        flex-shrink: 0; padding: 0.05rem 0.5rem; cursor: pointer; font-size: 0.72rem; background: transparent;
+        border: 1px solid var(--ast-border);
+      }
+      .ast-panel .ast-step-open:hover { border-color: var(--ast-accent); }
+      .ast-panel .ast-step--error .ast-step-main > svg, .ast-panel .ast-step--error .ast-step-end { color: var(--ast-warn); }
+      .ast-panel .ast-step--skipped { opacity: 0.6; }
+      .ast-panel .ast-step-details {
+        margin: 0.15rem 0 0.3rem 1.45rem; padding: 0.45rem 0.6rem; display: flex; flex-direction: column; gap: 0.3rem;
+        background: var(--ast-surface); border: 1px solid var(--ast-border);
+      }
+      .ast-panel .ast-step-title { font-weight: 600; }
 
       .ast-panel .ast-approval { border: 1px solid var(--ast-accent); background: var(--ast-surface); display: flex; flex-direction: column; }
       .ast-panel .ast-approval-notice { padding: 0.45rem 0.7rem; font-size: 0.75rem; color: var(--ast-warn); border-bottom: 1px solid var(--ast-border); }
@@ -151,11 +169,6 @@ export function AssistantStyles() {
       .ast-panel .ast-approval-details dt { color: var(--ast-faint); }
       .ast-panel .ast-approval-details dd { margin: 0; overflow-wrap: anywhere; }
       .ast-panel .ast-approval-note { font-size: 0.72rem; color: var(--ast-faint); }
-      .ast-panel .ast-approval--auto { border-color: var(--ast-border); }
-      .ast-panel .ast-approval--auto .ast-approval-run { border-bottom: none; }
-      .ast-panel .ast-approval--auto .ast-approval-price svg { width: 16px; height: 16px; vertical-align: -3px; color: var(--ast-strong); }
-      .ast-panel .ast-approval-auto-foot { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-      .ast-panel .ast-approval-auto-foot .ast-approval-note { margin-right: auto; }
       .ast-panel .ast-approval-footer { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.7rem; font-size: 0.78rem; flex-wrap: wrap; }
       .ast-panel .ast-approval-footer > span { font-variant-numeric: tabular-nums; }
       .ast-panel .ast-approval-actions { margin-left: auto; display: flex; gap: 0.4rem; }
@@ -223,17 +236,19 @@ export function AssistantStyles() {
       .ast-panel .ast-composer-bar {
         display: flex; align-items: center; gap: 0.55rem; padding: 0.35rem 0.4rem; border-top: 1px solid var(--ast-border); cursor: default;
       }
-      .ast-panel .ast-composer-model {
-        flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        font-size: 0.75rem; color: var(--ast-faint); font-variant-numeric: tabular-nums;
-      }
       .ast-panel .ast-send {
-        display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex-shrink: 0;
+        margin-left: auto; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex-shrink: 0;
         background: var(--ast-strong); color: var(--ast-bg) !important; border: none; cursor: pointer;
       }
       .ast-panel .ast-send svg { width: 18px; height: 18px; stroke-width: 2.5; }
       .ast-panel .ast-send:disabled { opacity: 0.35; cursor: default; }
-      .ast-panel .ast-footnote { font-size: 0.72rem; color: var(--ast-faint); font-variant-numeric: tabular-nums; }
+      .ast-panel .ast-footnote {
+        display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.75rem; font-size: 0.75rem;
+        color: var(--ast-text); font-variant-numeric: tabular-nums;
+      }
+      .ast-panel .ast-footnote-model { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .ast-panel .ast-footnote-chat { margin-left: auto; text-align: right; }
+      .ast-panel .ast-footnote-note { margin-top: -0.25rem; font-size: 0.75rem; color: var(--ast-soft); }
     `}</style>
   )
 }

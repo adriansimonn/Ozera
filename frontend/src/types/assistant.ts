@@ -72,11 +72,16 @@ export interface ToolChipInfo {
 export type TurnStatus =
   | 'running' | 'done' | 'max_tokens' | 'refused' | 'stopped' | 'limit' | 'full' | 'error' | 'approval' | 'awaiting_approval' | 'skipped'
 
+/** A reply's text and tool calls in the order it made them (a tool by its ID in tools) */
+export type TurnPart = { type: 'text'; text: string } | { type: 'tool'; id: string }
+
 export interface ChatTurn {
   turn: number
   text: string
   page: string | null
   reply: string
+  /** Missing from an older backend: reply, then tools */
+  parts?: TurnPart[]
   tools: ToolChipInfo[]
   status: TurnStatus
   detail: { message?: string; category?: string | null; code?: string }
