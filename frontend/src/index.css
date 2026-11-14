@@ -41,86 +41,6 @@ body {
 }
 
 /* ========================================================================
-   GLASS INTERFACE — only active under [data-interface="glass"]
-   ======================================================================== */
-
-/* Dark/glow backgrounds */
-[data-bg="dark"][data-interface="glass"] .glass,
-[data-bg="glow"][data-interface="glass"] .glass {
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.05);
-}
-
-[data-bg="dark"][data-interface="glass"] .glass-strong,
-[data-bg="glow"][data-interface="glass"] .glass-strong {
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(24px) saturate(200%);
-  -webkit-backdrop-filter: blur(24px) saturate(200%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-/* Light background + glass */
-[data-bg="light"][data-interface="glass"] .glass {
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8),
-    0 0 0 1px rgba(0, 0, 0, 0.04);
-}
-
-[data-bg="light"][data-interface="glass"] .glass-strong {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(24px) saturate(200%);
-  -webkit-backdrop-filter: blur(24px) saturate(200%);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 0 0 1px rgba(0, 0, 0, 0.06);
-}
-
-/* Fallback for non-glass interface (dark/glow) */
-.glass {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.glass-strong {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Fallback for non-glass interface (light) */
-[data-bg="light"] .glass {
-  background: rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-[data-bg="light"] .glass-strong {
-  background: rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-/* Disable all backdrop-filter / glass effects when using default interface */
-[data-interface="default"] * {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-/* ========================================================================
    LIGHT BACKGROUND — global color overrides via [data-bg="light"]
    ======================================================================== */
 
@@ -271,9 +191,6 @@ body {
 [data-bg="light"] .detail-value,
 [data-bg="light"] .info-value,
 [data-bg="light"] .model-badge,
-[data-bg="light"] .sae-header h1,
-[data-bg="light"] .analysis-header h1,
-[data-bg="light"] .playground-header h1,
 [data-bg="light"] .page-header h1 {
   color: #1d1d1f;
 }
@@ -302,7 +219,6 @@ body {
 [data-bg="light"] .no-info,
 [data-bg="light"] .dropdown-item-desc,
 [data-bg="light"] .subsection-divider,
-[data-bg="light"] .empty-detail,
 [data-bg="light"] .empty-subtitle {
   color: #1d1d1f;
 }
@@ -311,7 +227,6 @@ body {
 [data-bg="light"] .control-group select,
 [data-bg="light"] .prompt-area textarea,
 [data-bg="light"] .model-selector select,
-[data-bg="light"] .sae-input,
 [data-bg="light"] .model-select,
 [data-bg="light"] .prompt-input,
 [data-bg="light"] .prompt-textarea {
@@ -323,8 +238,7 @@ body {
 
 [data-bg="light"] .control-group select:hover,
 [data-bg="light"] .prompt-area textarea:hover,
-[data-bg="light"] .model-selector select:hover:not(:disabled),
-[data-bg="light"] .sae-input:hover {
+[data-bg="light"] .model-selector select:hover:not(:disabled) {
   background: rgba(0, 0, 0, 0.05);
   border-color: rgba(0, 0, 0, 0.18);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
@@ -332,8 +246,7 @@ body {
 
 [data-bg="light"] .control-group select:focus,
 [data-bg="light"] .prompt-area textarea:focus,
-[data-bg="light"] .model-selector select:focus,
-[data-bg="light"] .sae-input:focus {
+[data-bg="light"] .model-selector select:focus {
   background: rgba(0, 0, 0, 0.04);
   border-color: rgba(59, 130, 246, 0.4);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06), 0 0 0 2px rgba(59, 130, 246, 0.1);
@@ -522,31 +435,6 @@ body {
   border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 
-/* --- Mode tabs (SAE, Analysis, Unified, Patching) --- */
-[data-bg="light"] .mode-tab {
-  background: rgba(0, 0, 0, 0.03);
-  border-color: rgba(0, 0, 0, 0.1);
-  color: #1d1d1f;
-}
-
-[data-bg="light"] .mode-tab:hover {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.15);
-  color: #1d1d1f;
-}
-
-[data-bg="light"] .mode-tab.active {
-  background: rgba(0, 0, 0, 0.08);
-  border-color: rgba(0, 0, 0, 0.2);
-  color: #1d1d1f;
-}
-
-[data-bg="light"] .mode-tab.disabled {
-  background: rgba(0, 0, 0, 0.02);
-  border-color: rgba(0, 0, 0, 0.06);
-  color: rgba(0, 0, 0, 0.3);
-}
-
 /* --- Section panels / containers --- */
 [data-bg="light"] .section,
 [data-bg="light"] .panel,
@@ -558,37 +446,27 @@ body {
 }
 
 /* --- Empty states --- */
-[data-bg="light"] .empty-state,
 [data-bg="light"] .no-experiments,
 [data-bg="light"] .placeholder-panel {
   background: rgba(0, 0, 0, 0.02);
   border-color: rgba(0, 0, 0, 0.08);
 }
 
-[data-bg="light"] .empty-icon {
-  color: rgba(0, 0, 0, 0.2);
-}
-
-[data-bg="light"] .empty-state h3,
 [data-bg="light"] .empty-title {
   color: #1d1d1f;
 }
 
 /* --- Patching / Analysis specific --- */
-[data-bg="light"] .prompt-group label,
 [data-bg="light"] .config-label {
   color: #1d1d1f;
 }
 
-[data-bg="light"] .prompt-group input,
-[data-bg="light"] .prompt-group textarea,
 [data-bg="light"] .config-input {
   background: rgba(0, 0, 0, 0.03);
   border-color: rgba(0, 0, 0, 0.1);
   color: #1d1d1f;
 }
 
-[data-bg="light"] .run-experiment-btn,
 [data-bg="light"] .analyze-btn,
 [data-bg="light"] .run-btn {
   background: rgba(0, 0, 0, 0.06);
@@ -596,7 +474,6 @@ body {
   color: #1d1d1f;
 }
 
-[data-bg="light"] .run-experiment-btn:hover:not(:disabled),
 [data-bg="light"] .analyze-btn:hover:not(:disabled),
 [data-bg="light"] .run-btn:hover:not(:disabled) {
   background: rgba(0, 0, 0, 0.1);
@@ -619,36 +496,14 @@ body {
   border-color: rgba(59, 130, 246, 0.3);
 }
 
-/* --- SAE specific --- */
-[data-bg="light"] .sae-input {
-  background: rgba(0, 0, 0, 0.03);
-  border-color: rgba(0, 0, 0, 0.12);
-  color: #1d1d1f;
-}
-
-/* --- Spinner / loading --- */
-[data-bg="light"] .spinner {
-  border-color: rgba(0, 0, 0, 0.15);
-  border-top-color: #1d1d1f;
-}
-
 /* --- Activation items --- */
-[data-bg="light"] .activation-item,
 [data-bg="light"] .token-item {
   background: rgba(0, 0, 0, 0.02);
   border-color: rgba(0, 0, 0, 0.08);
 }
 
-[data-bg="light"] .activation-item:hover,
 [data-bg="light"] .token-item:hover {
   background: rgba(0, 0, 0, 0.04);
-}
-
-/* --- Error banners --- */
-[data-bg="light"] .error-banner {
-  background: rgba(239, 68, 68, 0.06);
-  border-color: rgba(239, 68, 68, 0.15);
-  color: #dc2626;
 }
 
 /* --- GenerationFlow visualization --- */
@@ -723,11 +578,6 @@ body {
 [data-bg="light"] .main-content {
   background: rgba(0, 0, 0, 0.02);
   border-color: rgba(0, 0, 0, 0.08);
-}
-
-/* --- SAEPage select/input custom styles --- */
-[data-bg="light"] .sae-input::placeholder {
-  color: rgba(0, 0, 0, 0.5);
 }
 
 /* --- Visualization panel headers --- */
@@ -860,8 +710,6 @@ body {
 .ozera-dropdown--dark .ozera-dropdown__menu {
   background: rgba(18, 18, 18, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
@@ -913,8 +761,6 @@ body {
 .ozera-dropdown--light .ozera-dropdown__menu {
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.04);
 }
 

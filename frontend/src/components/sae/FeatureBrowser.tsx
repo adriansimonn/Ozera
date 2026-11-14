@@ -131,7 +131,7 @@ export function FeatureBrowser({
   }
 
   return (
-    <div className={`feature-browser ${className}`} style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}` }}>
+    <div className={`feature-browser ${className}`} style={{ background: tc.surface, border: `1px solid ${tc.border}` }}>
       {/* Header */}
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center justify-between mb-4">

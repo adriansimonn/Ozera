@@ -1,8 +1,3 @@
-/**
- * Activation Patching Playground - Interactive interface for swapping activations
- * between different prompts to understand model behavior.
- */
-
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { NavBar } from '../components/common/NavBar'
@@ -24,14 +19,16 @@ import { Dropdown, type DropdownGroup } from '../components/common/Dropdown'
 import { useAuthStore } from '../stores/authStore'
 import { useAssistantPage } from '../hooks/useAssistantPage'
 import { patchingBridge } from '../components/assistant/pages/patching'
+import { useTheme } from '../hooks/useTheme'
 
 interface PatchingPlaygroundProps {
   onShowPurchaseCredits?: () => void
 }
 
-export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlaygroundProps) {
+export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: PatchingPlaygroundProps) {
   const { isAuthenticated } = useAuthStore()
   const navigate = useNavigate()
+  const { isLight } = useTheme()
 
   // Model selection
   const [models, setModels] = useState<PatchingModelInfo[]>([])
@@ -83,16 +80,10 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
     captured: capturedActivations.length,
   }))
 
-  // Load available models on mount
-  useEffect(() => {
-    loadModels()
-  }, [])
+  useEffect(() => { loadModels() }, [])
 
-  // Load model layer info when model changes
   useEffect(() => {
-    if (selectedModel) {
-      loadModelInfo(selectedModel)
-    }
+    if (selectedModel) loadModelInfo(selectedModel)
   }, [selectedModel])
 
   const loadModels = async () => {
@@ -100,9 +91,7 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
       setLoadingModels(true)
       const modelList = await apiClient.getPatchingModels()
       setModels(modelList)
-      if (modelList.length > 0) {
-        setSelectedModel((current) => current || modelList[0].model_id)
-      }
+      if (modelList.length > 0) setSelectedModel((current) => current || modelList[0].model_id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load models')
     } finally {
@@ -129,32 +118,20 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
     }
   }, [])
 
-  useEffect(() => {
-    loadCapturedActivations()
-  }, [loadCapturedActivations])
+  useEffect(() => { loadCapturedActivations() }, [loadCapturedActivations])
 
-  // Check if any patches require source activations (patch intervention type)
-  // Show source prompt by default (when no patches added), hide only when all patches are ablation
   const hasPatches = patches.some(p => p.intervention_type === 'patch')
   const hasAblations = patches.some(p => p.intervention_type !== 'patch')
   const isMixed = hasPatches && hasAblations
   const requiresSourcePrompt = patches.length === 0 || hasPatches
 
   const handleRunExperiment = async () => {
-    if (!isAuthenticated) {
-      navigate('/auth')
-      return
-    }
+    if (!isAuthenticated) { navigate('/auth'); return }
     if (!selectedModel || patches.length === 0) {
       setError('Please select a model and add at least one patch')
       return
     }
-
-    if (!targetPrompt.trim()) {
-      setError('Please enter a target prompt')
-      return
-    }
-
+    if (!targetPrompt.trim()) { setError('Please enter a target prompt'); return }
     if (requiresSourcePrompt && !sourcePrompt.trim()) {
       setError('Please enter a source prompt (required for patching interventions)')
       return
@@ -175,7 +152,6 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
       })
 
       setResult(patchResult)
-      // Refresh captured activations list
       loadCapturedActivations()
     } catch (err) {
       if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') {
@@ -188,17 +164,9 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
     }
   }
 
-  const handleAddPatch = (patch: PatchSpec) => {
-    setPatches(prev => [...prev, patch])
-  }
-
-  const handleRemovePatch = (index: number) => {
-    setPatches(prev => prev.filter((_, i) => i !== index))
-  }
-
-  const handleClearPatches = () => {
-    setPatches([])
-  }
+  const handleAddPatch = (patch: PatchSpec) => { setPatches(prev => [...prev, patch]) }
+  const handleRemovePatch = (index: number) => { setPatches(prev => prev.filter((_, i) => i !== index)) }
+  const handleClearPatches = () => { setPatches([]) }
 
   const handleDeleteCaptured = async (activationId: string) => {
     try {
@@ -223,20 +191,15 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
     setTargetPrompt(experiment.target_prompt)
     setPatches(experiment.patches)
 
-    // Switch to the experiment's model if available
     const model = models.find(m => m.model_id === experiment.model_id)
-    if (model) {
-      setSelectedModel(experiment.model_id)
-    }
+    if (model) setSelectedModel(experiment.model_id)
 
-    // If experiment has results, show them
     if (experiment.baseline_output && experiment.patched_output && experiment.effect_summary) {
       setResult({
         baseline_output: experiment.baseline_output,
         patched_output: experiment.patched_output,
         baseline_tokens: [],
         patched_tokens: [],
-        // Use stored decoded tokens if available, otherwise fall back to output string as single token
         baseline_decoded: experiment.baseline_decoded ?? [experiment.baseline_output],
         patched_decoded: experiment.patched_decoded ?? [experiment.patched_output],
         source_activation_id: '',
@@ -251,34 +214,56 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
   const numLayers = modelInfo?.num_layers ?? 6
   const numHeads = modelInfo?.num_heads ?? 8
 
+  // Color tokens
+  const c = {
+    bg: isLight ? '#f5f5f7' : '#0a0a0a',
+    panelBg: isLight ? '#ffffff' : '#111111',
+    divider: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
+    text: isLight ? '#1d1d1f' : '#ffffff',
+    textMid: isLight ? '#1d1d1f' : '#ffffff',
+    textSub: isLight ? '#1d1d1f' : '#ffffff',
+    controlBg: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)',
+    controlBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
+    controlHover: isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.08)',
+    inputBg: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(0,0,0,0.4)',
+    inputBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
+    errorBg: 'rgba(239, 68, 68, 0.08)',
+    errorBorder: 'rgba(239, 68, 68, 0.2)',
+    errorText: '#ef4444',
+    accentBg: isLight ? 'rgba(59,130,246,0.08)' : 'rgba(59,130,246,0.12)',
+    accentText: isLight ? '#2563eb' : 'rgba(96,165,250,0.9)',
+    ablationBg: isLight ? 'rgba(168,85,247,0.06)' : 'rgba(168,85,247,0.1)',
+    ablationBorder: isLight ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.25)',
+    ablationText: isLight ? '#7c3aed' : 'rgba(168,85,247,0.9)',
+    spinnerTrack: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
+    spinnerHead: isLight ? '#1d1d1f' : '#ffffff',
+  }
+
   return (
-    <div className="patching-playground">
+    <div className="dp-page" style={{ background: c.bg }}>
       <NavBar />
 
-      <div className="playground-content">
-        <div className="playground-header">
-          <div className="header-title">
-            <h1>Activation Patching Playground</h1>
-          </div>
-          <p className="header-description">
-            Perform causal interventions to understand how the model processes information.
-            Swap activations between prompts (patching) or ablate activations (zero, mean, noise) to measure component importance.
-          </p>
-        </div>
+      <div className="dp-layout" style={{ borderColor: c.divider }}>
+        {/* Left Panel — 20%: Model, Prompts, Settings */}
+        <div className="dp-left" style={{ background: c.panelBg, borderRight: `1px solid ${c.divider}` }}>
+          <div className="dp-left-scroll">
+            {/* Error banner */}
+            {error && (
+              <div className="dp-error" style={{ background: c.errorBg, borderColor: c.errorBorder }}>
+                <AlertCircle style={{ width: 14, height: 14, color: c.errorText, flexShrink: 0 }} />
+                <span style={{ color: c.errorText, fontSize: '0.8rem', flex: 1 }}>{error}</span>
+                <button
+                  onClick={() => setError(null)}
+                  style={{ background: 'none', border: 'none', color: c.errorText, cursor: 'pointer', fontSize: '0.75rem', padding: '0.125rem 0.5rem' }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
 
-        {error && (
-          <div className="error-banner">
-            <AlertCircle className="error-icon" />
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="dismiss-btn">Dismiss</button>
-          </div>
-        )}
-
-        <div className="playground-grid">
-          {/* Left Column: Prompts and Settings */}
-          <div className="left-column">
-            <div className="section model-section">
-              <h2>Model</h2>
+            {/* Model section */}
+            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              <div className="dp-section-label" style={{ color: c.textSub }}>Model</div>
               <div data-assist="patching.model">
               <Dropdown
                 value={selectedModel}
@@ -304,22 +289,36 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
               />
               </div>
               {modelInfo && (
-                <div className="model-info-row">
-                  <span className="info-badge">{modelInfo.model_type.replace(/_/g, ' ')}</span>
-                  <span className="info-text">{modelInfo.num_layers} layers, {modelInfo.num_heads} heads</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginTop: '0.625rem' }}>
+                  <span style={{
+                    padding: '0.2rem 0.5rem',
+                    background: c.controlBg,
+                    border: `1px solid ${c.controlBorder}`,
+                    color: c.textSub,
+                    fontSize: '0.65rem',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                  }}>
+                    {modelInfo.model_type.replace(/_/g, ' ')}
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: c.textSub }}>
+                    {modelInfo.num_layers} layers, {modelInfo.num_heads} heads
+                  </span>
                 </div>
               )}
             </div>
 
-            <div className="section prompts-section">
-              <h2>Prompts</h2>
+            {/* Prompts section */}
+            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              <div className="dp-section-label" style={{ color: c.textSub }}>Prompts</div>
 
               {requiresSourcePrompt && (
-                <div className="prompt-group">
-                  <label>
-                    <span className="label-main">Source Prompt</span>
-                    <span className="label-hint">Activations will be captured from this prompt</span>
-                  </label>
+                <div style={{ marginBottom: '0.875rem' }}>
+                  <div style={{ marginBottom: '0.375rem' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 500, color: c.textMid }}>Source Prompt</div>
+                    <div style={{ fontSize: '0.7rem', color: c.textSub }}>Activations captured from this prompt</div>
+                  </div>
                   <textarea
                     data-assist="patching.source_prompt"
                     value={sourcePrompt}
@@ -327,27 +326,38 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
                     placeholder="Enter source prompt..."
                     disabled={running}
                     rows={3}
+                    className="dp-textarea"
+                    style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
                   />
                 </div>
               )}
 
               {!requiresSourcePrompt && patches.length > 0 && (
-                <div className="ablation-notice">
-                  <span>Ablation mode: No source prompt needed. Activations will be zeroed, averaged, or replaced with noise.</span>
+                <div style={{
+                  padding: '0.625rem 0.75rem',
+                  background: c.ablationBg,
+                  border: `1px solid ${c.ablationBorder}`,
+                  color: c.ablationText,
+                  fontSize: '0.8rem',
+                  marginBottom: '0.875rem',
+                }}>
+                  Ablation mode: No source prompt needed
                 </div>
               )}
 
-              <div className="prompt-group">
-                <label>
-                  <span className="label-main">{requiresSourcePrompt ? 'Target Prompt' : 'Prompt'}</span>
-                  <span className="label-hint">
+              <div>
+                <div style={{ marginBottom: '0.375rem' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 500, color: c.textMid }}>
+                    {requiresSourcePrompt ? 'Target Prompt' : 'Prompt'}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: c.textSub }}>
                     {isMixed
-                      ? 'Generation will run on this prompt with interventions applied'
+                      ? 'Generation runs on this prompt with interventions'
                       : requiresSourcePrompt
-                        ? 'Generation will run on this prompt with patches applied'
-                        : 'Generation will run on this prompt with ablations applied'}
-                  </span>
-                </label>
+                        ? 'Generation runs on this prompt with patches'
+                        : 'Generation runs on this prompt with ablations'}
+                  </div>
+                </div>
                 <textarea
                   data-assist="patching.target_prompt"
                   value={targetPrompt}
@@ -355,69 +365,83 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
                   placeholder={requiresSourcePrompt ? 'Enter target prompt...' : 'Enter prompt...'}
                   disabled={running}
                   rows={3}
+                  className="dp-textarea"
+                  style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
                 />
               </div>
             </div>
 
-            <div className="section settings-section">
-              <h2>Generation Settings</h2>
-              <div className="settings-row">
-                <div className="setting-group">
-                  <label>Max Tokens</label>
+            {/* Generation Settings */}
+            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              <div className="dp-section-label" style={{ color: c.textSub }}>Generation Settings</div>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.7rem', color: c.textSub, marginBottom: '0.3rem', fontWeight: 500 }}>Max Tokens</div>
                   <input
                     type="number"
                     data-assist="patching.max_tokens"
                     value={maxTokens}
                     onChange={e => setMaxTokens(parseInt(e.target.value) || 20)}
-                    min={1}
-                    max={100}
+                    min={1} max={100}
                     disabled={running}
+                    className="dp-input"
+                    style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
                   />
                 </div>
-                <div className="setting-group">
-                  <label>Temperature</label>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.7rem', color: c.textSub, marginBottom: '0.3rem', fontWeight: 500 }}>Temperature</div>
                   <input
                     type="number"
                     data-assist="patching.temperature"
                     value={temperature}
                     onChange={e => setTemperature(parseFloat(e.target.value) || 0)}
-                    min={0}
-                    max={2}
-                    step={0.1}
+                    min={0} max={2} step={0.1}
                     disabled={running}
+                    className="dp-input"
+                    style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
                   />
                 </div>
               </div>
-              <div className="settings-hint">
-                <Info className="hint-icon" />
-                <span>Temperature 0 recommended for deterministic comparison</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginTop: '0.5rem' }}>
+                <Info style={{ width: 12, height: 12, color: c.textSub }} />
+                <span style={{ fontSize: '0.7rem', color: c.textSub }}>Temperature 0 recommended for deterministic comparison</span>
               </div>
             </div>
 
-            <button
-              className="run-experiment-btn"
-              data-assist="patching.run_button"
-              onClick={handleRunExperiment}
-              disabled={running || !selectedModel || patches.length === 0}
-            >
-              {running ? (
-                <>
-                  <div className="spinner" />
-                  Running Experiment...
-                </>
-              ) : (
-                <>
-                  <Play className="btn-icon" />
-                  Run Experiment
-                </>
-              )}
-            </button>
+            {/* Run button */}
+            <div className="dp-section">
+              <button
+                className="dp-run-btn"
+                data-assist="patching.run_button"
+                onClick={handleRunExperiment}
+                disabled={running || !selectedModel || patches.length === 0}
+                style={{
+                  background: running ? c.controlBg : (isLight ? '#1d1d1f' : '#ffffff'),
+                  color: running ? c.textSub : (isLight ? '#ffffff' : '#0a0a0a'),
+                  borderColor: 'transparent',
+                }}
+              >
+                {running ? (
+                  <>
+                    <div className="dp-spinner" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
+                    Running...
+                  </>
+                ) : (
+                  <>
+                    <Play style={{ width: 14, height: 14 }} />
+                    Run Experiment
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+        </div>
 
-          {/* Center Column: Intervention Configuration */}
-          <div className="center-column">
+        {/* Center Panel — 40%: Layer Selector, Config, Captured Activations */}
+        <div className="dp-center" style={{ background: c.bg, borderRight: `1px solid ${c.divider}` }}>
+          <div className="dp-center-scroll">
             {/* Visual Layer Selector */}
-            <div className="section section-transparent">
+            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
               <PatchSelector
                 modelInfo={modelInfo}
                 patches={patches}
@@ -426,8 +450,8 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
               />
             </div>
 
-            {/* Detailed Intervention Configuration */}
-            <div className="section section-transparent">
+            {/* Intervention Configuration */}
+            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
               <div data-assist="patching.patches">
               <PatchConfigPanel
                 modelId={selectedModel}
@@ -444,39 +468,75 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
             </div>
 
             {/* Captured Activations */}
-            <div className="section captured-section">
+            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
               <button
-                className="section-toggle"
+                className="dp-toggle-btn"
                 onClick={() => setShowCaptured(!showCaptured)}
+                style={{ color: c.textMid }}
               >
-                <h2>Captured Activations ({capturedActivations.length})</h2>
-                {showCaptured ? <ChevronUp /> : <ChevronDown />}
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Captured Activations ({capturedActivations.length})
+                </span>
+                {showCaptured ? <ChevronUp style={{ width: 14, height: 14 }} /> : <ChevronDown style={{ width: 14, height: 14 }} />}
               </button>
 
               {showCaptured && (
-                <div className="captured-list">
+                <div style={{ marginTop: '0.75rem' }}>
                   {capturedActivations.length === 0 ? (
-                    <div className="empty-state">No captured activations yet</div>
+                    <div style={{
+                      padding: '1.25rem',
+                      textAlign: 'center',
+                      color: c.textSub,
+                      fontSize: '0.8rem',
+                      background: c.controlBg,
+                      border: `1px dashed ${c.controlBorder}`,
+                    }}>
+                      No captured activations yet
+                    </div>
                   ) : (
                     <>
                       <button
-                        className="clear-all-btn"
                         onClick={handleClearAllCaptured}
+                        style={{
+                          width: '100%',
+                          padding: '0.4rem',
+                          background: 'transparent',
+                          border: `1px solid ${c.errorBorder}`,
+                          color: c.errorText,
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          marginBottom: '0.625rem',
+                        }}
                       >
                         Clear All
                       </button>
                       {capturedActivations.map(activation => (
-                        <div key={activation.id} className="captured-item">
-                          <div className="captured-info">
-                            <span className="captured-model">{activation.model_id}</span>
-                            <span className="captured-prompt">"{activation.prompt.slice(0, 50)}..."</span>
-                            <span className="captured-meta">{activation.num_tokens} tokens, {activation.num_layers} layers</span>
+                        <div
+                          key={activation.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.625rem 0.75rem',
+                            background: c.controlBg,
+                            border: `1px solid ${c.controlBorder}`,
+                            marginBottom: '0.375rem',
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 500, color: c.accentText }}>{activation.model_id}</span>
+                            <span style={{ fontSize: '0.75rem', color: c.textSub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              "{activation.prompt.slice(0, 50)}..."
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: c.textSub }}>
+                              {activation.num_tokens} tokens, {activation.num_layers} layers
+                            </span>
                           </div>
                           <button
-                            className="delete-btn"
                             onClick={() => handleDeleteCaptured(activation.id)}
+                            style={{ background: 'none', border: 'none', color: c.textSub, cursor: 'pointer', padding: '0.25rem' }}
                           >
-                            <Trash2 className="delete-icon" />
+                            <Trash2 style={{ width: 14, height: 14 }} />
                           </button>
                         </div>
                       ))}
@@ -485,9 +545,36 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
                 </div>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Right Panel — 40%: Results + Saved Experiments */}
+        <div className="dp-right" style={{ background: c.panelBg }}>
+          <div className="dp-right-scroll">
+            {/* Results */}
+            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              <div className="dp-section-label" style={{ color: c.textSub }}>Results</div>
+              {result ? (
+                <PromptComparer
+                  baselineOutput={result.baseline_output}
+                  patchedOutput={result.patched_output}
+                  baselineDecoded={result.baseline_decoded}
+                  patchedDecoded={result.patched_decoded}
+                  effectSummary={result.effect_summary}
+                  interventionMode={isMixed ? 'mixed' : hasAblations ? 'ablation' : 'patch'}
+                />
+              ) : (
+                <div className="dp-placeholder">
+                  <Zap style={{ width: 36, height: 36, color: c.textSub, opacity: 0.3, marginBottom: '0.75rem' }} />
+                  <p style={{ color: c.textSub, fontSize: '0.8rem', margin: 0 }}>
+                    Configure patches and run an experiment to see results
+                  </p>
+                </div>
+              )}
+            </div>
 
             {/* Saved Experiments */}
-            <div className="section">
+            <div className="dp-section">
               <ExperimentsList
                 currentExperiment={{
                   sourcePrompt,
@@ -501,498 +588,590 @@ export function PatchingPlayground({ onShowPurchaseCredits }: PatchingPlayground
               />
             </div>
           </div>
-
-          {/* Right Column: Results */}
-          <div className="right-column">
-            <div className="section results-section">
-              <h2>Results</h2>
-              {result ? (
-                <PromptComparer
-                  baselineOutput={result.baseline_output}
-                  patchedOutput={result.patched_output}
-                  baselineDecoded={result.baseline_decoded}
-                  patchedDecoded={result.patched_decoded}
-                  effectSummary={result.effect_summary}
-                  interventionMode={isMixed ? 'mixed' : hasAblations ? 'ablation' : 'patch'}
-                />
-              ) : (
-                <div className="results-placeholder">
-                  <div className="placeholder-content">
-                    <Zap className="placeholder-icon" />
-                    <p>Configure patches and run an experiment to see results</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
 
       <style>{`
-        .patching-playground {
-          min-height: 125vh;
-          padding-top: 70px;
-        }
-
-        .playground-content {
-          max-width: 1800px;
-          margin: 0 auto;
-          padding: 2rem;
-        }
-
-        .playground-header {
-          margin-bottom: 2rem;
-        }
-
-        .header-title {
+        .dp-page {
+          height: 125vh;
           display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          margin-bottom: 0.5rem;
+          flex-direction: column;
+          overflow: hidden;
         }
 
-        .title-icon {
-          width: 28px;
-          height: 28px;
-          color: rgba(59, 130, 246, 0.8);
+        .dp-layout {
+          display: flex;
+          flex: 1;
+          margin-top: 76px;
+          overflow: hidden;
         }
 
-        .header-title h1 {
-          margin: 0;
-          font-size: 1.75rem;
+        /* Left: 20% */
+        .dp-left {
+          width: 20%;
+          min-width: 280px;
+          max-width: 380px;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .dp-left-scroll {
+          flex: 1;
+          overflow-y: auto;
+        }
+
+        /* Center: 40% */
+        .dp-center {
+          width: 40%;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .dp-center-scroll {
+          flex: 1;
+          overflow-y: auto;
+        }
+
+        /* Right: 40% */
+        .dp-right {
+          width: 40%;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .dp-right-scroll {
+          flex: 1;
+          overflow-y: auto;
+        }
+
+        .dp-section {
+          padding: 1rem 1.25rem;
+        }
+
+        .dp-section-label {
+          font-size: 0.65rem;
           font-weight: 600;
-          color: #ffffff;
-          letter-spacing: -0.02em;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          margin-bottom: 0.625rem;
         }
 
-        .header-description {
-          margin: 0;
-          font-size: 0.9rem;
-          color: #ffffff;
-          max-width: 700px;
-          line-height: 1.5;
+        .dp-textarea {
+          width: 100%;
+          padding: 0.625rem 0.75rem;
+          border: 1px solid;
+          font-size: 0.85rem;
+          font-family: inherit;
+          resize: vertical;
+          min-height: 68px;
+          outline: none;
+          box-sizing: border-box;
         }
 
-        .error-banner {
+        .dp-textarea:focus {
+          border-color: rgba(59, 130, 246, 0.4) !important;
+        }
+
+        .dp-input {
+          width: 100%;
+          padding: 0.5rem 0.625rem;
+          border: 1px solid;
+          font-size: 0.85rem;
+          outline: none;
+          box-sizing: border-box;
+        }
+
+        .dp-input:focus {
+          border-color: rgba(59, 130, 246, 0.4) !important;
+        }
+
+        .dp-run-btn {
+          width: 100%;
           display: flex;
           align-items: center;
-          gap: 0.75rem;
-          padding: 0.875rem 1rem;
-          background: rgba(239, 68, 68, 0.15);
-          border: 1px solid rgba(239, 68, 68, 0.3);
-          color: rgba(239, 68, 68, 0.9);
-          margin-bottom: 1.5rem;
-        }
-
-        .error-icon {
-          width: 18px;
-          height: 18px;
-          flex-shrink: 0;
-        }
-
-        .dismiss-btn {
-          margin-left: auto;
-          padding: 0.25rem 0.75rem;
-          background: transparent;
-          border: 1px solid rgba(239, 68, 68, 0.3);
-          color: rgba(239, 68, 68, 0.8);
-          font-size: 0.8rem;
+          justify-content: center;
+          gap: 0.5rem;
+          padding: 0.75rem 1rem;
+          border: 1px solid;
+          font-size: 0.85rem;
+          font-weight: 600;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: opacity 0.15s;
+          letter-spacing: 0.01em;
         }
 
-        .dismiss-btn:hover {
-          background: rgba(239, 68, 68, 0.1);
+        .dp-run-btn:hover:not(:disabled) {
+          opacity: 0.85;
         }
 
-        .playground-grid {
-          display: grid;
-          grid-template-columns: 350px 480px 1fr;
-          gap: 1.5rem;
-          align-items: start;
+        .dp-run-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
         }
 
-        .section {
-          margin-bottom: 1.5rem;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 1.25rem;
+        .dp-spinner {
+          width: 14px;
+          height: 14px;
+          border: 2px solid;
+          border-radius: 50%;
+          animation: dp-spin 0.8s linear infinite;
         }
 
-        .section-transparent {
+        @keyframes dp-spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .dp-toggle-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          padding: 0;
+        }
+
+        .dp-placeholder {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 3rem 2rem;
+          text-align: center;
+        }
+
+        .dp-error {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.625rem 0.875rem;
+          border: 1px solid;
+          margin: 0.75rem 1.25rem 0;
+        }
+
+        @media (max-width: 1200px) {
+          .dp-layout {
+            flex-wrap: wrap;
+          }
+          .dp-left {
+            width: 100%;
+            max-width: 100%;
+            max-height: 35vh;
+            border-right: none !important;
+            border-bottom: 1px solid;
+          }
+          .dp-center {
+            width: 50%;
+            border-right: 1px solid;
+          }
+          .dp-right {
+            width: 50%;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .dp-center,
+          .dp-right {
+            width: 100%;
+            border-right: none !important;
+          }
+        }
+
+        /* ===== Overrides for PatchSelector ===== */
+        .dp-page .patch-selector {
+          background: none;
+          border: none;
+          margin-bottom: 0;
+        }
+
+        .dp-page .selector-header {
+          padding: 0 0 0.5rem 0;
+          border-bottom: none;
+        }
+
+        .dp-page .selector-header h3 {
+          font-size: 0.7rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .dp-page .header-icon {
+          width: 13px;
+          height: 13px;
+        }
+
+        .dp-page .patches-legend {
+          padding: 0.5rem 0 0;
+          border-top: none;
+        }
+
+        .dp-page .legend-label {
+          font-size: 0.7rem;
+        }
+
+        .dp-page .legend-badge {
+          font-size: 0.65rem;
+          padding: 0.1rem 0.375rem;
+        }
+
+        /* ===== Overrides for PatchConfigPanel ===== */
+        .dp-page .patch-config-panel {
           background: none;
           border: none;
           padding: 0;
         }
 
-        .section h2 {
-          margin: 0 0 1rem 0;
-          font-size: 0.9rem;
+        .dp-page .patch-config-panel .panel-header {
+          padding-bottom: 0.5rem;
+          border-bottom: none;
+          margin-bottom: 0.75rem;
+        }
+
+        .dp-page .patch-config-panel .panel-header h3 {
+          font-size: 0.7rem;
           font-weight: 600;
-          color: #ffffff;
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
 
-        .model-select {
-          width: 100%;
-          padding: 0.75rem 1rem;
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-          font-size: 0.9rem;
-          cursor: pointer;
-        }
-
-        .model-select:focus {
-          outline: none;
-          border-color: rgba(59, 130, 246, 0.5);
-        }
-
-        .model-info-row {
-          display: flex;
-          align-items: center;
+        .dp-page .patch-config-panel .config-form {
           gap: 0.75rem;
-          margin-top: 0.75rem;
         }
 
-        .info-badge {
-          padding: 0.25rem 0.5rem;
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-          font-size: 0.7rem;
-          font-weight: 500;
-          text-transform: uppercase;
+        .dp-page .patch-config-panel .form-group label {
+          font-size: 0.65rem;
         }
 
-        .info-text {
+        .dp-page .patch-config-panel .form-group select,
+        .dp-page .patch-config-panel .form-group input[type="text"] {
+          padding: 0.5rem 0.625rem;
           font-size: 0.8rem;
-          color: #ffffff;
         }
 
-        .prompt-group {
-          margin-bottom: 1rem;
+        .dp-page .patch-config-panel .intervention-hint {
+          font-size: 0.65rem;
         }
 
-        .prompt-group label {
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
+        .dp-page .patch-config-panel .add-patch-btn {
+          padding: 0.5rem 0.75rem;
+          font-size: 0.8rem;
+        }
+
+        .dp-page .patch-config-panel .patches-list {
+          margin-top: 0.75rem;
+          padding-top: 0.75rem;
+        }
+
+        .dp-page .patch-config-panel .list-header {
+          font-size: 0.7rem;
           margin-bottom: 0.5rem;
         }
 
-        .label-main {
-          font-size: 0.85rem;
-          font-weight: 500;
-          color: #ffffff;
-        }
-
-        .label-hint {
-          font-size: 0.75rem;
-          color: #ffffff;
-        }
-
-        .prompt-group textarea {
-          width: 100%;
-          padding: 0.75rem;
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-          font-size: 0.9rem;
-          font-family: inherit;
-          resize: vertical;
-          min-height: 80px;
-        }
-
-        .prompt-group textarea:focus {
-          outline: none;
-          border-color: rgba(59, 130, 246, 0.5);
-        }
-
-        .ablation-notice {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 0.875rem 1rem;
-          background: rgba(168, 85, 247, 0.1);
-          border: 1px solid rgba(168, 85, 247, 0.25);
-          color: rgba(168, 85, 247, 0.9);
-          margin-bottom: 1rem;
-          font-size: 0.85rem;
-        }
-
-        .notice-icon {
-          font-size: 1rem;
-        }
-
-        .settings-row {
-          display: flex;
-          gap: 1rem;
-        }
-
-        .setting-group {
-          flex: 1;
-        }
-
-        .setting-group label {
-          display: block;
-          font-size: 0.8rem;
-          color: #ffffff;
+        .dp-page .patch-config-panel .patch-item {
+          padding: 0.5rem 0.625rem;
           margin-bottom: 0.375rem;
         }
 
-        .setting-group input {
+        .dp-page .patch-config-panel .patch-info {
+          gap: 0.5rem;
+        }
+
+        .dp-page .patch-config-panel .patch-intervention {
+          font-size: 0.6rem;
+          padding: 0.1rem 0.3rem;
+        }
+
+        .dp-page .patch-config-panel .patch-layer {
+          font-size: 0.75rem;
+        }
+
+        .dp-page .patch-config-panel .patch-type {
+          font-size: 0.7rem;
+          padding: 0.1rem 0.375rem;
+        }
+
+        .dp-page .patch-config-panel .patch-detail {
+          font-size: 0.7rem;
+        }
+
+        .dp-page .patch-config-panel .patch-blend {
+          font-size: 0.7rem;
+        }
+
+        .dp-page .patch-config-panel .blend-labels {
+          font-size: 0.65rem;
+        }
+
+        /* ===== Overrides for ExperimentsList ===== */
+        .dp-page .section-toggle {
+          padding: 0;
           width: 100%;
-          padding: 0.625rem 0.75rem;
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-          font-size: 0.9rem;
-        }
-
-        .setting-group input:focus {
-          outline: none;
-          border-color: rgba(59, 130, 246, 0.5);
-        }
-
-        .settings-hint {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          margin-top: 0.75rem;
-          font-size: 0.75rem;
+          justify-content: space-between;
+          background: transparent;
+          border: none;
+          cursor: pointer;
           color: #ffffff;
         }
 
-        .hint-icon {
+        [data-bg="light"] .dp-page .section-toggle {
+          color: #1d1d1f;
+        }
+
+        .dp-page .section-toggle h2 {
+          font-size: 0.7rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin: 0;
+        }
+
+        .dp-page .section-toggle svg {
           width: 14px;
           height: 14px;
         }
 
-        .run-experiment-btn {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.75rem;
-          padding: 1rem 1.5rem;
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.25);
-          color: #ffffff;
-          font-size: 0.95rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-          letter-spacing: 0.025em;
+        .dp-page .exp-content {
+          margin-top: 0.625rem;
         }
 
-        .run-experiment-btn:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.15);
-          border-color: rgba(255, 255, 255, 0.4);
+        .dp-page .exp-save-section {
+          margin-bottom: 0.625rem;
         }
 
-        .run-experiment-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
+        .dp-page .exp-save-form {
+          gap: 0.375rem;
         }
 
-        .btn-icon {
-          width: 18px;
-          height: 18px;
+        .dp-page .exp-save-form input {
+          padding: 0.375rem 0.625rem;
+          font-size: 0.75rem;
         }
 
-        .spinner {
-          width: 18px;
-          height: 18px;
-          border: 2px solid rgba(255, 255, 255, 0.3);
-          border-top-color: #ffffff;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .section-toggle {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0.75rem 0;
-          background: transparent;
-          border: none;
-          cursor: pointer;
-          color: #ffffff;
-        }
-
-        .section-toggle h2 {
-          margin: 0;
-        }
-
-        .captured-list {
-          margin-top: 0.75rem;
-        }
-
-        .empty-state {
-          padding: 1.5rem;
-          text-align: center;
-          color: #ffffff;
-          font-size: 0.85rem;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px dashed rgba(255, 255, 255, 0.1);
-        }
-
-        .clear-all-btn {
-          width: 100%;
-          padding: 0.5rem;
-          background: transparent;
-          border: 1px solid rgba(239, 68, 68, 0.3);
-          color: rgba(239, 68, 68, 0.8);
-          font-size: 0.8rem;
-          cursor: pointer;
-          margin-bottom: 0.75rem;
-          transition: all 0.2s;
-        }
-
-        .clear-all-btn:hover {
-          background: rgba(239, 68, 68, 0.1);
-        }
-
-        .captured-item {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0.75rem;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          margin-bottom: 0.5rem;
-        }
-
-        .captured-info {
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-          flex: 1;
-          min-width: 0;
-        }
-
-        .captured-model {
-          font-size: 0.8rem;
-          font-weight: 500;
-          color: rgba(59, 130, 246, 0.9);
-        }
-
-        .captured-prompt {
-          font-size: 0.8rem;
-          color: #ffffff;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .captured-meta {
+        .dp-page .exp-save-btn,
+        .dp-page .exp-cancel-btn {
+          padding: 0.375rem 0.625rem;
           font-size: 0.7rem;
-          color: #ffffff;
         }
 
-        .delete-btn {
-          padding: 0.375rem;
-          background: transparent;
-          border: none;
-          color: #ffffff;
-          cursor: pointer;
-          transition: color 0.2s;
+        .dp-page .exp-show-save-btn {
+          padding: 0.4rem 0.75rem;
+          font-size: 0.75rem;
+          gap: 0.375rem;
         }
 
-        .delete-btn:hover {
-          color: rgba(239, 68, 68, 0.8);
+        .dp-page .exp-btn-icon {
+          width: 12px;
+          height: 12px;
         }
 
-        .delete-icon {
-          width: 16px;
-          height: 16px;
+        .dp-page .exp-actions-row {
+          margin-bottom: 0.625rem;
+          gap: 0.375rem;
         }
 
-        .results-section {
-          height: 100%;
+        .dp-page .exp-action-btn {
+          padding: 0.35rem 0.625rem;
+          font-size: 0.7rem;
+          gap: 0.25rem;
         }
 
-        .results-placeholder {
-          height: 400px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px dashed rgba(255, 255, 255, 0.1);
+        .dp-page .exp-action-icon {
+          width: 12px;
+          height: 12px;
         }
 
-        .placeholder-content {
-          text-align: center;
-          color: #ffffff;
+        .dp-page .exp-empty {
+          padding: 1.25rem 0.75rem;
         }
 
-        .placeholder-icon {
-          width: 48px;
-          height: 48px;
-          margin-bottom: 1rem;
-          opacity: 0.3;
+        .dp-page .exp-empty p {
+          font-size: 0.75rem;
         }
 
-        .placeholder-content p {
-          margin: 0;
-          font-size: 0.9rem;
+        .dp-page .exp-empty-hint {
+          font-size: 0.65rem !important;
         }
 
-        @media (max-width: 1400px) {
-          .playground-grid {
-            grid-template-columns: 1fr 1fr;
-          }
-
-          .right-column {
-            grid-column: span 2;
-          }
+        .dp-page .exp-grid {
+          gap: 0.375rem;
         }
 
-        @media (max-width: 900px) {
-          .playground-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .right-column {
-            grid-column: span 1;
-          }
+        .dp-page .exp-card {
+          padding: 0.5rem 0.625rem;
         }
 
-        /* Light mode */
-        [data-bg="light"] .header-title h1 { color: #1d1d1f; }
-        [data-bg="light"] .header-description { color: #1d1d1f; }
-        [data-bg="light"] .section { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .section h2 { color: #1d1d1f; }
-        [data-bg="light"] .model-select { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .info-badge { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .info-text { color: #1d1d1f; }
-        [data-bg="light"] .label-main { color: #1d1d1f; }
-        [data-bg="light"] .label-hint { color: #1d1d1f; }
-        [data-bg="light"] .prompt-group textarea { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .setting-group label { color: #1d1d1f; }
-        [data-bg="light"] .setting-group input { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .settings-hint { color: #1d1d1f; }
-        [data-bg="light"] .run-experiment-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
-        [data-bg="light"] .run-experiment-btn:hover:not(:disabled) { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
-        [data-bg="light"] .spinner { border-color: rgba(0,0,0,0.15); border-top-color: #1d1d1f; }
-        [data-bg="light"] .section-toggle { color: #1d1d1f; }
-        [data-bg="light"] .empty-state { color: #1d1d1f; background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .captured-item { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.08); }
-        [data-bg="light"] .captured-prompt { color: #1d1d1f; }
-        [data-bg="light"] .captured-meta { color: #1d1d1f; }
-        [data-bg="light"] .delete-btn { color: #1d1d1f; }
-        [data-bg="light"] .results-placeholder { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .placeholder-content { color: #1d1d1f; }
+        .dp-page .exp-card-header {
+          margin-bottom: 0.375rem;
+        }
+
+        .dp-page .exp-name {
+          font-size: 0.75rem;
+        }
+
+        .dp-page .exp-card-action-btn .exp-action-icon {
+          width: 12px;
+          height: 12px;
+        }
+
+        .dp-page .exp-card-body {
+          margin-bottom: 0.375rem;
+          gap: 0.375rem;
+        }
+
+        .dp-page .exp-prompt-label {
+          font-size: 0.6rem;
+          margin-bottom: 0.05rem;
+        }
+
+        .dp-page .exp-prompt-text {
+          font-size: 0.7rem;
+        }
+
+        .dp-page .exp-arrow-icon {
+          width: 12px;
+          height: 12px;
+        }
+
+        .dp-page .exp-ablation-label {
+          font-size: 0.6rem;
+          padding: 0.15rem 0.375rem;
+        }
+
+        .dp-page .exp-card-meta {
+          margin-bottom: 0.375rem;
+          gap: 0.5rem;
+        }
+
+        .dp-page .exp-meta-item {
+          font-size: 0.65rem;
+        }
+
+        .dp-page .exp-card-footer {
+          padding-top: 0.375rem;
+        }
+
+        .dp-page .exp-timestamp {
+          font-size: 0.65rem;
+          gap: 0.25rem;
+        }
+
+        .dp-page .exp-time-icon {
+          width: 10px;
+          height: 10px;
+        }
+
+        .dp-page .exp-load-btn {
+          padding: 0.25rem 0.625rem;
+          font-size: 0.65rem;
+        }
+
+        /* ===== Dark-mode input overrides ===== */
+        .dp-page .patch-config-panel .form-group select,
+        .dp-page .patch-config-panel .form-group input[type="text"] {
+          background: rgba(0, 0, 0, 0.4);
+          border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        .dp-page .patch-config-panel .add-patch-btn {
+          background: rgba(255, 255, 255, 0.04);
+          border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        .dp-page .patch-config-panel .add-patch-btn:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.08);
+        }
+
+        .dp-page .patch-config-panel .patch-item {
+          background: rgba(255, 255, 255, 0.02);
+          border-color: rgba(255, 255, 255, 0.06);
+        }
+
+        .dp-page .patch-config-panel .patches-list {
+          border-top-color: rgba(255, 255, 255, 0.06);
+        }
+
+        .dp-page .patch-config-panel .clear-btn {
+          font-size: 0.65rem;
+        }
+
+        .dp-page .exp-card {
+          background: rgba(255, 255, 255, 0.02);
+          border-color: rgba(255, 255, 255, 0.06);
+        }
+
+        .dp-page .exp-card:hover {
+          border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .dp-page .exp-action-btn {
+          border-color: rgba(255, 255, 255, 0.06);
+        }
+
+        .dp-page .exp-save-form input {
+          background: rgba(0, 0, 0, 0.4);
+          border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        /* ===== Light-mode overrides ===== */
+        [data-bg="light"] .dp-page .patch-config-panel .form-group select,
+        [data-bg="light"] .dp-page .patch-config-panel .form-group input[type="text"] {
+          background: rgba(0, 0, 0, 0.03);
+          border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-bg="light"] .dp-page .patch-config-panel .add-patch-btn {
+          background: rgba(0, 0, 0, 0.04);
+          border-color: rgba(0, 0, 0, 0.1);
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .dp-page .patch-config-panel .add-patch-btn:hover:not(:disabled) {
+          background: rgba(0, 0, 0, 0.07);
+        }
+
+        [data-bg="light"] .dp-page .patch-config-panel .patch-item {
+          background: rgba(0, 0, 0, 0.02);
+          border-color: rgba(0, 0, 0, 0.06);
+        }
+
+        [data-bg="light"] .dp-page .patch-config-panel .patches-list {
+          border-top-color: rgba(0, 0, 0, 0.06);
+        }
+
+        [data-bg="light"] .dp-page .selector-header h3,
+        [data-bg="light"] .dp-page .patch-config-panel .panel-header h3 {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .dp-page .patch-config-panel .form-group label {
+          color: #1d1d1f;
+        }
+
+        [data-bg="light"] .dp-page .exp-card {
+          background: rgba(0, 0, 0, 0.02);
+          border-color: rgba(0, 0, 0, 0.06);
+        }
+
+        [data-bg="light"] .dp-page .exp-card:hover {
+          border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        [data-bg="light"] .dp-page .exp-action-btn {
+          border-color: rgba(0, 0, 0, 0.08);
+        }
+
+        [data-bg="light"] .dp-page .exp-save-form input {
+          background: rgba(0, 0, 0, 0.03);
+          border-color: rgba(0, 0, 0, 0.1);
+        }
       `}</style>
     </div>
   )
 }
-
-export default PatchingPlayground

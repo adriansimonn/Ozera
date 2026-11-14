@@ -1,7 +1,7 @@
 /**
- * The Activation Patching page's assistant bridge, shared by its glass and default variants:
- * the experiment's settings and patches, the result on screen (where the outputs diverge),
- * set_inputs, and a run_patching run's result opening on the page.
+ * The Activation Patching page's assistant bridge: the experiment's settings and patches, the
+ * result on screen (where the outputs diverge), set_inputs, and a run_patching run's result
+ * opening on the page.
  */
 
 import type { BridgeParts } from '../../../hooks/useAssistantPage'

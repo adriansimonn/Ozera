@@ -271,7 +271,7 @@ export function SparsityDashboard({
   const isHealthy = qualityIssues.length === 0
 
   return (
-    <div className={className} style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}` }}>
+    <div className={className} style={{ background: tc.surface, border: `1px solid ${tc.border}` }}>
       {/* Header */}
       <div style={{ padding: '1rem', borderBottom: `1px solid ${tc.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: tc.textStrong, letterSpacing: '-0.01em', margin: 0 }}>

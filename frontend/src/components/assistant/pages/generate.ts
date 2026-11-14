@@ -1,8 +1,8 @@
 /**
- * The Generate page's assistant bridge, in two parts shared by its glass and default variants:
- * the generator's inputs (TextGenerator) and the page's visualizations (which generation is
- * open, and which visualization). Their snapshots merge. A generate run's result opens by its
- * route (/?id=<activation id>); the generator shows the prompt and model it ran with.
+ * The Generate page's assistant bridge, in two parts: the generator's inputs (TextGenerator) and
+ * the page's visualizations (which generation is open, and which visualization). Their snapshots
+ * merge. A generate run's result opens by its route (/?id=<activation id>); the generator shows
+ * the prompt and model it ran with.
  */
 
 import type { BridgeParts } from '../../../hooks/useAssistantPage'

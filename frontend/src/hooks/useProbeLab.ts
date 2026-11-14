@@ -1,5 +1,5 @@
 /**
- * State and actions of the Probe Lab page, shared by its glass and default layouts.
+ * State and actions of the Probe Lab page.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'

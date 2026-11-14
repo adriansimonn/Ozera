@@ -302,7 +302,7 @@ export const AttentionHeatmap = memo(function AttentionHeatmap({
       />
       {hoveredCell && (
         <div
-          className="absolute z-20 bg-black/80 backdrop-blur-sm border border-gray-700 px-4 py-3 text-sm pointer-events-none"
+          className="absolute z-20 bg-black/80 border border-gray-700 px-4 py-3 text-sm pointer-events-none"
           style={getTooltipStyle()}
         >
           <div className="text-white font-semibold mb-1 text-xs uppercase tracking-wide">Attention Weight</div>

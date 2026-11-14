@@ -289,7 +289,6 @@ export function HeadClassifier({
           border: 1px solid rgba(255, 255, 255, 0.2);
           padding: 1rem;
           max-width: 20rem;
-          backdrop-filter: blur(8px);
         }
 
         .hover-header {

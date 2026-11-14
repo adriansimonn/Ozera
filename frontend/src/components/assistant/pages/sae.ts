@@ -1,7 +1,7 @@
 /**
- * The SAE page's assistant bridge, shared by its glass and default variants: what's on screen
- * (the view, the SAE, the text and the analysis's strongest features), set_inputs, and an
- * analyze_sae run's result opening in the Analyze view.
+ * The SAE page's assistant bridge: what's on screen (the view, the SAE, the text and the
+ * analysis's strongest features), set_inputs, and an analyze_sae run's result opening in the
+ * Analyze view.
  */
 
 import type { SAEAnalyzeResponse } from '../../../api/client'

@@ -1,9 +1,3 @@
-/**
- * SAE (Sparse Autoencoder) Page - Main hub for SAE feature exploration and analysis.
- * Provides tabs for browsing features, analyzing activations, and viewing quality metrics.
- * Connected to Modal SAE inference API.
- */
-
 import { useState, useCallback, useEffect } from 'react'
 import { SaeDeepLinkNote } from '../components/sae/SaeDeepLinkNote'
 import { useSaeDeepLink } from '../hooks/useSaeDeepLink'
@@ -46,12 +40,13 @@ import type {
   SAEQualityMetrics,
   SAETrainingProgress,
 } from '../types/model'
+import { useTheme } from '../hooks/useTheme'
 
 interface SAEPageProps {
   onShowPurchaseCredits: () => void
 }
 
-type SAEMode = 'browse' | 'analyze' | 'dashboard' | 'compare' | 'load' | 'autointerp'
+type SAEMode = 'analyze' | 'browse' | 'dashboard' | 'compare' | 'load' | 'autointerp'
 
 // Transform API response to SequenceFeatureActivations format
 function transformAnalyzeResponse(response: SAEAnalyzeResponse): SequenceFeatureActivations {
@@ -59,7 +54,6 @@ function transformAnalyzeResponse(response: SAEAnalyzeResponse): SequenceFeature
   const tokenIds = response.token_ids
   const numFeatures = response.features.shape[1]
 
-  // Build feature activation matrix from sparse activations
   const featureActivationMatrix: number[][] = response.features.sparse_activations.map(
     sparseActs => {
       const row = new Array(numFeatures).fill(0)
@@ -70,7 +64,6 @@ function transformAnalyzeResponse(response: SAEAnalyzeResponse): SequenceFeature
     }
   )
 
-  // Build per-token activations
   const perTokenActivations = tokens.map((token, pos) => {
     const sparseActs = response.features.sparse_activations[pos]
     const topFeatures = Object.entries(sparseActs)
@@ -95,7 +88,6 @@ function transformAnalyzeResponse(response: SAEAnalyzeResponse): SequenceFeature
     }
   })
 
-  // Find most active features across all positions
   const featureActivations = new Map<number, number>()
   response.top_features.forEach(({ feature_id, activation }) => {
     const current = featureActivations.get(feature_id) || 0
@@ -121,7 +113,6 @@ function transformFeatureInfo(
   featureInfo: SAEFeatureInfoResponse,
   analyzeResponse: SAEAnalyzeResponse | null
 ): FeatureInterpretation {
-  // Build token frequency distribution from analysis data
   const tokenFrequencies: Record<string, number> = {}
   if (analyzeResponse) {
     analyzeResponse.top_features
@@ -129,7 +120,6 @@ function transformFeatureInfo(
       .forEach(f => {
         tokenFrequencies[f.token] = (tokenFrequencies[f.token] || 0) + 1
       })
-    // Normalize
     const total = Object.values(tokenFrequencies).reduce((a, b) => a + b, 0)
     if (total > 0) {
       Object.keys(tokenFrequencies).forEach(k => {
@@ -138,7 +128,6 @@ function transformFeatureInfo(
     }
   }
 
-  // Build top activating tokens
   const topActivatingTokens = analyzeResponse
     ? analyzeResponse.top_features
         .filter(f => f.feature_id === featureInfo.feature_id)
@@ -200,7 +189,6 @@ function generateFeatureCatalog(
     ? saeSelection.externalId
     : `${saeSelection.model}-L${saeSelection.layer}-${saeSelection.activationType}`
 
-  // Count feature activations
   const featureActivations = new Map<number, { count: number; total: number; max: number }>()
   analyzeResponse.top_features.forEach(({ feature_id, activation }) => {
     const curr = featureActivations.get(feature_id) || { count: 0, total: 0, max: 0 }
@@ -211,24 +199,21 @@ function generateFeatureCatalog(
     })
   })
 
-  // Build feature stats for active features
   const features: FeatureStats[] = Array.from(featureActivations.entries()).map(
     ([idx, stats]) => ({
       feature_idx: idx,
       activation_frequency: stats.count / analyzeResponse.num_tokens,
       mean_activation: stats.total / stats.count,
       max_activation: stats.max,
-      polysemanticity: Math.random() * 0.5, // Would need more data to compute properly
+      polysemanticity: Math.random() * 0.5,
       suggested_label: `Feature ${idx}`,
       confidence: 0.5,
       unique_tokens: stats.count,
     })
   )
 
-  // Sort by activation frequency
   features.sort((a, b) => b.activation_frequency - a.activation_frequency)
 
-  // Categorize features
   const deadFeatures: number[] = []
   const polysemantic: number[] = []
   const monosemantic: number[] = []
@@ -259,29 +244,15 @@ function generateQualityMetrics(
 ): SAEQualityMetrics {
   if (!analyzeResponse) {
     return {
-      sparsity: {
-        avg_l0: 0,
-        l0_std: 0,
-        sparsity_fraction: 0,
-        avg_l1: 0,
-        max_activation: 0,
-      },
+      sparsity: { avg_l0: 0, l0_std: 0, sparsity_fraction: 0, avg_l1: 0, max_activation: 0 },
       feature_health: {
-        num_features: 0,
-        dead_features: 0,
-        dead_feature_fraction: 0,
-        low_frequency_features: 0,
-        high_frequency_features: 0,
-        feature_frequency_distribution: [],
-        feature_magnitude_distribution: [],
+        num_features: 0, dead_features: 0, dead_feature_fraction: 0,
+        low_frequency_features: 0, high_frequency_features: 0,
+        feature_frequency_distribution: [], feature_magnitude_distribution: [],
       },
       reconstruction: {
-        mse: 0,
-        rmse: 0,
-        normalized_mse: 0,
-        explained_variance: 0,
-        cosine_similarity: 0,
-        relative_reconstruction_error: 0,
+        mse: 0, rmse: 0, normalized_mse: 0, explained_variance: 0,
+        cosine_similarity: 0, relative_reconstruction_error: 0,
       },
     }
   }
@@ -318,19 +289,15 @@ function generateQualityMetrics(
       ),
     },
     reconstruction: {
-      mse: 0.01,
-      rmse: 0.1,
-      normalized_mse: 0.02,
-      explained_variance: 0.92,
-      cosine_similarity: 0.98,
-      relative_reconstruction_error: 0.05,
+      mse: 0.01, rmse: 0.1, normalized_mse: 0.02,
+      explained_variance: 0.92, cosine_similarity: 0.98, relative_reconstruction_error: 0.05,
     },
   }
 }
 
-export default function SAEPage({
-  onShowPurchaseCredits,
-}: SAEPageProps) {
+export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) {
+  const { isLight } = useTheme()
+
   const [mode, setMode] = useState<SAEMode>('analyze')
   // The Autointerp view stays mounted once opened (its jobs and tables survive switching modes)
   const [autointerpOpened, setAutointerpOpened] = useState(false)
@@ -389,7 +356,6 @@ export default function SAEPage({
     }
   }, [])
 
-  // Run analysis when selection changes or text is submitted
   // An analysis on screen: the Analyze button's, or an assistant run's
   const applyAnalysis = useCallback((response: SAEAnalyzeResponse, selection: SAESelection) => {
     setAnalyzeResponse(response)
@@ -411,7 +377,6 @@ export default function SAEPage({
       let response: SAEAnalyzeResponse
 
       if (saeSelection.externalId) {
-        // Use external SAE analysis endpoint
         response = await saeClient.analyzeExternalSAE({
           sae_id: saeSelection.externalId,
           text: inputText,
@@ -468,17 +433,14 @@ export default function SAEPage({
         let info: SAEFeatureInfoResponse
 
         if (saeSelection.externalId) {
-          // Use external feature info endpoint
           const extInfo = await saeClient.getExternalFeatureInfo(
             saeSelection.externalId,
             selectedFeature
           )
           if (extInfo.error) {
-            console.error('External feature info error:', extInfo.error)
             setFeatureInfo(null)
             return
           }
-          // Adapt external response to match built-in format
           info = {
             feature_id: extInfo.feature_id,
             model: extInfo.display_name || saeSelection.externalId,
@@ -501,14 +463,11 @@ export default function SAEPage({
         }
 
         if (info.error) {
-          console.error('Feature info error:', info.error)
           setFeatureInfo(null)
         } else {
-          const transformed = transformFeatureInfo(info, analyzeResponse)
-          setFeatureInfo(transformed)
+          setFeatureInfo(transformFeatureInfo(info, analyzeResponse))
         }
-      } catch (err) {
-        console.error('Failed to load feature info:', err)
+      } catch {
         setFeatureInfo(null)
       } finally {
         setLoadingFeature(false)
@@ -520,7 +479,6 @@ export default function SAEPage({
 
   const handleFeatureSelect = useCallback((featureIdx: number) => {
     setSelectedFeature(featureIdx)
-    // Keep track of recently selected features for highlighting (last 5)
     setSelectedFeatures(prev => {
       const filtered = prev.filter(f => f !== featureIdx)
       return [featureIdx, ...filtered].slice(0, 5)
@@ -562,11 +520,335 @@ export default function SAEPage({
     }
   }
 
-  // Empty training progress for dashboard (would need real training data)
   const trainingProgress: SAETrainingProgress[] = []
 
+  const c = {
+    bg: isLight ? '#f5f5f7' : '#0a0a0a',
+    panelBg: isLight ? '#ffffff' : '#111111',
+    divider: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
+    text: isLight ? '#1d1d1f' : '#ffffff',
+    textMid: isLight ? '#1d1d1f' : '#ffffff',
+    textSub: isLight ? '#1d1d1f' : '#ffffff',
+    controlBg: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)',
+    controlBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
+    inputBg: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(0,0,0,0.4)',
+    inputBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
+    errorBg: 'rgba(239, 68, 68, 0.08)',
+    errorBorder: 'rgba(239, 68, 68, 0.2)',
+    errorText: '#ef4444',
+    warningBg: isLight ? 'rgba(245,158,11,0.06)' : 'rgba(245,158,11,0.08)',
+    warningBorder: isLight ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.2)',
+    warningText: isLight ? 'rgba(180,120,0,0.8)' : 'rgba(245,158,11,0.8)',
+    spinnerTrack: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
+    spinnerHead: isLight ? '#1d1d1f' : '#ffffff',
+  }
+
+  const modes: { id: SAEMode; label: string; icon: typeof Search }[] = [
+    { id: 'analyze', label: 'Analyze', icon: Search },
+    { id: 'browse', label: 'Browse', icon: Layers },
+    { id: 'dashboard', label: 'Quality', icon: BarChart3 },
+    { id: 'compare', label: 'Compare', icon: GitCompare },
+    { id: 'autointerp', label: 'Autointerp', icon: Sparkles },
+    { id: 'load', label: 'Load', icon: Download },
+  ]
+
+  const renderLeftPanel = (compareConfigContent?: React.ReactNode) => (
+    <div className={`ds-left${mode === 'compare' ? ' ds-left-wide' : ''}`} style={{ background: c.panelBg, borderRight: `1px solid ${c.divider}` }}>
+      <div className="ds-left-scroll">
+        {/* Analysis Mode — always first */}
+        <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+          <div className="ds-section-label" style={{ color: c.textSub }}>View</div>
+          <div data-assist="sae.mode" style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+            {modes.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setMode(id)}
+                className="ds-mode-btn"
+                style={{
+                  background: mode === id ? (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)') : c.controlBg,
+                  borderColor: mode === id ? (isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)') : c.controlBorder,
+                  color: mode === id ? c.text : c.textSub,
+                }}
+              >
+                <Icon style={{ width: 12, height: 12 }} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="ds-error" style={{ background: c.errorBg, borderColor: c.errorBorder }}>
+            <AlertCircle style={{ width: 14, height: 14, color: c.errorText, flexShrink: 0 }} />
+            <span style={{ color: c.errorText, fontSize: '0.8rem', flex: 1 }}>
+              {error === 'INSUFFICIENT_CREDITS'
+                ? 'Insufficient credits for SAE analysis.'
+                : error}
+            </span>
+            {error === 'INSUFFICIENT_CREDITS' ? (
+              <button
+                onClick={onShowPurchaseCredits}
+                style={{ background: 'none', border: `1px solid ${c.errorBorder}`, color: c.errorText, cursor: 'pointer', fontSize: '0.7rem', padding: '0.2rem 0.5rem', fontWeight: 500 }}
+              >
+                Add Credits
+              </button>
+            ) : (
+              <button
+                onClick={() => setError(null)}
+                style={{ background: 'none', border: 'none', color: c.errorText, cursor: 'pointer', fontSize: '0.75rem', padding: '0.125rem 0.5rem' }}
+              >
+                Dismiss
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Compare config in left panel */}
+        {compareConfigContent && (
+          <div className="ds-section ds-compare-config" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            <div className="ds-section-label" style={{ color: c.textSub }}>SAE Comparison</div>
+            {compareConfigContent}
+          </div>
+        )}
+
+        {/* SAE Selection — hidden in compare & load modes */}
+        {mode !== 'compare' && mode !== 'load' && (
+          <div className="ds-section" data-assist="sae.sae" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            <div className="ds-section-label" style={{ color: c.textSub }}>SAE Selection</div>
+            <SAESelector
+              selection={saeSelection}
+              onSelectionChange={setSaeSelection}
+              refreshKey={saeRefreshKey}
+            />
+          </div>
+        )}
+
+        {/* Text Input — hidden in compare, load & autointerp modes */}
+        {mode !== 'compare' && mode !== 'load' && mode !== 'autointerp' && (
+          <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            <div className="ds-section-label" style={{ color: c.textSub }}>Input Text</div>
+            {pendingFeature != null && <SaeDeepLinkNote feature={pendingFeature} />}
+            <textarea
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Enter text to analyze with the SAE..."
+              rows={3}
+              disabled={analyzing}
+              data-assist="sae.text"
+              className="ds-textarea"
+              style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
+            />
+            <button
+              onClick={runAnalysis}
+              disabled={analyzing || !saeSelection || !inputText.trim()}
+              data-assist="sae.analyze_button"
+              className="ds-run-btn"
+              style={{
+                background: analyzing ? c.controlBg : (isLight ? '#1d1d1f' : '#ffffff'),
+                color: analyzing ? c.textSub : (isLight ? '#ffffff' : '#0a0a0a'),
+                borderColor: 'transparent',
+              }}
+            >
+              {analyzing ? (
+                <>
+                  <div className="ds-spinner" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Play style={{ width: 14, height: 14 }} />
+                  Analyze
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Analysis summary — show when we have results */}
+        {analyzeResponse && mode !== 'compare' && mode !== 'load' && mode !== 'autointerp' && (
+          <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            <div className="ds-section-label" style={{ color: c.textSub }}>Analysis Summary</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                <span style={{ color: c.textMid }}>Tokens</span>
+                <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.num_tokens}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                <span style={{ color: c.textMid }}>Active Features</span>
+                <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.metrics.num_active_features}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                <span style={{ color: c.textMid }}>Avg L0</span>
+                <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.metrics.avg_l0.toFixed(1)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                <span style={{ color: c.textMid }}>Max Activation</span>
+                <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.metrics.max_activation.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Selected feature info */}
+        {selectedFeature !== null && (
+          <div className="ds-section">
+            <div className="ds-section-label" style={{ color: c.textSub }}>Selected Feature</div>
+            <div style={{
+              padding: '0.625rem 0.75rem',
+              background: c.controlBg,
+              border: `1px solid ${c.controlBorder}`,
+              fontSize: '0.8rem',
+              color: c.text,
+              fontFamily: 'monospace',
+            }}>
+              Feature #{selectedFeature}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  const renderRightPanel = (compareResultsContent?: React.ReactNode) => (
+    <div className="ds-right" style={{ background: c.bg }}>
+      <div className="ds-right-scroll">
+        {/* Analyze Activations Mode */}
+        {mode === 'analyze' && !analyzing && analyzeResponse && activations && (
+          <div className="ds-results" data-assist="sae.feature">
+            <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              <FeatureActivationDisplay
+                activations={activations}
+                selectedFeatures={selectedFeatures}
+                onFeatureSelect={handleFeatureSelect}
+                showTopK={10}
+                labels={heatmapLabels}
+              />
+            </div>
+            {selectedFeature !== null && featureInfo ? (
+              <div className="ds-section">
+                <FeatureTopTokens
+                  interpretation={featureInfo}
+                  maxExamples={10}
+                />
+              </div>
+            ) : loadingFeature ? (
+              <div className="ds-loading-detail">
+                <Loader2 style={{ width: 20, height: 20, color: c.textSub }} className="ds-spinning" />
+                <p style={{ color: c.textSub, fontSize: '0.8rem', marginTop: '0.5rem' }}>Loading feature info...</p>
+              </div>
+            ) : analyzeResponse ? (
+              <div className="ds-hint" style={{ borderTop: `1px solid ${c.divider}` }}>
+                <p style={{ color: c.textSub, fontSize: '0.8rem', margin: 0 }}>
+                  Click a cell in the heatmap above to view feature details.
+                </p>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {/* Browse Features Mode */}
+        {mode === 'browse' && !analyzing && (corpusCatalog ?? (analyzeResponse ? featureCatalog : null)) && (
+          <div className="ds-results">
+            <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              {corpusAtlas && (
+                <p
+                  style={{ color: c.textSub, fontSize: '0.75rem', margin: '0 0 0.5rem' }}
+                  title={`Feature statistics and top contexts from a Geometry Lab atlas (${corpusAtlas.corpus.license ?? ''})`}
+                >
+                  Over {corpusAtlas.tokens.toLocaleString()} {corpusAtlas.corpus.name} tokens
+                </p>
+              )}
+              <FeatureBrowser
+                catalog={(corpusCatalog ?? featureCatalog) as FeatureCatalog}
+                onFeatureSelect={handleFeatureSelect}
+                selectedFeature={selectedFeature ?? undefined}
+              />
+            </div>
+            {selectedFeature !== null && corpusAtlas && selectedRef && (
+              <div className="ds-section" style={{ paddingBottom: 0 }}>
+                <FeatureExplanation
+                  atlasRef={{ model: corpusAtlas.model, sae: selectedRef, corpus: corpusAtlas.corpus.id as AtlasCorpusId }}
+                  feature={selectedFeature}
+                  onShowPurchaseCredits={onShowPurchaseCredits}
+                />
+              </div>
+            )}
+            {selectedFeature !== null && featureInfo ? (
+              <div className="ds-section">
+                <FeatureTopTokens
+                  interpretation={featureInfo}
+                  maxExamples={15}
+                />
+              </div>
+            ) : loadingFeature ? (
+              <div className="ds-loading-detail">
+                <Loader2 style={{ width: 20, height: 20, color: c.textSub }} className="ds-spinning" />
+                <p style={{ color: c.textSub, fontSize: '0.8rem', marginTop: '0.5rem' }}>Loading feature info...</p>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {/* Quality Dashboard Mode */}
+        {mode === 'dashboard' && !analyzing && analyzeResponse && qualityMetrics && (
+          <div className="ds-section">
+            <SparsityDashboard
+              metrics={qualityMetrics}
+              trainingProgress={trainingProgress}
+            />
+          </div>
+        )}
+
+        {/* Compare SAEs Mode — results only */}
+        {mode === 'compare' && compareResultsContent && (
+          <div className="ds-section">
+            {compareResultsContent}
+          </div>
+        )}
+
+        {/* Autointerp Mode */}
+        {autointerpOpened && (
+          <div className="ds-section" hidden={mode !== 'autointerp'}>
+            <AutointerpView sae={selectedRef} onShowPurchaseCredits={onShowPurchaseCredits} />
+          </div>
+        )}
+
+        {/* Load External SAEs Mode */}
+        {mode === 'load' && (
+          <div className="ds-section">
+            <ExternalSAELoader
+              loadedSAEs={externalSAEs}
+              onSAELoaded={refreshExternalSAEs}
+              onSAEDeleted={refreshExternalSAEs}
+            />
+          </div>
+        )}
+
+        {/* Loading state */}
+        {analyzing && (
+          <div className="ds-placeholder">
+            <div className="ds-spinner-lg" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
+            <p style={{ color: c.textSub, fontSize: '0.8rem', marginTop: '1rem' }}>Running SAE analysis on GPU...</p>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!analyzing && !analyzeResponse && mode !== 'compare' && mode !== 'load' && mode !== 'autointerp' && !(mode === 'browse' && corpusCatalog) && (
+          <div className="ds-placeholder">
+            <Search style={{ width: 36, height: 36, color: c.textSub, opacity: 0.3, marginBottom: '0.75rem' }} />
+            <p style={{ color: c.textSub, fontSize: '0.8rem', margin: 0, maxWidth: 360, lineHeight: 1.5 }}>
+              Select an SAE and enter text to analyze feature activations.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   return (
-    <div className="sae-page">
+    <div className="ds-page" style={{ background: c.bg }}>
       <NavBar />
 
       {mode === 'compare' ? (
@@ -574,601 +856,228 @@ export default function SAEPage({
           onFeatureSelect={handleComparisonFeatureSelect}
         >
           {({ configContent, resultsContent }) => (
-            <div className="sae-content">
-              {/* Header */}
-              <div className="sae-header">
-                <h1>Sparse Autoencoder Analysis</h1>
-                <p className="header-description">
-                  Explore learned features, analyze activations, and evaluate SAE quality
-                </p>
-              </div>
-
-              {/* Mode Selection */}
-              <div className="mode-tabs" data-assist="sae.mode">
-                {[
-                  { id: 'analyze', label: 'Analyze Activations', icon: Search },
-                  { id: 'browse', label: 'Browse Features', icon: Layers },
-                  { id: 'dashboard', label: 'Quality Dashboard', icon: BarChart3 },
-                  { id: 'compare', label: 'Compare SAEs', icon: GitCompare },
-                  { id: 'autointerp', label: 'Autointerp', icon: Sparkles },
-                  { id: 'load', label: 'Load External', icon: Download },
-                ].map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={id}
-                    onClick={() => setMode(id as SAEMode)}
-                    className={`mode-tab ${mode === id ? 'active' : ''}`}
-                  >
-                    <Icon size={16} />
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Compare config below tabs */}
-              <div className="mb-4">{configContent}</div>
-
-              {/* Results only */}
-              <div className="sae-main">
-                <div className="compare-layout">
-                  {resultsContent}
-                </div>
-              </div>
+            <div className="ds-layout" style={{ borderColor: c.divider }}>
+              {renderLeftPanel(configContent)}
+              {renderRightPanel(resultsContent)}
             </div>
           )}
         </ModelComparisonDashboard>
       ) : (
-        <div className="sae-content">
-          {/* Header */}
-          <div className="sae-header">
-            <h1>Sparse Autoencoder Analysis</h1>
-            <p className="header-description">
-              Explore learned features, analyze activations, and evaluate SAE quality
-            </p>
-          </div>
-
-          {/* Mode Selection */}
-          <div className="mode-tabs" data-assist="sae.mode">
-            {[
-              { id: 'analyze', label: 'Analyze Activations', icon: Search },
-              { id: 'browse', label: 'Browse Features', icon: Layers },
-              { id: 'dashboard', label: 'Quality Dashboard', icon: BarChart3 },
-              { id: 'compare', label: 'Compare SAEs', icon: GitCompare },
-              { id: 'autointerp', label: 'Autointerp', icon: Sparkles },
-              { id: 'load', label: 'Load External', icon: Download },
-            ].map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setMode(id as SAEMode)}
-                className={`mode-tab ${mode === id ? 'active' : ''}`}
-              >
-                <Icon size={16} />
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* SAE Selector - Hidden in Load mode */}
-          {mode !== 'load' && (
-            <div data-assist="sae.sae">
-              <SAESelector
-                selection={saeSelection}
-                onSelectionChange={setSaeSelection}
-                refreshKey={saeRefreshKey}
-                className="mb-4"
-              />
-            </div>
-          )}
-
-          {pendingFeature != null && mode !== 'load' && <SaeDeepLinkNote feature={pendingFeature} />}
-
-          {/* Text Input - Hidden in Load and Autointerp modes */}
-          {mode !== 'load' && mode !== 'autointerp' && (
-            <div className="input-section mb-4">
-              <div className="flex gap-3">
-                <div className="flex-1 relative" data-assist="sae.text">
-                  <textarea
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Enter text to analyze..."
-                    className="sae-input"
-                    rows={2}
-                    disabled={analyzing}
-                  />
-                </div>
-                <button
-                  onClick={runAnalysis}
-                  disabled={analyzing || !saeSelection || !inputText.trim()}
-                  className="analyze-button"
-                  data-assist="sae.analyze_button"
-                >
-                  {analyzing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4" />
-                      Analyze
-                    </>
-                  )}
-                </button>
-              </div>
-              {error && (
-                <div className="mt-2">
-                  {error === 'INSUFFICIENT_CREDITS' ? (
-                    <div className="flex items-center justify-between p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400 text-sm">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4" />
-                        <span>Insufficient credits. Please add credits to continue using SAE analysis.</span>
-                      </div>
-                      <button
-                        onClick={onShowPurchaseCredits}
-                        className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-black font-medium rounded transition-colors"
-                      >
-                        Add Credits
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-red-400 text-sm">
-                      <AlertCircle className="w-4 h-4" />
-                      {error}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Content */}
-          <div className="sae-main">
-            {/* No data state */}
-            {!analyzeResponse && !analyzing && mode !== 'load' && mode !== 'autointerp' && !(mode === 'browse' && corpusCatalog) && (
-              <div className="empty-state">
-                <Search className="empty-icon" />
-                <h3>Enter Text to Analyze</h3>
-                <p>Select an SAE above and enter text to see feature activations</p>
-              </div>
-            )}
-
-            {/* Loading state */}
-            {analyzing && (
-              <div className="loading-state">
-                <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
-                <p className="mt-4 text-white">Running SAE analysis on GPU...</p>
-              </div>
-            )}
-
-            {/* Analyze Activations Mode */}
-            {!analyzing && analyzeResponse && mode === 'analyze' && activations && (
-              <div className="analyze-layout">
-                <div className="activation-display-panel">
-                  <FeatureActivationDisplay
-                    activations={activations}
-                    selectedFeatures={selectedFeatures}
-                    onFeatureSelect={handleFeatureSelect}
-                    showTopK={10}
-                    labels={heatmapLabels}
-                  />
-                </div>
-                <div className="feature-detail-panel" data-assist="sae.feature">
-                  {selectedFeature !== null && featureInfo ? (
-                    <FeatureTopTokens
-                      interpretation={featureInfo}
-                      maxExamples={10}
-                    />
-                  ) : loadingFeature ? (
-                    <div className="loading-detail">
-                      <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
-                      <p className="mt-2 text-white text-sm">Loading feature info...</p>
-                    </div>
-                  ) : (
-                    <div className="empty-detail">
-                      <Search className="empty-icon" />
-                      <h3>Select a Feature</h3>
-                      <p>Click on a cell in the activation heatmap to see feature details</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Browse Features Mode */}
-            {!analyzing && mode === 'browse' && (corpusCatalog ?? (analyzeResponse ? featureCatalog : null)) && (
-              <div className="browse-layout">
-                <div className="browser-panel">
-                  {corpusAtlas && (
-                    <p className="corpus-note" title={`Feature statistics and top contexts from a Geometry Lab atlas (${corpusAtlas.corpus.license ?? ''})`}>
-                      Over {corpusAtlas.tokens.toLocaleString()} {corpusAtlas.corpus.name} tokens
-                    </p>
-                  )}
-                  <FeatureBrowser
-                    catalog={(corpusCatalog ?? featureCatalog) as FeatureCatalog}
-                    onFeatureSelect={handleFeatureSelect}
-                    selectedFeature={selectedFeature ?? undefined}
-                  />
-                </div>
-                <div className="detail-panel">
-                  {selectedFeature !== null && corpusAtlas && selectedRef && (
-                    <FeatureExplanation
-                      atlasRef={{ model: corpusAtlas.model, sae: selectedRef, corpus: corpusAtlas.corpus.id as AtlasCorpusId }}
-                      feature={selectedFeature}
-                      onShowPurchaseCredits={onShowPurchaseCredits}
-                    />
-                  )}
-                  {selectedFeature !== null && featureInfo ? (
-                    <FeatureTopTokens
-                      interpretation={featureInfo}
-                      maxExamples={15}
-                    />
-                  ) : loadingFeature ? (
-                    <div className="loading-detail">
-                      <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'rgba(255,255,255,0.4)' }} />
-                      <p className="mt-2 text-white text-sm">Loading feature info...</p>
-                    </div>
-                  ) : (
-                    <div className="empty-detail">
-                      <Layers className="empty-icon" />
-                      <h3>Select a Feature</h3>
-                      <p>Click on a feature in the browser to see its details</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Quality Dashboard Mode */}
-            {!analyzing && analyzeResponse && mode === 'dashboard' && qualityMetrics && (
-              <div className="dashboard-layout">
-                <SparsityDashboard
-                  metrics={qualityMetrics}
-                  trainingProgress={trainingProgress}
-                />
-              </div>
-            )}
-
-            {/* Autointerp Mode */}
-            {autointerpOpened && (
-              <div hidden={mode !== 'autointerp'}>
-                <AutointerpView sae={selectedRef} onShowPurchaseCredits={onShowPurchaseCredits} />
-              </div>
-            )}
-
-            {/* Load External SAEs Mode */}
-            {mode === 'load' && (
-              <div className="load-layout">
-                <ExternalSAELoader
-                  loadedSAEs={externalSAEs}
-                  onSAELoaded={refreshExternalSAEs}
-                  onSAEDeleted={refreshExternalSAEs}
-                />
-              </div>
-            )}
-          </div>
+        <div className="ds-layout" style={{ borderColor: c.divider }}>
+          {renderLeftPanel()}
+          {renderRightPanel()}
         </div>
       )}
 
       <style>{`
-        .sae-page {
-          min-height: 125vh;
-          padding-top: 70px;
+        .ds-page {
+          height: 125vh;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
         }
 
-        .sae-content {
-          max-width: 1600px;
-          margin: 0 auto;
-          padding: 2rem;
+        .ds-layout {
+          display: flex;
+          flex: 1;
+          margin-top: 76px;
+          overflow: hidden;
         }
 
-        .sae-header {
-          margin-bottom: 1.5rem;
+        .ds-left {
+          width: 30%;
+          min-width: 340px;
+          max-width: 520px;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
         }
 
-        .sae-header h1 {
-          margin: 0;
-          font-size: 1.75rem;
+        .ds-left.ds-left-wide {
+          width: 40%;
+          max-width: 600px;
+        }
+
+        .ds-left-scroll {
+          flex: 1;
+          overflow-y: auto;
+        }
+
+        .ds-right {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .ds-right-scroll {
+          flex: 1;
+          overflow-y: auto;
+        }
+
+        .ds-section {
+          padding: 1rem 1.25rem;
+        }
+
+        .ds-section-label {
+          font-size: 0.65rem;
           font-weight: 600;
-          color: #ffffff;
-          letter-spacing: -0.02em;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          margin-bottom: 0.625rem;
         }
 
-        .header-description {
-          margin: 0.5rem 0 0 0;
-          font-size: 0.9rem;
-          color: #ffffff;
-        }
-
-        /* Input Section */
-        .input-section {
-          margin-bottom: 1rem;
-        }
-
-        .sae-input {
+        .ds-textarea {
           width: 100%;
-          height: 100%;
-          background: rgba(255, 255, 255, 0.03);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #fff;
-          padding: 0.75rem 1rem;
-          font-size: 0.875rem;
+          padding: 0.625rem 0.75rem;
+          border: 1px solid;
+          font-size: 0.85rem;
           font-family: inherit;
-          resize: none;
-          transition: border-color 0.2s;
-        }
-
-        .sae-input:focus {
+          resize: vertical;
+          min-height: 68px;
           outline: none;
-          border-color: rgba(255, 255, 255, 0.25);
+          box-sizing: border-box;
+          margin-bottom: 0.625rem;
         }
 
-        .sae-input:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
+        .ds-textarea:focus {
+          border-color: rgba(59, 130, 246, 0.4) !important;
         }
 
-        .sae-input::placeholder {
-          color: rgba(255, 255, 255, 0.5);
+        .ds-textarea::placeholder {
+          color: ${isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)'};
         }
 
-        .analyze-button {
+        .ds-run-btn {
+          width: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 0.5rem;
-          padding: 0 1.5rem;
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.25);
-          color: #ffffff;
-          font-weight: 500;
-          font-size: 0.875rem;
+          padding: 0.75rem 1rem;
+          border: 1px solid;
+          font-size: 0.85rem;
+          font-weight: 600;
           cursor: pointer;
-          transition: all 0.2s;
-          align-self: stretch;
+          transition: opacity 0.15s;
+          letter-spacing: 0.01em;
         }
 
-        .analyze-button:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.15);
-          border-color: rgba(255, 255, 255, 0.4);
+        .ds-run-btn:hover:not(:disabled) {
+          opacity: 0.85;
         }
 
-        .analyze-button:disabled {
-          background: rgba(255, 255, 255, 0.03);
-          border-color: rgba(255, 255, 255, 0.1);
-          color: rgba(255, 255, 255, 0.4);
+        .ds-run-btn:disabled {
+          opacity: 0.4;
           cursor: not-allowed;
         }
 
-        .mode-tabs {
-          display: flex;
-          gap: 0.5rem;
-          margin-bottom: 1rem;
-        }
-
-        .mode-tab {
+        .ds-mode-btn {
+          flex: 1;
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          padding: 0.625rem 1rem;
-          background: rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #ffffff;
-          font-size: 0.875rem;
+          justify-content: center;
+          gap: 0.375rem;
+          padding: 0.5rem 0.375rem;
+          border: 1px solid;
+          font-size: 0.7rem;
+          font-weight: 500;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all 0.15s;
+          min-width: 0;
         }
 
-        .mode-tab:hover {
-          background: rgba(255, 255, 255, 0.05);
-          border-color: rgba(255, 255, 255, 0.2);
-          color: #ffffff;
+        .ds-mode-btn:hover {
+          opacity: 0.85;
         }
 
-        .mode-tab.active {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: rgba(255, 255, 255, 0.4);
-          color: #ffffff;
+        .ds-spinner {
+          width: 14px;
+          height: 14px;
+          border: 2px solid;
+          border-radius: 50%;
+          animation: ds-spin 0.8s linear infinite;
         }
 
-        .compare-info-banner {
+        .ds-spinner-lg {
+          width: 28px;
+          height: 28px;
+          border: 2px solid;
+          border-radius: 50%;
+          animation: ds-spin 0.8s linear infinite;
+        }
+
+        @keyframes ds-spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .ds-spinning {
+          animation: ds-spin 1s linear infinite;
+        }
+
+        .ds-results {
           display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 0.875rem 1rem;
-          background: rgba(59, 130, 246, 0.1);
-          border: 1px solid rgba(59, 130, 246, 0.25);
-          color: rgba(59, 130, 246, 0.9);
-          margin-bottom: 1.5rem;
-          font-size: 0.85rem;
+          flex-direction: column;
         }
 
-        .sae-main {
-          min-height: 500px;
-        }
-
-        /* Empty State */
-        .corpus-note { margin: 0 0 0.5rem; font-size: 0.75rem; opacity: 0.7; }
-
-        .empty-state,
-        .loading-state {
+        .ds-placeholder {
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
           padding: 4rem 2rem;
-          background: rgba(255, 255, 255, 0.03);
-          backdrop-filter: blur(20px);
-          border: 1px dashed rgba(255, 255, 255, 0.1);
           text-align: center;
+          height: 100%;
           min-height: 400px;
         }
 
-        .empty-state .empty-icon {
-          width: 48px;
-          height: 48px;
-          color: rgba(255, 255, 255, 0.2);
-          margin-bottom: 1rem;
-        }
-
-        .empty-state h3 {
-          margin: 0 0 0.5rem 0;
-          font-size: 1.1rem;
-          font-weight: 500;
-          color: #ffffff;
-        }
-
-        .empty-state p {
-          margin: 0;
-          font-size: 0.9rem;
-          color: #ffffff;
-        }
-
-        /* Browse Layout */
-        .browse-layout {
-          display: grid;
-          grid-template-columns: 1fr 400px;
-          gap: 1.5rem;
-          align-items: start;
-        }
-
-        .browser-panel {
-          min-height: 600px;
-        }
-
-        .detail-panel {
-          position: sticky;
-          top: 90px;
-        }
-
-        /* Analyze Layout */
-        .analyze-layout {
-          display: grid;
-          grid-template-columns: 1fr 400px;
-          gap: 1.5rem;
-          align-items: start;
-        }
-
-        .activation-display-panel {
-          min-height: 500px;
-        }
-
-        .feature-detail-panel {
-          position: sticky;
-          top: 90px;
-        }
-
-        /* Dashboard Layout */
-        .dashboard-layout {
-          display: flex;
-          flex-direction: column;
-          gap: 1.5rem;
-        }
-
-        /* Compare Layout */
-        .compare-layout {
-          display: flex;
-          flex-direction: column;
-          gap: 1.5rem;
-        }
-
-        .comparison-detail {
-          max-width: 600px;
-        }
-
-        /* Load Layout */
-        .load-layout {
-          display: flex;
-          flex-direction: column;
-          gap: 1.5rem;
-          max-width: 900px;
-        }
-
-        /* Loading/Empty Detail */
-        .empty-detail,
-        .loading-detail {
+        .ds-loading-detail {
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 3rem 2rem;
-          background: rgba(255, 255, 255, 0.03);
-          backdrop-filter: blur(20px);
-          border: 1px dashed rgba(255, 255, 255, 0.1);
+          padding: 2rem;
+        }
+
+        .ds-hint {
+          padding: 1rem 1.25rem;
           text-align: center;
-          min-height: 300px;
         }
 
-        .empty-icon {
-          width: 48px;
-          height: 48px;
-          color: rgba(255, 255, 255, 0.2);
-          margin-bottom: 1rem;
+        .ds-error {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.625rem 0.875rem;
+          border: 1px solid;
+          margin: 0.75rem 1.25rem 0;
         }
 
-        .empty-detail h3 {
-          margin: 0 0 0.5rem 0;
-          font-size: 1rem;
-          font-weight: 500;
-          color: #ffffff;
+        .ds-compare-config .grid {
+          grid-template-columns: 1fr !important;
         }
 
-        .empty-detail p {
-          margin: 0;
-          font-size: 0.85rem;
-          color: #ffffff;
-        }
-
-        @media (max-width: 1200px) {
-          .browse-layout,
-          .analyze-layout {
-            grid-template-columns: 1fr;
-          }
-
-          .detail-panel,
-          .feature-detail-panel {
-            position: static;
-          }
-        }
-
-        @media (max-width: 768px) {
-          .sae-content {
-            padding: 1rem;
-          }
-
-          .mode-tabs {
+        @media (max-width: 1000px) {
+          .ds-layout {
             flex-wrap: wrap;
           }
-
-          .mode-tab {
-            flex: 1;
-            min-width: 140px;
-            justify-content: center;
+          .ds-left {
+            width: 100%;
+            max-width: 100%;
+            max-height: 40vh;
+            border-right: none !important;
+            border-bottom: 1px solid;
+          }
+          .ds-right {
+            width: 100%;
           }
         }
 
-        /* Light mode */
-        [data-bg="light"] .sae-header h1 { color: #1d1d1f; }
-        [data-bg="light"] .header-description { color: #1d1d1f; }
-        [data-bg="light"] .sae-input { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .sae-input:focus { border-color: rgba(0,0,0,0.25); }
-        [data-bg="light"] .sae-input::placeholder { color: rgba(0, 0, 0, 0.5); }
-        [data-bg="light"] .analyze-button { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
-        [data-bg="light"] .analyze-button:hover:not(:disabled) { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
-        [data-bg="light"] .analyze-button:disabled { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.08); color: rgba(0,0,0,0.35); }
-        [data-bg="light"] .mode-tab { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); color: #1d1d1f; }
-        [data-bg="light"] .mode-tab:hover { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
-        [data-bg="light"] .mode-tab.active { background: rgba(0,0,0,0.08); border-color: rgba(0,0,0,0.25); color: #1d1d1f; }
-        [data-bg="light"] .empty-state,
-        [data-bg="light"] .loading-state { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .empty-state .empty-icon { color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .empty-state h3 { color: #1d1d1f; }
-        [data-bg="light"] .empty-state p { color: #1d1d1f; }
-        [data-bg="light"] .empty-detail,
-        [data-bg="light"] .loading-detail { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .empty-icon { color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .empty-detail h3 { color: #1d1d1f; }
-        [data-bg="light"] .empty-detail p { color: #1d1d1f; }
+        @media (max-width: 600px) {
+          .ds-mode-btn span {
+            display: none;
+          }
+        }
       `}</style>
     </div>
   )

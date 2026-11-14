@@ -236,7 +236,6 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
     <div
       style={{
         background: tc.surface,
-        backdropFilter: 'blur(20px)',
         borderRadius: '0',
         border: `1px solid ${tc.border}`,
         padding: '20px',

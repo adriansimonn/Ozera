@@ -124,7 +124,7 @@ export function FeatureTopTokens({
   const { activation_statistics: stats } = interpretation
 
   return (
-    <div className={`feature-top-tokens ${className}`} style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}` }}>
+    <div className={`feature-top-tokens ${className}`} style={{ background: tc.surface, border: `1px solid ${tc.border}` }}>
       {/* Header */}
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-2">

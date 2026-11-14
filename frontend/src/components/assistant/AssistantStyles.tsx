@@ -43,12 +43,6 @@ export function AssistantStyles() {
         --ast-accent: #2563eb; --ast-warn: #b77900; --ast-code: rgba(0, 0, 0, 0.06);
         --ast-strong: #000000; --ast-soft: rgba(0, 0, 0, 0.72); --ast-rail: rgba(0, 0, 0, 0.18);
       }
-      [data-interface="glass"]:not([data-bg="light"]) .ast-panel {
-        background: rgba(8, 8, 10, 0.82); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
-      }
-      [data-bg="light"][data-interface="glass"] .ast-panel {
-        background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
-      }
       .ast-panel--overlay { max-width: calc(125vw - 16px); box-shadow: -12px 0 40px rgba(0, 0, 0, 0.45); }
 
       .ast-panel .ast-resize { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 2; }

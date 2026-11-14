@@ -311,7 +311,7 @@ export function ModelComparisonDashboard({
     const label = which === 'a' ? 'SAE A' : 'SAE B'
 
     return (
-      <div style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}` }}>
+      <div style={{ background: tc.surface, border: `1px solid ${tc.border}` }}>
         {/* Header */}
         <div style={{ padding: '1rem', borderBottom: `1px solid ${tc.border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Database className="w-4 h-4" style={{ color: tc.textMid }} />

@@ -42,8 +42,8 @@ export function LoginModal({ isOpen, onClose, onSwitchToSignup }: LoginModalProp
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-black/60 backdrop-filter backdrop-blur-xl border border-gray-800 max-w-md w-full p-8 relative">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-black/60 border border-gray-800 max-w-md w-full p-8 relative">
         {/* Close button */}
         <button
           onClick={handleClose}

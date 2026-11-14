@@ -1,5 +1,5 @@
 /**
- * Navigation bar component with glass morphism styling.
+ * Navigation bar component.
  * Supports view mode toggle for pages that use split/single view.
  * Supports custom models page mode toggle (training/upload).
  */
@@ -172,18 +172,6 @@ export function NavBar({
         [data-bg="light"] .navbar {
           background: rgba(255, 255, 255, 0.85);
           border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-interface="glass"]:not([data-bg="light"]) .navbar {
-          background: rgba(0, 0, 0, 0.6);
-          backdrop-filter: blur(24px) saturate(200%);
-          -webkit-backdrop-filter: blur(24px) saturate(200%);
-        }
-
-        [data-bg="light"][data-interface="glass"] .navbar {
-          background: rgba(255, 255, 255, 0.6);
-          backdrop-filter: blur(24px) saturate(200%);
-          -webkit-backdrop-filter: blur(24px) saturate(200%);
         }
 
         .navbar-content {

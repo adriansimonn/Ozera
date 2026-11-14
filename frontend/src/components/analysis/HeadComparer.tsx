@@ -1,9 +1,9 @@
 /**
  * HeadComparer component for side-by-side comparison of attention patterns.
- * Theme-aware: adapts to light/dark mode and glass interface.
+ * Theme-aware: adapts to light/dark mode.
  */
 
-import { useTheme, useThemeColors } from '../../hooks/useTheme'
+import { useThemeColors } from '../../hooks/useTheme'
 import type { CompareAttentionResponse } from '../../types/analysis'
 
 interface HeadComparerProps {
@@ -24,8 +24,8 @@ function similarityBarBg(value: number) {
 }
 
 export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
-  const { isGlass, isLight } = useTheme()
   const tc = useThemeColors()
+  const { isLight } = tc
 
   const {
     prompt1,
@@ -48,8 +48,6 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
     padding: '1rem',
   }
 
-  const glassClass = isGlass ? ' glass' : ''
-
   const warningBg = isLight ? 'rgba(245,158,11,0.06)' : 'rgba(245,158,11,0.08)'
   const warningBorder = isLight ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.3)'
   const warningText = isLight ? '#b45309' : '#fbbf24'
@@ -68,7 +66,6 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
       {/* Length Mismatch Warning */}
       {length_warning && (
         <div
-          className={glassClass}
           style={{
             background: warningBg,
             border: `1px solid ${warningBorder}`,
@@ -101,7 +98,7 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
           { label: 'Prompt 1', text: prompt1 },
           { label: 'Prompt 2', text: prompt2 },
         ].map(({ label, text }) => (
-          <div key={label} className={glassClass} style={card}>
+          <div key={label} style={card}>
             <div style={{ fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: tc.textSub, marginBottom: '0.375rem' }}>
               {label}
             </div>
@@ -113,7 +110,7 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
       </div>
 
       {/* Overall Similarity Score */}
-      <div className={glassClass} style={card}>
+      <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
           <div>
             <div style={{ fontSize: '0.8rem', fontWeight: 600, color: tc.textMid }}>Overall Similarity</div>
@@ -139,7 +136,7 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
       </div>
 
       {/* Layer-by-Layer Similarity */}
-      <div className={glassClass} style={card}>
+      <div style={card}>
         <div style={{ fontSize: '0.8rem', fontWeight: 600, color: tc.textMid, marginBottom: '1rem' }}>
           Layer Similarity
         </div>
@@ -173,7 +170,7 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
 
       {/* Most Different Heads */}
       {head_differences.length > 0 && (
-        <div className={glassClass} style={card}>
+        <div style={card}>
           <div style={{ fontSize: '0.8rem', fontWeight: 600, color: tc.textMid, marginBottom: '1rem' }}>
             Most Different Heads
           </div>
@@ -204,7 +201,7 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
       {/* Pattern Analysis */}
       <div className="hc-patterns-grid">
         {common_patterns.length > 0 && (
-          <div className={glassClass} style={{ ...card, borderColor: greenBorder }}>
+          <div style={{ ...card, borderColor: greenBorder }}>
             <div style={{ fontSize: '0.8rem', fontWeight: 600, color: greenAccent, marginBottom: '0.75rem' }}>
               Common Patterns
             </div>
@@ -220,7 +217,7 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
         )}
 
         {divergent_patterns.length > 0 && (
-          <div className={glassClass} style={{ ...card, borderColor: redBorder }}>
+          <div style={{ ...card, borderColor: redBorder }}>
             <div style={{ fontSize: '0.8rem', fontWeight: 600, color: redAccent, marginBottom: '0.75rem' }}>
               Divergent Patterns
             </div>
@@ -238,7 +235,7 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
 
       {/* No significant differences */}
       {head_differences.length === 0 && (
-        <div className={glassClass} style={{ ...card, borderColor: greenBorder, textAlign: 'center', padding: '1.5rem' }}>
+        <div style={{ ...card, borderColor: greenBorder, textAlign: 'center', padding: '1.5rem' }}>
           <div style={{ fontSize: '1rem', fontWeight: 600, color: greenAccent, marginBottom: '0.5rem' }}>
             High Similarity Detected
           </div>

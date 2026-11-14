@@ -8,16 +8,8 @@ import AnalysisPage from './pages/AnalysisPage'
 import SAEPage from './pages/SAEPage'
 import ProbesPage from './pages/ProbesPage'
 import GeometryPage from './pages/GeometryPage'
-import DefaultUnifiedPage from './pages/default/UnifiedPage'
-import DefaultTrainingPage from './pages/default/TrainingPage'
-import DefaultPatchingPlayground from './pages/default/PatchingPlayground'
-import DefaultAnalysisPage from './pages/default/AnalysisPage'
-import DefaultSAEPage from './pages/default/SAEPage'
-import DefaultProbesPage from './pages/default/ProbesPage'
-import DefaultGeometryPage from './pages/default/GeometryPage'
 import SettingsPage from './pages/SettingsPage'
 import AuthPage from './pages/AuthPage'
-import { AnimatedBackground } from './components/common/AnimatedBackground'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { PurchaseCreditsModal } from './components/payments/PurchaseCreditsModal'
 import { PurchaseCreditsProvider } from './contexts/PurchaseCreditsContext'
@@ -37,7 +29,7 @@ const queryClient = new QueryClient({
 function AppShell() {
   const [showPurchaseCredits, setShowPurchaseCredits] = useState(false)
   const { initialize } = useAuthStore()
-  const { background, interfaceStyle, isGlow, isDefault } = useTheme()
+  const { background } = useTheme()
   const location = useLocation()
   const isAuthPage = location.pathname === '/auth'
 
@@ -50,106 +42,18 @@ function AppShell() {
 
   return (
     <PurchaseCreditsProvider onShow={handleShowPurchaseCredits}>
-    <div className="min-h-screen bg-black" data-bg={isAuthPage ? undefined : background} data-interface={isAuthPage ? undefined : interfaceStyle}>
-      {isGlow && !isAuthPage && !isDefault && <AnimatedBackground />}
+    <div className="min-h-screen bg-black" data-bg={isAuthPage ? undefined : background}>
       <main className="content-container">
             <Routes>
-              <Route
-                path="/"
-                element={
-                  isDefault ? (
-                    <DefaultUnifiedPage
-                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                    />
-                  ) : (
-                    <UnifiedPage
-                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                    />
-                  )
-                }
-              />
-              <Route
-                path="/training"
-                element={isDefault ? <DefaultTrainingPage /> : <TrainingPage />}
-              />
-              <Route
-                path="/patching"
-                element={
-                  isDefault ? (
-                    <DefaultPatchingPlayground
-                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                    />
-                  ) : (
-                    <PatchingPlayground
-                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                    />
-                  )
-                }
-              />
-              <Route
-                path="/analysis"
-                element={
-                  isDefault ? (
-                    <DefaultAnalysisPage
-                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                    />
-                  ) : (
-                    <AnalysisPage
-                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                    />
-                  )
-                }
-              />
-              <Route
-                path="/sae"
-                element={
-                  isDefault ? (
-                    <DefaultSAEPage
-                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                    />
-                  ) : (
-                    <SAEPage
-                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                    />
-                  )
-                }
-              />
-              <Route
-                path="/probes"
-                element={
-                  isDefault ? (
-                    <DefaultProbesPage
-                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                    />
-                  ) : (
-                    <ProbesPage
-                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                    />
-                  )
-                }
-              />
-              <Route
-                path="/geometry"
-                element={
-                  isDefault ? (
-                    <DefaultGeometryPage
-                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                    />
-                  ) : (
-                    <GeometryPage
-                      onShowPurchaseCredits={() => setShowPurchaseCredits(true)}
-                    />
-                  )
-                }
-              />
-              <Route
-                path="/settings"
-                element={<SettingsPage />}
-              />
-              <Route
-                path="/auth"
-                element={<AuthPage />}
-              />
+              <Route path="/" element={<UnifiedPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
+              <Route path="/training" element={<TrainingPage />} />
+              <Route path="/patching" element={<PatchingPlayground onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
+              <Route path="/analysis" element={<AnalysisPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
+              <Route path="/sae" element={<SAEPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
+              <Route path="/probes" element={<ProbesPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
+              <Route path="/geometry" element={<GeometryPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/auth" element={<AuthPage />} />
             </Routes>
           </main>
 

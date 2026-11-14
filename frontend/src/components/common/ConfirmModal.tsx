@@ -26,11 +26,11 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
       onClick={onCancel}
     >
       <div
-        className="bg-black/60 backdrop-filter backdrop-blur-xl border border-gray-800 max-w-sm w-full p-6 relative"
+        className="bg-black/60 border border-gray-800 max-w-sm w-full p-6 relative"
         onClick={(e) => e.stopPropagation()}
       >
         <button

@@ -1,35 +1,26 @@
 /**
- * Theme hook — reads background and interface preferences from settings store.
- * Background: dark | light | glow | system (resolved to dark/light/glow)
- * Interface: default | glass
+ * Theme hook — reads the background preference from the settings store.
+ * Background: dark | light | system (resolved to dark/light)
  */
 
 import { useSettingsStore } from '../stores/settingsStore'
 
-export type EffectiveBg = 'dark' | 'light' | 'glow'
-export type InterfaceStyle = 'default' | 'glass'
+export type EffectiveBg = 'dark' | 'light'
 
 export function useTheme() {
   const settings = useSettingsStore((s) => s.settings)
 
   const rawBg = settings?.ui?.background ?? 'system'
-  const interfaceStyle: InterfaceStyle = settings?.ui?.interface ?? 'default'
 
   const background: EffectiveBg =
-    rawBg === 'system'
-      ? window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light'
-      : rawBg
+    rawBg === 'light' || (rawBg === 'system' && !window.matchMedia('(prefers-color-scheme: dark)').matches)
+      ? 'light'
+      : 'dark'
 
   const isLight = background === 'light'
 
   return {
     background,
-    interfaceStyle,
-    isGlow: background === 'glow',
-    isGlass: interfaceStyle === 'glass',
-    isDefault: interfaceStyle === 'default',
     isLight,
   }
 }

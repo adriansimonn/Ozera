@@ -11,8 +11,7 @@ export interface UserSettings {
     show_balance_in_navbar: boolean;
   };
   ui: {
-    background: 'dark' | 'light' | 'glow' | 'system';
-    interface: 'default' | 'glass';
+    background: 'dark' | 'light' | 'system';
     default_view_mode: 'single' | 'split';
     default_page: string;
   };

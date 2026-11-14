@@ -347,7 +347,7 @@ export function FeatureActivationDisplay({
 
       {hoveredCell && (
         <div
-          className="absolute z-20 bg-black/90 backdrop-blur-sm border border-gray-700 px-4 py-3 text-sm pointer-events-none"
+          className="absolute z-20 bg-black/90 border border-gray-700 px-4 py-3 text-sm pointer-events-none"
           style={getTooltipStyle()}
         >
           <div className="text-white font-semibold mb-2 text-xs uppercase tracking-wide">
@@ -381,7 +381,7 @@ export function FeatureActivationDisplay({
         .feature-activation-display .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
         .feature-activation-display .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
         .feature-activation-display .bg-black\\/30 { background: rgba(255,255,255,0.03); }
-        .feature-activation-display .bg-black\\/40 { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); }
+        .feature-activation-display .bg-black\\/40 { background: rgba(255,255,255,0.03); }
         .feature-activation-display .bg-black\\/90 { background: rgba(0,0,0,0.9); }
         .feature-activation-display .border-gray-700 { border-color: rgba(255,255,255,0.1); }
         .feature-activation-display .border-gray-800 { border-color: rgba(255,255,255,0.1); }
@@ -389,7 +389,7 @@ export function FeatureActivationDisplay({
         .feature-activation-display .text-purple-300 { color: rgba(168,85,247,0.9); }
 
         [data-bg="light"] .feature-activation-display .bg-black\\/30 { background: rgba(0,0,0,0.03); }
-        [data-bg="light"] .feature-activation-display .bg-black\\/40 { background: rgba(0,0,0,0.03); backdrop-filter: blur(20px); }
+        [data-bg="light"] .feature-activation-display .bg-black\\/40 { background: rgba(0,0,0,0.03); }
         [data-bg="light"] .feature-activation-display .bg-black\\/90 { background: rgba(255,255,255,0.95); }
         [data-bg="light"] .feature-activation-display .border-gray-700 { border-color: rgba(0,0,0,0.1); }
         [data-bg="light"] .feature-activation-display .border-gray-800 { border-color: rgba(0,0,0,0.1); }

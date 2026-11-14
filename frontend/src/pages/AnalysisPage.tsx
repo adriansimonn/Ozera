@@ -1,8 +1,3 @@
-/**
- * Attention Pattern Analysis Page - Interactive interface for analyzing
- * attention head types, patterns, and comparing across prompts.
- */
-
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { NavBar } from '../components/common/NavBar'
@@ -33,6 +28,7 @@ import {
 import { useAuthStore } from '../stores/authStore'
 import { useAssistantPage } from '../hooks/useAssistantPage'
 import { analysisBridge } from '../components/assistant/pages/analysis'
+import { useTheme } from '../hooks/useTheme'
 
 interface AnalysisPageProps {
   onShowPurchaseCredits?: () => void
@@ -40,11 +36,12 @@ interface AnalysisPageProps {
 
 type AnalysisMode = 'classify' | 'compare' | 'mine'
 
-export default function AnalysisPage({
+export default function DefaultAnalysisPage({
   onShowPurchaseCredits,
 }: AnalysisPageProps) {
   const { isAuthenticated } = useAuthStore()
   const navigate = useNavigate()
+  const { isLight } = useTheme()
 
   // Mode selection
   const [mode, setMode] = useState<AnalysisMode>('classify')
@@ -73,7 +70,6 @@ export default function AnalysisPage({
   const [expandedPatternHeads, setExpandedPatternHeads] = useState<number | null>(null)
   const [copiedPatternIdx, setCopiedPatternIdx] = useState<number | null>(null)
 
-  // Load models and activations on mount
   useEffect(() => {
     loadModels()
     loadCapturedActivations()
@@ -83,9 +79,7 @@ export default function AnalysisPage({
     try {
       const modelList = await apiClient.getPatchingModels()
       setModels(modelList)
-      if (modelList.length > 0) {
-        setSelectedModel((current) => current || modelList[0].model_id)
-      }
+      if (modelList.length > 0) setSelectedModel((current) => current || modelList[0].model_id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load models')
     }
@@ -129,23 +123,18 @@ export default function AnalysisPage({
     setMining: setMiningResult,
   }))
 
-  // Filter activations by selected model
   const filteredActivations = capturedActivations.filter(
     (a) => a.model_id === selectedModel
   )
 
-  // Get head type from classification result (if available for same activation)
   const getHeadType = (layer: number, head: number): HeadType | null => {
-    if (!classificationResult || classificationResult.activation_id !== selectedActivation1) {
-      return null
-    }
+    if (!classificationResult || classificationResult.activation_id !== selectedActivation1) return null
     const classification = classificationResult.classifications.find(
       c => c.layer === layer && c.head === head
     )
     return classification?.primary_type || null
   }
 
-  // Copy heads list to clipboard
   const copyHeadsList = async (heads: [number, number][], patternIdx: number) => {
     const text = heads.map(([l, h]) => `L${l}H${h}`).join(', ')
     await navigator.clipboard.writeText(text)
@@ -153,12 +142,8 @@ export default function AnalysisPage({
     setTimeout(() => setCopiedPatternIdx(null), 2000)
   }
 
-  // Capture new activations
   const handleCaptureActivations = async () => {
-    if (!isAuthenticated) {
-      navigate('/auth')
-      return
-    }
+    if (!isAuthenticated) { navigate('/auth'); return }
     if (!capturePrompt.trim() || !selectedModel) {
       setError('Please enter a prompt and select a model')
       return
@@ -167,16 +152,11 @@ export default function AnalysisPage({
     try {
       setCapturing(true)
       setError(null)
-
       const result = await apiClient.captureActivations({
         prompt: capturePrompt,
         model: selectedModel,
       })
-
-      // Refresh the activations list
       await loadCapturedActivations()
-
-      // Select the new activation
       setSelectedActivation1(result.activation_id)
       setCapturePrompt('')
     } catch (err) {
@@ -190,26 +170,15 @@ export default function AnalysisPage({
     }
   }
 
-  // Run classification
   const handleClassify = async () => {
-    if (!isAuthenticated) {
-      navigate('/auth')
-      return
-    }
-    if (!selectedActivation1) {
-      setError('Please select captured activations to analyze')
-      return
-    }
+    if (!isAuthenticated) { navigate('/auth'); return }
+    if (!selectedActivation1) { setError('Please select captured activations to analyze'); return }
 
     try {
       setLoading(true)
       setError(null)
       setClassificationResult(null)
-
-      const result = await apiClient.classifyHeads({
-        activation_id: selectedActivation1,
-      })
-
+      const result = await apiClient.classifyHeads({ activation_id: selectedActivation1 })
       setClassificationResult(result)
     } catch (err) {
       if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') {
@@ -222,12 +191,8 @@ export default function AnalysisPage({
     }
   }
 
-  // Run comparison
   const handleCompare = async () => {
-    if (!isAuthenticated) {
-      navigate('/auth')
-      return
-    }
+    if (!isAuthenticated) { navigate('/auth'); return }
     if (!selectedActivation1 || !selectedActivation2) {
       setError('Please select two activations to compare')
       return
@@ -237,12 +202,10 @@ export default function AnalysisPage({
       setLoading(true)
       setError(null)
       setComparisonResult(null)
-
       const result = await apiClient.compareAttention({
         activation_id_1: selectedActivation1,
         activation_id_2: selectedActivation2,
       })
-
       setComparisonResult(result)
     } catch (err) {
       if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') {
@@ -255,26 +218,15 @@ export default function AnalysisPage({
     }
   }
 
-  // Run pattern mining
   const handleMinePatterns = async () => {
-    if (!isAuthenticated) {
-      navigate('/auth')
-      return
-    }
-    if (!selectedActivation1) {
-      setError('Please select captured activations to analyze')
-      return
-    }
+    if (!isAuthenticated) { navigate('/auth'); return }
+    if (!selectedActivation1) { setError('Please select captured activations to analyze'); return }
 
     try {
       setLoading(true)
       setError(null)
       setMiningResult(null)
-
-      const result = await apiClient.minePatterns({
-        activation_id: selectedActivation1,
-      })
-
+      const result = await apiClient.minePatterns({ activation_id: selectedActivation1 })
       setMiningResult(result)
     } catch (err) {
       if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') {
@@ -287,57 +239,64 @@ export default function AnalysisPage({
     }
   }
 
+  const c = {
+    bg: isLight ? '#f5f5f7' : '#0a0a0a',
+    panelBg: isLight ? '#ffffff' : '#111111',
+    divider: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
+    text: isLight ? '#1d1d1f' : '#ffffff',
+    textMid: isLight ? '#1d1d1f' : '#ffffff',
+    textSub: isLight ? '#1d1d1f' : '#ffffff',
+    controlBg: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)',
+    controlBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
+    controlHover: isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.08)',
+    inputBg: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(0,0,0,0.4)',
+    inputBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
+    errorBg: 'rgba(239, 68, 68, 0.08)',
+    errorBorder: 'rgba(239, 68, 68, 0.2)',
+    errorText: '#ef4444',
+    accentBg: isLight ? 'rgba(59,130,246,0.08)' : 'rgba(59,130,246,0.12)',
+    accentText: isLight ? '#2563eb' : 'rgba(96,165,250,0.9)',
+    circuitBg: isLight ? 'rgba(168,85,247,0.06)' : 'rgba(168,85,247,0.1)',
+    circuitBorder: isLight ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.25)',
+    circuitText: isLight ? '#7c3aed' : 'rgba(168,85,247,0.9)',
+    spinnerTrack: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
+    spinnerHead: isLight ? '#1d1d1f' : '#ffffff',
+    warningBg: isLight ? 'rgba(245,158,11,0.06)' : 'rgba(245,158,11,0.08)',
+    warningBorder: isLight ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.2)',
+    warningText: isLight ? 'rgba(180,120,0,0.8)' : 'rgba(245,158,11,0.8)',
+  }
+
+  const modes: { id: AnalysisMode; label: string; icon: typeof Search }[] = [
+    { id: 'classify', label: 'Classify Heads', icon: Search },
+    { id: 'compare', label: 'Compare Prompts', icon: GitCompare },
+    { id: 'mine', label: 'Mine Patterns', icon: Layers },
+  ]
+
   return (
-    <div className="analysis-page">
+    <div className="da-page" style={{ background: c.bg }}>
       <NavBar />
 
-      <div className="analysis-content">
-        {/* Header */}
-        <div className="analysis-header">
-          <h1>Attention Pattern Analysis</h1>
-          <p className="header-description">
-            Classify attention heads, discover patterns, and compare across prompts
-          </p>
-        </div>
+      <div className="da-layout" style={{ borderColor: c.divider }}>
+        {/* Left Panel — 30% */}
+        <div className="da-left" style={{ background: c.panelBg, borderRight: `1px solid ${c.divider}` }}>
+          <div className="da-left-scroll">
+            {/* Error banner */}
+            {error && (
+              <div className="da-error" style={{ background: c.errorBg, borderColor: c.errorBorder }}>
+                <AlertCircle style={{ width: 14, height: 14, color: c.errorText, flexShrink: 0 }} />
+                <span style={{ color: c.errorText, fontSize: '0.8rem', flex: 1 }}>{error}</span>
+                <button
+                  onClick={() => setError(null)}
+                  style={{ background: 'none', border: 'none', color: c.errorText, cursor: 'pointer', fontSize: '0.75rem', padding: '0.125rem 0.5rem' }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
 
-        {/* Mode Selection */}
-        <div className="mode-tabs" data-assist="analysis.mode">
-          {[
-            { id: 'classify', label: 'Classify Heads', icon: Search },
-            { id: 'compare', label: 'Compare Prompts', icon: GitCompare },
-            { id: 'mine', label: 'Mine Patterns', icon: Layers },
-          ].map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => {
-                setMode(id as AnalysisMode)
-                if (id !== 'compare') {
-                  setSelectedActivation2('')
-                }
-              }}
-              className={`mode-tab ${mode === id ? 'active' : ''}`}
-            >
-              <Icon size={16} />
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="error-banner">
-            <AlertCircle className="error-icon" />
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="dismiss-btn">Dismiss</button>
-          </div>
-        )}
-
-        <div className="analysis-grid">
-          {/* Left Panel - Configuration */}
-          <div className="left-column">
-            {/* Model Selection */}
-            <div className="section">
-              <h2>Model</h2>
+            {/* Model section */}
+            <div className="da-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              <div className="da-section-label" style={{ color: c.textSub }}>Model</div>
               <div data-assist="analysis.model">
               <Dropdown
                 value={selectedModel}
@@ -354,197 +313,274 @@ export default function AnalysisPage({
               </div>
             </div>
 
-            {/* Capture New Activations */}
-            <div className="section">
-              <h2>Capture Activations</h2>
-              <div className="capture-form">
-                <textarea
-                  data-assist="analysis.prompt"
-                  value={capturePrompt}
-                  onChange={(e) => setCapturePrompt(e.target.value)}
-                  placeholder="Enter a prompt to capture activations..."
-                  rows={3}
-                  className="capture-textarea"
-                />
-                <button
-                  onClick={handleCaptureActivations}
-                  data-assist="analysis.capture_button"
-                  disabled={capturing || !capturePrompt.trim()}
-                  className="capture-btn"
-                >
-                  {capturing ? (
-                    <RefreshCw size={16} className="spinning" />
-                  ) : (
-                    <Zap size={16} />
-                  )}
-                  {capturing ? 'Capturing...' : 'Capture'}
-                </button>
-              </div>
+            {/* Capture Activations */}
+            <div className="da-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              <div className="da-section-label" style={{ color: c.textSub }}>Capture Activations</div>
+              <textarea
+                data-assist="analysis.prompt"
+                value={capturePrompt}
+                onChange={(e) => setCapturePrompt(e.target.value)}
+                placeholder="Enter a prompt to capture activations..."
+                rows={3}
+                disabled={capturing}
+                className="da-textarea"
+                style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
+              />
+              <button
+                onClick={handleCaptureActivations}
+                data-assist="analysis.capture_button"
+                disabled={capturing || !capturePrompt.trim()}
+                className="da-capture-btn"
+                style={{
+                  background: c.controlBg,
+                  borderColor: c.controlBorder,
+                  color: c.textMid,
+                }}
+              >
+                {capturing ? (
+                  <>
+                    <RefreshCw style={{ width: 14, height: 14 }} className="da-spinning" />
+                    Capturing...
+                  </>
+                ) : (
+                  <>
+                    <Zap style={{ width: 14, height: 14 }} />
+                    Capture
+                  </>
+                )}
+              </button>
             </div>
 
-            {/* Captured Activations List */}
-            <div className="section">
+            {/* Captured Activations */}
+            <div className="da-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
               <button
-                onClick={() => setShowCapturedList(!showCapturedList)}
-                className="section-toggle"
+                className="da-toggle-btn"
                 data-assist="analysis.activation"
+                onClick={() => setShowCapturedList(!showCapturedList)}
+                style={{ color: c.textMid }}
               >
-                <h2>Captured Activations ({filteredActivations.length})</h2>
-                {showCapturedList ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Captured Activations ({filteredActivations.length})
+                </span>
+                {showCapturedList ? <ChevronUp style={{ width: 14, height: 14 }} /> : <ChevronDown style={{ width: 14, height: 14 }} />}
               </button>
 
               {showCapturedList && (
-                <div className="activations-list">
+                <div style={{ marginTop: '0.75rem' }}>
                   {filteredActivations.length === 0 ? (
-                    <div className="empty-state">
+                    <div style={{
+                      padding: '1.25rem',
+                      textAlign: 'center',
+                      color: c.textSub,
+                      fontSize: '0.8rem',
+                      background: c.controlBg,
+                      border: `1px dashed ${c.controlBorder}`,
+                    }}>
                       No activations captured for this model
                     </div>
                   ) : (
-                    filteredActivations.map((activation) => (
-                      <button
-                        key={activation.id}
-                        onClick={() => {
-                          if (mode === 'compare') {
-                            // In compare mode: allow deselecting or selecting prompts
-                            if (selectedActivation1 === activation.id) {
-                              // Clicking first selected - deselect it, move second to first
-                              setSelectedActivation1(selectedActivation2)
-                              setSelectedActivation2('')
-                            } else if (selectedActivation2 === activation.id) {
-                              // Clicking second selected - deselect it
-                              setSelectedActivation2('')
-                            } else if (!selectedActivation1) {
-                              // No first selected - set as first
-                              setSelectedActivation1(activation.id)
-                            } else if (!selectedActivation2) {
-                              // First selected but not second - set as second
-                              setSelectedActivation2(activation.id)
-                            } else {
-                              // Both selected - replace second
-                              setSelectedActivation2(activation.id)
-                            }
-                          } else {
-                            setSelectedActivation1(activation.id)
-                            setSelectedActivation2('')
-                          }
-                        }}
-                        className={`activation-item ${
-                          selectedActivation1 === activation.id
-                            ? 'selected-primary'
-                            : selectedActivation2 === activation.id
-                              ? 'selected-secondary'
-                              : ''
-                        }`}
-                      >
-                        <div className="activation-prompt">
-                          {activation.prompt}
-                        </div>
-                        <div className="activation-meta">
-                          {activation.num_tokens} tokens • {activation.num_layers} layers
-                        </div>
-                      </button>
-                    ))
+                    <div className="da-activations-list">
+                      {filteredActivations.map((activation) => {
+                        const isPrimary = selectedActivation1 === activation.id
+                        const isSecondary = selectedActivation2 === activation.id
+                        const isSelected = isPrimary || isSecondary
+                        return (
+                          <button
+                            key={activation.id}
+                            onClick={() => {
+                              if (mode === 'compare') {
+                                if (selectedActivation1 === activation.id) {
+                                  setSelectedActivation1(selectedActivation2)
+                                  setSelectedActivation2('')
+                                } else if (selectedActivation2 === activation.id) {
+                                  setSelectedActivation2('')
+                                } else if (!selectedActivation1) {
+                                  setSelectedActivation1(activation.id)
+                                } else if (!selectedActivation2) {
+                                  setSelectedActivation2(activation.id)
+                                } else {
+                                  setSelectedActivation2(activation.id)
+                                }
+                              } else {
+                                setSelectedActivation1(activation.id)
+                                setSelectedActivation2('')
+                              }
+                            }}
+                            className="da-activation-item"
+                            style={{
+                              background: isSelected ? c.accentBg : c.controlBg,
+                              borderColor: isSelected ? c.accentText : c.controlBorder,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                              {isPrimary && mode === 'compare' && (
+                                <span style={{ fontSize: '0.6rem', fontWeight: 600, color: c.accentText, textTransform: 'uppercase', letterSpacing: '0.04em' }}>1st</span>
+                              )}
+                              {isSecondary && (
+                                <span style={{ fontSize: '0.6rem', fontWeight: 600, color: c.accentText, textTransform: 'uppercase', letterSpacing: '0.04em' }}>2nd</span>
+                              )}
+                              <span style={{ fontSize: '0.75rem', color: c.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {activation.prompt}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.65rem', color: c.textSub, marginTop: '0.2rem' }}>
+                              {activation.num_tokens} tokens · {activation.num_layers} layers
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
                   )}
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.375rem',
+                    marginTop: '0.625rem',
+                    padding: '0.4rem 0.5rem',
+                    background: c.warningBg,
+                    border: `1px solid ${c.warningBorder}`,
+                    fontSize: '0.65rem',
+                    color: c.warningText,
+                    lineHeight: 1.4,
+                  }}>
+                    <AlertCircle style={{ width: 11, height: 11, flexShrink: 0, marginTop: 1 }} />
+                    <span>Activations are stored temporarily and may be cleared periodically.</span>
+                  </div>
                 </div>
               )}
+            </div>
 
-
-              <div className="storage-warning">
-                <AlertCircle size={12} />
-                <span>Activations are stored temporarily and may be cleared periodically.</span>
+            {/* Analysis Mode */}
+            <div className="da-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+              <div className="da-section-label" style={{ color: c.textSub }}>Analysis Mode</div>
+              <div style={{ display: 'flex', gap: '0.375rem' }} data-assist="analysis.mode">
+                {modes.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      setMode(id)
+                      if (id !== 'compare') setSelectedActivation2('')
+                    }}
+                    className="da-mode-btn"
+                    style={{
+                      background: mode === id ? (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)') : c.controlBg,
+                      borderColor: mode === id ? (isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)') : c.controlBorder,
+                      color: mode === id ? c.text : c.textSub,
+                    }}
+                  >
+                    <Icon style={{ width: 12, height: 12 }} />
+                    <span>{label}</span>
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Run Analysis Button */}
-            <button
-              onClick={() => {
-                if (mode === 'classify') handleClassify()
-                else if (mode === 'compare') handleCompare()
-                else handleMinePatterns()
-              }}
-              disabled={loading || !selectedActivation1 || (mode === 'compare' && !selectedActivation2)}
-              className="run-analysis-btn"
-              data-assist="analysis.run_button"
-            >
-              {loading ? (
-                <>
-                  <RefreshCw size={18} className="spinning" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <Search size={18} />
-                  {mode === 'classify' && 'Classify Heads'}
-                  {mode === 'compare' && 'Compare Patterns'}
-                  {mode === 'mine' && 'Mine Patterns'}
-                </>
-              )}
-            </button>
+            {/* Run Analysis */}
+            <div className="da-section">
+              <button
+                className="da-run-btn"
+                data-assist="analysis.run_button"
+                onClick={() => {
+                  if (mode === 'classify') handleClassify()
+                  else if (mode === 'compare') handleCompare()
+                  else handleMinePatterns()
+                }}
+                disabled={loading || !selectedActivation1 || (mode === 'compare' && !selectedActivation2)}
+                style={{
+                  background: loading ? c.controlBg : (isLight ? '#1d1d1f' : '#ffffff'),
+                  color: loading ? c.textSub : (isLight ? '#ffffff' : '#0a0a0a'),
+                  borderColor: 'transparent',
+                }}
+              >
+                {loading ? (
+                  <>
+                    <div className="da-spinner" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Search style={{ width: 14, height: 14 }} />
+                    {mode === 'classify' && 'Classify Heads'}
+                    {mode === 'compare' && 'Compare Patterns'}
+                    {mode === 'mine' && 'Mine Patterns'}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+        </div>
 
-          {/* Right Panel - Results */}
-          <div className="right-column">
+        {/* Right Panel — 70% */}
+        <div className="da-right" style={{ background: c.bg }}>
+          <div className="da-right-scroll">
             {/* Classification Results */}
             {mode === 'classify' && classificationResult && (
-              <div className="results-container">
-                <div className="result-header">
-                  <h3>
-                    Prompt: <span className="prompt-text">{classificationResult.prompt}</span>
-                  </h3>
-                  <div className="result-meta">
-                    {classificationResult.num_layers} layers • {classificationResult.num_heads} heads per layer
+              <div className="da-results">
+                <div className="da-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 500, color: c.textMid }}>
+                      Prompt: <span style={{ fontFamily: 'monospace', color: c.text }}>{classificationResult.prompt}</span>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: c.textSub, marginTop: '0.25rem' }}>
+                      {classificationResult.num_layers} layers · {classificationResult.num_heads} heads per layer
+                    </div>
                   </div>
+
+                  <AttentionPatternGrid
+                    classifications={classificationResult.classifications}
+                    numLayers={classificationResult.num_layers}
+                    numHeads={classificationResult.num_heads}
+                    onHeadSelect={(layer, head) => setSelectedHead({ layer, head })}
+                    selectedHead={selectedHead}
+                  />
                 </div>
 
-                <AttentionPatternGrid
-                  classifications={classificationResult.classifications}
-                  numLayers={classificationResult.num_layers}
-                  numHeads={classificationResult.num_heads}
-                  onHeadSelect={(layer, head) => setSelectedHead({ layer, head })}
-                  selectedHead={selectedHead}
-                />
-
-                <HeadClassifier
-                  classifications={classificationResult.classifications}
-                  numLayers={classificationResult.num_layers}
-                  numHeads={classificationResult.num_heads}
-                  summary={classificationResult.summary}
-                  onHeadSelect={(layer, head) => setSelectedHead({ layer, head })}
-                  selectedHead={selectedHead}
-                />
+                <div className="da-section">
+                  <HeadClassifier
+                    classifications={classificationResult.classifications}
+                    numLayers={classificationResult.num_layers}
+                    numHeads={classificationResult.num_heads}
+                    summary={classificationResult.summary}
+                    onHeadSelect={(layer, head) => setSelectedHead({ layer, head })}
+                    selectedHead={selectedHead}
+                  />
+                </div>
               </div>
             )}
 
             {/* Comparison Results */}
             {mode === 'compare' && comparisonResult && (
-              <HeadComparer
-                comparison={comparisonResult}
-                onHeadSelect={(layer, head) => setSelectedHead({ layer, head })}
-              />
+              <div className="da-section">
+                <HeadComparer
+                  comparison={comparisonResult}
+                  onHeadSelect={(layer, head) => setSelectedHead({ layer, head })}
+                />
+              </div>
             )}
 
             {/* Mining Results */}
             {mode === 'mine' && miningResult && (
-              <div className="results-container">
+              <div className="da-results">
                 {/* Top Heads */}
-                <div className="result-section">
-                  <h3>Top Important Heads</h3>
-                  <div className="top-heads-grid-compact">
+                <div className="da-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+                  <div className="da-section-label" style={{ color: c.textSub }}>Top Important Heads</div>
+                  <div className="da-heads-grid">
                     {miningResult.top_heads.slice(0, 20).map(([layer, head, importance]) => {
                       const headType = getHeadType(layer, head)
-                      const borderColor = headType ? HEAD_TYPE_COLORS[headType] : 'rgba(255, 255, 255, 0.15)'
+                      const borderColor = headType ? HEAD_TYPE_COLORS[headType] : c.controlBorder
                       return (
                         <button
                           key={`${layer}-${head}`}
                           onClick={() => setSelectedHead({ layer, head })}
-                          className="top-head-item-compact"
-                          style={{ borderColor }}
-                          title={headType ? `${HEAD_TYPE_NAMES[headType]}` : undefined}
+                          className="da-head-item"
+                          style={{ borderColor, background: c.controlBg }}
+                          title={headType ? HEAD_TYPE_NAMES[headType] : undefined}
                         >
-                          <div className="head-label-compact">
+                          <div style={{ fontSize: '0.6rem', color: c.textSub, fontFamily: 'monospace' }}>
                             L{layer}H{head}
                           </div>
-                          <div className="head-importance-compact">
+                          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: c.text, marginTop: '0.125rem' }}>
                             {(importance * 100).toFixed(0)}%
                           </div>
                         </button>
@@ -553,26 +589,30 @@ export default function AnalysisPage({
                   </div>
                 </div>
 
-                {/* Classification Summary */}
-                <div className="result-section">
-                  <h3>Head Type Distribution</h3>
-                  <div className="type-distribution">
+                {/* Head Type Distribution */}
+                <div className="da-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+                  <div className="da-section-label" style={{ color: c.textSub }}>Head Type Distribution</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                     {Object.entries(miningResult.classification_summary).map(([type, count]) => (
                       <div
                         key={type}
-                        className="type-badge"
                         style={{
-                          backgroundColor: `${HEAD_TYPE_COLORS[type as HeadType]}20`,
-                          borderColor: HEAD_TYPE_COLORS[type as HeadType],
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.375rem',
+                          padding: '0.375rem 0.625rem',
+                          backgroundColor: `${HEAD_TYPE_COLORS[type as HeadType]}15`,
+                          border: `1px solid ${HEAD_TYPE_COLORS[type as HeadType]}`,
+                          fontSize: '0.75rem',
+                          color: c.textMid,
                         }}
                       >
-                        <div
-                          className="type-dot"
-                          style={{ backgroundColor: HEAD_TYPE_COLORS[type as HeadType] }}
-                        />
-                        <span>
-                          {HEAD_TYPE_NAMES[type as HeadType]}: {count}
-                        </span>
+                        <div style={{
+                          width: '0.5rem',
+                          height: '0.5rem',
+                          backgroundColor: HEAD_TYPE_COLORS[type as HeadType],
+                        }} />
+                        <span>{HEAD_TYPE_NAMES[type as HeadType]}: {count}</span>
                       </div>
                     ))}
                   </div>
@@ -580,64 +620,109 @@ export default function AnalysisPage({
 
                 {/* Cross-Layer Patterns */}
                 {miningResult.cross_layer_patterns.length > 0 && (
-                  <div className="result-section">
-                    <h3>Detected Patterns</h3>
-                    <div className="patterns-list">
+                  <div className="da-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+                    <div className="da-section-label" style={{ color: c.textSub }}>Detected Patterns</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
                       {miningResult.cross_layer_patterns.map((pattern, idx) => (
-                        <div key={idx} className="pattern-item">
-                          <div className="pattern-header">
-                            <span className="pattern-type">
+                        <div key={idx} style={{
+                          padding: '0.75rem',
+                          background: c.controlBg,
+                          border: `1px solid ${c.controlBorder}`,
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 500, color: c.text, textTransform: 'capitalize' }}>
                               {pattern.pattern_type.replace(/_/g, ' ')}
                             </span>
-                            <span className="pattern-confidence">
+                            <span style={{ fontSize: '0.65rem', color: c.textSub }}>
                               Confidence: {(pattern.confidence * 100).toFixed(0)}%
                             </span>
                           </div>
-                          <div className="pattern-description">
+                          <div style={{ fontSize: '0.75rem', color: c.textMid, marginBottom: '0.5rem' }}>
                             {pattern.description}
                           </div>
-                          <div className="pattern-heads">
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
                             {pattern.involved_heads.slice(0, 8).map(([layer, head]) => (
-                              <span key={`${layer}-${head}`} className="head-tag">
+                              <span key={`${layer}-${head}`} style={{
+                                fontSize: '0.65rem',
+                                padding: '0.15rem 0.375rem',
+                                background: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)',
+                                color: c.textMid,
+                              }}>
                                 L{layer}H{head}
                               </span>
                             ))}
                             {pattern.involved_heads.length > 8 && (
                               <button
-                                className="head-tag more-btn"
                                 onClick={() => setExpandedPatternHeads(expandedPatternHeads === idx ? null : idx)}
+                                style={{
+                                  fontSize: '0.65rem',
+                                  padding: '0.15rem 0.375rem',
+                                  background: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)',
+                                  border: `1px solid ${c.controlBorder}`,
+                                  color: c.textSub,
+                                  cursor: 'pointer',
+                                }}
                               >
                                 +{pattern.involved_heads.length - 8} more
                               </button>
                             )}
                           </div>
-                          {/* Expanded heads popup */}
                           {expandedPatternHeads === idx && (
-                            <div className="expanded-heads-popup">
-                              <div className="expanded-heads-header">
-                                <span>All Involved Heads ({pattern.involved_heads.length})</span>
-                                <div className="expanded-heads-actions">
+                            <div style={{
+                              marginTop: '0.625rem',
+                              background: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(0,0,0,0.3)',
+                              border: `1px solid ${c.controlBorder}`,
+                              padding: '0.625rem',
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                <span style={{ fontSize: '0.7rem', color: c.textSub }}>
+                                  All Involved Heads ({pattern.involved_heads.length})
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                                   <button
-                                    className="copy-heads-btn"
                                     onClick={() => copyHeadsList(pattern.involved_heads, idx)}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.25rem',
+                                      padding: '0.2rem 0.4rem',
+                                      background: c.controlBg,
+                                      border: `1px solid ${c.controlBorder}`,
+                                      color: c.textMid,
+                                      fontSize: '0.65rem',
+                                      cursor: 'pointer',
+                                    }}
                                   >
                                     {copiedPatternIdx === idx ? (
-                                      <><Check size={12} /> Copied</>
+                                      <><Check style={{ width: 10, height: 10 }} /> Copied</>
                                     ) : (
-                                      <><Copy size={12} /> Copy</>
+                                      <><Copy style={{ width: 10, height: 10 }} /> Copy</>
                                     )}
                                   </button>
                                   <button
-                                    className="close-popup-btn"
                                     onClick={() => setExpandedPatternHeads(null)}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      padding: '0.2rem',
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: c.textSub,
+                                      cursor: 'pointer',
+                                    }}
                                   >
-                                    <X size={14} />
+                                    <X style={{ width: 12, height: 12 }} />
                                   </button>
                                 </div>
                               </div>
-                              <div className="expanded-heads-list">
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', maxHeight: 180, overflowY: 'auto' }}>
                                 {pattern.involved_heads.map(([layer, head]) => (
-                                  <span key={`${layer}-${head}`} className="head-tag">
+                                  <span key={`${layer}-${head}`} style={{
+                                    fontSize: '0.65rem',
+                                    padding: '0.15rem 0.375rem',
+                                    background: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)',
+                                    color: c.textMid,
+                                  }}>
                                     L{layer}H{head}
                                   </span>
                                 ))}
@@ -652,20 +737,24 @@ export default function AnalysisPage({
 
                 {/* Circuit Candidates */}
                 {miningResult.circuit_candidates.length > 0 && (
-                  <div className="result-section circuits">
-                    <h3>Potential Circuits</h3>
-                    <div className="circuits-list">
+                  <div className="da-section">
+                    <div className="da-section-label" style={{ color: c.circuitText }}>Potential Circuits</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
                       {miningResult.circuit_candidates.map((circuit, idx) => (
-                        <div key={idx} className="circuit-item">
-                          <div className="circuit-header">
-                            <span className="circuit-type">
+                        <div key={idx} style={{
+                          padding: '0.75rem',
+                          background: c.circuitBg,
+                          border: `1px solid ${c.circuitBorder}`,
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 500, color: c.circuitText, textTransform: 'capitalize' }}>
                               {circuit.type.replace(/_/g, ' ')}
                             </span>
-                            <span className="circuit-confidence">
+                            <span style={{ fontSize: '0.65rem', color: c.textSub }}>
                               Confidence: {(circuit.confidence * 100).toFixed(0)}%
                             </span>
                           </div>
-                          <div className="circuit-description">
+                          <div style={{ fontSize: '0.75rem', color: c.textMid }}>
                             {circuit.description}
                           </div>
                         </div>
@@ -678,16 +767,13 @@ export default function AnalysisPage({
 
             {/* Empty State */}
             {!classificationResult && !comparisonResult && !miningResult && (
-              <div className="results-placeholder">
-                <div className="placeholder-content">
-                  <Search className="placeholder-icon" />
-                  <h3>No Analysis Results</h3>
-                  <p>
-                    {mode === 'classify' && 'Capture activations and click "Classify Heads" to identify attention head types.'}
-                    {mode === 'compare' && 'Select two captured activations and click "Compare Patterns" to see how attention differs.'}
-                    {mode === 'mine' && 'Capture activations and click "Mine Patterns" to discover cross-layer patterns and circuits.'}
-                  </p>
-                </div>
+              <div className="da-placeholder">
+                <Search style={{ width: 36, height: 36, color: c.textSub, opacity: 0.3, marginBottom: '0.75rem' }} />
+                <p style={{ color: c.textSub, fontSize: '0.8rem', margin: 0, maxWidth: 360, lineHeight: 1.5 }}>
+                  {mode === 'classify' && 'Capture activations and classify heads to identify attention head types.'}
+                  {mode === 'compare' && 'Select two captured activations and compare to see how attention differs.'}
+                  {mode === 'mine' && 'Capture activations and mine patterns to discover cross-layer patterns and circuits.'}
+                </p>
               </div>
             )}
           </div>
@@ -695,677 +781,258 @@ export default function AnalysisPage({
       </div>
 
       <style>{`
-        .analysis-page {
-          min-height: 125vh;
-          padding-top: 70px;
-        }
-
-        .analysis-content {
-          max-width: 1400px;
-          margin: 0 auto;
-          padding: 2rem;
-        }
-
-        .analysis-header {
-          margin-bottom: 2rem;
-        }
-
-        .analysis-header h1 {
-          margin: 0;
-          font-size: 1.75rem;
-          font-weight: 600;
-          color: #ffffff;
-          letter-spacing: -0.02em;
-        }
-
-        .header-description {
-          margin: 0.5rem 0 0 0;
-          font-size: 0.9rem;
-          color: #ffffff;
-        }
-
-        .mode-tabs {
-          display: flex;
-          gap: 0.5rem;
-          margin-bottom: 1.5rem;
-        }
-
-        .mode-tab {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.625rem 1rem;
-          background: rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #ffffff;
-          font-size: 0.875rem;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .mode-tab:hover {
-          background: rgba(255, 255, 255, 0.05);
-          border-color: rgba(255, 255, 255, 0.2);
-          color: #ffffff;
-        }
-
-        .mode-tab.active {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: rgba(255, 255, 255, 0.4);
-          color: #ffffff;
-        }
-
-        .error-banner {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 0.875rem 1rem;
-          background: rgba(239, 68, 68, 0.15);
-          border: 1px solid rgba(239, 68, 68, 0.3);
-          color: rgba(239, 68, 68, 0.9);
-          margin-bottom: 1.5rem;
-          font-size: 0.875rem;
-        }
-
-        .error-icon {
-          width: 18px;
-          height: 18px;
-          flex-shrink: 0;
-        }
-
-        .dismiss-btn {
-          margin-left: auto;
-          padding: 0.25rem 0.75rem;
-          background: transparent;
-          border: 1px solid rgba(239, 68, 68, 0.3);
-          color: rgba(239, 68, 68, 0.8);
-          font-size: 0.8rem;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .dismiss-btn:hover {
-          background: rgba(239, 68, 68, 0.1);
-        }
-
-        .analysis-grid {
-          display: grid;
-          grid-template-columns: 350px 1fr;
-          gap: 1.5rem;
-          align-items: start;
-        }
-
-        .left-column {
+        .da-page {
+          height: 125vh;
           display: flex;
           flex-direction: column;
-          gap: 1rem;
+          overflow: hidden;
         }
 
-        .section {
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 1rem;
+        .da-layout {
+          display: flex;
+          flex: 1;
+          margin-top: 76px;
+          overflow: hidden;
         }
 
-        .section h2 {
-          margin: 0 0 0.75rem 0;
-          font-size: 0.8rem;
+        .da-left {
+          width: 30%;
+          min-width: 300px;
+          max-width: 420px;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .da-left-scroll {
+          flex: 1;
+          overflow-y: auto;
+        }
+
+        .da-right {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .da-right-scroll {
+          flex: 1;
+          overflow-y: auto;
+        }
+
+        .da-section {
+          padding: 1rem 1.25rem;
+        }
+
+        .da-section-label {
+          font-size: 0.65rem;
           font-weight: 600;
-          color: #ffffff;
           text-transform: uppercase;
-          letter-spacing: 0.05em;
+          letter-spacing: 0.06em;
+          margin-bottom: 0.625rem;
         }
 
-        .model-select {
+        .da-textarea {
           width: 100%;
           padding: 0.625rem 0.75rem;
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-          font-size: 0.875rem;
-          cursor: pointer;
-        }
-
-        .model-select:focus {
-          outline: none;
-          border-color: rgba(255, 255, 255, 0.4);
-        }
-
-        .capture-form {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-
-        .capture-textarea {
-          width: 100%;
-          padding: 0.625rem 0.75rem;
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-          font-size: 0.875rem;
+          border: 1px solid;
+          font-size: 0.85rem;
           font-family: inherit;
           resize: vertical;
-          min-height: 80px;
-        }
-
-        .capture-textarea::placeholder {
-          color: rgba(255, 255, 255, 0.5);
-        }
-
-        .capture-textarea:focus {
+          min-height: 68px;
           outline: none;
-          border-color: rgba(255, 255, 255, 0.4);
+          box-sizing: border-box;
+          margin-bottom: 0.625rem;
         }
 
-        .capture-btn {
+        .da-textarea:focus {
+          border-color: rgba(59, 130, 246, 0.4) !important;
+        }
+
+        .da-capture-btn {
+          width: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 0.5rem;
-          padding: 0.625rem 1rem;
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          color: #ffffff;
-          font-size: 0.875rem;
+          padding: 0.5rem 0.75rem;
+          border: 1px solid;
+          font-size: 0.8rem;
           font-weight: 500;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: opacity 0.15s;
         }
 
-        .capture-btn:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.12);
-          border-color: rgba(255, 255, 255, 0.35);
+        .da-capture-btn:hover:not(:disabled) {
+          opacity: 0.8;
         }
 
-        .capture-btn:disabled {
-          opacity: 0.5;
+        .da-capture-btn:disabled {
+          opacity: 0.4;
           cursor: not-allowed;
         }
 
-        .spinning {
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .section-toggle {
+        .da-toggle-btn {
           width: 100%;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0;
           background: transparent;
           border: none;
           cursor: pointer;
-          color: #ffffff;
+          padding: 0;
         }
 
-        .section-toggle h2 {
-          margin: 0;
-        }
-
-        .activations-list {
+        .da-activations-list {
           display: flex;
           flex-direction: column;
-          gap: 0.5rem;
-          max-height: 256px;
+          gap: 0.375rem;
+          max-height: 220px;
           overflow-y: auto;
-          margin-top: 0.75rem;
         }
 
-        .empty-state {
-          padding: 1.5rem;
-          text-align: center;
-          color: #ffffff;
-          font-size: 0.8rem;
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px dashed rgba(255, 255, 255, 0.1);
-        }
-
-        .activation-item {
+        .da-activation-item {
           width: 100%;
           text-align: left;
-          padding: 0.625rem 0.75rem;
-          background: rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .activation-item:hover {
-          border-color: rgba(255, 255, 255, 0.25);
-        }
-
-        .activation-item.selected-primary {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: rgba(255, 255, 255, 0.5);
-        }
-
-        .activation-item.selected-secondary {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: rgba(255, 255, 255, 0.5);
-        }
-
-        .activation-prompt {
-          font-size: 0.8rem;
-          color: #ffffff;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .activation-meta {
-          font-size: 0.7rem;
-          color: #ffffff;
-          margin-top: 0.25rem;
-        }
-
-        .storage-warning {
-          display: flex;
-          align-items: flex-start;
-          gap: 0.5rem;
-          margin-top: 0.75rem;
           padding: 0.5rem 0.625rem;
-          background: rgba(245, 158, 11, 0.08);
-          border: 1px solid rgba(245, 158, 11, 0.2);
+          border: 1px solid;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+
+        .da-activation-item:hover {
+          opacity: 0.85;
+        }
+
+        .da-mode-btn {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.375rem;
+          padding: 0.5rem 0.375rem;
+          border: 1px solid;
           font-size: 0.7rem;
-          color: rgba(245, 158, 11, 0.8);
-          line-height: 1.4;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.15s;
         }
 
-        .storage-warning svg {
-          flex-shrink: 0;
-          margin-top: 1px;
+        .da-mode-btn:hover {
+          opacity: 0.85;
         }
 
-        .run-analysis-btn {
+        .da-run-btn {
           width: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 0.75rem;
-          padding: 0.875rem 1.5rem;
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.25);
-          color: #ffffff;
-          font-size: 0.9rem;
+          gap: 0.5rem;
+          padding: 0.75rem 1rem;
+          border: 1px solid;
+          font-size: 0.85rem;
           font-weight: 600;
           cursor: pointer;
-          transition: all 0.2s;
-          letter-spacing: 0.025em;
+          transition: opacity 0.15s;
+          letter-spacing: 0.01em;
         }
 
-        .run-analysis-btn:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.15);
-          border-color: rgba(255, 255, 255, 0.4);
+        .da-run-btn:hover:not(:disabled) {
+          opacity: 0.85;
         }
 
-        .run-analysis-btn:disabled {
-          opacity: 0.5;
+        .da-run-btn:disabled {
+          opacity: 0.4;
           cursor: not-allowed;
         }
 
-        .right-column {
-          min-height: 400px;
+        .da-spinner {
+          width: 14px;
+          height: 14px;
+          border: 2px solid;
+          border-radius: 50%;
+          animation: da-spin 0.8s linear infinite;
         }
 
-        .results-container {
+        @keyframes da-spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .da-spinning {
+          animation: da-spin 1s linear infinite;
+        }
+
+        .da-results {
           display: flex;
           flex-direction: column;
-          gap: 1.5rem;
         }
 
-        .result-header {
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 1rem;
-        }
-
-        .result-header h3 {
-          margin: 0;
-          font-size: 0.875rem;
-          font-weight: 500;
-          color: #ffffff;
-        }
-
-        .prompt-text {
-          font-family: monospace;
-          color: #ffffff;
-        }
-
-        .result-meta {
-          font-size: 0.75rem;
-          color: #ffffff;
-          margin-top: 0.375rem;
-        }
-
-        .result-section {
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 1rem;
-        }
-
-        .result-section.circuits {
-          border-color: rgba(168, 85, 247, 0.3);
-        }
-
-        .result-section h3 {
-          margin: 0 0 1rem 0;
-          font-size: 0.8rem;
-          font-weight: 600;
-          color: #ffffff;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .result-section.circuits h3 {
-          color: rgba(168, 85, 247, 0.9);
-        }
-
-        .top-heads-grid-compact {
+        .da-heads-grid {
           display: grid;
           grid-template-columns: repeat(10, 1fr);
           gap: 0.375rem;
         }
 
-        .top-head-item-compact {
-          background: rgba(0, 0, 0, 0.3);
-          border: 2px solid rgba(255, 255, 255, 0.15);
+        .da-head-item {
+          border: 2px solid;
           padding: 0.375rem 0.25rem;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all 0.15s;
           text-align: center;
         }
 
-        .top-head-item-compact:hover {
-          background: rgba(255, 255, 255, 0.08);
+        .da-head-item:hover {
+          opacity: 0.8;
         }
 
-        .head-label-compact {
-          font-size: 0.6rem;
-          color: #ffffff;
-          font-family: monospace;
-        }
-
-        .head-importance-compact {
-          font-size: 0.75rem;
-          font-weight: 700;
-          color: #ffffff;
-          margin-top: 0.125rem;
-        }
-
-        .type-distribution {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.75rem;
-        }
-
-        .type-badge {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.5rem 0.75rem;
-          border: 1px solid;
-          font-size: 0.8rem;
-          color: #ffffff;
-        }
-
-        .type-dot {
-          width: 0.75rem;
-          height: 0.75rem;
-        }
-
-        .patterns-list,
-        .circuits-list {
+        .da-placeholder {
           display: flex;
           flex-direction: column;
-          gap: 0.75rem;
-        }
-
-        .pattern-item {
-          background: rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 0.875rem;
-        }
-
-        .circuit-item {
-          background: rgba(168, 85, 247, 0.1);
-          border: 1px solid rgba(168, 85, 247, 0.25);
-          padding: 0.875rem;
-        }
-
-        .pattern-header,
-        .circuit-header {
-          display: flex;
           align-items: center;
-          justify-content: space-between;
-          margin-bottom: 0.5rem;
+          justify-content: center;
+          padding: 4rem 2rem;
+          text-align: center;
+          height: 100%;
+          min-height: 400px;
         }
 
-        .pattern-type {
-          font-size: 0.875rem;
-          font-weight: 500;
-          color: #ffffff;
-          text-transform: capitalize;
-        }
-
-        .circuit-type {
-          font-size: 0.875rem;
-          font-weight: 500;
-          color: rgba(168, 85, 247, 0.9);
-          text-transform: capitalize;
-        }
-
-        .pattern-confidence,
-        .circuit-confidence {
-          font-size: 0.7rem;
-          color: #ffffff;
-        }
-
-        .pattern-description,
-        .circuit-description {
-          font-size: 0.8rem;
-          color: #ffffff;
-        }
-
-        .pattern-heads {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.375rem;
-          margin-top: 0.5rem;
-        }
-
-        .head-tag {
-          font-size: 0.7rem;
-          padding: 0.25rem 0.5rem;
-          background: rgba(255, 255, 255, 0.08);
-          color: #ffffff;
-        }
-
-        .more-btn {
-          color: #ffffff;
-          cursor: pointer;
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          transition: all 0.2s;
-        }
-
-        .more-btn:hover {
-          background: rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-          border-color: rgba(255, 255, 255, 0.3);
-        }
-
-        .expanded-heads-popup {
-          margin-top: 0.75rem;
-          background: rgba(0, 0, 0, 0.6);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          padding: 0.75rem;
-        }
-
-        .expanded-heads-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 0.625rem;
-          font-size: 0.75rem;
-          color: #ffffff;
-        }
-
-        .expanded-heads-actions {
+        .da-error {
           display: flex;
           align-items: center;
           gap: 0.5rem;
-        }
-
-        .copy-heads-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.25rem;
-          padding: 0.25rem 0.5rem;
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-          font-size: 0.7rem;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .copy-heads-btn:hover {
-          background: rgba(255, 255, 255, 0.15);
-          border-color: rgba(255, 255, 255, 0.3);
-        }
-
-        .close-popup-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 0.25rem;
-          background: transparent;
-          border: none;
-          color: #ffffff;
-          cursor: pointer;
-          transition: color 0.2s;
-        }
-
-        .close-popup-btn:hover {
-          color: #ffffff;
-        }
-
-        .expanded-heads-list {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.375rem;
-          max-height: 200px;
-          overflow-y: auto;
-        }
-
-        .results-placeholder {
-          height: 400px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px dashed rgba(255, 255, 255, 0.1);
-        }
-
-        .placeholder-content {
-          text-align: center;
-          color: #ffffff;
-          max-width: 400px;
-        }
-
-        .placeholder-icon {
-          width: 48px;
-          height: 48px;
-          margin: 0 auto 1rem;
-          opacity: 0.3;
-        }
-
-        .placeholder-content h3 {
-          margin: 0 0 0.5rem 0;
-          font-size: 1rem;
-          font-weight: 500;
-          color: #ffffff;
-        }
-
-        .placeholder-content p {
-          margin: 0;
-          font-size: 0.8rem;
+          padding: 0.625rem 0.875rem;
+          border: 1px solid;
+          margin: 0.75rem 1.25rem 0;
         }
 
         @media (max-width: 1000px) {
-          .analysis-grid {
-            grid-template-columns: 1fr;
+          .da-layout {
+            flex-wrap: wrap;
           }
-
-          .top-heads-grid-compact {
+          .da-left {
+            width: 100%;
+            max-width: 100%;
+            max-height: 40vh;
+            border-right: none !important;
+            border-bottom: 1px solid;
+          }
+          .da-right {
+            width: 100%;
+          }
+          .da-heads-grid {
             grid-template-columns: repeat(5, 1fr);
           }
         }
 
         @media (max-width: 600px) {
-          .top-heads-grid-compact {
+          .da-heads-grid {
             grid-template-columns: repeat(4, 1fr);
           }
+          .da-mode-btn span {
+            display: none;
+          }
         }
-
-        /* Light mode */
-        [data-bg="light"] .analysis-header h1 { color: #1d1d1f; }
-        [data-bg="light"] .header-description { color: #1d1d1f; }
-        [data-bg="light"] .mode-tab { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); color: #1d1d1f; }
-        [data-bg="light"] .mode-tab:hover { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
-        [data-bg="light"] .mode-tab.active { background: rgba(0,0,0,0.08); border-color: rgba(0,0,0,0.25); color: #1d1d1f; }
-        [data-bg="light"] .section { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .section h2 { color: #1d1d1f; }
-        [data-bg="light"] .model-select { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .model-select:focus { border-color: rgba(0,0,0,0.3); }
-        [data-bg="light"] .capture-textarea { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .capture-textarea::placeholder { color: rgba(0, 0, 0, 0.5); }
-        [data-bg="light"] .capture-textarea:focus { border-color: rgba(0,0,0,0.3); }
-        [data-bg="light"] .capture-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
-        [data-bg="light"] .capture-btn:hover:not(:disabled) { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
-        [data-bg="light"] .section-toggle { color: #1d1d1f; }
-        [data-bg="light"] .empty-state { color: #1d1d1f; background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .activation-item { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .activation-item:hover { border-color: rgba(0,0,0,0.2); }
-        [data-bg="light"] .activation-item.selected-primary,
-        [data-bg="light"] .activation-item.selected-secondary { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.3); }
-        [data-bg="light"] .activation-prompt { color: #1d1d1f; }
-        [data-bg="light"] .activation-meta { color: #1d1d1f; }
-        [data-bg="light"] .run-analysis-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
-        [data-bg="light"] .run-analysis-btn:hover:not(:disabled) { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
-        [data-bg="light"] .result-header { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .result-header h3 { color: #1d1d1f; }
-        [data-bg="light"] .prompt-text { color: #1d1d1f; }
-        [data-bg="light"] .result-meta { color: #1d1d1f; }
-        [data-bg="light"] .result-section { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .result-section h3 { color: #1d1d1f; }
-        [data-bg="light"] .top-head-item-compact { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); }
-        [data-bg="light"] .top-head-item-compact:hover { background: rgba(0,0,0,0.06); }
-        [data-bg="light"] .head-label-compact { color: #1d1d1f; }
-        [data-bg="light"] .head-importance-compact { color: #1d1d1f; }
-        [data-bg="light"] .type-badge { color: #1d1d1f; }
-        [data-bg="light"] .pattern-item { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .pattern-type { color: #1d1d1f; }
-        [data-bg="light"] .pattern-confidence,
-        [data-bg="light"] .circuit-confidence { color: #1d1d1f; }
-        [data-bg="light"] .pattern-description,
-        [data-bg="light"] .circuit-description { color: #1d1d1f; }
-        [data-bg="light"] .head-tag { background: rgba(0,0,0,0.06); color: #1d1d1f; }
-        [data-bg="light"] .more-btn { color: #1d1d1f; border-color: rgba(0,0,0,0.12); }
-        [data-bg="light"] .more-btn:hover { background: rgba(0,0,0,0.08); color: #1d1d1f; border-color: rgba(0,0,0,0.2); }
-        [data-bg="light"] .expanded-heads-popup { background: rgba(255,255,255,0.95); border-color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .expanded-heads-header { color: #1d1d1f; }
-        [data-bg="light"] .copy-heads-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .copy-heads-btn:hover { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.2); }
-        [data-bg="light"] .close-popup-btn { color: #1d1d1f; }
-        [data-bg="light"] .close-popup-btn:hover { color: #1d1d1f; }
-        [data-bg="light"] .results-placeholder { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .placeholder-content { color: #1d1d1f; }
-        [data-bg="light"] .placeholder-content h3 { color: #1d1d1f; }
       `}</style>
     </div>
   )

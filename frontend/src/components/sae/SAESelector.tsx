@@ -153,7 +153,7 @@ export function SAESelector({
     : null
 
   return (
-    <div style={{ background: tc.surface, backdropFilter: 'blur(20px)', border: `1px solid ${tc.border}` }} className={className}>
+    <div style={{ background: tc.surface, border: `1px solid ${tc.border}` }} className={className}>
       {/* Header */}
       <div style={{ padding: '1rem', borderBottom: `1px solid ${tc.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

@@ -1,8 +1,7 @@
 /**
- * The Attention Analysis page's assistant bridge, shared by its glass and default variants: the
- * mode, model and captures, the results on screen (head types, comparisons, mined patterns),
- * set_inputs, and classify_heads, compare_attention and mine_patterns runs' results opening on
- * the page.
+ * The Attention Analysis page's assistant bridge: the mode, model and captures, the results on
+ * screen (head types, comparisons, mined patterns), set_inputs, and classify_heads,
+ * compare_attention and mine_patterns runs' results opening on the page.
  */
 
 import type { BridgeParts } from '../../../hooks/useAssistantPage'

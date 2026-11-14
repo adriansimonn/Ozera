@@ -262,7 +262,6 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
     <div
       style={{
         background: tc.surface,
-        backdropFilter: 'blur(20px)',
         borderRadius: '0',
         border: `1px solid ${tc.border}`,
         padding: '20px',
@@ -443,7 +442,6 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
             right: 0,
             bottom: 0,
             background: 'rgba(0, 0, 0, 0.7)',
-            backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

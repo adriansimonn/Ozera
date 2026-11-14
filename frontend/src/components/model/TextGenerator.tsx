@@ -675,7 +675,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           -moz-appearance: textfield;
         }
 
-        [data-interface="default"] .control-number-input {
+        .text-generator .control-number-input {
           display: block;
         }
 
@@ -820,8 +820,6 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           width: 100%;
           padding: 1.25rem;
           background: rgba(0, 0, 0, 0.2);
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
           border: 1px solid rgba(255, 255, 255, 0.12);
           color: #ffffff;
           font-family: 'JetBrains Mono', monospace;
@@ -1112,8 +1110,6 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           border: 1px solid rgba(255, 255, 255, 0.15);
           padding: 2rem;
           background: rgba(0, 0, 0, 0.2);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
           box-shadow:
             0 8px 24px rgba(0, 0, 0, 0.3),
             inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -1397,35 +1393,35 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           border-color: rgba(0, 0, 0, 0.25);
         }
 
-        /* Default interface: stack reset below generate */
-        [data-interface="default"] .actions {
+        /* Stack reset below generate */
+        .text-generator .actions {
           flex-direction: column;
         }
 
-        [data-interface="default"] .generate-dropdown {
+        .text-generator .generate-dropdown {
           width: 100%;
         }
 
-        [data-interface="default"] .btn-generate-main {
+        .text-generator .btn-generate-main {
           flex: 1;
           padding: 0.625rem 1.5rem;
         }
 
-        [data-interface="default"] .btn-secondary {
+        .text-generator .btn-secondary {
           width: 100%;
           padding: 0.625rem 2rem;
         }
 
-        [data-interface="default"] .btn-stop {
+        .text-generator .btn-stop {
           width: 100%;
           padding: 0.625rem 1.5rem;
         }
 
-        [data-interface="default"] .control-row {
+        .text-generator .control-row {
           flex-direction: row-reverse;
         }
 
-        [data-interface="default"] .control-value-display {
+        .text-generator .control-value-display {
           display: none;
         }
       `}</style>

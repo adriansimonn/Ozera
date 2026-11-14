@@ -1,5 +1,5 @@
 /**
- * State and actions of the Geometry Lab page, shared by its glass and default layouts.
+ * State and actions of the Geometry Lab page.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
