@@ -211,11 +211,11 @@ export function AssistantStyles() {
       .ast-panel .ast-link:disabled { opacity: 0.5; cursor: default; }
       @keyframes ast-spin { to { transform: rotate(360deg); } }
       .ast-panel .ast-spin { animation: ast-spin 0.9s linear infinite; }
-      .ast-panel .ast-working:not(:empty)::before {
-        content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 0.45rem; border-radius: 50%;
-        background: var(--ast-accent); animation: ast-pulse-dot 1.1s ease-in-out infinite; vertical-align: middle;
-      }
-      @keyframes ast-pulse-dot { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+      .ast-panel .ast-working { display: inline-flex; align-items: center; gap: 0.5rem; }
+      .ast-panel .ast-matrix { display: inline-grid; grid-template-columns: repeat(3, 3.75px); grid-auto-rows: 3.75px; gap: 1.25px; flex: none; }
+      .ast-panel .ast-matrix i { background: var(--ast-text); opacity: 0.15; animation: ast-matrix-cell 1.1s ease-in-out infinite; }
+      @keyframes ast-matrix-cell { 0%, 100% { opacity: 0.15; } 40% { opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) { .ast-panel .ast-matrix i { animation: none; opacity: 0.6; } }
 
       .ast-panel .ast-markdown { overflow-wrap: anywhere; }
       .ast-panel .ast-markdown > :first-child { margin-top: 0; }

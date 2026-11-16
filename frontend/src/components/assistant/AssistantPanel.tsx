@@ -120,6 +120,17 @@ function ReplyView({ parts, tools }: { parts: (TurnPart | DraftPart)[]; tools: T
   )
 }
 
+/** A 3×3 grid of squares that light up in a diagonal wave while a reply is in progress. */
+function WorkingMatrix() {
+  return (
+    <span className="ast-matrix" aria-hidden="true">
+      {Array.from({ length: 9 }, (_, i) => (
+        <i key={i} style={{ animationDelay: `${((i % 3) + Math.floor(i / 3)) * 0.12}s` }} />
+      ))}
+    </span>
+  )
+}
+
 /** A menu that opens up from the composer, and closes on a click outside it or Escape. */
 function useMenu() {
   const [open, setOpen] = useState(false)
@@ -591,19 +602,28 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
             {sending && <div className="ast-user">{sending}</div>}
             <ReplyView parts={draft.parts} tools={draft.tools} />
             <div className="ast-meta">
-              <span className="ast-working">
-                {draft.status === 'stopping'
-                  ? 'Stopping…'
-                  : draft.status === 'busy'
-                    ? 'Claude is busy; retrying…'
-                    : draft.status === 'running'
-                      ? 'Running…'
-                      : draft.declined !== undefined
-                        ? 'Claude declined.'
-                        : draft.text
-                          ? ''
-                          : 'Thinking…'}
-              </span>
+              {(() => {
+                const label =
+                  draft.status === 'stopping'
+                    ? 'Stopping…'
+                    : draft.status === 'busy'
+                      ? 'Claude is busy; retrying…'
+                      : draft.status === 'running'
+                        ? 'Running…'
+                        : draft.declined !== undefined
+                          ? 'Claude declined.'
+                          : draft.text
+                            ? ''
+                            : 'Thinking…'
+                return (
+                  label && (
+                    <span className="ast-working">
+                      <WorkingMatrix />
+                      {label}
+                    </span>
+                  )
+                )
+              })()}
             </div>
           </div>
         )}
