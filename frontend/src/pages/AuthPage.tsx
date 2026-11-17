@@ -75,9 +75,10 @@ export default function AuthPage() {
     setCheckEmail(false)
   }
 
-  // Back to the page that sent the user here; opened directly, to their landing page
+  // Back to the page that sent the user here; opened directly or from the homepage, on to their
+  // landing page
   const leave = () => {
-    if (location.key === 'default') navigate(landingPath(useSettingsStore.getState().settings), { replace: true })
+    if (location.key === 'default' || location.state?.fromHome) navigate(landingPath(useSettingsStore.getState().settings), { replace: true })
     else navigate(-1)
   }
 

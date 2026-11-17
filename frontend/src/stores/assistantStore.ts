@@ -412,7 +412,7 @@ export const useAssistantStore = create<AssistantState>()((set, get) => ({
     // Pages register while mounted: a page that isn't gets opened, and takes the result once it registers
     const bridges = get().bridges.filter((b) => b.page === result.page)
     if (result.route) get().navigator?.(result.route)
-    else if (!bridges.length) get().navigator?.(PAGE_ROUTES[result.page]?.route ?? '/')
+    else if (!bridges.length) get().navigator?.(PAGE_ROUTES[result.page]?.route ?? '/generate')
     if (bridges.length && deliver(bridges, result)) return
     set((s) => ({ queued: [...s.queued.filter((r) => r.id !== result.id), { ...result, at: Date.now() }] }))
   },

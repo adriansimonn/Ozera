@@ -82,7 +82,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   },
 }));
 
-// Remember the landing page in this browser, so a fresh visit to "/" can go there at once
+// Remember the landing page in this browser, so it's known before the settings load next time
 useSettingsStore.subscribe((state, prev) => {
   if (state.settings !== prev.settings) cacheLandingPath(state.settings ? landingPath(state.settings) : null);
 });

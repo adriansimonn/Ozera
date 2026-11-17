@@ -41,7 +41,7 @@ const SUGGESTIONS: Record<string, string[]> = {
 }
 
 const PAGE_OF_ROUTE: Record<string, string> = {
-  '/': 'generate', '/sae': 'sae', '/probes': 'probes', '/geometry': 'geometry', '/patching': 'patching', '/analysis': 'analysis',
+  '/generate': 'generate', '/sae': 'sae', '/probes': 'probes', '/geometry': 'geometry', '/patching': 'patching', '/analysis': 'analysis',
 }
 
 const STATUS_TEXT: Partial<Record<ChatTurn['status'], string>> = {

@@ -12,7 +12,7 @@ export interface AppPage {
 }
 
 export const APP_PAGES: AppPage[] = [
-  { path: '/', label: 'Generate', icon: Sparkles },
+  { path: '/generate', label: 'Generate', icon: Sparkles },
   { path: '/training', label: 'Custom Models', icon: Cpu },
   { path: '/patching', label: 'Activation Patching', icon: Zap },
   { path: '/analysis', label: 'Attention Analysis', icon: Search },
@@ -23,16 +23,10 @@ export const APP_PAGES: AppPage[] = [
 
 const isPage = (path: unknown): path is string => APP_PAGES.some((p) => p.path === path)
 
-/** The user's default landing page; Generate when it's unset or not a page. */
-export function landingPath(settings: UserSettings | null): string {
-  const path = settings?.ui?.default_page
-  return isPage(path) ? path : '/'
-}
-
-// The landing page from this browser's last-seen settings, so a fresh visit needn't wait for them
+// The landing page from this browser's last-seen settings, for when they haven't loaded yet
 const CACHE_KEY = 'ozera.landingPage'
 
-export function cachedLandingPath(): string | null {
+function cachedLandingPath(): string | null {
   try {
     const path = localStorage.getItem(CACHE_KEY)
     return isPage(path) ? path : null
@@ -41,11 +35,21 @@ export function cachedLandingPath(): string | null {
   }
 }
 
+/**
+ * Where "into the app" leads: the user's default landing page, or Generate when it's unset or
+ * not a page (as "/" is, which Generate's path used to be). Before the settings have loaded,
+ * the page they named last time in this browser.
+ */
+export function landingPath(settings: UserSettings | null): string {
+  const path = settings ? settings.ui?.default_page : cachedLandingPath()
+  return isPage(path) ? path : '/generate'
+}
+
 export function cacheLandingPath(path: string | null) {
   try {
     if (path === null) localStorage.removeItem(CACHE_KEY)
     else localStorage.setItem(CACHE_KEY, path)
   } catch {
-    // Storage unavailable: fresh visits wait for the settings instead
+    // Storage unavailable: the landing page is Generate until the settings have loaded
   }
 }

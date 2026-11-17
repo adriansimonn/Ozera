@@ -180,7 +180,7 @@ SAE_PAGE = {"route": "/sae", "page": "sae", "mode": "browse", "sae": "ozera:nano
 PROBES_PAGE = {"route": "/probes", "page": "probes", "view": "sweep", "model": "nano", "dataset": "truth", "run": None, "saved_probes": 1}
 
 TASKS = [
-    ("What models can I use here?", {"route": "/"}, {"list_models"}),
+    ("What models can I use here?", {"route": "/generate"}, {"list_models"}),
     ("Which SAEs can I read on nano, and which have explained features?", {"route": "/sae"}, {"list_saes"}),
     ("What does feature 3 of this SAE do? How good is its explanation?", SAE_PAGE, {"get_feature"}),
     ("Find features about negation in this SAE.", SAE_PAGE, {"search_features"}),

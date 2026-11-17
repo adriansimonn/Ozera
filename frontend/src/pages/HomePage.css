@@ -1,0 +1,832 @@
+/* The homepage. Everything is scoped under .oz-home; the app's own styles live in index.css. */
+
+/* The app runs under a page zoom; the homepage is drawn at true size */
+html.oz-home-active {
+  zoom: 1;
+}
+
+html.oz-home-active body {
+  background: #000;
+}
+
+.oz-home {
+  /* The page sets --ink, --accent and --on-accent from its theme (homeTheme.ts). Sections are
+     dark unless they redefine these, as the instruments' section does. */
+  --bg: var(--ink);
+  --fg: #fff;
+  --fg-dim: rgba(255, 255, 255, 0.64);
+  --fg-faint: rgba(255, 255, 255, 0.38);
+  --rule: rgba(255, 255, 255, 0.13);
+  /* What marks the hovered and the active */
+  --mark: var(--accent);
+  --gutter: clamp(20px, 3.4vw, 52px);
+  --ease: cubic-bezier(0.16, 0.8, 0.2, 1);
+
+  position: relative;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.oz-home ::selection {
+  background: #fff;
+  color: #000;
+}
+
+.oz-home .ozh-tools ::selection {
+  background: #000;
+  color: #fff;
+}
+
+.oz-home a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.oz-home a:focus-visible,
+.oz-home button:focus-visible {
+  outline: 1.5px solid var(--mark);
+  outline-offset: 4px;
+}
+
+/* ---- Type ---- */
+
+.oz-home .ozh-display,
+.oz-home .ozh-title {
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  color: var(--fg);
+}
+
+.oz-home .ozh-display {
+  /* By the width of the hero's text column, but never so tall that a short window is all headline */
+  font-size: clamp(2.75rem, min(4.7vw, 11.5vh), 6.5rem);
+  line-height: 1;
+}
+
+.oz-home .ozh-display--second {
+  font-size: clamp(2.6rem, min(5.6vw, 10vh), 5.25rem);
+  line-height: 1;
+}
+
+.oz-home .ozh-title {
+  font-size: clamp(2.4rem, 5.4vw, 4.75rem);
+  line-height: 1;
+}
+
+.ozh-nav__link,
+.ozh-btn,
+.ozh-link,
+.ozh-chips,
+.ozh-footer {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+/* The small line that finishes a title's sentence */
+.ozh-subtitle {
+  margin: 14px 0 0 0.2em;
+  color: var(--fg-dim);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+}
+
+/* ---- Buttons and links ---- */
+
+.oz-home .ozh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 20px;
+  background: var(--fg);
+  color: var(--bg);
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background 0.25s ease,
+    color 0.25s ease;
+}
+
+.oz-home .ozh-btn:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.oz-home .ozh-btn--small {
+  padding: 11px 14px;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.ozh-btn__arrow {
+  display: inline-block;
+  transition: transform 0.35s var(--ease);
+}
+
+.ozh-btn:hover .ozh-btn__arrow {
+  transform: translateX(4px);
+}
+
+.oz-home .ozh-link {
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--fg-faint);
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.oz-home .ozh-link:hover {
+  color: var(--mark);
+  border-color: var(--mark);
+}
+
+.oz-home .ozh-link--quiet {
+  font-size: 13px;
+  color: var(--fg-dim);
+}
+
+/* ---- Nav ---- */
+
+.ozh-nav {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px var(--gutter);
+}
+
+.oz-home .ozh-brand {
+  display: inline-flex;
+}
+
+/* The app's logo, in plain white so it sits with any theme. The file has empty space under the
+   mark, so it sits a little low to center. */
+.ozh-brand img {
+  display: block;
+  width: auto;
+  height: 36px;
+  transform: translateY(9%);
+  filter: brightness(0) invert(1);
+}
+
+.ozh-nav__links {
+  display: flex;
+  align-items: center;
+  gap: clamp(16px, 2vw, 28px);
+}
+
+.oz-home .ozh-nav__link {
+  color: var(--fg);
+  transition: color 0.2s ease;
+}
+
+.oz-home .ozh-nav__link:hover {
+  color: var(--mark);
+}
+
+/* The signed-in visitor: their name, and a menu under it (AccountMenu) */
+.ozh-account {
+  position: relative;
+}
+
+.oz-home .ozh-account__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: color 0.2s ease;
+}
+
+.oz-home .ozh-account__button:hover,
+.oz-home .ozh-account__button[aria-expanded='true'] {
+  color: var(--mark);
+}
+
+.ozh-account__name {
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ozh-account__caret {
+  flex: none;
+  width: 9px;
+  height: 6px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  transition: transform 0.3s var(--ease);
+}
+
+.ozh-account__button[aria-expanded='true'] .ozh-account__caret {
+  transform: rotate(180deg);
+}
+
+.ozh-account__menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 10;
+  width: max-content;
+  min-width: 200px;
+  max-width: min(280px, 80vw);
+  padding: 6px;
+  border: 1px solid var(--rule);
+  background: var(--bg);
+  animation: ozh-menu 0.22s var(--ease);
+}
+
+@keyframes ozh-menu {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.ozh-account__email {
+  margin-bottom: 6px;
+  padding: 8px 12px 12px;
+  border-bottom: 1px solid var(--rule);
+  overflow: hidden;
+  color: var(--fg-dim);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oz-home .ozh-account__item {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-align: left;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.oz-home .ozh-account__item:hover,
+.oz-home .ozh-account__item:focus-visible {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+/* ---- Hero: the text on black to the left, the animation over the other two thirds ---- */
+
+.ozh-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  height: 100vh;
+  height: 100svh;
+  min-height: 620px;
+}
+
+.ozh-hero__text {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 96px var(--gutter) clamp(32px, 3.4vw, 52px);
+  background: var(--bg);
+}
+
+.ozh-hero__canvas {
+  position: relative;
+  overflow: hidden;
+}
+
+/* The animation comes out of the text's black rather than starting at an edge */
+.ozh-hero__canvas::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 9%;
+  pointer-events: none;
+  background: linear-gradient(to right, var(--bg), transparent);
+}
+
+.ozh-lede {
+  max-width: 36ch;
+  margin-top: clamp(20px, 2.2vw, 30px);
+  color: var(--fg-dim);
+  font-size: 1rem;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.ozh-actions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-top: 28px;
+}
+
+/* The headline rises line by line; the rest fades in after it */
+.ozh-line {
+  display: block;
+  overflow: hidden;
+  /* Room for descenders inside the clip */
+  margin: -0.06em -0.08em -0.14em;
+  padding: 0.06em 0.08em 0.14em;
+}
+
+.ozh-line > span {
+  display: block;
+  transform: translateY(112%);
+  animation: ozh-rise 1.25s var(--ease) 0.2s forwards;
+}
+
+.ozh-line + .ozh-line > span {
+  animation-delay: 0.32s;
+}
+
+.ozh-fade {
+  opacity: 0;
+  animation: ozh-fade 1.1s ease forwards;
+}
+
+@keyframes ozh-rise {
+  to {
+    transform: none;
+  }
+}
+
+@keyframes ozh-fade {
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---- Scroll reveals ---- */
+
+.oz-home [data-reveal] {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 1s ease,
+    transform 1s var(--ease);
+}
+
+.oz-home [data-reveal].is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---- Instruments: the light section, black on white ---- */
+
+.ozh-tools {
+  --bg: #fff;
+  --fg: #000;
+  --fg-dim: rgba(0, 0, 0, 0.64);
+  --fg-faint: rgba(0, 0, 0, 0.4);
+  --rule: rgba(0, 0, 0, 0.14);
+  --mark: #000;
+
+  padding: clamp(96px, 12vw, 168px) var(--gutter) clamp(88px, 11vw, 152px);
+  background: var(--bg);
+  color: var(--fg);
+}
+
+/* A section's title, in this section and the next */
+.ozh-head {
+  margin-bottom: clamp(40px, 5.6vw, 80px);
+}
+
+.ozh-tools__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
+  align-items: start;
+  gap: clamp(40px, 8vw, 128px);
+}
+
+.ozh-toollist {
+  list-style: none;
+}
+
+.ozh-tool {
+  position: relative;
+  border-top: 1px solid var(--rule);
+}
+
+.ozh-tool:last-child {
+  border-bottom: 1px solid var(--rule);
+}
+
+.oz-home .ozh-tool__head {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: baseline;
+  width: 100%;
+  padding: 19px 0 18px;
+  color: inherit;
+  text-align: left;
+}
+
+.ozh-tool__num {
+  color: var(--fg-faint);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  transition: color 0.35s ease;
+}
+
+.ozh-tool__name {
+  font-size: clamp(1.5rem, 2.5vw, 2.25rem);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--fg-faint);
+  transition: color 0.35s ease;
+}
+
+.ozh-tool.is-active .ozh-tool__num {
+  color: var(--mark);
+}
+
+.ozh-tool.is-active .ozh-tool__name {
+  color: var(--fg);
+}
+
+.ozh-tool__body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.5s var(--ease);
+}
+
+.ozh-tool.is-active .ozh-tool__body {
+  grid-template-rows: 1fr;
+}
+
+.ozh-tool__inner {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  min-height: 0;
+  padding-left: 56px;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.ozh-tool.is-active .ozh-tool__inner {
+  opacity: 1;
+  transition-delay: 0.1s;
+}
+
+.ozh-tool__inner p {
+  max-width: 44ch;
+  padding-bottom: 24px;
+  color: var(--fg-dim);
+  font-size: 1rem;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.oz-home .ozh-tool__inner .ozh-link {
+  flex: none;
+  margin-bottom: 26px;
+}
+
+/* How long the active instrument has left while the list plays by itself */
+.ozh-tool__bar {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 100%;
+  height: 1px;
+  background: var(--mark);
+  clip-path: inset(0 100% 0 0);
+}
+
+.ozh-tool.is-active.is-timed .ozh-tool__bar {
+  animation: ozh-bar 5.2s linear forwards;
+}
+
+@keyframes ozh-bar {
+  to {
+    clip-path: inset(0);
+  }
+}
+
+.ozh-figure {
+  position: sticky;
+  top: 32px;
+}
+
+.ozh-figure__canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+/* ---- The rest of the bench: what the app offers around its instruments ---- */
+
+.ozh-extras {
+  padding: clamp(88px, 11vw, 152px) var(--gutter);
+}
+
+/* A ruled grid: the list shows through the gaps between its cells as the rules */
+.ozh-extras__list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--rule);
+  background: var(--rule);
+  list-style: none;
+}
+
+.ozh-extra {
+  background: var(--bg);
+}
+
+.ozh-extra__inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: clamp(260px, 22vw, 340px);
+  padding: clamp(20px, 2vw, 30px);
+}
+
+/* A pictogram of square cells (CellGlyph), 12 pixels to a cell, which takes the accent under
+   the pointer */
+.ozh-glyph {
+  display: block;
+  width: auto;
+  height: 84px;
+  margin: 0 auto auto -2px;
+  overflow: visible;
+  shape-rendering: crispEdges;
+}
+
+.ozh-glyph__empty {
+  fill: var(--fg-faint);
+}
+
+.ozh-glyph__lit {
+  fill: var(--fg);
+  transition: fill 0.3s ease;
+}
+
+.ozh-glyph__lit--pulse {
+  animation: ozh-pulse 2.6s ease-in-out infinite;
+}
+
+.ozh-extra:hover .ozh-glyph__lit {
+  fill: var(--accent);
+}
+
+@keyframes ozh-pulse {
+  0%,
+  45%,
+  100% {
+    opacity: 1;
+  }
+  18% {
+    opacity: 0.14;
+  }
+}
+
+.oz-home .ozh-extra h3 {
+  margin-top: 40px;
+  font-size: clamp(1.25rem, 1.7vw, 1.5rem);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.ozh-extra p {
+  max-width: 30ch;
+  margin-top: 12px;
+  color: var(--fg-dim);
+  font-size: 1rem;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+/* ---- Models ---- */
+
+.ozh-models {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: var(--gutter);
+  overflow: hidden;
+  border-top: 1px solid var(--rule);
+}
+
+.ozh-models__canvas {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* A box that hugs the wider of the title and the chips. Both fill it, so the token field clears
+   a zone of one width around them (TokenField's avoid). */
+.ozh-models__content {
+  width: fit-content;
+  max-width: 100%;
+}
+
+/* Two rows of chips, each stretched to the width of the longer */
+.ozh-chips,
+.ozh-chips ul {
+  display: flex;
+  gap: 6px;
+}
+
+.ozh-chips {
+  flex-direction: column;
+  margin-top: clamp(26px, 3vw, 40px);
+  font-size: 13px;
+}
+
+.ozh-chips ul {
+  flex-wrap: wrap;
+  list-style: none;
+}
+
+.ozh-chips li {
+  flex: 1 1 auto;
+  padding: 8px 12px;
+  border: 1px solid var(--fg-faint);
+  line-height: 1.2;
+  text-align: center;
+}
+
+.ozh-chips ul:last-child li:last-child {
+  border-color: var(--fg);
+  background: var(--fg);
+  color: var(--bg);
+}
+
+/* ---- Footer ---- */
+
+.ozh-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+  padding: 24px var(--gutter);
+  border-top: 1px solid var(--rule);
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.ozh-footer__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ozh-footer__brand img {
+  width: 20px;
+  height: 20px;
+  filter: brightness(0) invert(1);
+}
+
+.ozh-footer__links {
+  display: flex;
+  gap: clamp(18px, 2.6vw, 34px);
+}
+
+.oz-home .ozh-footer__links a {
+  transition: color 0.2s ease;
+}
+
+.oz-home .ozh-footer__links a:hover {
+  color: var(--mark);
+}
+
+/* ---- Narrow screens: the animation above, the text under it ---- */
+
+@media (max-width: 900px) {
+  .ozh-hero {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(300px, 1fr) auto;
+    height: auto;
+    min-height: 100vh;
+    min-height: 100svh;
+  }
+
+  .ozh-hero__canvas {
+    order: -1;
+  }
+
+  .ozh-hero__text {
+    padding-top: 30px;
+  }
+
+  .oz-home .ozh-hero__text .ozh-display {
+    font-size: clamp(2.75rem, 13vw, 5rem);
+  }
+
+  .ozh-lede {
+    max-width: 44ch;
+  }
+
+  .ozh-tools__body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+
+  .ozh-figure {
+    position: static;
+    order: -1;
+    max-width: 30rem;
+  }
+
+  .oz-home .ozh-tool__head {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .ozh-tool__inner {
+    padding-left: 40px;
+  }
+
+  .ozh-extras__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ozh-extra__inner {
+    min-height: 260px;
+  }
+
+  /* The token field's mark sits above the text here, so the text stays under it */
+  .ozh-models {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 560px) {
+  .ozh-brand img {
+    height: 32px;
+  }
+
+  .ozh-account__name {
+    max-width: 11ch;
+  }
+
+  .ozh-extras__list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ozh-extra__inner {
+    min-height: 0;
+  }
+
+  .ozh-tool__inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .ozh-tool__inner p {
+    padding-bottom: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oz-home *,
+  .oz-home *::before,
+  .oz-home *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .ozh-line > span {
+    transform: none;
+  }
+
+  .ozh-fade,
+  .oz-home [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}

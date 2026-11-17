@@ -288,7 +288,7 @@ export default function DefaultTrainingPage() {
                         </div>
                         <div className="dt-model-actions">
                           <button
-                            onClick={() => navigate('/')}
+                            onClick={() => navigate('/generate')}
                             title="Use model for generation"
                             className="dt-use-btn"
                             style={{ color: '#22c55e', background: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.25)' }}

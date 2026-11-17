@@ -63,7 +63,7 @@ def _concept_ids() -> tuple[str, ...]:
 
 
 PAGES: dict[str, Page] = {
-    "generate": Page("generate", "/", "Generate", True, (
+    "generate": Page("generate", "/generate", "Generate", True, (
         Control("prompt", "Prompt", "text"),
         Control("model", "Model", "text", "a model ID from list_models"),
         Control("max_tokens", "Tokens", "number", minimum=1, maximum=300, integer=True),

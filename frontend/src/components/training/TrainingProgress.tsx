@@ -131,7 +131,7 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/generate')}
             style={{
               flex: 1,
               padding: '10px 16px',

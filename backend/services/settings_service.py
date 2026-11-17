@@ -13,7 +13,7 @@ DEFAULT_SETTINGS = {
     },
     "ui": {
         "background": "system",
-        "default_page": "/",
+        "default_page": "/generate",
     },
 }
 

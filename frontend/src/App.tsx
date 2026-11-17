@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import UnifiedPage from './pages/UnifiedPage'
 import TrainingPage from './pages/TrainingPage'
@@ -10,13 +10,14 @@ import ProbesPage from './pages/ProbesPage'
 import GeometryPage from './pages/GeometryPage'
 import SettingsPage from './pages/SettingsPage'
 import AuthPage from './pages/AuthPage'
+import HomePage from './pages/HomePage'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { PurchaseCreditsModal } from './components/payments/PurchaseCreditsModal'
 import { PurchaseCreditsProvider } from './contexts/PurchaseCreditsContext'
 import { AssistantHost } from './components/assistant/AssistantPanel'
 import { useAuthStore } from './stores/authStore'
 import { useTheme } from './hooks/useTheme'
-import { useLandingRedirect } from './hooks/useLandingRedirect'
+import { useConfirmationLanding } from './hooks/useConfirmationLanding'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,7 +34,9 @@ function AppShell() {
   const { background } = useTheme()
   const location = useLocation()
   const isAuthPage = location.pathname === '/auth'
-  const landingPending = useLandingRedirect()
+  // "/" is the homepage, signed in or not; the app's pages have paths of their own
+  const isHomePage = location.pathname === '/'
+  const confirming = useConfirmationLanding()
 
   const handleShowPurchaseCredits = useCallback(() => setShowPurchaseCredits(true), [])
 
@@ -44,10 +47,11 @@ function AppShell() {
 
   return (
     <PurchaseCreditsProvider onShow={handleShowPurchaseCredits}>
-    <div className="min-h-screen bg-black" data-bg={isAuthPage ? undefined : background}>
+    <div className="min-h-screen bg-black" data-bg={isAuthPage || isHomePage ? undefined : background}>
       <main className="content-container">
             <Routes>
-              <Route path="/" element={landingPending ? null : <UnifiedPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
+              <Route path="/" element={confirming ? null : <HomePage />} />
+              <Route path="/generate" element={<UnifiedPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/training" element={<TrainingPage />} />
               <Route path="/patching" element={<PatchingPlayground onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/analysis" element={<AnalysisPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
@@ -56,11 +60,12 @@ function AppShell() {
               <Route path="/geometry" element={<GeometryPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
 
           {/* The assistant: outside the routes, so it stays open across pages */}
-          {!isAuthPage && <AssistantHost />}
+          {!isAuthPage && !isHomePage && <AssistantHost />}
 
           {/* Purchase Credits Modal */}
           <PurchaseCreditsModal

@@ -10,7 +10,7 @@ export type Fields = Record<string, FieldValue>
 
 /** Ozera's pages (backend/core/assistant/pages.py). */
 export const PAGE_ROUTES: Record<string, { route: string; title: string }> = {
-  generate: { route: '/', title: 'Generate' },
+  generate: { route: '/generate', title: 'Generate' },
   training: { route: '/training', title: 'Custom Models' },
   patching: { route: '/patching', title: 'Activation Patching' },
   analysis: { route: '/analysis', title: 'Attention Analysis' },
