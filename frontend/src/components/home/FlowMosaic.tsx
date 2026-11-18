@@ -17,12 +17,12 @@ import { INK, THEME, ramp } from './homeTheme'
 
 // Seconds: streaks alone on load, then the cycle: the streaks resolve into the first figure, each
 // figure is shown and turns into the next, the last dissolves, and the streaks run alone again
-const INTRO = 1.4
-const RESOLVE = 3.2
+const INTRO = 0.7
+const RESOLVE = 2.6
 const SHOW = 3
 const TURN = 0.9
-const DISSOLVE = 2.8
-const RAW = 2.2
+const DISSOLVE = 2.2
+const RAW = 0.8
 const FIGURES = 5
 // A figure is on screen from about halfway through arriving until halfway through leaving. The
 // first arrives with the resolve and the last leaves with the dissolve, both slower than a turn,
