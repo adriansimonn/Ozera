@@ -1,0 +1,447 @@
+/* The sign-in page, in the homepage's manner (HomePage.css): the form on the theme's ink to the
+   left, an animation over the rest. Everything is scoped under .oz-auth. */
+
+/* Drawn at true size, as the homepage is; the app runs under a page zoom (index.css), which its
+   125vh minimum heights make up for */
+html.oz-auth-active {
+  zoom: 1;
+}
+
+html.oz-auth-active body {
+  min-height: 100vh;
+  background: #000;
+}
+
+html.oz-auth-active #root {
+  min-height: 100vh;
+}
+
+.oz-auth {
+  /* The page sets --ink, --accent, --on-accent, --danger and --ok from the themes (AuthPage.tsx) */
+  --bg: var(--ink);
+  --fg: #fff;
+  --fg-dim: rgba(255, 255, 255, 0.64);
+  --fg-faint: rgba(255, 255, 255, 0.38);
+  --rule: rgba(255, 255, 255, 0.13);
+  --rule-strong: rgba(255, 255, 255, 0.28);
+  --gutter: clamp(20px, 3.4vw, 52px);
+  --ease: cubic-bezier(0.16, 0.8, 0.2, 1);
+
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(0, 2fr);
+  min-height: 100vh;
+  min-height: 100svh;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.oz-auth ::selection {
+  background: #fff;
+  color: #000;
+}
+
+.oz-auth a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.oz-auth a:focus-visible,
+.oz-auth button:focus-visible {
+  outline: 1.5px solid var(--accent);
+  outline-offset: 4px;
+}
+
+/* ---- The brand, where the homepage's nav has it: the way back there ---- */
+
+.oza-nav {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 5;
+  padding: 22px var(--gutter);
+}
+
+.oz-auth .oza-brand {
+  display: inline-flex;
+}
+
+/* The app's logo, in plain white so it sits with any theme. The file has empty space under the
+   mark, so it sits a little low to center. */
+.oza-brand img {
+  display: block;
+  width: auto;
+  height: 36px;
+  transform: translateY(9%);
+  filter: brightness(0) invert(1);
+}
+
+/* ---- The form ---- */
+
+.oza-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 112px var(--gutter) clamp(32px, 3.4vw, 52px);
+}
+
+/* Held to the bottom, as the hero's text is; a margin rather than an alignment, so a window too
+   short for the form scrolls to its top */
+.oza-body {
+  width: 100%;
+  max-width: 400px;
+  margin-top: auto;
+}
+
+.oz-auth .oza-title {
+  margin-bottom: clamp(26px, 2.6vw, 38px);
+  color: var(--fg);
+  font-size: clamp(2.5rem, 3.3vw, 3.5rem);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+/* The title rises into place, on load and again when the form changes; the rest fades in */
+.oza-line {
+  display: block;
+  overflow: hidden;
+  /* Room for descenders inside the clip */
+  margin: -0.06em -0.08em -0.14em;
+  padding: 0.06em 0.08em 0.14em;
+}
+
+.oza-line > span {
+  display: block;
+  transform: translateY(112%);
+  animation: oza-rise 0.9s var(--ease) 0.05s forwards;
+}
+
+.oza-fade {
+  opacity: 0;
+  animation: oza-fade 0.7s ease 0.2s forwards;
+}
+
+@keyframes oza-rise {
+  to {
+    transform: none;
+  }
+}
+
+@keyframes oza-fade {
+  to {
+    opacity: 1;
+  }
+}
+
+.oza-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.oza-field {
+  display: block;
+}
+
+.oza-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--fg-dim);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+}
+
+.oza-label small {
+  color: var(--fg-faint);
+  font-size: inherit;
+  font-weight: 400;
+}
+
+.oza-control {
+  position: relative;
+  display: block;
+}
+
+.oz-auth .oza-input {
+  display: block;
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.3;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.oz-auth .oza-input--reveal {
+  padding-right: 46px;
+}
+
+.oz-auth .oza-input::placeholder {
+  color: var(--fg-faint);
+}
+
+.oz-auth .oza-input:hover:not(:disabled):not(:focus) {
+  border-color: var(--fg-faint);
+}
+
+.oz-auth .oza-input:focus {
+  border-color: var(--fg);
+}
+
+.oz-auth .oza-input:disabled {
+  border-color: var(--rule);
+  color: var(--fg-faint);
+  cursor: not-allowed;
+}
+
+/* A browser's autofill paints its own background and text color; keep the page's */
+.oz-auth .oza-input:-webkit-autofill,
+.oz-auth .oza-input:-webkit-autofill:hover,
+.oz-auth .oza-input:-webkit-autofill:focus {
+  box-shadow: 0 0 0 1000px var(--bg) inset;
+  -webkit-text-fill-color: var(--fg);
+  caret-color: var(--fg);
+}
+
+/* Shows or hides what's typed in a password field */
+.oz-auth .oza-reveal {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  color: var(--fg);
+  transition: color 0.2s ease;
+}
+
+.oz-auth .oza-reveal:hover {
+  color: var(--accent);
+}
+
+.oz-auth .oza-reveal:focus-visible {
+  outline-offset: -4px;
+}
+
+.oza-reveal svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* The homepage's button, across the form: its label to the left, its arrow to the right */
+.oz-auth .oza-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  height: 48px;
+  margin-top: 10px;
+  padding: 0 18px;
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background 0.25s ease,
+    color 0.25s ease;
+}
+
+.oz-auth .oza-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.oz-auth .oza-btn:disabled {
+  cursor: default;
+}
+
+.oza-btn__arrow {
+  display: inline-block;
+  transition: transform 0.35s var(--ease);
+}
+
+.oza-btn:hover:not(:disabled) .oza-btn__arrow {
+  transform: translateX(4px);
+}
+
+/* Working: three cells lit in turn, as in the app */
+.oza-cells {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 5px;
+  gap: 3px;
+  height: 5px;
+}
+
+.oza-cells i {
+  background: currentColor;
+  opacity: 0.2;
+  animation: oza-cell 1s ease-in-out infinite;
+}
+
+.oza-cells i:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.oza-cells i:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+@keyframes oza-cell {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+/* What came back from the last attempt */
+.oza-note {
+  margin-bottom: 20px;
+  padding: 11px 14px;
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--fg-dim);
+  font-size: 14px;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.oza-note--error {
+  border-left-color: var(--danger);
+}
+
+.oza-note--ok {
+  border-left-color: var(--ok);
+}
+
+.oza-switch {
+  margin-top: 22px;
+  color: var(--fg-dim);
+  font-size: 14px;
+  letter-spacing: 0.01em;
+}
+
+.oz-auth .oza-link {
+  margin-left: 6px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--fg-faint);
+  color: var(--fg);
+  font-size: inherit;
+  font-weight: 500;
+  letter-spacing: inherit;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.oz-auth .oza-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---- The animation, which stays in view if the form is taller than the window ---- */
+
+.oza-canvas {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
+}
+
+/* It comes out of the form's black rather than starting at an edge */
+.oza-canvas::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 9%;
+  pointer-events: none;
+  background: linear-gradient(to right, var(--bg), transparent);
+}
+
+/* ---- Narrow screens: the animation above, the form under it ---- */
+
+@media (max-width: 900px) {
+  .oz-auth {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: clamp(220px, 36svh, 440px) 1fr;
+  }
+
+  .oza-canvas {
+    position: relative;
+    order: -1;
+    height: auto;
+  }
+
+  /* The brand sits over the animation here, which fades out under it and into the form */
+  .oza-canvas::after {
+    inset: 0;
+    width: auto;
+    background:
+      linear-gradient(to bottom, var(--bg), transparent 34%),
+      linear-gradient(to top, var(--bg), transparent 16%);
+  }
+
+  .oza-panel {
+    padding-top: 24px;
+  }
+
+  .oza-body {
+    max-width: 440px;
+    margin-top: 0;
+  }
+
+  .oz-auth .oza-title {
+    font-size: clamp(2.25rem, 9vw, 3rem);
+  }
+}
+
+@media (max-width: 560px) {
+  .oza-brand img {
+    height: 32px;
+  }
+
+  /* Large enough that phones don't zoom the page in on a focused field */
+  .oz-auth .oza-input {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oz-auth *,
+  .oz-auth *::before,
+  .oz-auth *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .oza-line > span {
+    transform: none;
+  }
+
+  .oza-fade {
+    opacity: 1;
+  }
+}
