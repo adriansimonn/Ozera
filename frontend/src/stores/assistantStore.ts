@@ -98,6 +98,13 @@ function write(key: string, value: string) {
   }
 }
 
+/**
+ * A chat's mode on its way to the server. Saves go one at a time and only the latest mode asked
+ * for is sent next, so quick clicks can't reach the server out of order, and the reply to an
+ * earlier click can't put its mode back on screen after a later one.
+ */
+const modeSave: { wanted: { chatId: number; mode: AssistantMode } | null; busy: boolean } = { wanted: null, busy: false }
+
 /** Where the app is (path and query), and the page's bridges merged into one snapshot. */
 function currentSnapshot(bridges: PageBridge[]): Snapshot {
   const route = window.location.pathname + window.location.search
@@ -289,11 +296,34 @@ export const useAssistantStore = create<AssistantState>()((set, get) => ({
     }
     // Shown at once; it applies from the chat's next tool calls on
     set((s) => ({ chat: s.chat ? { ...s.chat, mode } : s.chat }))
+    modeSave.wanted = { chatId: chat.id, mode }
+    // A save is on its way: it sends this one when it's back
+    if (modeSave.busy) return
+    modeSave.busy = true
+    // What the server has (no save was in flight, so the chat on screen was up to date)
+    let saved = { chatId: chat.id, mode: chat.mode }
     try {
-      const updated = await assistantClient.updateChat(chat.id, { mode })
-      set((s) => ({ chat: s.chat ? { ...s.chat, ...updated } : s.chat, chats: s.chats.map((c) => (c.id === updated.id ? updated : c)) }))
+      while (modeSave.wanted) {
+        const next = modeSave.wanted
+        modeSave.wanted = null
+        if (next.chatId === saved.chatId && next.mode === saved.mode) continue
+        const updated = await assistantClient.updateChat(next.chatId, { mode: next.mode })
+        saved = { chatId: updated.id, mode: updated.mode }
+        // The chat on screen keeps the latest click until the last save is back
+        const settled = modeSave.wanted == null
+        set((s) => ({
+          chat: settled && s.chat?.id === updated.id ? { ...s.chat, ...updated } : s.chat,
+          chats: s.chats.map((c) => (c.id === updated.id ? updated : c)),
+        }))
+      }
     } catch (err) {
-      set((s) => ({ chat: s.chat ? { ...s.chat, mode: chat.mode } : s.chat, error: err instanceof Error ? err.message : 'Failed to switch modes' }))
+      modeSave.wanted = null
+      set((s) => ({
+        chat: s.chat?.id === saved.chatId ? { ...s.chat, mode: saved.mode } : s.chat,
+        error: err instanceof Error ? err.message : 'Failed to switch modes',
+      }))
+    } finally {
+      modeSave.busy = false
     }
   },
 

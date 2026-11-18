@@ -7,19 +7,23 @@
  * sends (open a page, fill inputs, point at a control) go to the page through the store. A reply's
  * tool calls show as rows between its text, in the order it made them. In manual mode a reply's
  * tool calls wait under it on an approval card; in auto mode they run at once (a run's row expands
- * to its quote and shows its charge). Run results open on their pages. The composer's bar holds
- * the chat's settings (its hard budget) and model, which open upward, and the mode toggle beside
- * Send. A chat exports as Markdown.
+ * to its quote and shows its charge). Run results open on their pages. The bar under the composer
+ * holds the chat's model and its hard budget, which open upward, and the mode switch. A chat
+ * exports as Markdown.
+ *
+ * It's drawn the way the pages are (styles/app.css): text controls, ruled lists and square cells,
+ * and no icon but the one that closes it.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ArrowUp, Check, ChevronDown, ChevronUp, Download, Hand, Pencil, Plus, Settings2, Square, Trash2, X, Zap } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { MAX_WIDTH, MIN_WIDTH, useAssistantStore, type DraftPart } from '../../stores/assistantStore'
 import { usePurchaseCredits } from '../../contexts/PurchaseCreditsContext'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ChatTurn, PendingRun, ToolChipInfo, TurnPart } from '../../types/assistant'
+import { Caret } from '../common/Caret'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { CellGlyph } from '../home/CellGlyph'
 import { ApprovalCard } from './ApprovalCard'
@@ -178,7 +182,7 @@ function ModelControl({ disabled }: { disabled: boolean }) {
     <div className="ast-bar-control" ref={ref}>
       <button
         type="button"
-        className="ast-bar-button"
+        className="ast-bar-link"
         onClick={() => setOpen((o) => !o)}
         disabled={disabled}
         aria-haspopup="menu"
@@ -186,7 +190,7 @@ function ModelControl({ disabled }: { disabled: boolean }) {
         title="Model"
       >
         <span>{shortName(current.name)}</span>
-        <ChevronUp aria-hidden="true" />
+        <Caret />
       </button>
       {open && (
         <div className="ast-menu ast-menu--up" role="menu">
@@ -203,7 +207,6 @@ function ModelControl({ disabled }: { disabled: boolean }) {
                 setOpen(false)
               }}
             >
-              {m.id === current.id ? <Check aria-hidden="true" /> : <span className="ast-menu-check" />}
               <span className="ast-menu-label">{shortName(m.name)}</span>
               <span className="ast-menu-price">{m.free && models.free_left > 0 ? 'free' : `~${money(m.per_message)}/msg`}</span>
             </button>
@@ -216,7 +219,7 @@ function ModelControl({ disabled }: { disabled: boolean }) {
 
 type Menu = ReturnType<typeof useMenu>
 
-/** The chat's settings: its hard budget (replies and runs stop once the chat has cost that much). */
+/** The chat's hard budget (replies and runs stop once the chat has cost that much). */
 function SettingsControl({ menu }: { menu: Menu }) {
   const chat = useAssistantStore((s) => s.chat)
   const newBudget = useAssistantStore((s) => s.newBudget)
@@ -241,28 +244,26 @@ function SettingsControl({ menu }: { menu: Menu }) {
     <div className="ast-bar-control" ref={ref}>
       <button
         type="button"
-        className="ast-bar-icon"
+        className="ast-bar-link"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label="Chat settings"
-        title="Chat settings"
+        title="This chat's budget"
       >
-        <Settings2 aria-hidden="true" />
+        <span>Budget</span>
+        <Caret />
       </button>
       {open && (
-        <div className="ast-menu ast-menu--up ast-settings" role="dialog" aria-label="Chat settings">
+        <div className="ast-menu ast-menu--up" role="dialog" aria-label="Chat budget">
           <div className="ast-menu-head" title="Everything this chat costs, replies and runs. It stops as soon as it reaches this.">
             Budget
           </div>
           <div role="radiogroup" aria-label="Budget">
             <button type="button" role="radio" aria-checked={budget == null} className="ast-menu-item" onClick={() => choose(null)}>
-              {budget == null ? <Check aria-hidden="true" /> : <span className="ast-menu-check" />}
               No limit
             </button>
             {options.map((value) => (
               <button key={value} type="button" role="radio" aria-checked={value === budget} className="ast-menu-item" onClick={() => choose(value)}>
-                {value === budget ? <Check aria-hidden="true" /> : <span className="ast-menu-check" />}
                 {dollars(value)}
               </button>
             ))}
@@ -288,7 +289,7 @@ function SettingsControl({ menu }: { menu: Menu }) {
                 onChange={(e) => setCustom(e.target.value)}
               />
             </span>
-            <button type="submit" className="ast-budget-set" disabled={!valid}>
+            <button type="submit" className="oz-btn oz-btn--small" disabled={!valid}>
               Set
             </button>
           </form>
@@ -303,23 +304,34 @@ function SettingsControl({ menu }: { menu: Menu }) {
   )
 }
 
-/** Manual (every tool call waits for approval) or auto (tool calls run without asking); a click switches. */
+/** Manual (every tool call waits for approval) or auto (tool calls run without asking). */
 function ModeControl() {
   const chat = useAssistantStore((s) => s.chat)
   const newMode = useAssistantStore((s) => s.newMode)
   const setMode = useAssistantStore((s) => s.setMode)
-  const auto = (chat ? chat.mode : newMode) === 'auto'
+  const mode = chat ? chat.mode : newMode
+  const options = [
+    { value: 'manual', label: 'Manual', title: 'Each tool call waits for your approval.' },
+    { value: 'auto', label: 'Auto', title: 'Tool calls run without asking.' },
+  ] as const
   return (
-    <button
-      type="button"
-      className="ast-bar-button ast-mode"
-      onClick={() => setMode(auto ? 'manual' : 'auto')}
-      aria-pressed={auto}
-      title={auto ? 'Auto: tool calls run without asking. Click for manual.' : 'Manual: each tool call waits for your approval. Click for auto.'}
-    >
-      {auto ? <Zap aria-hidden="true" /> : <Hand aria-hidden="true" />}
-      <span>{auto ? 'Auto' : 'Manual'}</span>
-    </button>
+    <div className="ast-mode" role="radiogroup" aria-label="Tool calls">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={mode === o.value}
+          className="ast-mode-option"
+          title={o.title}
+          onClick={() => {
+            if (mode !== o.value) setMode(o.value)
+          }}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -348,12 +360,12 @@ function TurnView({
       <div className="ast-meta">
         {status && <span className={turn.status === 'error' || turn.status === 'refused' ? 'ast-warn' : undefined}>{status}</span>}
         {last && turn.status === 'max_tokens' && (
-          <button type="button" className="ast-link" onClick={onContinue} disabled={busy}>
+          <button type="button" className="oz-link" onClick={onContinue} disabled={busy}>
             Continue
           </button>
         )}
         {last && turn.status === 'budget' && (
-          <button type="button" className="ast-link" onClick={onBudget}>
+          <button type="button" className="oz-link" onClick={onBudget}>
             Raise budget
           </button>
         )}
@@ -363,8 +375,9 @@ function TurnView({
   )
 }
 
+/** The user's chats, under the panel's title: open one, rename it, delete it. */
 function ChatsMenu({ onClose }: { onClose: () => void }) {
-  const { chats, chat, selectChat, newChat, rename, remove } = useAssistantStore()
+  const { chats, chat, selectChat, rename, remove } = useAssistantStore()
   const [editing, setEditing] = useState<number | null>(null)
   const [title, setTitle] = useState('')
   const [deleting, setDeleting] = useState<number | null>(null)
@@ -372,11 +385,20 @@ function ChatsMenu({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     const away = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node) && deleting == null) onClose()
+      const target = e.target as Element
+      // The title closes it by itself (closing here too would let its click open it again)
+      if (ref.current && !ref.current.contains(target) && !target.closest('.ast-chat-title') && deleting == null) onClose()
+    }
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && editing == null && deleting == null) onClose()
     }
     document.addEventListener('mousedown', away)
-    return () => document.removeEventListener('mousedown', away)
-  }, [onClose, deleting])
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('mousedown', away)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [onClose, deleting, editing])
 
   const save = async (id: number) => {
     if (title.trim()) await rename(id, title.trim()).catch(() => {})
@@ -384,12 +406,10 @@ function ChatsMenu({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="ast-menu" ref={ref} role="menu">
-      <button type="button" className="ast-menu-item" onClick={() => { newChat(); onClose() }}>
-        <Plus aria-hidden="true" /> New chat
-      </button>
+    <div className="ast-menu ast-chats" ref={ref} role="menu" aria-label="Chats">
+      {chats.length === 0 && <div className="ast-menu-none">No chats yet</div>}
       {chats.map((c) => (
-        <div key={c.id} className={`ast-menu-row${chat?.id === c.id ? ' active' : ''}`}>
+        <div key={c.id} className={`ast-chat-row${chat?.id === c.id ? ' active' : ''}`}>
           {editing === c.id ? (
             <>
               <input
@@ -397,28 +417,35 @@ function ChatsMenu({ onClose }: { onClose: () => void }) {
                 value={title}
                 autoFocus
                 maxLength={200}
+                aria-label="Chat name"
                 onChange={(e) => setTitle(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') save(c.id)
-                  if (e.key === 'Escape') setEditing(null)
+                  if (e.key === 'Escape') {
+                    // Only the rename ends: the list stays open
+                    e.stopPropagation()
+                    setEditing(null)
+                  }
                 }}
               />
-              <button type="button" className="ast-icon" aria-label="Save name" onClick={() => save(c.id)}>
-                <Check aria-hidden="true" />
+              <button type="button" className="ast-row-action" onClick={() => save(c.id)}>
+                Save
               </button>
             </>
           ) : (
             <>
-              <button type="button" className="ast-menu-item ast-menu-title" onClick={() => { selectChat(c.id); onClose() }} title={c.title}>
-                <span>{c.title}</span>
+              <button type="button" role="menuitem" className="ast-chat-open" onClick={() => { selectChat(c.id); onClose() }} title={c.title}>
+                <span className="ast-chat-name">{c.title}</span>
                 <span className="ast-cost">{money(c.spent ?? c.cost)}</span>
               </button>
-              <button type="button" className="ast-icon" aria-label="Rename chat" onClick={() => { setEditing(c.id); setTitle(c.title) }}>
-                <Pencil aria-hidden="true" />
-              </button>
-              <button type="button" className="ast-icon" aria-label="Delete chat" onClick={() => setDeleting(c.id)}>
-                <Trash2 aria-hidden="true" />
-              </button>
+              <span className="ast-row-actions">
+                <button type="button" className="ast-row-action" aria-label={`Rename ${c.title}`} onClick={() => { setEditing(c.id); setTitle(c.title) }}>
+                  Rename
+                </button>
+                <button type="button" className="ast-row-action" aria-label={`Delete ${c.title}`} onClick={() => setDeleting(c.id)}>
+                  Delete
+                </button>
+              </span>
             </>
           )}
         </div>
@@ -507,9 +534,9 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
   }, [text, width])
 
   const lastTurn = turns[turns.length - 1]
-  const priceLabel = current
-    ? `${shortName(current.name)} · ${current.free && freeLeft > 0 ? `free (${freeLeft} left today)` : `~${money(current.per_message)}/msg`}`
-    : ''
+  // What a message costs on the chat's model (which the bar above it names)
+  const price = current ? (current.free && freeLeft > 0 ? `free (${freeLeft} left today)` : `~${money(current.per_message)}/msg`) : ''
+  const priceLabel = current ? `${shortName(current.name)} · ${price}` : ''
   const spend = chat
     ? `chat ${money(chat.spent ?? chat.cost)}${chat.budget != null ? ` of ${dollars(chat.budget)}` : ''}, ${tokens(chat.tokens)} tokens`
     : newBudget != null
@@ -542,29 +569,34 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
       <div className="ast-resize" onPointerDown={onResize} role="separator" aria-orientation="vertical" aria-valuemin={MIN_WIDTH} aria-valuemax={MAX_WIDTH} aria-valuenow={width} />
 
       <header className="ast-header">
-        <div className="ast-header-row">
-          <button type="button" className="ast-chat-title" onClick={() => setMenu((m) => !m)} disabled={busy} title="Chats">
-            <span>{chat?.title ?? 'New chat'}</span>
-            <ChevronDown aria-hidden="true" />
-          </button>
-          <button type="button" className="ast-icon" aria-label="New chat" title="New chat" disabled={busy} onClick={() => useAssistantStore.getState().newChat()}>
-            <Plus aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="ast-icon"
-            aria-label="Export as Markdown"
-            title="Export as Markdown"
-            disabled={busy || exporting || !chat || turns.length === 0}
-            onClick={exportChat}
-          >
-            <Download aria-hidden="true" />
-          </button>
-          <button type="button" className="ast-icon" aria-label="Close the assistant" title="Close (⌘K)" onClick={() => setOpen(false)}>
-            <X aria-hidden="true" />
-          </button>
-          {menu && <ChatsMenu onClose={() => setMenu(false)} />}
-        </div>
+        <button
+          type="button"
+          className="ast-chat-title"
+          onClick={() => setMenu((m) => !m)}
+          disabled={busy}
+          title="Chats"
+          aria-haspopup="menu"
+          aria-expanded={menu}
+        >
+          <span>{chat?.title ?? 'New chat'}</span>
+          <Caret />
+        </button>
+        <button type="button" className="ast-head-link" title="New chat" disabled={busy || !chat} onClick={() => useAssistantStore.getState().newChat()}>
+          New
+        </button>
+        <button
+          type="button"
+          className="ast-head-link"
+          title="Export as Markdown"
+          disabled={busy || exporting || !chat || turns.length === 0}
+          onClick={exportChat}
+        >
+          Export
+        </button>
+        <button type="button" className="oz-icon-btn" aria-label="Close the assistant" title="Close (⌘K)" onClick={() => setOpen(false)}>
+          <X aria-hidden="true" />
+        </button>
+        {menu && <ChatsMenu onClose={() => setMenu(false)} />}
       </header>
 
       <div
@@ -639,21 +671,21 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
             {error === 'BUDGET_REACHED' ? (
               <>
                 <span>This chat has used its budget.</span>
-                <button type="button" className="ast-link" onClick={() => settings.setOpen(true)}>
+                <button type="button" className="oz-link" onClick={() => settings.setOpen(true)}>
                   Raise budget
                 </button>
               </>
             ) : error === 'INSUFFICIENT_CREDITS' ? (
               <>
                 <span>Your balance doesn’t cover this model{freeLeft > 0 ? `; Haiku 5.5 has ${freeLeft} free messages today` : ''}.</span>
-                <button type="button" className="ast-link" onClick={showPurchaseCredits}>
+                <button type="button" className="oz-link" onClick={showPurchaseCredits}>
                   Add credits
                 </button>
               </>
             ) : (
               <span>{error}</span>
             )}
-            <button type="button" className="ast-icon" aria-label="Dismiss" onClick={() => setError(null)}>
+            <button type="button" className="oz-icon-btn" aria-label="Dismiss" onClick={() => setError(null)}>
               <X aria-hidden="true" />
             </button>
           </div>
@@ -661,8 +693,8 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
         <div
           className="ast-composer"
           onMouseDown={(e) => {
-            // A click on the box's empty space focuses the text, not the bar
-            if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('ast-composer-bar')) {
+            // A click on the box's empty space goes to the text
+            if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('ast-composer-end')) {
               e.preventDefault()
               input.current?.focus()
             }
@@ -670,10 +702,12 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
         >
           <textarea
             ref={input}
+            className="ast-input"
             value={text}
             rows={1}
             maxLength={8000}
             placeholder="Ask about Ozera, your data, or this page"
+            aria-label="Message"
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -682,27 +716,30 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
               }
             }}
           />
-          <div className="ast-composer-bar">
-            <SettingsControl menu={settings} />
-            <ModelControl disabled={busy} />
-            <div className="ast-bar-end">
-              <ModeControl />
-              {busy ? (
-                <button type="button" className="ast-send" aria-label="Stop" title="Stop" onClick={stop} disabled={draft?.status === 'stopping'}>
-                  <Square aria-hidden="true" />
-                </button>
-              ) : (
-                <button type="button" className="ast-send" aria-label="Send" title="Send (Enter)" onClick={() => submit(text)} disabled={!text.trim()}>
-                  <ArrowUp aria-hidden="true" />
-                </button>
-              )}
-            </div>
+          <div className="ast-composer-end">
+            {busy ? (
+              <button type="button" className="oz-btn ast-send" aria-label="Stop" title="Stop" onClick={stop} disabled={draft?.status === 'stopping'}>
+                <i className="ast-send-stop" aria-hidden="true" />
+              </button>
+            ) : (
+              <button type="button" className="oz-btn ast-send" aria-label="Send" title="Send (Enter)" onClick={() => submit(text)} disabled={!text.trim()}>
+                {/* Drawn, not the font's arrow: a glyph sits where its font puts it, off the square's centre */}
+                <svg className="ast-send-arrow" viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M2 8h12M9 3l5 5-5 5" />
+                </svg>
+              </button>
+            )}
           </div>
+        </div>
+        <div className="ast-composer-bar">
+          <ModelControl disabled={busy} />
+          <SettingsControl menu={settings} />
+          <ModeControl />
         </div>
         {(priceLabel || spend) && (
           <div className="ast-footnote">
             <span className="ast-footnote-model" title={priceLabel}>
-              {priceLabel}
+              {price}
             </span>
             {spend && (
               <span className="ast-footnote-chat" title="What this chat has cost (replies and runs), its budget, and the size of its context">

@@ -7,7 +7,6 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Play } from 'lucide-react'
 import { useCreditBalance } from '../../hooks/useCredits'
 import type { PendingRun } from '../../types/assistant'
 import { describeTool } from './toolWords'
@@ -138,16 +137,15 @@ export function ApprovalCard({
           {available != null ? ` · balance $${available.toFixed(2)}` : ''}
         </span>
         {short && (
-          <button type="button" className="ast-link" onClick={onAddCredits}>
+          <button type="button" className="oz-link" onClick={onAddCredits}>
             Add credits
           </button>
         )}
         <div className="ast-approval-actions">
-          <button type="button" className="ast-approval-skip" onClick={() => decide(false)} disabled={busy}>
+          <button type="button" className="oz-btn oz-btn--ghost oz-btn--small" onClick={() => decide(false)} disabled={busy}>
             Skip
           </button>
-          <button type="button" className="ast-approval-go" onClick={() => decide(true)} disabled={busy || !picked.length || short}>
-            {verb === 'Run' ? <Play aria-hidden="true" /> : <Check aria-hidden="true" />}
+          <button type="button" className="oz-btn oz-btn--small oz-btn--arrow" onClick={() => decide(true)} disabled={busy || !picked.length || short}>
             {runs.length > 1 ? `${verb} ${picked.length}` : verb}
           </button>
         </div>
