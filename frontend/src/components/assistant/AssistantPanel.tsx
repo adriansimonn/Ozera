@@ -11,13 +11,13 @@
  * holds the chat's model and its hard budget, which open upward, and the mode switch. A chat
  * exports as Markdown.
  *
- * It's drawn the way the pages are (styles/app.css): text controls, ruled lists and square cells,
- * and no icon but the one that closes it.
+ * It's drawn the way the pages are (styles/app.css): text controls, ruled lists and square cells.
+ * Its only icons are the three in its head: new chat, export, close.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { X } from 'lucide-react'
+import { Download, Plus, X } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { MAX_WIDTH, MIN_WIDTH, useAssistantStore, type DraftPart } from '../../stores/assistantStore'
 import { usePurchaseCredits } from '../../contexts/PurchaseCreditsContext'
@@ -581,21 +581,24 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
           <span>{chat?.title ?? 'New chat'}</span>
           <Caret />
         </button>
-        <button type="button" className="ast-head-link" title="New chat" disabled={busy || !chat} onClick={() => useAssistantStore.getState().newChat()}>
-          New
-        </button>
-        <button
-          type="button"
-          className="ast-head-link"
-          title="Export as Markdown"
-          disabled={busy || exporting || !chat || turns.length === 0}
-          onClick={exportChat}
-        >
-          Export
-        </button>
-        <button type="button" className="oz-icon-btn" aria-label="Close the assistant" title="Close (⌘K)" onClick={() => setOpen(false)}>
-          <X aria-hidden="true" />
-        </button>
+        <div className="ast-head-actions">
+          <button type="button" className="oz-icon-btn" aria-label="New chat" title="New chat" disabled={busy || !chat} onClick={() => useAssistantStore.getState().newChat()}>
+            <Plus aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="oz-icon-btn"
+            aria-label="Export as Markdown"
+            title="Export as Markdown"
+            disabled={busy || exporting || !chat || turns.length === 0}
+            onClick={exportChat}
+          >
+            <Download aria-hidden="true" />
+          </button>
+          <button type="button" className="oz-icon-btn" aria-label="Close the assistant" title="Close (⌘K)" onClick={() => setOpen(false)}>
+            <X aria-hidden="true" />
+          </button>
+        </div>
         {menu && <ChatsMenu onClose={() => setMenu(false)} />}
       </header>
 

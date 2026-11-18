@@ -5,7 +5,8 @@
  *
  * The panel is drawn like the pages: colors from the app's custom properties, buttons, links and
  * checkboxes from styles/app.css (.oz-btn, .oz-link, .oz-icon-btn, .oz-caret), text controls
- * instead of icons, hairline rules instead of boxes and bubbles, and a square cell for status.
+ * (the head's three actions are its only icons), hairline rules instead of boxes and bubbles,
+ * and a square cell for status.
  */
 
 export function AssistantStyles() {
@@ -51,11 +52,11 @@ export function AssistantStyles() {
       /* What something cost */
       .ast-panel .ast-cost { flex: none; color: var(--oz-fg-faint); font-family: var(--oz-mono); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
 
-      /* ---- Head: the chat's name (which opens the chats), and what to do with it ---- */
+      /* ---- Head: the chat's name (which opens the chats), then new chat, export and close ---- */
 
       .ast-panel .ast-header {
-        position: relative; flex: none; display: flex; align-items: center; gap: 0.95rem;
-        height: var(--oz-nav-h); padding: 0 calc(var(--oz-gutter) - 0.5rem) 0 var(--oz-gutter);
+        position: relative; flex: none; display: flex; align-items: center; gap: 0.75rem;
+        height: var(--oz-nav-h); padding: 0 calc(var(--oz-gutter) - 0.55rem) 0 var(--oz-gutter);
         border-bottom: 1px solid var(--oz-rule);
       }
       .ast-panel .ast-chat-title {
@@ -66,13 +67,11 @@ export function AssistantStyles() {
       .ast-panel .ast-chat-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .ast-panel .ast-chat-title:hover:not(:disabled), .ast-panel .ast-chat-title[aria-expanded="true"] { color: var(--oz-mark); }
       .ast-panel .ast-chat-title:disabled { cursor: default; }
-      .ast-panel .ast-head-link {
-        flex: none; color: var(--oz-fg-dim); font-size: 0.85rem; font-weight: 500; letter-spacing: 0.01em; cursor: pointer;
-        transition: color 0.2s ease;
-      }
-      .ast-panel .ast-head-link:hover:not(:disabled) { color: var(--oz-mark); }
-      .ast-panel .ast-head-link:disabled { color: var(--oz-fg-faint); cursor: default; }
-      .ast-panel .ast-header .oz-icon-btn { margin-left: -0.35rem; }
+      /* The icons: 26px squares holding 14px marks on screen (under the page's 0.8 zoom), whole
+         pixels with an even difference, so each mark sits on its square's exact centre */
+      .ast-panel .ast-head-actions { flex: none; display: flex; align-items: center; gap: 0.1rem; }
+      .ast-panel .ast-header .oz-icon-btn { width: 32.5px; height: 32.5px; }
+      .ast-panel .ast-header .oz-icon-btn svg { width: 17.5px; height: 17.5px; }
 
       /* ---- Menus ---- */
 
