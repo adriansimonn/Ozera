@@ -413,8 +413,8 @@ export const GenerationFlow = memo(function GenerationFlow({
 
                 opacity = 0.1 + boostedStrength * 0.6
                 lineWidth = 0.8 + boostedStrength * 1.6
-              } else if (hasProcessed && stepProgress < 0.95) {
-                // Keep connections activated (persistent) after processing until token generation completes
+              } else if (hasProcessed) {
+                // Connections the pass has been through stay lit until the next pass begins
                 opacity = 0.08 + connectionStrength * 0.4
                 lineWidth = 0.8 + connectionStrength * 1.5
               } else {
@@ -484,13 +484,9 @@ export const GenerationFlow = memo(function GenerationFlow({
 
             // Much brighter during processing
             intensity = Math.min(1, baseIntensity * 1.5 + waveBoost)
-          } else if (hasProcessed && stepProgress < 0.95) {
-            // Keep nodes bright and activated after processing until token generation completes
-            intensity = baseIntensity * 1.3
           } else if (hasProcessed) {
-            // Final fade after token completes
-            const fadeAmount = Math.max(0, 1 - (layerActivationProgress - 1) * 0.5)
-            intensity = baseIntensity * (0.7 + fadeAmount * 0.3)
+            // A layer the pass has been through stays lit until the next pass begins
+            intensity = baseIntensity * 1.3
           }
 
           node.active = intensity
@@ -634,21 +630,19 @@ export const GenerationFlow = memo(function GenerationFlow({
     setCurrentOutputTokens([])
   }
 
-  const handlePrevious = () => {
-    // Move backward by one layer step
-    const totalSteps = generatedTokens + 1
-    const layerStep = 1 / (numLayers + 3) // +3 for input, embed, output layers
-    const newProgress = Math.max(0, progressRef.current - layerStep / totalSteps)
-    progressRef.current = newProgress
+  // Previous and Next move one layer at a time and stop mid-way through that layer's turn, where
+  // its activation peaks. Stopping on the boundary between two turns left it to rounding which
+  // layer showed as active, and the output layer's turn was usually skipped.
+  const stepLayer = (direction: 1 | -1) => {
+    const turns = (generatedTokens + 1) * (numLayers + 3) // +3 for input, embed, output layers
+    const position = progressRef.current * turns
+    const turn = direction > 0 ? Math.floor(position + 0.5 + 1e-6) : Math.ceil(position - 0.5 - 1e-6) - 1
+    progressRef.current = turn < 0 ? 0 : (Math.min(turn, turns - 1) + 0.5) / turns
   }
 
-  const handleNext = () => {
-    // Move forward by one layer step
-    const totalSteps = generatedTokens + 1
-    const layerStep = 1 / (numLayers + 3) // +3 for input, embed, output layers
-    const newProgress = Math.min(1, progressRef.current + layerStep / totalSteps)
-    progressRef.current = newProgress
-  }
+  const handlePrevious = () => stepLayer(-1)
+
+  const handleNext = () => stepLayer(1)
 
 
   return (
