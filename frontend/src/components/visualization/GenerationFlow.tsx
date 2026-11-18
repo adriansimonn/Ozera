@@ -24,7 +24,7 @@ export const GenerationFlow = memo(function GenerationFlow({
   className = ''
 }: GenerationFlowProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  // The canvas is drawn in the app's colors: ink for cells and lines, the accent for what's active
+  // The canvas is drawn in the app's text color alone: what's active is brighter and larger
   const palette = useAppPalette()
   const outputBoxRef = useRef<HTMLDivElement>(null)
   const animationRef = useRef<number>()
@@ -262,7 +262,6 @@ export const GenerationFlow = memo(function GenerationFlow({
     canvas.height = height
 
     const ink = rgbChannels(palette.fg)
-    const mark = rgbChannels(palette.mark)
 
     // Network layout - horizontal flow with multiple nodes per layer
     const layerSpacing = (width - 200) / (numLayers + 2)
@@ -397,7 +396,6 @@ export const GenerationFlow = memo(function GenerationFlow({
             // Base opacity for inactive connections
             let opacity = 0.02
             let lineWidth = 0.4
-            let color = ink
 
             if (tokensInCurrentStep > 0 && flowingTokenIdx < totalTokens) {
               // Use actual node activations to determine connection strength
@@ -413,8 +411,6 @@ export const GenerationFlow = memo(function GenerationFlow({
                 const waveFactor = Math.sin(layerActivationProgress * Math.PI)
                 const boostedStrength = connectionStrength * (0.5 + waveFactor * 0.5)
 
-                // The layer at work is drawn in the accent
-                color = mark
                 opacity = 0.1 + boostedStrength * 0.6
                 lineWidth = 0.8 + boostedStrength * 1.6
               } else if (hasProcessed && stepProgress < 0.95) {
@@ -427,12 +423,12 @@ export const GenerationFlow = memo(function GenerationFlow({
                 lineWidth = 0.4 + connectionStrength * 0.6
               }
 
-              ctx.strokeStyle = `rgba(${color}, ${opacity})`
+              ctx.strokeStyle = `rgba(${ink}, ${opacity})`
             } else {
               // Random variation for visual interest when inactive
               const connectionId = fromNode.y * 1000 + toNode.y
               opacity = 0.02 + (Math.sin(connectionId) * 0.5 + 0.5) * 0.04
-              ctx.strokeStyle = `rgba(${color}, ${opacity})`
+              ctx.strokeStyle = `rgba(${ink}, ${opacity})`
             }
 
             ctx.lineWidth = lineWidth
@@ -500,27 +496,20 @@ export const GenerationFlow = memo(function GenerationFlow({
           node.active = intensity
 
           // A node is a square cell, as in the homepage's mosaic: small and faint at rest, larger
-          // and solid as it activates, and lit in the accent while its layer is at work
+          // and solid as it activates
           const side = Math.round(nodeRadius * (0.7 + intensity * 1.7))
           const left = Math.round(node.x - side / 2)
           const top = Math.round(node.y - side / 2)
-          const lit = isProcessing && intensity > 0.55
           ctx.fillStyle = palette.bg
           ctx.fillRect(left - 2, top - 2, side + 4, side + 4)
-          ctx.fillStyle = lit ? palette.accent : `rgba(${ink}, ${0.3 + intensity * 0.7})`
+          ctx.fillStyle = `rgba(${ink}, ${0.3 + intensity * 0.7})`
           ctx.fillRect(left, top, side, side)
-          if (lit && palette.isLight) {
-            // The accent is pale on white, so the cell is outlined
-            ctx.strokeStyle = palette.fg
-            ctx.lineWidth = 1
-            ctx.strokeRect(left + 0.5, top + 0.5, side - 1, side - 1)
-          }
         })
 
         // Layer label with highlight when active
         if (showLabels) {
           ctx.font = `500 13px ${MONO}`
-          ctx.fillStyle = isProcessing ? palette.mark : palette.fgDim
+          ctx.fillStyle = isProcessing ? palette.fg : palette.fgDim
           ctx.textAlign = 'center'
           ctx.fillText(layer.label, layer.x, 85)
         }
@@ -540,7 +529,7 @@ export const GenerationFlow = memo(function GenerationFlow({
     ) => {
       // Show generated token appearing next to output layer
       if (tokensInCurrentStep > 0) {
-        const color = palette.mark
+        const color = palette.fg
 
         // Calculate layer progress
         const layerProgress = stepProgress * layers.length
@@ -613,7 +602,7 @@ export const GenerationFlow = memo(function GenerationFlow({
       ctx.fillStyle = palette.ruleStrong
       ctx.fillRect(barX, barY, barWidth, barHeight)
 
-      ctx.fillStyle = palette.mark
+      ctx.fillStyle = palette.fg
       ctx.fillRect(barX, barY, barWidth * progress, barHeight)
 
       // Progress percentage

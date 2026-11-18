@@ -56,7 +56,8 @@ export const ModelDetails: React.FC<ModelDetailsProps> = ({ modelId }) => {
   const { info: dynamicInfo, loading: infoLoading } = useModelInfo(modelId)
 
   // Custom models are Ozera models too
-  const family: ModelFamily = STATIC_OPEN_SOURCE_MODELS.find(m => m.id === modelId)?.family ?? 'ozera'
+  const openModel = STATIC_OPEN_SOURCE_MODELS.find(m => m.id === modelId)
+  const family: ModelFamily = openModel?.family ?? 'ozera'
   const isBaseModel = modelId === 'nano' || modelId === 'mini'
   const isOpenSourceModel = family !== 'ozera'
   const isCustomModel = !isBaseModel && !isOpenSourceModel
@@ -80,8 +81,16 @@ export const ModelDetails: React.FC<ModelDetailsProps> = ({ modelId }) => {
         <>
           <p className="model-description">
             {getDescription()}
-            {isOpenSourceModel && (
-              <span className="oz-tag">Open source</span>
+            {openModel && (
+              <a
+                className="oz-tag model-weights-link"
+                href={`https://huggingface.co/${openModel.hf_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`${openModel.hf_id} on Hugging Face`}
+              >
+                Open weight
+              </a>
             )}
             {isCustomModel && (
               <span className="oz-tag">Custom model</span>
@@ -147,6 +156,22 @@ export const ModelDetails: React.FC<ModelDetailsProps> = ({ modelId }) => {
         .model-info-content .model-description .oz-tag {
           margin-left: 0.5rem;
           vertical-align: 1px;
+        }
+
+        .model-info-content .model-weights-link {
+          text-decoration: none;
+          transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .model-info-content .model-weights-link::after {
+          content: '↗';
+        }
+
+        .model-info-content .model-weights-link:hover,
+        .model-info-content .model-weights-link:focus-visible {
+          background: var(--oz-accent);
+          border-color: var(--oz-accent);
+          color: var(--oz-on-accent);
         }
 
         /* The specs: a ruled sheet, a name and its number to a row */

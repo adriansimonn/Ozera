@@ -82,6 +82,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
   const [selectedTokenIndex, setSelectedTokenIndex] = useState(0)
   const [tokenInputValue, setTokenInputValue] = useState('0')
   const [showTextLabels, setShowTextLabels] = useState(false)
+  const [tokenRefOpen, setTokenRefOpen] = useState(false)
 
   const { activationData, loading, layerLoading, error, summary, loadActivation } =
     useActivationData(selectedVisualization, selectedLayer)
@@ -472,19 +473,33 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                 <div className="df-bottom">
                   {(selectedVisualization === 'attention' || selectedVisualization === 'journey' || selectedVisualization === 'flow') && activationData.metadata.decoded_tokens && (
                     <div className="df-token-ref">
-                      <span className="df-token-ref-label">Token reference</span>
-                      <div className="df-token-ref-list">
-                        {activationData.metadata.decoded_tokens.map((token, idx) => (
-                          <span
-                            key={idx}
-                            className="df-chip"
-                            title={`Token ${idx}: "${token}"`}
-                          >
-                            <span className="df-chip-index">{idx}</span>
-                            <span>{token.replace(/ /g, '\u00B7') || '\u25AF'}</span>
-                          </span>
-                        ))}
-                      </div>
+                      <button
+                        type="button"
+                        className="df-token-ref-toggle"
+                        aria-expanded={tokenRefOpen}
+                        aria-controls="df-token-ref-list"
+                        onClick={() => setTokenRefOpen((open) => !open)}
+                      >
+                        <span>Token reference</span>
+                        <span className="df-token-ref-count">{activationData.metadata.decoded_tokens.length}</span>
+                        <svg className="oz-caret" viewBox="0 0 10 6" aria-hidden="true">
+                          <path d="M1 1l4 4 4-4" />
+                        </svg>
+                      </button>
+                      {tokenRefOpen && (
+                        <div className="df-token-ref-list" id="df-token-ref-list">
+                          {activationData.metadata.decoded_tokens.map((token, idx) => (
+                            <span
+                              key={idx}
+                              className="df-chip"
+                              title={`Token ${idx}: "${token}"`}
+                            >
+                              <span className="df-chip-index">{idx}</span>
+                              <span>{token.replace(/ /g, '\u00B7') || '\u25AF'}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -920,22 +935,44 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
         }
 
         .df-token-ref {
-          padding: 0.85rem var(--oz-gutter) 0.95rem;
           border-bottom: 1px solid var(--oz-rule);
         }
 
-        .df-token-ref-label {
-          display: block;
-          margin-bottom: 0.55rem;
+        /* Closed until asked for: a row that opens the list under it */
+        .df-token-ref-toggle {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          width: 100%;
+          padding: 0.7rem var(--oz-gutter);
           color: var(--oz-fg-dim);
           font-size: 0.8rem;
           font-weight: 500;
+          text-align: left;
+          cursor: pointer;
+          transition: color 0.15s ease;
+        }
+
+        .df-token-ref-toggle:hover,
+        .df-token-ref-toggle[aria-expanded='true'] {
+          color: var(--oz-fg);
+        }
+
+        .df-token-ref-count {
+          color: var(--oz-fg-faint);
+          font-family: var(--oz-mono);
+          font-size: 0.72rem;
+        }
+
+        .df-token-ref-toggle .oz-caret {
+          margin-left: auto;
         }
 
         .df-token-ref-list {
           display: flex;
           flex-wrap: wrap;
           gap: 3px;
+          padding: 0 var(--oz-gutter) 0.95rem;
         }
 
         /* A token and its position, as a cell */
