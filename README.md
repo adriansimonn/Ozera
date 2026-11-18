@@ -2,7 +2,7 @@
 
 A workbench for interpretability research on language models
 
-**Live at [ozera.app](https://ozera.app) - BETA**
+**Live at [ozera.app](https://ozera.app)**
 
 ## Overview
 
