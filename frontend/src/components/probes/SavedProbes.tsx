@@ -82,7 +82,7 @@ export function SavedProbes({ probes, loading, activeId, onUse, onDeleted }: Sav
       {loading && probes.length === 0 ? (
         <div className="pl-note">Loading…</div>
       ) : probes.length === 0 ? (
-        <div className="pl-empty" style={{ borderColor: colors.border }}>
+        <div className="pl-empty">
           No saved probes yet
         </div>
       ) : (
@@ -123,7 +123,6 @@ export function SavedProbes({ probes, loading, activeId, onUse, onDeleted }: Sav
                     aria-label={`Use ${probe.name} in the token heatmap`}
                     disabled={!probe.model_available}
                     onClick={() => onUse(probe)}
-                    style={{ color: colors.text }}
                   >
                     <Crosshair className="pl-icon" />
                   </button>
@@ -133,7 +132,6 @@ export function SavedProbes({ probes, loading, activeId, onUse, onDeleted }: Sav
                     title="Export as JSON (with weights)"
                     aria-label={`Export ${probe.name}`}
                     onClick={() => handleExport(probe)}
-                    style={{ color: colors.text }}
                   >
                     <Download className="pl-icon" />
                   </button>
@@ -143,7 +141,6 @@ export function SavedProbes({ probes, loading, activeId, onUse, onDeleted }: Sav
                     title="Delete"
                     aria-label={`Delete ${probe.name}`}
                     onClick={() => setDeleting(probe)}
-                    style={{ color: colors.text }}
                   >
                     <Trash2 className="pl-icon" />
                   </button>
@@ -164,11 +161,13 @@ export function SavedProbes({ probes, loading, activeId, onUse, onDeleted }: Sav
       />
 
       <style>{`
-        .probe-lab .pl-saved-list { display: flex; flex-direction: column; gap: 0.4rem; max-height: 420px; overflow-y: auto; }
-        .probe-lab .pl-saved-item { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.55rem 0.65rem; border: 1px solid; }
+        /* Saved probes: a ruled list */
+        .probe-lab .pl-saved-list { display: flex; flex-direction: column; max-height: 420px; overflow-y: auto; }
+        .probe-lab .pl-saved-item { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.7rem 0; border: none; border-top: 1px solid var(--oz-rule); }
+        .probe-lab .pl-saved-item:last-child { border-bottom: 1px solid var(--oz-rule); }
         .probe-lab .pl-saved-main { flex: 1; min-width: 0; }
-        .probe-lab .pl-saved-name { font-size: 0.82rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .probe-lab .pl-saved-meta { font-size: 0.72rem; margin-top: 0.1rem; }
+        .probe-lab .pl-saved-name { font-size: 0.9375rem; font-weight: 500; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .probe-lab .pl-saved-meta { color: var(--oz-fg-dim); font-size: 0.8rem; margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
         .probe-lab .pl-saved-actions { display: flex; gap: 0.15rem; }
       `}</style>
     </div>

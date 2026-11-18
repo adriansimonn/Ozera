@@ -12,7 +12,7 @@ export function SaeDeepLinkNote({ feature }: { feature: number }) {
         border: `1px solid ${tc.border}`,
         background: tc.surface,
         color: tc.text,
-        fontSize: '0.8rem',
+        fontSize: '0.875rem',
         lineHeight: 1.45,
       }}
     >

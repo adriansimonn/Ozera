@@ -157,7 +157,7 @@ export function LayerSweepChart({ run, pooling, method, metric, evalSet, positio
               height={innerH}
               fill={colors.hover}
             />
-            <text x={x(position)} y={MARGIN.top - 10} textAnchor="middle" fontSize={11} fontWeight={600} fill={colors.text} {...halo}>
+            <text x={x(position)} y={MARGIN.top - 10} textAnchor="middle" fontSize={11} fontWeight={500} fill={colors.text} {...halo}>
               {position === 0 ? 'embeddings' : `layer ${position - 1}`}
             </text>
 
@@ -301,7 +301,7 @@ function SweepTable({
     <div style={{ maxHeight: 340, overflowY: 'auto', border: `1px solid ${colors.border}` }}>
       <table className="pl-table" aria-label={`Per-layer metrics (${evalSet === 'test' ? 'test set' : 'OOD'})`}>
         <thead>
-          <tr style={{ background: colors.isLight ? '#f5f5f7' : '#151515' }}>
+          <tr>
             <th>Layer</th>
             {columns.map((c) => (
               <th key={c.label}>{c.label}</th>
@@ -315,7 +315,7 @@ function SweepTable({
               onClick={() => onSelectPosition(i)}
               style={{ background: i === position ? colors.hover : undefined, borderTop: `1px solid ${colors.grid}` }}
             >
-              <td style={{ fontWeight: i === position ? 600 : 400 }}>{i === 0 ? 'emb' : positionLabel(i)}</td>
+              <td style={{ fontWeight: i === position ? 500 : 400 }}>{i === 0 ? 'emb' : positionLabel(i)}</td>
               {columns.map((c) => (
                 <td key={c.label}>
                   {c.percent ? formatPercent(c.values[i]) : formatMetric(c.values[i])}

@@ -3,7 +3,6 @@
  * (values, optional groups, templates and a structure type).
  */
 
-import { Copy } from 'lucide-react'
 import type { GeometryLab } from '../../hooks/useGeometryLab'
 import type { ConceptStructure, ConceptSummary } from '../../types/geometry'
 import { Segmented } from '../lab/chartKit'
@@ -26,7 +25,7 @@ function ValueChips({ concept }: { concept: Pick<ConceptSummary, 'structure' | '
   return (
     <div className="gl-chips">
       {shown.map((value, i) => (
-        <span key={value} className="gl-chip" style={{ borderColor: colors.border }} title={concept.groups?.[i]}>
+        <span key={value} className="gl-chip" title={concept.groups?.[i]}>
           <span className="pl-legend-dot" style={{ background: fills[i] }} />
           {value}
         </span>
@@ -37,7 +36,6 @@ function ValueChips({ concept }: { concept: Pick<ConceptSummary, 'structure' | '
 }
 
 function Builtin({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
-  const colors = useLabColors()
   return (
     <div>
       {(['cyclic', 'ordinal', 'categorical'] as const).map((structure) => {
@@ -45,13 +43,13 @@ function Builtin({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
         if (concepts.length === 0) return null
         return (
           <div key={structure}>
-            <div className="pl-control-label" style={{ marginTop: '0.75rem' }} title={STRUCTURE_TITLES[structure]}>
+            <div className="pl-control-label gl-list-label" title={STRUCTURE_TITLES[structure]}>
               {STRUCTURE_LABELS[structure]}
             </div>
             {concepts.map((c) => {
               const active = c.id === lab.builtinId
               return (
-                <div key={c.id} className="gl-item" style={{ borderColor: active ? colors.text : colors.border, background: active ? colors.hover : 'transparent' }}>
+                <div key={c.id} className={`gl-item${active ? ' is-active' : ''}`}>
                   <button
                     type="button"
                     className="gl-pick"
@@ -59,7 +57,6 @@ function Builtin({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
                     disabled={disabled}
                     aria-pressed={active}
                     title={c.description}
-                    style={{ color: colors.text }}
                   >
                     <span className="gl-name">{c.name}</span>
                     <span className="pl-hint">
@@ -77,9 +74,7 @@ function Builtin({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
                         className="pl-link"
                         onClick={() => lab.copyToCustom(c.id)}
                         disabled={disabled}
-                        style={{ color: colors.accent, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
                       >
-                        <Copy className="pl-icon" aria-hidden="true" style={{ width: 12, height: 12 }} />
                         Edit a copy
                       </button>
                     </div>
@@ -97,7 +92,6 @@ function Builtin({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
 function Custom({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
   const colors = useLabColors()
   const { draft, setDraft, custom } = lab
-  const field = { borderColor: colors.border, background: colors.panel, color: colors.text }
   const badTemplates = [...custom.templates, ...(custom.eval_templates ?? [])].filter((t) => t.split('{x}').length !== 2).length
   const missingGroups = custom.groups ? custom.groups.filter((g) => !g).length : 0
 
@@ -109,7 +103,6 @@ function Custom({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
         value={draft.name}
         disabled={disabled}
         onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-        style={field}
         aria-label="Concept name"
         data-assist="geometry.concept_name"
       />
@@ -133,7 +126,6 @@ function Custom({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
           value={draft.values}
           disabled={disabled}
           onChange={(e) => setDraft({ ...draft, values: e.target.value })}
-          style={field}
           aria-label="Values"
           data-assist="geometry.values"
         />
@@ -149,7 +141,6 @@ function Custom({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
           value={draft.templates}
           disabled={disabled}
           onChange={(e) => setDraft({ ...draft, templates: e.target.value })}
-          style={field}
           aria-label="Templates"
           data-assist="geometry.templates"
         />
@@ -165,7 +156,7 @@ function Custom({ lab, disabled }: { lab: GeometryLab; disabled?: boolean }) {
           value={draft.evalTemplates}
           disabled={disabled}
           onChange={(e) => setDraft({ ...draft, evalTemplates: e.target.value })}
-          style={{ ...field, minHeight: 52 }}
+          style={{ minHeight: 52 }}
           aria-label="Eval prompts"
           data-assist="geometry.eval_templates"
         />
@@ -204,33 +195,42 @@ export function ConceptPanel({ lab, disabled }: { lab: GeometryLab; disabled?: b
       {lab.source === 'builtin' ? <Builtin lab={lab} disabled={disabled} /> : <Custom lab={lab} disabled={disabled} />}
 
       <style>{`
-        .geometry-lab .gl-item { border: 1px solid; margin-bottom: 0.35rem; }
+        /* The built-in concepts: a ruled list, the chosen one open and marked */
+        .geometry-lab .gl-list-label { margin: 1.1rem 0 0.5rem; }
+        .geometry-lab .gl-item { position: relative; border-top: 1px solid var(--oz-rule); }
+        .geometry-lab .gl-item:last-child { border-bottom: 1px solid var(--oz-rule); }
+        .geometry-lab .gl-item.is-active::after { content: ''; position: absolute; left: 0; bottom: -1px; width: 100%; height: 1px; background: var(--oz-mark); }
         .geometry-lab .gl-pick {
           display: flex;
           width: 100%;
           justify-content: space-between;
           align-items: baseline;
-          gap: 0.5rem;
-          padding: 0.5rem 0.65rem;
+          gap: 0.75rem;
+          padding: 0.7rem 0;
           background: none;
           border: none;
+          color: var(--oz-fg-dim);
           cursor: pointer;
           text-align: left;
+          transition: color 0.2s ease;
         }
+        .geometry-lab .gl-pick:hover:not(:disabled),
+        .geometry-lab .gl-item.is-active .gl-pick { color: var(--oz-fg); }
         .geometry-lab .gl-pick:disabled { cursor: not-allowed; }
-        .geometry-lab .gl-name { font-size: 0.82rem; font-weight: 600; }
-        .geometry-lab .gl-detail { padding: 0 0.65rem 0.6rem; display: flex; flex-direction: column; gap: 0.45rem; align-items: flex-start; }
-        .geometry-lab .gl-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+        .geometry-lab .gl-pick .pl-hint { color: inherit; font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .geometry-lab .gl-name { font-size: 0.9375rem; font-weight: 500; letter-spacing: -0.01em; }
+        .geometry-lab .gl-detail { padding: 0 0 1rem; display: flex; flex-direction: column; gap: 0.6rem; align-items: flex-start; }
+        .geometry-lab .gl-chips { display: flex; flex-wrap: wrap; gap: 4px; }
         .geometry-lab .gl-chip {
           display: inline-flex;
           align-items: center;
-          gap: 0.3rem;
-          padding: 0.1rem 0.4rem;
-          border: 1px solid;
-          font-size: 0.7rem;
+          gap: 0.35rem;
+          padding: 0.15rem 0.45rem;
+          border: 1px solid var(--oz-rule-strong);
+          font-size: 0.78rem;
           white-space: nowrap;
         }
-        .geometry-lab .gl-custom { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.75rem; }
+        .geometry-lab .gl-custom { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; }
       `}</style>
     </div>
   )

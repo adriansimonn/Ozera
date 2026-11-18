@@ -9,7 +9,7 @@ import {
   RefreshCcw,
   ChevronLeft,
   ChevronRight,
-  Loader2,
+  
   Zap,
   Search,
   MessageSquare,
@@ -17,46 +17,46 @@ import {
   Microscope,
   Shapes,
   Sparkles,
-  Bot,
-} from 'lucide-react';
+  Bot } from 'lucide-react';
 import { useTransactions, Transaction } from '../../hooks/useCredits';
+import { Spinner } from '../common/Spinner'
 
 const ITEMS_PER_PAGE = 10;
 
 function getTransactionIcon(type: Transaction['transaction_type']) {
   switch (type) {
     case 'credit_purchase':
-      return <CreditCard size={16} className="text-green-400" />;
+      return <CreditCard size={16} className="text-ok" />;
     case 'training_charge':
-      return <Cpu size={16} className="text-orange-400" />;
+      return <Cpu size={16} className="text-warn" />;
     case 'training_refund':
-      return <RefreshCcw size={16} className="text-blue-400" />;
+      return <RefreshCcw size={16} className="text-fg" />;
     case 'admin_adjustment':
-      return <ArrowUpRight size={16} className="text-purple-400" />;
+      return <ArrowUpRight size={16} className="text-fg" />;
     case 'inference_charge':
-      return <MessageSquare size={16} className="text-yellow-400" />;
+      return <MessageSquare size={16} className="text-warn" />;
     case 'inference_refund':
-      return <RefreshCcw size={16} className="text-blue-400" />;
+      return <RefreshCcw size={16} className="text-fg" />;
     case 'patching_charge':
-      return <Zap size={16} className="text-pink-400" />;
+      return <Zap size={16} className="text-fg" />;
     case 'analysis_charge':
-      return <Search size={16} className="text-cyan-400" />;
+      return <Search size={16} className="text-fg" />;
     case 'sae_charge':
-      return <Layers size={16} className="text-indigo-400" />;
+      return <Layers size={16} className="text-fg" />;
     case 'probe_charge':
-      return <Microscope size={16} className="text-teal-400" />;
+      return <Microscope size={16} className="text-fg" />;
     case 'geometry_charge':
-      return <Shapes size={16} className="text-violet-400" />;
+      return <Shapes size={16} className="text-fg" />;
     case 'geometry_refund':
-      return <RefreshCcw size={16} className="text-blue-400" />;
+      return <RefreshCcw size={16} className="text-fg" />;
     case 'autointerp_charge':
-      return <Sparkles size={16} className="text-amber-400" />;
+      return <Sparkles size={16} className="text-warn" />;
     case 'autointerp_refund':
-      return <RefreshCcw size={16} className="text-blue-400" />;
+      return <RefreshCcw size={16} className="text-fg" />;
     case 'assistant':
       return <Bot size={16} className="text-sky-400" />;
     default:
-      return <ArrowUpRight size={16} className="text-white" />;
+      return <ArrowUpRight size={16} className="text-fg" />;
   }
 }
 
@@ -116,21 +116,21 @@ function TransactionRow({ transaction }: TransactionRowProps) {
   const isPositive = transaction.amount_usd > 0;
 
   return (
-    <div className="flex items-center justify-between py-3 border-b border-gray-800 last:border-0">
+    <div className="flex items-center justify-between py-3 border-b border-rule last:border-0">
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-[#2a2a2a] flex items-center justify-center">
+        <div className="w-8 h-8 bg-transparent flex items-center justify-center">
           {getTransactionIcon(transaction.transaction_type)}
         </div>
         <div>
-          <div className="text-sm font-medium text-white">
+          <div className="text-sm font-medium text-fg">
             {getTransactionLabel(transaction.transaction_type)}
           </div>
-          <div className="text-xs text-white">
+          <div className="text-[0.82rem] text-fg">
             {transaction.description || formatDate(transaction.created_at)}
           </div>
         </div>
       </div>
-      <div className={`text-sm font-medium ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+      <div className={`text-sm font-medium ${isPositive ? 'text-ok' : 'text-danger'}`}>
         {isPositive ? '+' : ''}${Math.abs(transaction.amount_usd).toFixed(2)}
       </div>
     </div>
@@ -168,18 +168,18 @@ export function TransactionHistory({ compact = false, maxItems }: TransactionHis
   if (loading && transactions.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 size={24} className="animate-spin text-white" />
+        <Spinner large />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center py-8 text-white">
+      <div className="text-center py-8 text-fg">
         <p>Failed to load transactions</p>
         <button
           onClick={() => fetchTransactions()}
-          className="mt-2 text-sm text-blue-400 hover:text-blue-300"
+          className="mt-2 text-sm text-fg hover:text-mark"
         >
           Try again
         </button>
@@ -189,7 +189,7 @@ export function TransactionHistory({ compact = false, maxItems }: TransactionHis
 
   if (transactions.length === 0) {
     return (
-      <div className="text-center py-8 text-white">
+      <div className="text-center py-8 text-fg">
         <p>No transactions yet</p>
         <p className="text-sm mt-1">Purchase credits to get started!</p>
       </div>
@@ -207,9 +207,9 @@ export function TransactionHistory({ compact = false, maxItems }: TransactionHis
   }
 
   return (
-    <div className="bg-[#1a1a1a] border border-gray-700 rounded-lg">
-      <div className="p-4 border-b border-gray-700">
-        <h3 className="text-sm font-medium text-white">Transaction History</h3>
+    <div className="bg-transparent border border-rule">
+      <div className="p-4 border-b border-rule">
+        <h3 className="text-sm font-medium text-fg">Transaction History</h3>
       </div>
 
       <div className="p-4">
@@ -220,24 +220,24 @@ export function TransactionHistory({ compact = false, maxItems }: TransactionHis
 
       {/* Pagination */}
       {!maxItems && totalPages > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-700">
-          <span className="text-sm text-white">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-rule">
+          <span className="text-sm text-fg">
             Page {page + 1} of {totalPages}
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrevPage}
               disabled={page === 0 || loading}
-              className="p-1 rounded hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-1 hover:bg-fill-strong disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronLeft size={18} className="text-white" />
+              <ChevronLeft size={18} className="text-fg" />
             </button>
             <button
               onClick={handleNextPage}
               disabled={page >= totalPages - 1 || loading}
-              className="p-1 rounded hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-1 hover:bg-fill-strong disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronRight size={18} className="text-white" />
+              <ChevronRight size={18} className="text-fg" />
             </button>
           </div>
         </div>

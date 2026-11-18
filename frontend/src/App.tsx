@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useState, useCallback } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import UnifiedPage from './pages/UnifiedPage'
@@ -17,6 +17,7 @@ import { PurchaseCreditsProvider } from './contexts/PurchaseCreditsContext'
 import { AssistantHost } from './components/assistant/AssistantPanel'
 import { useAuthStore } from './stores/authStore'
 import { useTheme } from './hooks/useTheme'
+import { appPalette, paletteVars } from './styles/appTheme'
 import { useConfirmationLanding } from './hooks/useConfirmationLanding'
 
 const queryClient = new QueryClient({
@@ -40,6 +41,23 @@ function AppShell() {
 
   const handleShowPurchaseCredits = useCallback(() => setShowPurchaseCredits(true), [])
 
+  // The app's pages take their colors from custom properties on <html> (styles/app.css); the
+  // homepage and the sign-in page keep their own
+  const isAppPage = !isAuthPage && !isHomePage
+  useLayoutEffect(() => {
+    if (!isAppPage) return
+    const root = document.documentElement
+    const vars = paletteVars(appPalette(background === 'light'))
+    for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value)
+    root.classList.add('oz-app-active')
+    root.dataset.ozBg = background
+    return () => {
+      for (const name of Object.keys(vars)) root.style.removeProperty(name)
+      root.classList.remove('oz-app-active')
+      delete root.dataset.ozBg
+    }
+  }, [isAppPage, background])
+
   // Hydrate auth state from Supabase session on mount
   useEffect(() => {
     initialize()
@@ -47,7 +65,7 @@ function AppShell() {
 
   return (
     <PurchaseCreditsProvider onShow={handleShowPurchaseCredits}>
-    <div className="min-h-screen bg-black" data-bg={isAuthPage || isHomePage ? undefined : background}>
+    <div className={isAppPage ? 'oz-app' : 'min-h-screen bg-black'} data-bg={isAppPage ? background : undefined}>
       <main className="content-container">
             <Routes>
               <Route path="/" element={confirming ? null : <HomePage />} />
@@ -65,7 +83,7 @@ function AppShell() {
           </main>
 
           {/* The assistant: outside the routes, so it stays open across pages */}
-          {!isAuthPage && !isHomePage && <AssistantHost />}
+          {isAppPage && <AssistantHost />}
 
           {/* Purchase Credits Modal */}
           <PurchaseCreditsModal

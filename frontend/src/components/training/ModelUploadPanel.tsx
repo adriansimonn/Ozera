@@ -3,11 +3,11 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react'
-import { Upload, X, Box, Check, AlertCircle, Loader2, Info } from 'lucide-react'
+import {  X,  Check, AlertCircle,  Info } from 'lucide-react'
 import { useModelUpload, useCustomModelCount } from '../../hooks/useTraining'
 import { useAuthStore } from '../../stores/authStore'
-import { useThemeColors } from '../../hooks/useTheme'
 import { MODEL_NAME_MAX_LENGTH, isReservedModelName, sanitizeModelName } from '../../data/defaultModels'
+import { Spinner } from '../common/Spinner'
 
 interface ModelUploadPanelProps {
   onUploadComplete?: () => void
@@ -21,7 +21,6 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
   onShowLogin,
 }) => {
   const { isAuthenticated } = useAuthStore()
-  const tc = useThemeColors()
   const [isDragging, setIsDragging] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [modelName, setModelName] = useState('')
@@ -161,17 +160,12 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
   const error = localError || uploadError
 
   return (
-    <div
-      style={{
-        background: tc.surface,
-        borderRadius: '0',
-        border: `1px solid ${tc.border}`,
-        padding: '20px',
-      }}
-    >
-      <h3 style={{ color: tc.text, fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>
-        Upload Model
-      </h3>
+    <div className="model-upload oz-section">
+      <h2 className="oz-title">Upload model</h2>
+      <p className="oz-hint mu-intro">
+        A .safetensors file of an Ozera-architecture model, up to 500MB. It becomes available on every page. One custom
+        model at a time, trained or uploaded.
+      </p>
 
       <input
         ref={fileInputRef}
@@ -183,54 +177,17 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
 
       {uploadedModel ? (
         // Show upload success
-        <div
-          style={{
-            background: 'rgba(34, 197, 94, 0.1)',
-            border: '1px solid rgba(34, 197, 94, 0.3)',
-            borderRadius: '0',
-            padding: '16px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '0',
-                background: 'rgba(34, 197, 94, 0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Check size={20} color="#22c55e" />
+        <div className="oz-note oz-note--ok">
+          <Check aria-hidden="true" />
+          <div>
+            <div className="mu-file-name">Model uploaded: {uploadedModel.name}</div>
+            <div className="oz-hint">
+              {formatBytes(uploadedModel.file_size_bytes)} · {formatParams(uploadedModel.num_parameters)} parameters
             </div>
-            <div>
-              <div style={{ color: '#22c55e', fontSize: '14px', fontWeight: 600 }}>
-                Model Uploaded Successfully
-              </div>
-              <div style={{ color: tc.textSub, fontSize: '12px', marginTop: '2px' }}>
-                {uploadedModel.name}
-              </div>
-            </div>
+            <button onClick={handleReset} className="oz-btn oz-btn--ghost oz-btn--small mu-again">
+              Upload Another
+            </button>
           </div>
-          <div style={{ color: tc.textSub, fontSize: '12px', marginBottom: '12px' }}>
-            {formatBytes(uploadedModel.file_size_bytes)} · {formatParams(uploadedModel.num_parameters)} parameters
-          </div>
-          <button
-            onClick={handleReset}
-            style={{
-              background: tc.surfaceActive,
-              border: `1px solid ${tc.borderHover}`,
-              borderRadius: '0',
-              padding: '8px 16px',
-              color: tc.text,
-              fontSize: '12px',
-              cursor: 'pointer',
-            }}
-          >
-            Upload Another
-          </button>
         </div>
       ) : (
         <>
@@ -241,117 +198,33 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              style={{
-                border: `2px dashed ${isDragging ? tc.textSub : tc.borderHover}`,
-                borderRadius: '8px',
-                padding: '32px',
-                textAlign: 'center',
-                cursor: disabled || uploading ? 'not-allowed' : 'pointer',
-                background: isDragging ? tc.surfaceHover : 'transparent',
-                transition: 'all 0.2s ease',
-                opacity: disabled ? 0.5 : 1,
-              }}
+              className={`mu-drop${isDragging ? ' is-over' : ''}${disabled || uploading ? ' is-off' : ''}`}
             >
-              <div
-                style={{
-                  width: '48px',
-                  height: '48px',
-                  margin: '0 auto 12px',
-                  borderRadius: '0',
-                  background: tc.surfaceActive,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {isDragging ? <Box size={24} color={tc.text} /> : <Upload size={24} color={tc.textSub} />}
-              </div>
-              <div style={{ color: tc.textMid, fontSize: '14px', marginBottom: '4px' }}>
-                {isDragging ? 'Drop model file here' : 'Drag & drop a .safetensors file'}
-              </div>
-              <div style={{ color: tc.textMid, fontSize: '14px', marginBottom: '8px' }}>
-                or click to browse
-              </div>
-              <div style={{ color: tc.textMuted, fontSize: '12px' }}>
-                Maximum file size: 500MB
-              </div>
+              {isDragging ? 'Drop model file here' : 'Drag & drop a .safetensors file or click to browse'}
             </div>
           ) : (
             // Selected file info
-            <div
-              style={{
-                background: 'rgba(59, 130, 246, 0.1)',
-                border: '1px solid rgba(59, 130, 246, 0.3)',
-                borderRadius: '0',
-                padding: '12px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                marginBottom: '16px',
-              }}
-            >
-              <div
-                style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '0',
-                  background: 'rgba(59, 130, 246, 0.2)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Box size={18} color="#3b82f6" />
-              </div>
+            <div className="mu-file">
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    color: tc.text,
-                    fontSize: '13px',
-                    fontWeight: 500,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {selectedFile.name}
-                </div>
-                <div style={{ color: tc.textSub, fontSize: '11px', marginTop: '2px' }}>
-                  {formatBytes(selectedFile.size)}
-                </div>
+                <div className="mu-file-name">{selectedFile.name}</div>
+                <div className="oz-hint">{formatBytes(selectedFile.size)}</div>
               </div>
               <button
                 onClick={() => setSelectedFile(null)}
                 disabled={uploading}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  padding: '4px',
-                  cursor: uploading ? 'not-allowed' : 'pointer',
-                  color: tc.textSub,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
+                className="oz-icon-btn"
+                aria-label="Remove file"
+                title="Remove file"
               >
-                <X size={16} />
+                <X />
               </button>
             </div>
           )}
 
           {/* Model name input */}
           {selectedFile && (
-            <div style={{ marginBottom: '16px' }}>
-              <label
-                style={{
-                  display: 'block',
-                  color: tc.textMid,
-                  fontSize: '12px',
-                  marginBottom: '6px',
-                }}
-              >
-                Model Name
-              </label>
+            <div className="mu-field">
+              <label className="oz-label">Model name</label>
               <input
                 type="text"
                 value={modelName}
@@ -359,58 +232,26 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
                 disabled={uploading}
                 maxLength={MODEL_NAME_MAX_LENGTH}
                 placeholder="e.g., my-custom-model"
-                style={{
-                  width: '100%',
-                  background: tc.inputBg,
-                  border: `1px solid ${tc.borderHover}`,
-                  borderRadius: '0',
-                  padding: '10px 12px',
-                  color: tc.text,
-                  fontSize: '13px',
-                  outline: 'none',
-                }}
+                className="oz-input"
               />
             </div>
           )}
 
           {/* Overwrite checkbox */}
           {selectedFile && hasExistingModel && (
-            <div style={{ marginBottom: '16px' }}>
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                }}
-              >
+            <div className="mu-field">
+              <label className="mu-check">
                 <input
                   type="checkbox"
                   checked={overwriteExisting}
                   onChange={(e) => setOverwriteExisting(e.target.checked)}
                   disabled={uploading}
-                  style={{ accentColor: '#3b82f6' }}
                 />
-                <span style={{ color: tc.textMid, fontSize: '12px' }}>
-                  Replace existing custom model
-                </span>
+                <span>Replace existing custom model</span>
               </label>
-              <div
-                style={{
-                  marginTop: '6px',
-                  padding: '8px 12px',
-                  background: 'rgba(245, 158, 11, 0.1)',
-                  border: '1px solid rgba(245, 158, 11, 0.3)',
-                  borderRadius: '0',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '8px',
-                }}
-              >
-                <AlertCircle size={14} color="#f59e0b" style={{ flexShrink: 0, marginTop: '1px' }} />
-                <span style={{ color: '#f59e0b', fontSize: '11px' }}>
-                  You already have a custom model. Uploading will permanently delete your existing model.
-                </span>
+              <div className="oz-note oz-note--warn mu-note">
+                <AlertCircle aria-hidden="true" />
+                <span>You already have a custom model. Uploading will permanently delete your existing model.</span>
               </div>
             </div>
           )}
@@ -420,36 +261,15 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
             <button
               onClick={handleUpload}
               disabled={uploading || !modelName.trim() || (hasExistingModel && !overwriteExisting)}
-              style={{
-                width: '100%',
-                background: uploading || !modelName.trim() || (hasExistingModel && !overwriteExisting)
-                  ? 'rgba(59, 130, 246, 0.3)'
-                  : 'rgba(59, 130, 246, 0.8)',
-                border: '1px solid rgba(59, 130, 246, 0.5)',
-                borderRadius: '0',
-                padding: '12px',
-                color: tc.text,
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: uploading || !modelName.trim() || (hasExistingModel && !overwriteExisting)
-                  ? 'not-allowed'
-                  : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-              }}
+              className={`oz-btn oz-btn--block mu-submit${uploading ? '' : ' oz-btn--arrow'}`}
             >
               {uploading ? (
                 <>
-                  <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                  <Spinner />
                   Uploading... {progress}%
                 </>
               ) : (
-                <>
-                  <Upload size={16} />
-                  Upload Model
-                </>
+                'Upload Model'
               )}
             </button>
           )}
@@ -458,76 +278,56 @@ export const ModelUploadPanel: React.FC<ModelUploadPanelProps> = ({
 
       {/* Error display */}
       {error && (
-        <div
-          style={{
-            marginTop: '12px',
-            padding: '10px 12px',
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            borderRadius: '0',
-            color: '#ef4444',
-            fontSize: '12px',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '8px',
-          }}
-        >
-          <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
-          {error}
+        <div className="oz-note oz-note--error mu-note" role="alert">
+          <AlertCircle aria-hidden="true" />
+          <span>{error}</span>
         </div>
       )}
 
       {/* Architecture warning */}
-      <div
-        style={{
-          marginTop: '16px',
-          padding: '10px 12px',
-          background: 'rgba(245, 158, 11, 0.1)',
-          border: '1px solid rgba(245, 158, 11, 0.3)',
-          borderRadius: '4px',
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: '10px',
-        }}
-      >
-        <Info size={14} color="#f59e0b" style={{ flexShrink: 0, marginTop: '2px' }} />
-        <div style={{ fontSize: '11px' }}>
-          <div style={{ color: '#f59e0b', fontWeight: 500, marginBottom: '4px' }}>
-            Architecture Compatibility
-          </div>
-          <div style={{ color: 'rgba(251, 191, 36, 0.9)' }}>
-            Only models trained with the Ozera architecture are supported. Models from other architectures (SmolLM, Gemma, Qwen, Llama, etc.) will produce incorrect outputs. For open-source models, use the pre-registered models from the dropdown menu instead.
-          </div>
-        </div>
-      </div>
-
-      {/* Info section */}
-      <div
-        style={{
-          marginTop: '12px',
-          padding: '12px',
-          background: tc.deepBg,
-          borderRadius: '0',
-          fontSize: '11px',
-          color: tc.textSub,
-        }}
-      >
-        <div style={{ fontWeight: 500, marginBottom: '6px', color: tc.textMid }}>
-          Supported format
-        </div>
-        <div>
-          Upload a .safetensors model file. The model will be available for text generation
-          and visualization on the Generate page.
-        </div>
-        <div style={{ marginTop: '8px', color: tc.textMuted }}>
-          Note: You can only have one custom model at a time (trained or uploaded).
-        </div>
+      <div className="oz-note oz-note--warn mu-note">
+        <Info aria-hidden="true" />
+        <span>
+          Models from other architectures (SmolLM, Gemma, Qwen, Llama, etc.) will produce incorrect outputs. For
+          open-source models, use the models already in the model menus.
+        </span>
       </div>
 
       <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
+        .model-upload.oz-section { border-bottom: none; }
+        .model-upload .mu-intro { max-width: 46rem; margin: 0 0 1.25rem; }
+        .model-upload .mu-drop {
+          padding: 2.25rem 1.5rem;
+          border: 1px dashed var(--oz-rule-strong);
+          color: var(--oz-fg-dim);
+          font-size: 0.9375rem;
+          text-align: center;
+          cursor: pointer;
+          transition: border-color 0.2s ease, color 0.2s ease;
         }
+        .model-upload .mu-drop:hover, .model-upload .mu-drop.is-over { border-color: var(--oz-mark); color: var(--oz-mark); }
+        .model-upload .mu-drop.is-off { opacity: 0.5; cursor: not-allowed; }
+        .model-upload .mu-file {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.7rem 0;
+          border-top: 1px solid var(--oz-rule);
+          border-bottom: 1px solid var(--oz-rule);
+        }
+        .model-upload .mu-file-name {
+          overflow: hidden;
+          font-size: 1.0625rem;
+          font-weight: 500;
+          letter-spacing: -0.02em;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .model-upload .mu-field { margin-top: 1.25rem; }
+        .model-upload .mu-check { display: flex; align-items: center; gap: 0.6rem; font-size: 0.9375rem; cursor: pointer; }
+        .model-upload .mu-note { margin-top: 1rem; }
+        .model-upload .mu-submit { margin-top: 1.25rem; }
+        .model-upload .mu-again { margin-top: 0.75rem; }
       `}</style>
     </div>
   )

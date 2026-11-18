@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
-import { Download, Puzzle } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { apiClient } from '../../api/client'
 import { runConceptSpec, type GeometryLab } from '../../hooks/useGeometryLab'
 import type { ProbeSaeInfo } from '../../types/probes'
@@ -167,7 +167,7 @@ export function SaeView({ lab }: { lab: GeometryLab }) {
   if (!run || runId == null) {
     return (
       <section className="pl-panel">
-        <Placeholder icon={Puzzle}>{lab.running ? 'Reading every layer…' : 'Run a concept, then read it through an SAE.'}</Placeholder>
+        <Placeholder glyph="sae">{lab.running ? 'Reading every layer…' : 'Run a concept, then read it through an SAE.'}</Placeholder>
       </section>
     )
   }
@@ -194,7 +194,6 @@ function SaeBody({
   results: StoredSae[]
   onResult: (result: GeometrySaeResult, key: string) => number
 }) {
-  const colors = useLabColors()
   const [saes, setSaes] = useState<ProbeSaeInfo[] | null>(null)
   const [choice, setChoice] = useState('')
   const [estimate, setEstimate] = useState<GeometrySaeEstimate | null>(null)
@@ -307,9 +306,9 @@ function SaeBody({
         {!lab.isAuthenticated ? null : saes == null ? (
           <div className="pl-note">Looking for SAEs…</div>
         ) : usable.length === 0 ? (
-          <div className="pl-empty" style={{ borderColor: colors.border }}>
+          <div className="pl-empty">
             No SAE reads {lab.modelName(run.model)}&apos;s residual stream. {isGemma ? 'Load Gemma Scope 2 resid_post SAEs on the ' : 'Load one on the '}
-            <a href="/sae" target="_blank" rel="noopener noreferrer" style={{ color: colors.accent }}>
+            <a href="/sae" target="_blank" rel="noopener noreferrer" className="pl-inline-link">
               SAE page
             </a>
             .
@@ -357,13 +356,13 @@ function SaeBody({
 
       <style>{`
         .geometry-lab .gl-sae-pick { max-width: 640px; }
-        .geometry-lab .gl-sae-head { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: flex-end; margin-bottom: 0.875rem; }
+        .geometry-lab .gl-sae-head { display: flex; flex-wrap: wrap; gap: 0.9rem 1.5rem; align-items: flex-end; margin-bottom: 1rem; }
         .geometry-lab .gl-sae-head .gl-sae-result { min-width: 220px; max-width: 420px; flex: 1; }
-        .geometry-lab .gl-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; }
-        .geometry-lab .gl-field-title { font-size: 0.72rem; margin-bottom: 0.2rem; display: flex; justify-content: space-between; gap: 0.4rem; white-space: nowrap; }
+        .geometry-lab .gl-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
+        .geometry-lab .gl-field-title { font-size: 0.8rem; font-weight: 500; margin-bottom: 0.25rem; display: flex; justify-content: space-between; gap: 0.4rem; white-space: nowrap; }
         .geometry-lab .gl-field-title > span { overflow: hidden; text-overflow: ellipsis; }
         .geometry-lab .gl-sae-table td { white-space: nowrap; }
-        .geometry-lab .gl-sae-table .gl-sae-example { text-align: left; max-width: 18rem; overflow: hidden; text-overflow: ellipsis; font-size: 0.72rem; }
+        .geometry-lab .gl-sae-table .gl-sae-example { text-align: left; max-width: 18rem; overflow: hidden; text-overflow: ellipsis; font-size: 0.8rem; }
         .geometry-lab .gl-sae-compare th, .geometry-lab .gl-sae-compare td { white-space: nowrap; }
       `}</style>
     </div>
@@ -574,7 +573,6 @@ function SupportChart({ fit, other, filename }: { fit: SaeShapeFit; other: { fit
           title="Download SVG"
           aria-label="Download SVG"
           onClick={() => svgRef.current && downloadSvg(svgRef.current, `${filename}.svg`, colors.surface)}
-          style={{ color: colors.text }}
         >
           <Download className="pl-icon" />
         </button>
@@ -621,7 +619,7 @@ function SupportChart({ fit, other, filename }: { fit: SaeShapeFit; other: { fit
               return v != null ? <circle key={s.key} cx={x(hover.n)} cy={y(v)} r={3.5} fill={s.color} stroke={colors.surface} strokeWidth={1.5} /> : null
             })}
           {ends.map(({ s, py }) => (
-            <text key={s.key} x={CHART_MARGIN.left + innerW + 6} y={py} dy="0.32em" fontSize={10} fontWeight={600} fill={colors.text}>
+            <text key={s.key} x={CHART_MARGIN.left + innerW + 6} y={py} dy="0.32em" fontSize={10} fontWeight={500} fill={colors.text}>
               {s.label}
             </text>
           ))}
@@ -730,7 +728,6 @@ function TuningStrip({ run, result, fit, title }: { run: GeometryRun; result: Ge
             title="Download SVG"
             aria-label="Download SVG"
             onClick={() => svgRef.current && downloadSvg(svgRef.current, `${run.concept.name}-L${result.layer}-tuning.svg`.replace(/[^\w.-]+/g, '_'), colors.surface)}
-            style={{ color: colors.text }}
           >
             <Download className="pl-icon" />
           </button>
@@ -871,7 +868,7 @@ function FeatureTable({ run, result, fit }: { run: GeometryRun; result: Geometry
       <div style={{ maxHeight: 360, overflowY: 'auto', border: `1px solid ${colors.border}` }}>
         <table className="pl-table gl-sae-table" aria-label="SAE features in greedy order">
           <thead>
-            <tr style={{ background: colors.isLight ? '#f5f5f7' : '#151515' }}>
+            <tr>
               <th>#</th>
               <th>Feature</th>
               <th title="R² the feature adds when the greedy fit adds it">ΔR²</th>
@@ -944,7 +941,7 @@ function CompareTable({ a, b, k }: { a: { stored: StoredSae; fit: SaeShapeFit };
       </div>
       <table className="pl-table gl-sae-compare" aria-label="Two SAE results side by side">
         <thead>
-          <tr style={{ background: colors.isLight ? '#f5f5f7' : '#151515' }}>
+          <tr>
             <th />
             <th title={a.stored.label}>A</th>
             <th title={b.stored.label}>B</th>

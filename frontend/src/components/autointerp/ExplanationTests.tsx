@@ -10,13 +10,14 @@
  */
 
 import { useState } from 'react'
-import { Loader2, Trash2 } from 'lucide-react'
+import {  Trash2 } from 'lucide-react'
 import { useDeleteHypothesis, useExplainFeature, useGenerationTest, useScoreHypothesis, type AutointerpAtlasRef } from '../../hooks/useAutointerp'
 import type { AutointerpStatus, ExampleContext, Explanation, ExplanationSource, GenerationTest, GenerationText, Hypothesis } from '../../types/autointerp'
 import { Dropdown } from '../common/Dropdown'
 import { useLabColors } from '../lab/labTheme'
 import { ContextLine } from './ContextLine'
 import { formatScore, modelName } from './labels'
+import { Spinner } from '../common/Spinner'
 
 // The backend's MAX_HYPOTHESIS_CHARS (core/autointerp/budget.py): a hypothesis is as short as an explanation
 const MAX_HYPOTHESIS_CHARS = 200
@@ -100,7 +101,7 @@ export function GenerationTestPanel({
               <strong>{near.filter((t) => !t.fired).length}/{near.length}</strong> near-misses quiet
             </span>
             <span className="ai-stat" style={{ opacity: 0.65 }}>{modelName(test.generator)}</span>
-            <button type="button" className="pl-link" style={{ color: colors.accent }} onClick={() => setOpen((v) => !v)}>
+            <button type="button" className="pl-link" onClick={() => setOpen((v) => !v)}>
               {open ? 'Hide texts' : 'Show texts'}
             </button>
           </>
@@ -112,9 +113,8 @@ export function GenerationTestPanel({
               disabled={run.isPending || !status.available}
               onClick={start}
               title={GENERATION_HINT}
-              style={{ borderColor: colors.border, color: colors.text }}
             >
-              {run.isPending && <Loader2 size={12} className="animate-spin" />}
+              {run.isPending && <Spinner />}
               {run.isPending ? 'Testing' : `Test${status.generation_test_price != null ? ` · ${usd(status.generation_test_price)}` : ''}`}
             </button>
             {error && <span className="ai-stat" style={{ color: colors.warning }}>{error}</span>}
@@ -210,7 +210,7 @@ export function HypothesisPanel({
           onKeyDown={(ev) => ev.key === 'Enter' && submit()}
           placeholder="What do you think it fires on?"
           aria-label="Your explanation"
-          style={{ borderColor: colors.border, background: 'transparent', color: colors.text }}
+         
         />
         <button
           type="button"
@@ -218,9 +218,8 @@ export function HypothesisPanel({
           disabled={!trimmed || score.isPending || !status.available}
           onClick={submit}
           title={`${modelName(status.scorer)} scores it on the feature’s held-out contexts. Charged its usage.`}
-          style={{ borderColor: colors.border, color: colors.text }}
         >
-          {score.isPending && <Loader2 size={13} className="animate-spin" />}
+          {score.isPending && <Spinner />}
           {score.isPending ? 'Scoring' : `Score · ${usd(status.hypothesis_price)}`}
         </button>
       </div>
@@ -271,10 +270,10 @@ export function HypothesisPanel({
                 style={{ borderTop: `1px solid ${colors.grid}`, background: h.id === selected ? colors.hover : undefined }}
               >
                 <td className="ai-explanation-cell" title={h.status === 'scored' ? h.text : `${h.text}\n${h.note ?? h.status}`}>
-                  <span className="ai-row-tag" style={{ color: colors.accent }}>Yours</span>
+                  <span className="ai-row-tag">Yours</span>
                   {h.text}
                 </td>
-                <td style={{ fontWeight: 600 }}>{h.status === 'scored' ? formatScore(h.score) : h.status}</td>
+                <td style={{ fontWeight: 500 }}>{h.status === 'scored' ? formatScore(h.score) : h.status}</td>
                 <td>{formatScore(h.detection)}</td>
                 <td>{formatScore(h.fuzzing)}</td>
                 <td>{generation({ hypothesis_id: h.id })}</td>
@@ -290,7 +289,6 @@ export function HypothesisPanel({
                       if (h.id === selected) onSelect(null)
                       remove.mutate({ ref: featureRef, id: h.id })
                     }}
-                    style={{ color: colors.text }}
                   >
                     <Trash2 className="pl-icon" />
                   </button>
@@ -366,9 +364,8 @@ export function Versions({
           disabled={stored || explain.isPending || !status.available}
           onClick={run}
           title={stored ? 'Already explained with these models' : 'Explain and score it again with these models; the new explanation becomes the one shown'}
-          style={{ borderColor: colors.border, color: colors.text }}
         >
-          {explain.isPending && <Loader2 size={13} className="animate-spin" />}
+          {explain.isPending && <Spinner />}
           {explain.isPending ? 'Explaining' : stored ? 'Explained' : `Re-explain · ${usd(status.explain_price)}`}
         </button>
       </div>
@@ -384,7 +381,7 @@ export function Versions({
                     <span className="ai-row-tag">{i === 0 ? 'Shown' : formatDate(v.created_at)}</span>
                     {v.explanation ?? <span style={{ opacity: 0.6 }}>{v.note ?? v.status}</span>}
                   </td>
-                  <td style={{ fontWeight: 600 }}>{v.status === 'scored' ? formatScore(v.score) : v.status}</td>
+                  <td style={{ fontWeight: 500 }}>{v.status === 'scored' ? formatScore(v.score) : v.status}</td>
                   <td style={{ opacity: 0.75 }}>
                     {modelName(v.explainer).replace('Claude ', '')} / {modelName(v.scorer).replace('Claude ', '')}
                   </td>

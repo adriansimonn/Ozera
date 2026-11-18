@@ -4,7 +4,6 @@
  */
 
 import { useState } from 'react'
-import { ScanText } from 'lucide-react'
 import type { Pooling, ProbeMethod, ProbeRunResult, SavedProbe } from '../../types/probes'
 import { apiClient } from '../../api/client'
 import { Dropdown } from '../common/Dropdown'
@@ -125,7 +124,7 @@ export function TokenHeatmap({
       </div>
 
       {options.length === 0 ? (
-        <Placeholder icon={ScanText}>Train or save a probe to score text with it.</Placeholder>
+        <Placeholder glyph="probes">Train or save a probe to score text with it.</Placeholder>
       ) : (
         <>
           <div className="pl-control-label">Probe</div>
@@ -145,7 +144,7 @@ export function TokenHeatmap({
             placeholder="Text to score…"
             maxLength={2000}
             rows={3}
-            style={{ marginTop: '0.625rem', borderColor: colors.border, background: colors.panel, color: colors.text }}
+            style={{ marginTop: '0.625rem' }}
           />
           <RunBar label="Score text" running={scoring} disabled={!text.trim() || !ready} onRun={handleScore} assist="probes.score_button" />
         </>
@@ -154,7 +153,7 @@ export function TokenHeatmap({
       {error && <div className="pl-error-note">{error}</div>}
 
       {result && view && (
-        <div className="pl-result" style={{ borderColor: colors.border }}>
+        <div className="pl-result">
           <div className="pl-heatmap-verdict">
             <span className="pl-legend-dot" style={{ background: colors.classes[result.score > 0 ? 1 : 0] }} />
             <span>
@@ -212,17 +211,17 @@ export function TokenHeatmap({
       )}
 
       <style>{`
-        .probe-lab .pl-heatmap-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
-        .probe-lab .pl-heatmap-readout { font-size: 0.75rem; margin: 0.5rem 0; min-height: 1.1rem; font-variant-numeric: tabular-nums; }
+        .probe-lab .pl-heatmap-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; font-size: 0.95rem; }
+        .probe-lab .pl-heatmap-readout { color: var(--oz-fg-dim); font-size: 0.85rem; margin: 0.6rem 0; min-height: 1.2rem; font-variant-numeric: tabular-nums; }
         .probe-lab .pl-tokens {
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 0.82rem;
+          font-family: var(--oz-mono);
+          font-size: 0.875rem;
           line-height: 1.9;
           white-space: pre-wrap;
           word-break: break-word;
         }
-        .probe-lab .pl-scale { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.75rem; font-size: 0.75rem; }
-        .probe-lab .pl-scale-bar { width: 140px; height: 8px; border-radius: 4px; }
+        .probe-lab .pl-scale { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.9rem; color: var(--oz-fg-dim); font-size: 0.8rem; }
+        .probe-lab .pl-scale-bar { width: 140px; height: 8px; }
       `}</style>
     </div>
   )

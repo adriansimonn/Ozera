@@ -7,7 +7,6 @@ import { ProbeViewTabs, ProbeViews } from '../components/probes/ProbeViews'
 import { ModelPicker } from '../components/lab/ModelPicker'
 import { RunSettings } from '../components/probes/RunSettings'
 import { useProbeLab } from '../hooks/useProbeLab'
-import { useTheme } from '../hooks/useTheme'
 
 interface ProbesPageProps {
   onShowPurchaseCredits?: () => void
@@ -15,52 +14,43 @@ interface ProbesPageProps {
 
 export default function DefaultProbesPage({ onShowPurchaseCredits }: ProbesPageProps) {
   const lab = useProbeLab(onShowPurchaseCredits)
-  const { isLight } = useTheme()
-
-  const c = {
-    bg: isLight ? '#f5f5f7' : '#0a0a0a',
-    panelBg: isLight ? '#ffffff' : '#111111',
-    divider: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
-    text: isLight ? '#1d1d1f' : '#ffffff',
-  }
-
   return (
-    <div className="probe-lab lab-kit lab-page" style={{ background: c.bg, color: c.text }}>
+    <div className="probe-lab lab-kit lab-page oz-page">
       <NavBar />
 
-      <div className="pl-layout" style={{ ['--pl-divider' as string]: c.divider }}>
-        <div className="pl-left" style={{ background: c.panelBg, borderRight: `1px solid ${c.divider}` }}>
-          <div className="pl-scroll">
-            <section className="pl-panel">
-              <h2>View</h2>
+      <div className="oz-page__body">
+        <div className="oz-side">
+          <div className="oz-scroll oz-steps">
+            <section className="oz-section">
+              <h2 className="oz-title">View</h2>
               <ProbeViewTabs lab={lab} />
             </section>
             {lab.error && (
-              <div className="pl-error" role="alert">
-                <AlertCircle className="pl-icon" aria-hidden="true" />
+              <div className="pl-error oz-note oz-note--error" role="alert">
+                <AlertCircle aria-hidden="true" />
                 <span>{lab.error}</span>
-                <button type="button" onClick={() => lab.setError(null)}>
+                <button type="button" className="oz-link" onClick={() => lab.setError(null)}>
                   Dismiss
                 </button>
               </div>
             )}
-            <section className="pl-panel">
-              <h2>Model</h2>
+            <section className="oz-section">
+              <h2 className="oz-title">Model</h2>
               <ModelPicker lab={lab} disabled={lab.training} assist="probes.model" />
             </section>
-            <section className="pl-panel">
-              <h2>Dataset</h2>
+            <section className="oz-section">
+              <h2 className="oz-title">Dataset</h2>
               <DatasetPanel lab={lab} disabled={lab.training} />
             </section>
-            <section className="pl-panel">
-              <h2>Training</h2>
+            <section className="oz-section">
+              <h2 className="oz-title">Training</h2>
               <RunSettings lab={lab} />
             </section>
           </div>
         </div>
 
-        <div className="pl-right">
-          <div className="pl-scroll">
+        <div className="oz-main">
+          <div className="oz-scroll">
             <ProbeViews lab={lab} onShowPurchaseCredits={onShowPurchaseCredits} />
           </div>
         </div>

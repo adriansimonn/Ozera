@@ -8,6 +8,7 @@ import * as d3 from 'd3'
 import type { LayerActivations } from '../../types/model'
 import { ExportButton } from '../export'
 import { useThemeColors } from '../../hooks/useTheme'
+import { MONO } from '../home/homeKit'
 
 interface LayerActivationDisplayProps {
   layerActivations: LayerActivations
@@ -55,11 +56,9 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
       renderDistribution(
         attnChartRef.current,
         layerActivations.attn_output.values as number[][][],
-        'Attention Output',
-        '#9ca3af', // gray-400
+        'Attention output',
         dimensions.width,
-        dimensions.height,
-        tc.text
+        dimensions.height
       )
     }
 
@@ -67,23 +66,19 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
       renderDistribution(
         ffChartRef.current,
         layerActivations.ff_output.values as number[][][],
-        'Feed-Forward Output',
-        '#d8b4fe', // purple-300
+        'Feed-forward output',
         dimensions.width,
-        dimensions.height,
-        tc.text
+        dimensions.height
       )
     }
-  }, [layerActivations, dimensions, tc.text])
+  }, [layerActivations, dimensions, tc.text, tc.textMuted, tc.borderStrong])
 
   function renderDistribution(
     svgElement: SVGSVGElement,
     values: number[][][],
     title: string,
-    color: string,
     width: number,
-    height: number,
-    textColor: string
+    height: number
   ) {
     d3.select(svgElement).selectAll('*').remove()
 
@@ -116,11 +111,12 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
 
     // Add title
     svg.append('text')
-      .attr('x', width / 2)
+      .attr('x', margin.left)
       .attr('y', 20)
-      .attr('text-anchor', 'middle')
-      .attr('class', 'text-sm font-semibold')
-      .attr('fill', textColor)
+      .attr('font-size', 15)
+      .attr('font-weight', 500)
+      .attr('letter-spacing', '-0.015em')
+      .attr('fill', tc.text)
       .text(title)
 
     // Draw bars
@@ -132,8 +128,7 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
       .attr('y', d => yScale(d.length))
       .attr('width', d => Math.max(0, xScale(d.x1 || 0) - xScale(d.x0 || 0) - 1))
       .attr('height', d => innerHeight - yScale(d.length))
-      .attr('fill', color)
-      .attr('opacity', 0.7)
+      .attr('fill', tc.text)
 
     // Add axes
     const xAxis = d3.axisBottom(xScale).ticks(6).tickFormat(d => d3.format('.2f')(d as number))
@@ -142,39 +137,43 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
     g.append('g')
       .attr('transform', `translate(0,${innerHeight})`)
       .call(xAxis)
-      .attr('class', 'text-xs')
+      .attr('color', tc.borderStrong)
+      .attr('font-size', 11.5)
+      .attr('font-family', MONO)
       .selectAll('text')
-      .attr('fill', textColor)
+      .attr('fill', tc.textMuted)
 
     g.append('g')
       .call(yAxis)
-      .attr('class', 'text-xs')
+      .attr('color', tc.borderStrong)
+      .attr('font-size', 11.5)
+      .attr('font-family', MONO)
       .selectAll('text')
-      .attr('fill', textColor)
+      .attr('fill', tc.textMuted)
 
     // Axis labels
     svg.append('text')
       .attr('x', width / 2)
       .attr('y', height - 5)
       .attr('text-anchor', 'middle')
-      .attr('class', 'text-xs')
-      .attr('fill', textColor)
-      .text('Activation Value')
+      .attr('font-size', 12.5)
+      .attr('fill', tc.textMuted)
+      .text('Activation value')
 
     svg.append('text')
       .attr('transform', 'rotate(-90)')
       .attr('x', -height / 2)
       .attr('y', 15)
       .attr('text-anchor', 'middle')
-      .attr('class', 'text-xs')
-      .attr('fill', textColor)
+      .attr('font-size', 12.5)
+      .attr('fill', tc.textMuted)
       .text('Frequency')
   }
 
   return (
-    <div className={`bg-black/40 border border-gray-800 p-6 ${className}`} ref={containerRef}>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white tracking-tight">Layer {layerIndex} Activations</h3>
+    <div className={`layer-activations ${className}`} ref={containerRef}>
+      <div className="la-head">
+        <h3>Layer {layerIndex} activations</h3>
         {activationId && (
           <ExportButton
             exportType="activation-histogram"
@@ -184,69 +183,37 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
         )}
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        {layerActivations.attn_output && (
-          <StatCard
-            label="Attn Mean"
-            value={layerActivations.attn_output.mean}
-            color="text-white"
-          />
-        )}
-        {layerActivations.attn_output && (
-          <StatCard
-            label="Attn Std"
-            value={layerActivations.attn_output.std}
-            color="text-white"
-          />
-        )}
-        {layerActivations.ff_output && (
-          <StatCard
-            label="FF Mean"
-            value={layerActivations.ff_output.mean}
-            color="text-purple-300"
-          />
-        )}
-        {layerActivations.ff_output && (
-          <StatCard
-            label="FF Std"
-            value={layerActivations.ff_output.std}
-            color="text-purple-300"
-          />
-        )}
-      </div>
-
-      {/* Distribution Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {layerActivations.attn_output && (
-          <svg
-            ref={attnChartRef}
-            width="100%"
-            height={dimensions.height}
-            className="bg-black/30 border border-gray-800"
-          />
-        )}
-        {layerActivations.ff_output && (
-          <svg
-            ref={ffChartRef}
-            width="100%"
-            height={dimensions.height}
-            className="bg-black/30 border border-gray-800"
-          />
-        )}
-      </div>
-
-      {/* Attention Weights Info */}
-      {layerActivations.attn_weights && (
-        <div className="mt-4 p-3 bg-black/30 border border-gray-800">
-          <div className="text-sm text-white">
-            <span className="text-white uppercase tracking-wide text-xs">Attention Weights Shape:</span>{' '}
-            <span className="font-mono text-white">
-              {layerActivations.attn_weights.shape.join(' × ')}
-            </span>
+      {/* Headline numbers, each under a rule */}
+      <div className="la-stats">
+        {layerActivations.attn_output && <StatCard label="Attention mean" value={layerActivations.attn_output.mean} />}
+        {layerActivations.attn_output && <StatCard label="Attention std" value={layerActivations.attn_output.std} />}
+        {layerActivations.ff_output && <StatCard label="Feed-forward mean" value={layerActivations.ff_output.mean} />}
+        {layerActivations.ff_output && <StatCard label="Feed-forward std" value={layerActivations.ff_output.std} />}
+        {layerActivations.attn_weights && (
+          <div className="la-stat">
+            <div className="la-stat-label">Attention weights shape</div>
+            <div className="la-stat-value la-stat-value--small">{layerActivations.attn_weights.shape.join(' × ')}</div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Distribution charts */}
+      <div className="la-charts">
+        {layerActivations.attn_output && <svg ref={attnChartRef} width="100%" height={dimensions.height} />}
+        {layerActivations.ff_output && <svg ref={ffChartRef} width="100%" height={dimensions.height} />}
+      </div>
+
+      <style>{`
+        .layer-activations { padding: 1.5rem var(--oz-gutter) 2rem; }
+        .layer-activations .la-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+        .layer-activations .la-head h3 { margin: 0; font-size: 1.5rem; font-weight: 500; letter-spacing: -0.03em; line-height: 1.15; }
+        .layer-activations .la-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 1.25rem 1.5rem; margin-bottom: 2.25rem; }
+        .layer-activations .la-stat { padding-top: 0.65rem; border-top: 1px solid var(--oz-rule-strong); }
+        .layer-activations .la-stat-label { color: var(--oz-fg-dim); font-size: 0.8rem; font-weight: 500; }
+        .layer-activations .la-stat-value { margin-top: 0.2rem; font-family: var(--oz-mono); font-size: 1.35rem; letter-spacing: -0.02em; line-height: 1.2; }
+        .layer-activations .la-stat-value--small { font-size: 1rem; line-height: 1.62; }
+        .layer-activations .la-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 2rem; }
+      `}</style>
     </div>
   )
 })
@@ -254,16 +221,13 @@ export const LayerActivationDisplay = memo(function LayerActivationDisplay({
 interface StatCardProps {
   label: string
   value: number
-  color: string
 }
 
-function StatCard({ label, value, color }: StatCardProps) {
+function StatCard({ label, value }: StatCardProps) {
   return (
-    <div className="bg-black/30 border border-gray-800 p-3">
-      <div className="text-xs text-white mb-1 uppercase tracking-wide">{label}</div>
-      <div className={`text-lg font-mono font-semibold ${color}`}>
-        {value.toFixed(4)}
-      </div>
+    <div className="la-stat">
+      <div className="la-stat-label">{label}</div>
+      <div className="la-stat-value">{value.toFixed(4)}</div>
     </div>
   )
 }

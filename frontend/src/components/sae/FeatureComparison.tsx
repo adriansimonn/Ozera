@@ -9,6 +9,7 @@ import * as d3 from 'd3'
 import { GitCompare, ArrowRight, Layers, Zap } from 'lucide-react'
 import { useFeatureLabels } from '../../hooks/useFeatureLabels'
 import { useThemeColors } from '../../hooks/useTheme'
+import { sequentialScale } from '../../styles/appTheme'
 import type { FeatureLabel } from '../../types/autointerp'
 import type { SaeRef } from '../../types/probes'
 import { labelTitle } from '../autointerp/labels'
@@ -129,9 +130,8 @@ export function FeatureComparison({
       .padding(0.5)
 
     // Color scale for similarity
-    const colorScale = d3.scaleSequential()
-      .domain([0, 1])
-      .interpolator(d3.interpolateRgb(tc.isLight ? '#ccc' : '#333', tc.isLight ? '#111' : '#fff'))
+    // The app's sequential scale: the theme's ramp on ink, grays on white
+    const colorScale = sequentialScale(tc.isLight)
 
     // Draw SAE A labels on left
     svg.append('text')
@@ -279,16 +279,16 @@ export function FeatureComparison({
   }, [comparison.top_matches, selectedMatch, saeA, saeB, onFeatureSelect, tc])
 
   return (
-    <div className={`bg-black/40 border border-gray-800 ${className}`}>
+    <div className={`bg-transparent border border-rule ${className}`}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-800">
+      <div className="p-4 border-b border-rule">
         <div className="flex items-center gap-2 mb-2">
           <GitCompare className="w-5 h-5" style={{ color: tc.textMid }} />
-          <h3 className="text-lg font-semibold text-white tracking-tight">
+          <h3 className="text-lg font-medium text-fg tracking-tight">
             Feature Comparison
           </h3>
         </div>
-        <div className="flex items-center gap-3 text-sm text-white">
+        <div className="flex items-center gap-3 text-sm text-fg">
           <span style={{ color: tc.textMid }}>{saeA.name}</span>
           <ArrowRight className="w-4 h-4" />
           <span style={{ color: tc.textMid }}>{saeB.name}</span>
@@ -296,29 +296,29 @@ export function FeatureComparison({
       </div>
 
       {/* Summary metrics */}
-      <div className="grid grid-cols-4 gap-px bg-gray-800">
-        <div className="bg-black/40 p-4 text-center">
-          <div className="text-xs text-white uppercase tracking-wide mb-1">Overall Similarity</div>
-          <div className="text-2xl font-mono text-white">
+      <div className="grid grid-cols-4 gap-px bg-fill-strong">
+        <div className="bg-transparent p-4 text-center">
+          <div className="text-[0.82rem] text-fg mb-1">Overall Similarity</div>
+          <div className="text-2xl font-mono text-fg">
             {(comparison.overall_similarity * 100).toFixed(1)}%
           </div>
         </div>
-        <div className="bg-black/40 p-4 text-center">
-          <div className="text-xs text-white uppercase tracking-wide mb-1">Matched Features</div>
-          <div className="text-2xl font-mono text-green-400">
+        <div className="bg-transparent p-4 text-center">
+          <div className="text-[0.82rem] text-fg mb-1">Matched Features</div>
+          <div className="text-2xl font-mono text-ok">
             {comparison.matched_features}
           </div>
         </div>
-        <div className="bg-black/40 p-4 text-center">
-          <div className="text-xs text-white uppercase tracking-wide mb-1">
+        <div className="bg-transparent p-4 text-center">
+          <div className="text-[0.82rem] text-fg mb-1">
             Unique to {saeA.name}
           </div>
           <div className="text-2xl font-mono" style={{ color: tc.textMid }}>
             {comparison.unmatched_a}
           </div>
         </div>
-        <div className="bg-black/40 p-4 text-center">
-          <div className="text-xs text-white uppercase tracking-wide mb-1">
+        <div className="bg-transparent p-4 text-center">
+          <div className="text-[0.82rem] text-fg mb-1">
             Unique to {saeB.name}
           </div>
           <div className="text-2xl font-mono" style={{ color: tc.textMid }}>
@@ -329,16 +329,16 @@ export function FeatureComparison({
 
       {/* Matching visualization */}
       {comparison.top_matches.length > 0 ? (
-        <div className="p-4 border-t border-gray-800">
+        <div className="p-4 border-t border-rule">
           <svg ref={matchChartRef} width="100%" height={300} />
         </div>
       ) : (
-        <div className="p-4 border-t border-gray-800 flex flex-col items-center justify-center" style={{ minHeight: 120 }}>
-          <GitCompare className="w-8 h-8 text-gray-700 mb-2" />
-          <p className="text-white text-sm">
+        <div className="p-4 border-t border-rule flex flex-col items-center justify-center" style={{ minHeight: 120 }}>
+          <GitCompare className="w-8 h-8 text-dim mb-2" />
+          <p className="text-fg text-sm">
             No feature matches found above the similarity threshold.
           </p>
-          <p className="text-white text-xs mt-1">
+          <p className="text-fg text-[0.82rem] mt-1">
             These SAEs may capture very different feature representations.
           </p>
         </div>
@@ -346,11 +346,11 @@ export function FeatureComparison({
 
       {/* Matched pairs with both features' autointerp explanations */}
       {explained && (
-        <div className="p-4 border-t border-gray-800">
-          <div className="text-xs text-white uppercase tracking-wide mb-2" title="Each matched pair’s autointerp explanations, where its SAE has them">
+        <div className="p-4 border-t border-rule">
+          <div className="text-[0.82rem] text-fg mb-2" title="Each matched pair’s autointerp explanations, where its SAE has them">
             Matched pairs · explanations
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', color: tc.text, tableLayout: 'fixed' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', color: tc.text, tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '4.5rem' }} />
               <col />
@@ -368,12 +368,12 @@ export function FeatureComparison({
                     onClick={() => setSelectedMatch(m)}
                     style={{ borderTop: `1px solid ${tc.border}`, background: active ? tc.surfaceActive : undefined, cursor: 'pointer' }}
                   >
-                    <td style={{ ...cell, fontFamily: 'monospace' }}>F{m.feature_a}</td>
+                    <td style={{ ...cell, fontFamily: 'var(--oz-mono)' }}>F{m.feature_a}</td>
                     <td style={cell}>
                       <PairExplanation label={labelsA.get(m.feature_a)} />
                     </td>
-                    <td style={{ ...cell, textAlign: 'center', fontFamily: 'monospace', opacity: 0.8 }}>{(m.similarity * 100).toFixed(0)}%</td>
-                    <td style={{ ...cell, fontFamily: 'monospace' }}>F{m.feature_b}</td>
+                    <td style={{ ...cell, textAlign: 'center', fontFamily: 'var(--oz-mono)', opacity: 0.8 }}>{(m.similarity * 100).toFixed(0)}%</td>
+                    <td style={{ ...cell, fontFamily: 'var(--oz-mono)' }}>F{m.feature_b}</td>
                     <td style={cell}>
                       <PairExplanation label={labelsB.get(m.feature_b)} />
                     </td>
@@ -387,14 +387,14 @@ export function FeatureComparison({
 
       {/* Selected match details */}
       {selectedMatch && (
-        <div className="p-4 border-t border-gray-800" style={{ background: tc.surface }}>
+        <div className="p-4 border-t border-rule" style={{ background: tc.surface }}>
           <div className="flex items-center gap-2 mb-3">
             <Zap className="w-4 h-4" style={{ color: tc.textMid }} />
-            <span className="text-sm text-white font-semibold">Match Details</span>
+            <span className="text-sm text-fg font-medium">Match Details</span>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-xs text-white uppercase tracking-wide mb-1">
+              <div className="text-[0.82rem] text-fg mb-1">
                 {saeA.name} - Feature {selectedMatch.feature_a}
               </div>
               <div className="text-sm" style={{ color: tc.textStrong }} title={labelsA.has(selectedMatch.feature_a) ? labelTitle(labelsA.get(selectedMatch.feature_a) as FeatureLabel) : undefined}>
@@ -402,7 +402,7 @@ export function FeatureComparison({
               </div>
             </div>
             <div>
-              <div className="text-xs text-white uppercase tracking-wide mb-1">
+              <div className="text-[0.82rem] text-fg mb-1">
                 {saeB.name} - Feature {selectedMatch.feature_b}
               </div>
               <div className="text-sm" style={{ color: tc.textStrong }} title={labelsB.has(selectedMatch.feature_b) ? labelTitle(labelsB.get(selectedMatch.feature_b) as FeatureLabel) : undefined}>
@@ -412,20 +412,20 @@ export function FeatureComparison({
           </div>
           {selectedMatch.shared_tokens.length > 0 && (
             <div className="mt-3">
-              <div className="text-xs text-white uppercase tracking-wide mb-2">
+              <div className="text-[0.82rem] text-fg mb-2">
                 Shared Activating Tokens
               </div>
               <div className="flex flex-wrap gap-1">
                 {selectedMatch.shared_tokens.slice(0, 20).map((token, idx) => (
                   <span
                     key={idx}
-                    className="px-2 py-0.5 text-xs font-mono bg-gray-800 text-white rounded"
+                    className="px-2 py-0.5 text-[0.82rem] font-mono bg-fill-strong text-fg"
                   >
                     {token}
                   </span>
                 ))}
                 {selectedMatch.shared_tokens.length > 20 && (
-                  <span className="px-2 py-0.5 text-xs text-white">
+                  <span className="px-2 py-0.5 text-[0.82rem] text-fg">
                     +{selectedMatch.shared_tokens.length - 20} more
                   </span>
                 )}
@@ -436,7 +436,7 @@ export function FeatureComparison({
             <button
               onClick={() => onFeatureSelect?.(saeA.id, selectedMatch.feature_a)}
               style={{ color: tc.textMid }}
-              className="text-xs transition-colors"
+              className="text-[0.82rem] transition-colors"
               onMouseEnter={(e) => e.currentTarget.style.color = tc.textStrong}
               onMouseLeave={(e) => e.currentTarget.style.color = tc.textMid}
             >
@@ -445,7 +445,7 @@ export function FeatureComparison({
             <button
               onClick={() => onFeatureSelect?.(saeB.id, selectedMatch.feature_b)}
               style={{ color: tc.textMid }}
-              className="text-xs transition-colors"
+              className="text-[0.82rem] transition-colors"
               onMouseEnter={(e) => e.currentTarget.style.color = tc.textStrong}
               onMouseLeave={(e) => e.currentTarget.style.color = tc.textMid}
             >
@@ -456,27 +456,27 @@ export function FeatureComparison({
       )}
 
       {/* Model info footer */}
-      <div className="grid grid-cols-2 gap-px bg-gray-800 border-t border-gray-800">
-        <div className="bg-black/40 p-3">
+      <div className="grid grid-cols-2 gap-px bg-fill-strong border-t border-rule">
+        <div className="bg-transparent p-3">
           <div className="flex items-center gap-2 mb-2">
             <Layers className="w-4 h-4" style={{ color: tc.textMid }} />
-            <span className="text-xs text-white uppercase tracking-wide">{saeA.name}</span>
+            <span className="text-[0.82rem] text-fg">{saeA.name}</span>
           </div>
-          <div className="space-y-1 text-xs text-white">
-            <div>Model: <span className="text-white">{saeA.model}</span></div>
-            <div>Layer: <span className="text-white">{saeA.layer}</span></div>
-            <div>Features: <span className="text-white">{saeA.num_features.toLocaleString()}</span></div>
+          <div className="space-y-1 text-[0.82rem] text-fg">
+            <div>Model: <span className="text-fg">{saeA.model}</span></div>
+            <div>Layer: <span className="text-fg">{saeA.layer}</span></div>
+            <div>Features: <span className="text-fg">{saeA.num_features.toLocaleString()}</span></div>
           </div>
         </div>
-        <div className="bg-black/40 p-3">
+        <div className="bg-transparent p-3">
           <div className="flex items-center gap-2 mb-2">
             <Layers className="w-4 h-4" style={{ color: tc.textMid }} />
-            <span className="text-xs text-white uppercase tracking-wide">{saeB.name}</span>
+            <span className="text-[0.82rem] text-fg">{saeB.name}</span>
           </div>
-          <div className="space-y-1 text-xs text-white">
-            <div>Model: <span className="text-white">{saeB.model}</span></div>
-            <div>Layer: <span className="text-white">{saeB.layer}</span></div>
-            <div>Features: <span className="text-white">{saeB.num_features.toLocaleString()}</span></div>
+          <div className="space-y-1 text-[0.82rem] text-fg">
+            <div>Model: <span className="text-fg">{saeB.model}</span></div>
+            <div>Layer: <span className="text-fg">{saeB.layer}</span></div>
+            <div>Features: <span className="text-fg">{saeB.num_features.toLocaleString()}</span></div>
           </div>
         </div>
       </div>

@@ -6,7 +6,6 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import type { ActivationData } from '../../types/model'
-import { ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { useThemeColors } from '../../hooks/useTheme'
 
 interface EmbeddingJourneyProps {
@@ -129,27 +128,24 @@ export const EmbeddingJourney = memo(function EmbeddingJourney({
       <div className="journey-header">
         <div className="journey-header-top">
           <div>
-            <h3 className="journey-title">
-              Embedding Journey - Token {selectedTokenIndex}
-            </h3>
-            <p className="journey-subtitle">
-              Watch how the token's vector representation transforms through each layer
-            </p>
+            <h3 className="journey-title">Embedding journey · Token {selectedTokenIndex}</h3>
           </div>
-          <button className="expand-collapse-btn" onClick={toggleAll}>
-            <ChevronsUpDown className="expand-collapse-icon" />
-            {allExpanded ? 'Collapse All' : 'Expand All'}
+          <button className="oz-btn oz-btn--ghost oz-btn--small" onClick={toggleAll}>
+            {allExpanded ? 'Collapse all' : 'Expand all'}
           </button>
         </div>
       </div>
 
       <div className="journey-flow">
         {journey.map((step, idx) => (
-          <div key={idx} className="journey-stage">
-            <div
+          <div key={idx} className={`journey-stage${expandedLayers.has(idx) ? ' is-open' : ''}`}>
+            <button
+              type="button"
               className="stage-header"
+              aria-expanded={expandedLayers.has(idx)}
               onClick={() => toggleLayer(idx)}
             >
+              <span className="stage-num">{String(idx + 1).padStart(2, '0')}</span>
               <div className="stage-info">
                 <div className="stage-title">{step.stage}</div>
                 <div className="stage-stats">
@@ -164,10 +160,10 @@ export const EmbeddingJourney = memo(function EmbeddingJourney({
                   </span>
                 </div>
               </div>
-              <ChevronDown
-                className={`expand-icon ${expandedLayers.has(idx) ? 'expanded' : ''}`}
-              />
-            </div>
+              <svg className="oz-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" />
+              </svg>
+            </button>
 
             {expandedLayers.has(idx) && (
               <div className="stage-visualization">
@@ -177,235 +173,120 @@ export const EmbeddingJourney = memo(function EmbeddingJourney({
                 />
               </div>
             )}
-
-            {idx < journey.length - 1 && (
-              <div className="stage-arrow">
-                <div className="arrow-line" />
-                <div className="arrow-head">▼</div>
-              </div>
-            )}
           </div>
         ))}
       </div>
 
       <style>{`
         .embedding-journey {
-          padding: 1.5rem;
+          padding: 1.5rem var(--oz-gutter) 2rem;
         }
 
-        .journey-header {
-          margin-bottom: 1.5rem;
-          padding-bottom: 1rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .journey-header-top {
+        .embedding-journey .journey-header-top {
           display: flex;
           justify-content: space-between;
-          align-items: flex-start;
+          align-items: center;
           gap: 1rem;
+          margin-bottom: 1.5rem;
         }
 
-        .journey-title {
-          font-size: 1rem;
-          font-weight: 600;
-          color: #ffffff;
+        .embedding-journey .journey-title {
           margin: 0;
-        }
-
-        .journey-subtitle {
-          font-size: 0.8rem;
-          color: #ffffff;
-          margin: 0.375rem 0 0 0;
-        }
-
-        .expand-collapse-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
-          padding: 0.5rem 0.75rem;
-          background: rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #ffffff;
-          font-size: 0.75rem;
+          font-size: 1.5rem;
           font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          white-space: nowrap;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
         }
 
-        .expand-collapse-btn:hover {
-          background: rgba(255, 255, 255, 0.05);
-          border-color: rgba(255, 255, 255, 0.2);
-          color: #ffffff;
-        }
-
-        .expand-collapse-icon {
-          width: 14px;
-          height: 14px;
-        }
-
-        .journey-flow {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
-
-        .journey-stage {
+        /* The stages: a numbered, ruled list; an open one shows its vector */
+        .embedding-journey .journey-stage {
           position: relative;
+          border-top: 1px solid var(--oz-rule);
         }
 
-        .stage-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0.875rem 1rem;
-          background: rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+        .embedding-journey .journey-stage:last-child {
+          border-bottom: 1px solid var(--oz-rule);
+        }
+
+        .embedding-journey .journey-stage.is-open::after {
+          content: '';
+          position: absolute;
+          left: 0;
+          bottom: -1px;
+          width: 100%;
+          height: 1px;
+          background: var(--oz-mark);
+        }
+
+        .embedding-journey .stage-header {
+          display: grid;
+          grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+          align-items: baseline;
+          width: 100%;
+          padding: 0.95rem 0;
+          color: var(--oz-fg-dim);
+          text-align: left;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: color 0.2s ease;
         }
 
-        .stage-header:hover {
-          background: rgba(255, 255, 255, 0.05);
-          border-color: rgba(255, 255, 255, 0.2);
+        .embedding-journey .stage-header:hover,
+        .embedding-journey .journey-stage.is-open .stage-header {
+          color: var(--oz-fg);
         }
 
-        .stage-info {
-          flex: 1;
+        .embedding-journey .stage-num {
+          color: var(--oz-fg-faint);
+          font-size: 0.8rem;
+          font-weight: 500;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: 0.02em;
+          transition: color 0.2s ease;
         }
 
-        .stage-title {
-          font-weight: 600;
-          color: #ffffff;
-          font-size: 0.875rem;
-          margin-bottom: 0.375rem;
+        .embedding-journey .journey-stage.is-open .stage-num {
+          color: var(--oz-mark);
         }
 
-        .stage-stats {
+        .embedding-journey .stage-info {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 0.25rem 1.5rem;
+          padding-right: 1.5rem;
+        }
+
+        .embedding-journey .stage-title {
+          font-size: 1.125rem;
+          font-weight: 500;
+          letter-spacing: -0.02em;
+        }
+
+        .embedding-journey .stage-stats {
           display: flex;
           gap: 1.5rem;
         }
 
-        .stat {
-          font-size: 0.75rem;
-          color: #ffffff;
+        .embedding-journey .stat {
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
         }
 
-        .stat-value {
-          font-family: monospace;
-          color: #ffffff;
-          font-weight: 600;
+        .embedding-journey .stat-value {
+          margin-left: 0.25rem;
+          color: var(--oz-fg);
+          font-family: var(--oz-mono);
+          font-size: 0.82rem;
         }
 
-        .expand-icon {
-          width: 18px;
-          height: 18px;
-          color: #ffffff;
-          transition: transform 0.2s;
-        }
-
-        .expand-icon.expanded {
-          transform: rotate(180deg);
-        }
-
-        .stage-visualization {
-          margin-top: 0.5rem;
-          padding: 1rem;
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.06);
-          animation: slideDown 0.2s ease-out;
+        .embedding-journey .stage-visualization {
+          padding: 0.25rem 0 1.25rem 2.75rem;
+          animation: slideDown 0.3s cubic-bezier(0.16, 0.8, 0.2, 1);
         }
 
         @keyframes slideDown {
-          from {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .stage-arrow {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 0.375rem 0;
-        }
-
-        .arrow-line {
-          width: 1px;
-          height: 16px;
-          background: rgba(255, 255, 255, 0.15);
-        }
-
-        .arrow-head {
-          color: #ffffff;
-          font-size: 0.75rem;
-          line-height: 1;
-        }
-
-        /* Light mode */
-        [data-bg="light"] .journey-header {
-          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .journey-title {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .journey-subtitle {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .expand-collapse-btn {
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .expand-collapse-btn:hover {
-          background: rgba(0, 0, 0, 0.04);
-          border-color: rgba(0, 0, 0, 0.2);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .stage-header {
-          border: 1px solid rgba(0, 0, 0, 0.08);
-        }
-
-        [data-bg="light"] .stage-header:hover {
-          background: rgba(0, 0, 0, 0.03);
-          border-color: rgba(0, 0, 0, 0.2);
-        }
-
-        [data-bg="light"] .stage-title {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .stat {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .stat-value {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .expand-icon {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .stage-visualization {
-          border: 1px solid rgba(0, 0, 0, 0.06);
-        }
-
-        [data-bg="light"] .arrow-line {
-          background: rgba(0, 0, 0, 0.15);
-        }
-
-        [data-bg="light"] .arrow-head {
-          color: #1d1d1f;
+          from { opacity: 0; transform: translateY(-6px); }
         }
       `}</style>
     </div>
@@ -467,10 +348,6 @@ function EmbeddingVectorDisplay({ values, stage }: EmbeddingVectorDisplayProps) 
       .domain([d3.min(displayValues) || -1, d3.max(displayValues) || 1])
       .range([innerHeight, 0])
 
-    const colorScale = d3.scaleSequential()
-      .domain([d3.min(displayValues) || -1, d3.max(displayValues) || 1])
-      .interpolator(t => d3.interpolateRgb('#6366f1', '#22d3ee')(t))
-
     const g = svg.append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`)
 
@@ -483,8 +360,7 @@ function EmbeddingVectorDisplay({ values, stage }: EmbeddingVectorDisplayProps) 
       .attr('y', d => d >= 0 ? yScale(d) : yScale(0))
       .attr('width', xScale.bandwidth())
       .attr('height', d => Math.abs(yScale(d) - yScale(0)))
-      .attr('fill', d => colorScale(d))
-      .attr('opacity', 0.8)
+      .attr('fill', d => (d >= 0 ? tc.text : tc.textMuted))
 
     // Add zero line
     g.append('line')
@@ -492,20 +368,19 @@ function EmbeddingVectorDisplay({ values, stage }: EmbeddingVectorDisplayProps) 
       .attr('x2', innerWidth)
       .attr('y1', yScale(0))
       .attr('y2', yScale(0))
-      .attr('stroke', 'rgba(255, 255, 255, 0.15)')
+      .attr('stroke', tc.borderStrong)
       .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '2,2')
 
     // Add dimension count label
     svg.append('text')
       .attr('x', width / 2)
       .attr('y', height - 5)
       .attr('text-anchor', 'middle')
-      .attr('class', 'text-xs')
-      .attr('fill', tc.text)
-      .text(`Showing ${displayValues.length} / ${values.length} dimensions`)
+      .attr('font-size', 12)
+      .attr('fill', tc.textMuted)
+      .text(`${displayValues.length} of ${values.length} dimensions`)
 
-  }, [values, stage, dimensions, tc.text])
+  }, [values, stage, dimensions, tc.text, tc.textMuted, tc.borderStrong])
 
   return (
     <div className="vector-display" ref={containerRef}>
@@ -513,7 +388,6 @@ function EmbeddingVectorDisplay({ values, stage }: EmbeddingVectorDisplayProps) 
         ref={svgRef}
         width="100%"
         height={100}
-        style={{ background: 'rgba(0, 0, 0, 0.3)' }}
       />
       <style>{`
         .vector-display {

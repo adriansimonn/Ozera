@@ -4,7 +4,6 @@
  */
 
 import type { ReactNode } from 'react'
-import { Activity, Eraser, Grid3x3, Layers, Navigation, ScanText, type LucideIcon } from 'lucide-react'
 import type { ProbeLab } from '../../hooks/useProbeLab'
 import { ProbeCausal } from './CausalPanel'
 import { ProbeGeneralization } from './GeneralizationPanel'
@@ -12,29 +11,28 @@ import { ProbeResults, ProbeTools } from './ProbeResults'
 
 export type ProbeViewId = 'sweep' | 'score' | 'generalize' | 'steer' | 'ablate' | 'sae'
 
-const PROBE_VIEWS: { id: ProbeViewId; label: string; icon: LucideIcon }[] = [
-  { id: 'sweep', label: 'Sweep', icon: Activity },
-  { id: 'score', label: 'Score', icon: ScanText },
-  { id: 'generalize', label: 'Generalize', icon: Grid3x3 },
-  { id: 'steer', label: 'Steer', icon: Navigation },
-  { id: 'ablate', label: 'Ablate', icon: Eraser },
-  { id: 'sae', label: 'SAE', icon: Layers },
+const PROBE_VIEWS: { id: ProbeViewId; label: string }[] = [
+  { id: 'sweep', label: 'Sweep' },
+  { id: 'score', label: 'Score' },
+  { id: 'generalize', label: 'Generalize' },
+  { id: 'steer', label: 'Steer' },
+  { id: 'ablate', label: 'Ablate' },
+  { id: 'sae', label: 'SAE' },
 ]
 
 export function ProbeViewTabs({ lab }: { lab: ProbeLab }) {
   return (
     <div className="pl-view-tabs" role="tablist" aria-label="Probe Lab views" data-assist="probes.view">
-      {PROBE_VIEWS.map(({ id, label, icon: Icon }) => (
+      {PROBE_VIEWS.map(({ id, label }) => (
         <button
           key={id}
           type="button"
           role="tab"
           aria-selected={lab.view === id}
-          className={`pl-view-tab${lab.view === id ? ' active' : ''}`}
+          className={`oz-chip${lab.view === id ? ' active' : ''}`}
           onClick={() => lab.setView(id)}
         >
-          <Icon className="pl-icon" aria-hidden="true" />
-          <span>{label}</span>
+          {label}
         </button>
       ))}
     </div>

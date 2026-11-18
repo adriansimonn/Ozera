@@ -8,7 +8,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Map as MapIcon, Sparkles } from 'lucide-react'
 import { apiClient } from '../../api/client'
 import {
   isActive,
@@ -92,14 +91,14 @@ export function AutointerpView({ sae, onShowPurchaseCredits }: { sae: SaeRef | n
 
   let body
   if (!sae) {
-    body = <Placeholder icon={Sparkles}>Choose an SAE.</Placeholder>
+    body = <Placeholder glyph="sae">Choose an SAE.</Placeholder>
   } else if (atlases.isLoading) {
     body = <div className="pl-note">Looking for atlases…</div>
   } else if (!atlasRef || !atlas) {
     body = (
-      <Placeholder icon={MapIcon}>
+      <Placeholder glyph="atlas">
         No atlas of this SAE yet. Compute one in the{' '}
-        <a href="/geometry" style={{ color: colors.accent }}>
+        <a href="/geometry" className="pl-inline-link">
           Geometry Lab
         </a>
         ’s Atlas view.
@@ -148,47 +147,47 @@ export function AutointerpView({ sae, onShowPurchaseCredits }: { sae: SaeRef | n
   }
 
   return (
-    <div className="autointerp-view lab-kit" style={{ color: colors.text }}>
+    <div className="autointerp-view lab-kit">
       <LabKitStyles />
       {body}
       <style>{`
-        .autointerp-view .ai-head { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+        .autointerp-view .ai-head { display: flex; flex-wrap: wrap; gap: 0.9rem 1.5rem; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
         .autointerp-view .ai-atlas-pick { min-width: 260px; }
-        .autointerp-view .ai-panel { padding: 1rem 1.25rem; border: 1px solid; margin-bottom: 1rem; }
-        .autointerp-view .ai-form { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: flex-end; margin-top: 0.75rem; }
+        .autointerp-view .ai-panel { padding: 1.1rem 1.25rem; border: 1px solid var(--oz-rule); margin-bottom: 1.25rem; }
+        .autointerp-view .ai-form { display: flex; flex-wrap: wrap; gap: 0.9rem 1.5rem; align-items: flex-end; margin-top: 0.9rem; }
         .autointerp-view .ai-form .ai-models { min-width: 200px; }
         .autointerp-view .ai-number { width: 110px; }
-        .autointerp-view .ai-progress { height: 6px; border: 1px solid; margin-top: 0.4rem; }
+        .autointerp-view .ai-progress { height: 3px; background: var(--oz-rule); margin-top: 0.5rem; }
         .autointerp-view .ai-progress > div { height: 100%; transition: width 0.4s; }
-        .autointerp-view .ai-jobs { display: flex; flex-direction: column; gap: 0.6rem; }
-        .autointerp-view .ai-job { font-size: 0.75rem; line-height: 1.5; }
+        .autointerp-view .ai-jobs { display: flex; flex-direction: column; gap: 0.75rem; }
+        .autointerp-view .ai-job { font-size: 0.85rem; line-height: 1.5; }
         .autointerp-view .ai-filters { align-items: flex-end; }
-        .autointerp-view .ai-export { display: flex; gap: 0.4rem; margin-left: auto; }
+        .autointerp-view .ai-export { display: flex; gap: 6px; margin-left: auto; }
         .autointerp-view .ai-table-wrap { max-height: 62vh; overflow: auto; }
         .autointerp-view .ai-table td { white-space: nowrap; }
         .autointerp-view .ai-table td.ai-explanation-cell { text-align: left; white-space: nowrap; max-width: 30rem; overflow: hidden; text-overflow: ellipsis; }
-        .autointerp-view .ai-sort { background: none; border: none; padding: 0; cursor: pointer; font: inherit; font-weight: 600; display: inline-flex; gap: 2px; align-items: center; }
-        .autointerp-view .ai-pager { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-top: 0.75rem; }
+        .autointerp-view .ai-sort { background: none; border: none; padding: 0; cursor: pointer; font: inherit; font-weight: 500; color: inherit; display: inline-flex; gap: 2px; align-items: center; transition: color 0.2s ease; }
+        .autointerp-view .ai-sort:hover { color: var(--oz-fg); }
+        .autointerp-view .ai-pager { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-top: 0.9rem; }
         .autointerp-view .ai-bands { max-width: 640px; }
-        .autointerp-view .ai-contexts { margin-top: 0.5rem; }
-        .autointerp-view .ai-context-group { margin-top: 1rem; }
-        .autointerp-view .ai-context { font-size: 0.75rem; line-height: 1.7; white-space: pre-wrap; word-break: break-word; padding: 0.3rem 0; }
-        .autointerp-view .ai-context span { border-radius: 2px; }
-        .autointerp-view .ai-context-meta { font-size: 0.68rem; opacity: 0.7; margin-right: 0.5rem; font-variant-numeric: tabular-nums; }
-        .autointerp-view .ai-section { margin-top: 1.1rem; }
-        .autointerp-view .ai-section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.9rem; margin-bottom: 0.4rem; }
+        .autointerp-view .ai-contexts { margin-top: 0.6rem; }
+        .autointerp-view .ai-context-group { margin-top: 1.1rem; }
+        .autointerp-view .ai-context { font-size: 0.85rem; line-height: 1.7; white-space: pre-wrap; word-break: break-word; padding: 0.35rem 0; }
+        .autointerp-view .ai-context-meta { color: var(--oz-fg-dim); font-size: 0.78rem; margin-right: 0.5rem; font-variant-numeric: tabular-nums; }
+        .autointerp-view .ai-section { margin-top: 1.4rem; }
+        .autointerp-view .ai-section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1rem; margin-bottom: 0.5rem; }
         .autointerp-view .ai-section-head .pl-control-label { margin-bottom: 0; }
-        .autointerp-view .ai-stat { font-size: 0.75rem; font-variant-numeric: tabular-nums; }
-        .autointerp-view .ai-small-button { padding: 0.25rem 0.6rem; font-size: 0.72rem; }
-        .autointerp-view .ai-generation-texts { margin-top: 0.4rem; }
-        .autointerp-view .ai-hypothesis-form { display: flex; gap: 0.5rem; align-items: stretch; max-width: 760px; }
-        .autointerp-view .ai-hypothesis-table { margin-top: 0.6rem; }
+        .autointerp-view .ai-stat { font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+        .autointerp-view .ai-small-button { padding: 0.3rem 0.65rem; font-size: 0.8rem; }
+        .autointerp-view .ai-generation-texts { margin-top: 0.5rem; }
+        .autointerp-view .ai-hypothesis-form { display: flex; gap: 6px; align-items: stretch; max-width: 760px; }
+        .autointerp-view .ai-hypothesis-table { margin-top: 0.75rem; }
         .autointerp-view .ai-hypothesis-table td { white-space: nowrap; }
         .autointerp-view .ai-hypothesis-table td.ai-explanation-cell { text-align: left; max-width: 34rem; overflow: hidden; text-overflow: ellipsis; }
-        .autointerp-view .ai-row-tag { display: inline-block; min-width: 6.5rem; font-size: 0.68rem; font-weight: 600; opacity: 0.75; }
-        .autointerp-view .ai-reexplain { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: flex-end; }
+        .autointerp-view .ai-row-tag { display: inline-block; min-width: 6.5rem; color: var(--oz-fg-dim); font-size: 0.78rem; font-weight: 500; }
+        .autointerp-view .ai-reexplain { display: flex; flex-wrap: wrap; gap: 0.75rem 1.1rem; align-items: flex-end; }
         .autointerp-view .ai-reexplain .ai-models { min-width: 190px; }
-        .autointerp-view .ai-hypothesis-detail { padding: 0.75rem 0.9rem; border: 1px solid; }
+        .autointerp-view .ai-hypothesis-detail { padding: 0.9rem 1rem; border: 1px solid var(--oz-rule); }
       `}</style>
     </div>
   )
@@ -210,7 +209,7 @@ function JobLine({ job, colors }: { job: AutointerpJob; colors: LabColors }) {
           {job.progress && job.progress.fraction > 0 ? ` · ${Math.round(fraction * 100)}%` : ''} · {scope}
           {job.mine ? (job.held != null ? ` · holding ${usd(job.held)}` : '') : ' · started by another user'}
         </div>
-        <div className="ai-progress" style={{ borderColor: colors.border }}>
+        <div className="ai-progress">
           <div style={{ width: `${Math.max(2, fraction * 100)}%`, background: colors.accent }} />
         </div>
       </div>
@@ -351,7 +350,7 @@ function RunView({
 
   return (
     <>
-      <section className="ai-panel" style={{ borderColor: colors.border, background: colors.panel }}>
+      <section className="ai-panel">
         <div className="pl-run-meta">
           {a ? (
             <>
@@ -470,7 +469,7 @@ function RunView({
       </section>
 
       {ready && c && c.total > 0 && (
-        <section className="ai-panel" style={{ borderColor: colors.border, background: colors.panel }}>
+        <section className="ai-panel">
           <div
             className="pl-control-label"
             title="One request per community names what its features share, from their explanations and contexts; the Geometry Lab’s atlas shows the names. A community is nameable once half its features (at least 2) are explained."
@@ -489,7 +488,7 @@ function RunView({
       )}
 
       {status.jobs.length > 0 && (
-        <section className="ai-panel" style={{ borderColor: colors.border, background: colors.panel }}>
+        <section className="ai-panel">
           <div className="pl-control-label">Jobs</div>
           <div className="ai-jobs">
             {status.jobs.map((job) => (
@@ -517,7 +516,6 @@ function FeatureView({
   width: number
   onShowPurchaseCredits?: () => void
 }) {
-  const colors = useLabColors()
   const [text, setText] = useState(feature != null ? String(feature) : '')
   useEffect(() => setText(feature != null ? String(feature) : ''), [feature])
   const go = () => {
@@ -538,14 +536,14 @@ function FeatureView({
             onChange={(ev) => setText(ev.target.value)}
             onKeyDown={(ev) => ev.key === 'Enter' && go()}
             onBlur={go}
-            style={{ borderColor: colors.border, background: 'transparent', color: colors.text }}
+           
           />
         </div>
       </div>
       {feature != null ? (
         <FeatureExplanation key={feature} atlasRef={atlasRef} feature={feature} onShowPurchaseCredits={onShowPurchaseCredits} detailed />
       ) : (
-        <Placeholder icon={Sparkles}>Pick a feature in Features, or enter its ID.</Placeholder>
+        <Placeholder glyph="sae">Pick a feature in Features, or enter its ID.</Placeholder>
       )}
     </>
   )

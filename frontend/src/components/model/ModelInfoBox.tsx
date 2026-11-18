@@ -4,7 +4,6 @@
  */
 
 import React from 'react'
-import { Info, Cpu, Layers, Grid3X3, Hash, Database } from 'lucide-react'
 import { useModels, useModelInfo } from '../../hooks/useModels'
 import type { ModelFamily } from '../../types/model'
 import { STATIC_OPEN_SOURCE_MODELS } from '../../data/defaultModels'
@@ -82,18 +81,15 @@ export const ModelDetails: React.FC<ModelDetailsProps> = ({ modelId }) => {
           <p className="model-description">
             {getDescription()}
             {isOpenSourceModel && (
-              <span className="os-badge">Open Source</span>
+              <span className="oz-tag">Open source</span>
             )}
             {isCustomModel && (
-              <span className="custom-badge">Custom Model</span>
+              <span className="oz-tag">Custom model</span>
             )}
           </p>
 
           <div className="info-grid">
             <div className="info-card">
-              <div className="info-icon-wrapper">
-                <Cpu className="info-icon" />
-              </div>
               <div className="info-details">
                 <span className="info-label">Parameters</span>
                 <span className="info-value">{formatNumber(dynamicInfo.parameters)}</span>
@@ -101,9 +97,6 @@ export const ModelDetails: React.FC<ModelDetailsProps> = ({ modelId }) => {
             </div>
 
             <div className="info-card">
-              <div className="info-icon-wrapper">
-                <Layers className="info-icon" />
-              </div>
               <div className="info-details">
                 <span className="info-label">Layers</span>
                 <span className="info-value">{dynamicInfo.layers ?? '—'}</span>
@@ -111,9 +104,6 @@ export const ModelDetails: React.FC<ModelDetailsProps> = ({ modelId }) => {
             </div>
 
             <div className="info-card">
-              <div className="info-icon-wrapper">
-                <Grid3X3 className="info-icon" />
-              </div>
               <div className="info-details">
                 <span className="info-label">Attention Heads</span>
                 <span className="info-value">{dynamicInfo.heads ?? '—'}</span>
@@ -121,9 +111,6 @@ export const ModelDetails: React.FC<ModelDetailsProps> = ({ modelId }) => {
             </div>
 
             <div className="info-card">
-              <div className="info-icon-wrapper">
-                <Hash className="info-icon" />
-              </div>
               <div className="info-details">
                 <span className="info-label">Hidden Dimension</span>
                 <span className="info-value">{dynamicInfo.hidden_dim ?? '—'}</span>
@@ -131,9 +118,6 @@ export const ModelDetails: React.FC<ModelDetailsProps> = ({ modelId }) => {
             </div>
 
             <div className="info-card">
-              <div className="info-icon-wrapper">
-                <Database className="info-icon" />
-              </div>
               <div className="info-details">
                 <span className="info-label">Vocabulary Size</span>
                 <span className="info-value">{formatNumber(dynamicInfo.vocab_size)}</span>
@@ -148,138 +132,51 @@ export const ModelDetails: React.FC<ModelDetailsProps> = ({ modelId }) => {
       )}
 
       <style>{`
-        .model-info-content {
-          min-height: 120px;
+        .model-info-box .model-selector {
+          margin-bottom: 1.1rem;
         }
 
-        .model-description {
-          margin: 0 0 1.25rem 0;
-          color: #ffffff;
+        .model-info-content .model-description {
+          margin: 0 0 1.1rem;
+          color: var(--oz-fg-dim);
           font-size: 0.9rem;
-          line-height: 1.5;
+          line-height: 1.55;
+          text-wrap: pretty;
         }
 
-        .model-description.loading {
-          color: #ffffff;
-          font-style: italic;
+        .model-info-content .model-description .oz-tag {
+          margin-left: 0.5rem;
+          vertical-align: 1px;
         }
 
-        .custom-badge,
-        .os-badge {
-          display: inline-block;
-          margin-left: 0.75rem;
-          padding: 0.25rem 0.6rem;
-          font-size: 0.7rem;
-          font-weight: 500;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-          vertical-align: middle;
-        }
-
-        .custom-badge {
-          background: rgba(147, 112, 219, 0.2);
-          color: rgba(200, 180, 255, 0.9);
-        }
-
-        .os-badge {
-          background: rgba(34, 197, 94, 0.15);
-          color: rgba(134, 239, 172, 0.95);
-        }
-
-        .info-grid {
+        /* The specs: a ruled sheet, a name and its number to a row */
+        .model-info-content .info-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-          gap: 0.75rem;
+          grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+          column-gap: 2rem;
         }
 
-        .info-card {
+        .model-info-content .info-card {
+          border-top: 1px solid var(--oz-rule);
+        }
+
+        .model-info-content .info-details {
           display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 1rem;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          transition: all 0.2s ease;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 0.6rem 0;
         }
 
-        .info-card:hover {
-          background: rgba(255, 255, 255, 0.05);
-          border-color: rgba(255, 255, 255, 0.12);
+        .model-info-content .info-label {
+          color: var(--oz-fg-dim);
+          font-size: 0.875rem;
         }
 
-        .info-icon-wrapper {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 36px;
-          height: 36px;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          flex-shrink: 0;
-        }
-
-        .info-icon {
-          width: 16px;
-          height: 16px;
-          color: #ffffff;
-        }
-
-        .info-details {
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-          min-width: 0;
-        }
-
-        .info-label {
-          font-size: 0.7rem;
-          color: #ffffff;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          font-weight: 500;
-        }
-
-        .info-value {
-          font-size: 1rem;
-          color: #ffffff;
-          font-family: 'JetBrains Mono', monospace;
-          font-weight: 600;
-        }
-
-        /* Light mode */
-        [data-bg="light"] .model-description {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .model-description.loading {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .info-card {
-          background: rgba(0, 0, 0, 0.03);
-          border: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .info-card:hover {
-          background: rgba(0, 0, 0, 0.04);
-          border-color: rgba(0, 0, 0, 0.12);
-        }
-
-        [data-bg="light"] .info-icon-wrapper {
-          background: rgba(0, 0, 0, 0.04);
-          border: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .info-icon {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .info-label {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .info-value {
-          color: #1d1d1f;
+        .model-info-content .info-value {
+          font-family: var(--oz-mono);
+          font-size: 0.9rem;
+          font-variant-numeric: tabular-nums;
         }
       `}</style>
     </div>
@@ -314,14 +211,10 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
   })
 
   return (
-    <div className="model-info-box">
-      <div className="model-info-header">
-        <Info className="header-icon" />
-        <h3>Model Information</h3>
-      </div>
+    <section className="model-info-box oz-section">
+      <h2 className="oz-title">Model information</h2>
 
       <div className="model-selector">
-        <label htmlFor="model-info-select">Select Model:</label>
         <Dropdown
           id="model-info-select"
           value={selectedModel}
@@ -343,68 +236,7 @@ export const ModelInfoBox: React.FC<ModelInfoBoxProps> = ({
       </div>
 
       <ModelDetails modelId={selectedModel} />
-
-      <style>{`
-        .model-info-box {
-          padding: 1.5rem;
-        }
-
-        .model-info-header {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          margin-bottom: 1.5rem;
-          padding-bottom: 1rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .header-icon {
-          width: 20px;
-          height: 20px;
-          color: #ffffff;
-        }
-
-        .model-info-header h3 {
-          margin: 0;
-          font-size: 1rem;
-          font-weight: 600;
-          color: #ffffff;
-          letter-spacing: -0.01em;
-        }
-
-        .model-selector {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-          margin-bottom: 1.5rem;
-        }
-
-        .model-selector label {
-          font-weight: 500;
-          font-size: 0.8rem;
-          color: #ffffff;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-        }
-
-        /* Light mode */
-        [data-bg="light"] .model-info-header {
-          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .header-icon {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .model-info-header h3 {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .model-selector label {
-          color: #1d1d1f;
-        }
-      `}</style>
-    </div>
+    </section>
   )
 }
 

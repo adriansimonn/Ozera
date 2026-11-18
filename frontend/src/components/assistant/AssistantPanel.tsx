@@ -14,13 +14,14 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ArrowUp, Bot, Check, ChevronDown, ChevronUp, Download, Hand, Pencil, Plus, Settings2, Square, Trash2, X, Zap } from 'lucide-react'
+import { ArrowUp, Check, ChevronDown, ChevronUp, Download, Hand, Pencil, Plus, Settings2, Square, Trash2, X, Zap } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { MAX_WIDTH, MIN_WIDTH, useAssistantStore, type DraftPart } from '../../stores/assistantStore'
 import { usePurchaseCredits } from '../../contexts/PurchaseCreditsContext'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ChatTurn, PendingRun, ToolChipInfo, TurnPart } from '../../types/assistant'
 import { ConfirmModal } from '../common/ConfirmModal'
+import { CellGlyph } from '../home/CellGlyph'
 import { ApprovalCard } from './ApprovalCard'
 import { AssistantMessage } from './AssistantMessage'
 import { ToolStep } from './ToolStep'
@@ -39,6 +40,9 @@ const SUGGESTIONS: Record<string, string[]> = {
   analysis: ['Find induction heads in Ozera nano', 'What does a previous-token head do?', 'Explain these head types'],
   other: ['What can I do on this page?', 'What does an atlas cost?', 'Which models can I use?'],
 }
+
+// The homepage's pictogram of the assistant (see CellGlyph)
+const ASSISTANT_GLYPH = ['.#######.', '#.......#', '#.1.2.3.#', '#.......#', '.#######.', '..#......', '.#.......']
 
 const PAGE_OF_ROUTE: Record<string, string> = {
   '/generate': 'generate', '/sae': 'sae', '/probes': 'probes', '/geometry': 'geometry', '/patching': 'patching', '/analysis': 'analysis',
@@ -574,7 +578,7 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
         {models && !models.available && <p className="ast-warn ast-note">The assistant isn’t configured on this server.</p>}
         {turns.length === 0 && !sending && (
           <div className="ast-empty">
-            <Bot aria-hidden="true" />
+            <CellGlyph rows={ASSISTANT_GLYPH} />
             {SUGGESTIONS[page].map((s) => (
               <button key={s} type="button" className="ast-suggestion" onClick={() => submit(s)}>
                 {s}
@@ -787,7 +791,6 @@ export function AssistantButton() {
       title={`Assistant (${mac ? '⌘' : 'Ctrl+'}K)`}
       aria-pressed={open}
     >
-      <Bot aria-hidden="true" />
       <span>Assistant</span>
     </button>
   )

@@ -3,9 +3,9 @@
  * runs made so far (kept for comparing).
  */
 
-import { Shapes } from 'lucide-react'
 import type { GeometryLab } from '../../hooks/useGeometryLab'
 import type { GeometryRead } from '../../types/geometry'
+import { Spinner } from '../common/Spinner'
 import { Segmented } from '../lab/chartKit'
 import { useLabColors } from '../lab/labTheme'
 import { READ_LABELS, READ_TITLES, estimateText } from './geometryUtils'
@@ -50,7 +50,7 @@ export function GeometryRunSettings({ lab }: { lab: GeometryLab }) {
             value={lab.seed}
             disabled={disabled}
             onChange={(e) => lab.setSeed(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
-            style={{ width: '5.5rem', borderColor: colors.border, background: colors.panel, color: colors.text }}
+            style={{ width: '5.5rem' }}
           />
         </div>
       </div>
@@ -64,21 +64,18 @@ export function GeometryRunSettings({ lab }: { lab: GeometryLab }) {
 
       <button
         type="button"
-        className="pl-train-button"
+        className={`oz-btn oz-btn--block${lab.running ? '' : ' oz-btn--arrow'}`}
         data-assist="geometry.run_button"
         onClick={lab.start}
         disabled={lab.running || !lab.modelId || !lab.conceptSpec || (estimate != null && !estimate.within_limit)}
       >
         {lab.running ? (
           <>
-            <span className="pl-spinner" />
+            <Spinner />
             Reading every layer…
           </>
         ) : (
-          <>
-            <Shapes className="pl-icon" aria-hidden="true" />
-            Run
-          </>
+          'Run'
         )}
       </button>
 
@@ -91,10 +88,9 @@ export function GeometryRunSettings({ lab }: { lab: GeometryLab }) {
               <button
                 key={r.id}
                 type="button"
-                className="gl-run"
+                className={`gl-run${active ? ' is-active' : ''}`}
                 aria-pressed={active}
                 onClick={() => lab.selectRun(r.id)}
-                style={{ borderColor: active ? colors.text : colors.border, background: active ? colors.hover : 'transparent', color: colors.text }}
               >
                 <span>{r.label}</span>
                 <span className="pl-hint">${r.run.cost.toFixed(2)}</span>
@@ -105,22 +101,33 @@ export function GeometryRunSettings({ lab }: { lab: GeometryLab }) {
       )}
 
       <style>{`
-        .geometry-lab .gl-setting { margin-bottom: 0.875rem; }
-        .geometry-lab .gl-setting-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
-        .geometry-lab .gl-estimate { display: flex; justify-content: space-between; gap: 0.75rem; margin: 0.875rem 0 0.75rem; font-size: 0.75rem; }
-        .geometry-lab .gl-estimate span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
-        .geometry-lab .gl-runs { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.3rem; }
+        .geometry-lab .gl-setting { margin-bottom: 1rem; }
+        .geometry-lab .gl-setting-row { display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: flex-end; }
+        .geometry-lab .gl-estimate {
+          display: flex; justify-content: space-between; gap: 0.75rem; margin: 1.25rem 0 0.9rem; padding-top: 0.8rem;
+          border-top: 1px solid var(--oz-rule); color: var(--oz-fg-dim); font-size: 0.85rem;
+        }
+        .geometry-lab .gl-estimate span:last-child { color: var(--oz-fg); text-align: right; font-variant-numeric: tabular-nums; }
+        /* Runs so far: a ruled list, the one on screen marked */
+        .geometry-lab .gl-runs { margin-top: 1.5rem; display: flex; flex-direction: column; }
         .geometry-lab .gl-run {
+          position: relative;
           display: flex;
           justify-content: space-between;
           align-items: baseline;
           gap: 0.5rem;
-          padding: 0.4rem 0.6rem;
-          border: 1px solid;
-          font-size: 0.75rem;
+          padding: 0.6rem 0;
+          border-top: 1px solid var(--oz-rule);
+          color: var(--oz-fg-dim);
+          font-size: 0.875rem;
+          font-weight: 500;
           cursor: pointer;
           text-align: left;
+          transition: color 0.2s ease;
         }
+        .geometry-lab .gl-run:last-child { border-bottom: 1px solid var(--oz-rule); }
+        .geometry-lab .gl-run:hover, .geometry-lab .gl-run.is-active { color: var(--oz-fg); }
+        .geometry-lab .gl-run.is-active::after { content: ''; position: absolute; left: 0; bottom: -1px; width: 100%; height: 1px; background: var(--oz-mark); }
       `}</style>
     </div>
   )

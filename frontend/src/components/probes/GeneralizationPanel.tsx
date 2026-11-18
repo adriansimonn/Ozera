@@ -454,7 +454,7 @@ function TransferMatrix({
             <tr>
               <th colSpan={2} />
               {result.models.map((m) => (
-                <th key={m} colSpan={D} scope="colgroup" className="pl-matrix-group" style={{ borderColor: colors.border }}>
+                <th key={m} colSpan={D} scope="colgroup" className="pl-matrix-group">
                   Tested on {modelName(m)}
                 </th>
               ))}
@@ -477,7 +477,7 @@ function TransferMatrix({
           {conditions.map((a, i) => (
             <tr key={i}>
               {multi && a.dataset === 0 && (
-                <th rowSpan={D} scope="rowgroup" className="pl-matrix-group-row" style={{ borderColor: colors.border }}>
+                <th rowSpan={D} scope="rowgroup" className="pl-matrix-group-row">
                   <span>{modelName(result.models[a.model])}</span>
                 </th>
               )}
@@ -535,7 +535,6 @@ function ScaleLegend() {
 }
 
 export function ProbeGeneralization({ lab, onShowPurchaseCredits }: { lab: ProbeLab; onShowPurchaseCredits?: () => void }) {
-  const colors = useLabColors()
   const [edited, setEdited] = useState<MatrixEntry[] | null>(null)
   const [parsing, setParsing] = useState(false)
   const [transfer, setTransfer] = useState(false)
@@ -689,7 +688,7 @@ export function ProbeGeneralization({ lab, onShowPurchaseCredits }: { lab: Probe
           </div>
           <div className="pl-matrix-datasets">
             {entries.map((e, i) => (
-              <div key={e.key} className="pl-matrix-dataset" style={{ borderColor: colors.border, background: colors.panel }}>
+              <div key={e.key} className="pl-matrix-dataset">
                 <span className="pl-matrix-dataset-name" title={e.name}>
                   {e.name}
                 </span>
@@ -702,7 +701,6 @@ export function ProbeGeneralization({ lab, onShowPurchaseCredits }: { lab: Probe
                   aria-label={`Remove ${e.name}`}
                   onClick={() => edit(entries.filter((_, k) => k !== i))}
                   disabled={running}
-                  style={{ color: colors.text }}
                 >
                   <X className="pl-icon" />
                 </button>
@@ -720,7 +718,7 @@ export function ProbeGeneralization({ lab, onShowPurchaseCredits }: { lab: Probe
             </div>
           )}
           {edited && (
-            <button type="button" className="pl-link" onClick={() => setEdited(null)} style={{ color: colors.accent, marginTop: '0.5rem' }}>
+            <button type="button" className="pl-link" onClick={() => setEdited(null)} style={{ marginTop: '0.5rem' }}>
               Reset to the training dataset
             </button>
           )}
@@ -784,7 +782,7 @@ export function ProbeGeneralization({ lab, onShowPurchaseCredits }: { lab: Probe
       {error && <div className="pl-error-note">{error}</div>}
 
       {result && (
-        <div className="pl-result" style={{ borderColor: colors.border, opacity: running ? 0.55 : 1 }}>
+        <div className="pl-result" style={{ opacity: running ? 0.55 : 1 }}>
           <div className="pl-run-meta">
             <strong>{result.models.map(modelName).join(' + ')}</strong> · {result.datasets.length} datasets ·{' '}
             {POOLING_LABELS[result.pooling].toLowerCase()} pooling{result.chat_template ? ' · chat template' : ''} · $
@@ -818,12 +816,12 @@ export function ProbeGeneralization({ lab, onShowPurchaseCredits }: { lab: Probe
             </div>
             <div>
               <div className="pl-control-label">Layer</div>
-              <div className="pl-stepper" style={{ borderColor: colors.border }}>
-                <button type="button" className="pl-icon-button" aria-label="Previous layer" disabled={position <= 0} onClick={() => setPosition(position - 1)} style={{ color: colors.text }}>
+              <div className="pl-stepper">
+                <button type="button" className="pl-icon-button" aria-label="Previous layer" disabled={position <= 0} onClick={() => setPosition(position - 1)}>
                   <ChevronLeft className="pl-icon" />
                 </button>
                 <span>{position === 0 ? 'Embeddings' : `Layer ${position - 1}`}</span>
-                <button type="button" className="pl-icon-button" aria-label="Next layer" disabled={position >= positions - 1} onClick={() => setPosition(position + 1)} style={{ color: colors.text }}>
+                <button type="button" className="pl-icon-button" aria-label="Next layer" disabled={position >= positions - 1} onClick={() => setPosition(position + 1)}>
                   <ChevronRight className="pl-icon" />
                 </button>
               </div>
@@ -848,26 +846,27 @@ export function ProbeGeneralization({ lab, onShowPurchaseCredits }: { lab: Probe
       )}
 
       <style>{`
-        .probe-lab .pl-generalize-setup { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1rem 1.5rem; margin-top: 0.5rem; }
-        .probe-lab .pl-generalize-settings { display: flex; flex-direction: column; gap: 0.75rem; }
-        .probe-lab .pl-matrix-datasets { display: flex; flex-direction: column; gap: 0.3rem; }
-        .probe-lab .pl-matrix-dataset { display: flex; align-items: center; gap: 0.5rem; border: 1px solid; padding: 0.3rem 0.3rem 0.3rem 0.6rem; }
-        .probe-lab .pl-matrix-dataset-name { font-size: 0.8rem; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .probe-lab .pl-matrix-add { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
-        .probe-lab .pl-stepper { display: inline-flex; align-items: center; gap: 0.25rem; border: 1px solid; padding: 0 0.15rem; font-size: 0.75rem; font-weight: 600; min-width: 9rem; justify-content: space-between; }
+        .probe-lab .pl-generalize-setup { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1.25rem 2rem; margin-top: 0.5rem; }
+        .probe-lab .pl-generalize-settings { display: flex; flex-direction: column; gap: 1rem; }
+        .probe-lab .pl-matrix-datasets { display: flex; flex-direction: column; }
+        .probe-lab .pl-matrix-dataset { display: flex; align-items: center; gap: 0.5rem; border-top: 1px solid var(--oz-rule); padding: 0.3rem 0; }
+        .probe-lab .pl-matrix-dataset:last-child { border-bottom: 1px solid var(--oz-rule); }
+        .probe-lab .pl-matrix-dataset-name { font-size: 0.9rem; font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .probe-lab .pl-matrix-add { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 0.75rem; }
+        .probe-lab .pl-stepper { display: inline-flex; align-items: center; gap: 0.25rem; border: 1px solid var(--oz-rule-strong); padding: 0 0.15rem; font-size: 0.85rem; font-weight: 500; font-variant-numeric: tabular-nums; min-width: 9.5rem; justify-content: space-between; }
         .probe-lab .pl-matrix-wrap { position: relative; overflow-x: auto; }
-        .probe-lab .pl-matrix { border-collapse: separate; border-spacing: 2px; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
-        .probe-lab .pl-matrix th { font-weight: 600; font-size: 0.7rem; padding: 0.25rem 0.4rem; text-align: left; max-width: 9rem; vertical-align: bottom; line-height: 1.25; }
+        .probe-lab .pl-matrix { border-collapse: separate; border-spacing: 2px; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+        .probe-lab .pl-matrix th { font-weight: 500; font-size: 0.78rem; padding: 0.25rem 0.4rem; text-align: left; max-width: 9rem; vertical-align: bottom; line-height: 1.25; }
         .probe-lab .pl-matrix thead th { text-align: center; }
         .probe-lab .pl-matrix tbody th { vertical-align: middle; }
-        .probe-lab .pl-matrix .pl-matrix-corner { text-align: left; font-weight: 500; white-space: nowrap; vertical-align: bottom; }
-        .probe-lab .pl-matrix .pl-matrix-group { border-bottom: 1px solid; }
-        .probe-lab .pl-matrix .pl-matrix-group-row { border-right: 1px solid; width: 1.6rem; padding: 0; }
+        .probe-lab .pl-matrix .pl-matrix-corner { text-align: left; font-weight: 400; color: var(--oz-fg-dim); white-space: nowrap; vertical-align: bottom; }
+        .probe-lab .pl-matrix .pl-matrix-group { border-bottom: 1px solid var(--oz-rule-strong); }
+        .probe-lab .pl-matrix .pl-matrix-group-row { border-right: 1px solid var(--oz-rule-strong); width: 1.6rem; padding: 0; }
         .probe-lab .pl-matrix .pl-matrix-group-row span { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; padding: 0.3rem 0.2rem; }
-        .probe-lab .pl-matrix td { min-width: 3.4rem; height: 2.1rem; text-align: center; font-weight: 600; border-radius: 2px; cursor: default; }
+        .probe-lab .pl-matrix td { min-width: 3.6rem; height: 2.2rem; text-align: center; font-weight: 500; cursor: default; }
         .probe-lab .pl-matrix td sup { font-size: 0.6rem; margin-left: 1px; }
-        .probe-lab .pl-scale { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; font-size: 0.7rem; margin-top: 0.5rem; }
-        .probe-lab .pl-scale-bar { width: 140px; height: 8px; border: 1px solid; border-radius: 2px; }
+        .probe-lab .pl-scale { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; color: var(--oz-fg-dim); font-size: 0.8rem; margin-top: 0.6rem; }
+        .probe-lab .pl-scale-bar { width: 140px; height: 8px; border: 1px solid var(--oz-rule-strong); }
         @media (max-width: 900px) {
           .probe-lab .pl-generalize-setup { grid-template-columns: 1fr; }
         }

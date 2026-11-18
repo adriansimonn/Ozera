@@ -6,6 +6,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import type { HeadClassification, HeadImportance, HeadType } from '../../types/analysis'
 import { HEAD_TYPE_COLORS, HEAD_TYPE_NAMES } from '../../types/analysis'
+import { useTheme } from '../../hooks/useTheme'
+import { sequentialScale } from '../../styles/appTheme'
 
 interface AttentionPatternGridProps {
   classifications: HeadClassification[]
@@ -29,6 +31,9 @@ export function AttentionPatternGrid({
   showImportance = false,
 }: AttentionPatternGridProps) {
   const [colorMode, setColorMode] = useState<ColorMode>('type')
+  // Importance and confidence are drawn in the app's sequential scale
+  const { isLight } = useTheme()
+  const scale = useMemo(() => sequentialScale(isLight), [isLight])
   const containerRef = useRef<HTMLDivElement>(null)
   const [cellSize, setCellSize] = useState(48) // Default 3rem = 48px
 
@@ -87,15 +92,11 @@ export function AttentionPatternGrid({
     if (colorMode === 'type' && classification) {
       return HEAD_TYPE_COLORS[classification.primary_type]
     } else if (colorMode === 'importance' && imp) {
-      // Gradient from dark to bright cyan based on importance
-      const intensity = Math.round(imp.overall_importance * 255)
-      return `rgb(${intensity * 0.2}, ${intensity}, ${intensity * 0.9})`
+      return scale(imp.overall_importance)
     } else if (colorMode === 'confidence' && classification) {
-      // Gradient from dark to bright based on confidence
-      const intensity = Math.round(classification.confidence * 255)
-      return `rgb(${intensity * 0.4}, ${intensity * 0.8}, ${intensity})`
+      return scale(classification.confidence)
     }
-    return '#1e293b'
+    return 'var(--oz-fill-strong)'
   }
 
   // Get opacity based on importance or confidence
@@ -104,6 +105,8 @@ export function AttentionPatternGrid({
     const imp = importanceMap.get(key)
     const classification = classificationMap.get(key)
 
+    // The sequential scale already says how much; only a type's color is dimmed by confidence
+    if (colorMode !== 'type') return 1
     if (showImportance && imp) {
       return 0.3 + imp.overall_importance * 0.7
     }
@@ -125,7 +128,7 @@ export function AttentionPatternGrid({
     <div className="attention-pattern-grid" ref={containerRef}>
       {/* Legend */}
       <div className="legend">
-        <span className="legend-label">Legend:</span>
+        <span className="legend-label">{colorMode === 'type' ? 'Head types' : colorMode === 'confidence' ? 'Confidence' : 'Importance'}</span>
         {colorMode === 'type' ? (
           Object.entries(HEAD_TYPE_COLORS).map(([type, color]) => (
             <div key={type} className="legend-item">
@@ -141,11 +144,7 @@ export function AttentionPatternGrid({
             <span className="gradient-label">0%</span>
             <div
               className="gradient-bar"
-              style={{
-                background: colorMode === 'confidence'
-                  ? 'linear-gradient(to right, rgb(25, 51, 64), rgb(102, 204, 255))'
-                  : 'linear-gradient(to right, rgb(0, 0, 0), rgb(51, 255, 230))'
-              }}
+              style={{ background: `linear-gradient(to right, ${[0, 0.25, 0.5, 0.75, 1].map(scale).join(', ')})` }}
             />
             <span className="gradient-label">100%</span>
           </div>
@@ -221,7 +220,8 @@ export function AttentionPatternGrid({
                         <div className="tooltip-position">L{layerIdx} H{headIdx}</div>
                         {classification && colorMode === 'type' && (
                           <>
-                            <div className="tooltip-type" style={{ color: HEAD_TYPE_COLORS[classification.primary_type] }}>
+                            <div className="tooltip-type">
+                              <i style={{ background: HEAD_TYPE_COLORS[classification.primary_type] }} />
                               {HEAD_TYPE_NAMES[classification.primary_type]}
                             </div>
                             <div className="tooltip-detail">
@@ -251,23 +251,27 @@ export function AttentionPatternGrid({
 
       {/* Color mode toggle */}
       <div className="view-mode">
-        <span className="view-mode-label">View mode:</span>
-        <div className="view-mode-buttons">
+        <span className="view-mode-label">Color by</span>
+        <div className="oz-chips" role="radiogroup" aria-label="Color by">
           {(['type', 'confidence'] as const).map((mode) => (
             <button
               key={mode}
+              role="radio"
+              aria-checked={colorMode === mode}
               onClick={() => setColorMode(mode)}
-              className={`view-mode-btn ${colorMode === mode ? 'active' : ''}`}
+              className="oz-chip"
             >
-              {mode}
+              {mode === 'type' ? 'Type' : 'Confidence'}
             </button>
           ))}
           {hasImportanceData && (
             <button
+              role="radio"
+              aria-checked={colorMode === 'importance'}
               onClick={() => setColorMode('importance')}
-              className={`view-mode-btn ${colorMode === 'importance' ? 'active' : ''}`}
+              className="oz-chip"
             >
-              importance
+              Importance
             </button>
           )}
         </div>
@@ -277,243 +281,174 @@ export function AttentionPatternGrid({
         .attention-pattern-grid {
           display: flex;
           flex-direction: column;
-          gap: 1rem;
+          gap: 1.1rem;
           width: 100%;
         }
 
-        .legend {
+        .attention-pattern-grid .legend {
           display: flex;
           flex-wrap: wrap;
           align-items: center;
-          gap: 1rem;
-          padding: 0.75rem;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          gap: 0.4rem 1.1rem;
+          font-size: 0.85rem;
         }
 
-        .legend-label {
-          font-size: 0.75rem;
-          color: #ffffff;
+        .attention-pattern-grid .legend-label,
+        .attention-pattern-grid .view-mode-label {
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
           font-weight: 500;
         }
 
-        .legend-item {
+        .attention-pattern-grid .legend-item {
           display: flex;
           align-items: center;
-          gap: 0.375rem;
-          font-size: 0.75rem;
-          color: #ffffff;
+          gap: 0.45rem;
         }
 
-        .legend-dot {
-          width: 0.75rem;
-          height: 0.75rem;
+        .attention-pattern-grid .legend-dot {
+          width: 9px;
+          height: 9px;
         }
 
-        .gradient-legend {
+        .attention-pattern-grid .gradient-legend {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
+          gap: 0.6rem;
           flex: 1;
           max-width: 300px;
         }
 
-        .gradient-bar {
+        .attention-pattern-grid .gradient-bar {
           flex: 1;
-          height: 0.75rem;
+          height: 8px;
           min-width: 120px;
+          border: 1px solid var(--oz-rule-strong);
         }
 
-        .gradient-label {
-          font-size: 0.7rem;
-          color: #ffffff;
+        .attention-pattern-grid .gradient-label {
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
+          font-variant-numeric: tabular-nums;
         }
 
-        .grid-container {
+        .attention-pattern-grid .grid-container {
           overflow-x: auto;
           overflow-y: visible;
           max-width: 100%;
           padding-bottom: 0.5rem;
         }
 
-        .grid-container::-webkit-scrollbar {
-          height: 6px;
-        }
-
-        .grid-container::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.05);
-        }
-
-        .grid-container::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.2);
-        }
-
-        .grid-container::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.3);
-        }
-
-        .grid-inner {
+        .attention-pattern-grid .grid-inner {
           display: inline-block;
           min-width: min-content;
         }
 
-        .grid-row {
+        .attention-pattern-grid .grid-row {
           display: flex;
           align-items: center;
         }
 
-        .grid-corner {
-          height: 1.25rem;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #ffffff;
-          flex-shrink: 0;
-        }
-
-        .grid-header-cell {
-          height: 1.25rem;
+        .attention-pattern-grid .grid-corner,
+        .attention-pattern-grid .grid-header-cell,
+        .attention-pattern-grid .grid-row-label {
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #ffffff;
-          font-family: monospace;
           flex-shrink: 0;
+          color: var(--oz-fg-dim);
+          font-family: var(--oz-mono);
         }
 
-        .grid-row-label {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #ffffff;
-          font-family: monospace;
-          flex-shrink: 0;
+        .attention-pattern-grid .grid-corner,
+        .attention-pattern-grid .grid-header-cell {
+          height: 1.5rem;
         }
 
-        .grid-cell {
-          margin: 0.5px;
-          border-radius: 2px;
-          transition: transform 0.15s, box-shadow 0.15s;
+        /* A head: one cell of the layers-by-heads grid */
+        .attention-pattern-grid .grid-cell {
+          margin: 1px;
           position: relative;
           border: none;
           cursor: pointer;
           flex-shrink: 0;
         }
 
-        .grid-cell:hover {
-          transform: scale(1.2);
+        .attention-pattern-grid .grid-cell:hover {
           z-index: 10;
+          outline: 1.5px solid var(--oz-fg);
+          outline-offset: 1px;
+          opacity: 1 !important;
         }
 
-        .grid-cell.selected {
-          box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+        .attention-pattern-grid .grid-cell.selected {
+          z-index: 5;
+          outline: 2px solid var(--oz-fg);
+          outline-offset: 1px;
+          opacity: 1 !important;
         }
 
-        .importance-bar {
+        .attention-pattern-grid .importance-bar {
           position: absolute;
           bottom: 2px;
           left: 50%;
           transform: translateX(-50%);
-          height: 3px;
-          background: rgba(255, 255, 255, 0.8);
+          height: 2px;
+          background: var(--oz-fg);
         }
 
-        .cell-tooltip {
+        .attention-pattern-grid .cell-tooltip {
           position: absolute;
-          opacity: 0;
+          display: none;
           bottom: 100%;
           left: 50%;
           transform: translateX(-50%);
           margin-bottom: 0.5rem;
           z-index: 20;
           pointer-events: none;
-          transition: opacity 0.2s;
         }
 
-        .grid-cell:hover .cell-tooltip {
-          opacity: 1;
+        .attention-pattern-grid .grid-cell:hover .cell-tooltip {
+          display: block;
         }
 
-        .tooltip-content {
-          background: rgba(0, 0, 0, 0.95);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          padding: 0.375rem 0.5rem;
-          font-size: 0.7rem;
+        .attention-pattern-grid .tooltip-content {
+          padding: 0.45rem 0.6rem;
+          background: var(--oz-bg);
+          border: 1px solid var(--oz-rule-strong);
+          color: var(--oz-fg);
+          font-size: 0.8rem;
+          text-align: left;
           white-space: nowrap;
         }
 
-        .tooltip-position {
-          color: #ffffff;
-          margin-bottom: 0.25rem;
-          font-family: monospace;
-        }
-
-        .tooltip-type {
-          font-weight: 600;
-        }
-
-        .tooltip-detail {
-          color: #ffffff;
-        }
-
-        .tooltip-metric {
-          color: #ffffff;
+        .attention-pattern-grid .tooltip-position {
+          margin-bottom: 0.2rem;
+          font-family: var(--oz-mono);
           font-weight: 500;
         }
 
-        .view-mode {
+        .attention-pattern-grid .tooltip-type {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          font-size: 0.75rem;
-          color: #ffffff;
+          gap: 0.4rem;
         }
 
-        .view-mode-label {
-          color: #ffffff;
+        .attention-pattern-grid .tooltip-type i {
+          width: 8px;
+          height: 8px;
         }
 
-        .view-mode-buttons {
+        .attention-pattern-grid .tooltip-detail,
+        .attention-pattern-grid .tooltip-metric {
+          color: var(--oz-fg-dim);
+        }
+
+        .attention-pattern-grid .view-mode {
           display: flex;
-          gap: 2px;
-          background: rgba(0, 0, 0, 0.3);
-          padding: 2px;
+          align-items: center;
+          gap: 0.75rem;
         }
-
-        .view-mode-btn {
-          padding: 0.375rem 0.625rem;
-          font-size: 0.75rem;
-          text-transform: capitalize;
-          transition: all 0.2s;
-          background: transparent;
-          border: none;
-          color: #ffffff;
-          cursor: pointer;
-        }
-
-        .view-mode-btn:hover {
-          color: #ffffff;
-        }
-
-        .view-mode-btn.active {
-          background: rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-        }
-
-        /* Light mode (cell tooltips stay dark in both themes) */
-        [data-bg="light"] .attention-pattern-grid .legend { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .attention-pattern-grid .legend-label,
-        [data-bg="light"] .attention-pattern-grid .legend-item,
-        [data-bg="light"] .attention-pattern-grid .gradient-label,
-        [data-bg="light"] .attention-pattern-grid .grid-corner,
-        [data-bg="light"] .attention-pattern-grid .grid-header-cell,
-        [data-bg="light"] .attention-pattern-grid .grid-row-label,
-        [data-bg="light"] .attention-pattern-grid .view-mode,
-        [data-bg="light"] .attention-pattern-grid .view-mode-label,
-        [data-bg="light"] .attention-pattern-grid .view-mode-btn { color: #1d1d1f; }
-        [data-bg="light"] .attention-pattern-grid .view-mode-buttons { background: rgba(0,0,0,0.05); }
-        [data-bg="light"] .attention-pattern-grid .view-mode-btn.active { background: rgba(0,0,0,0.12); }
-        [data-bg="light"] .attention-pattern-grid .grid-cell.selected { box-shadow: 0 0 0 2px rgba(0,0,0,0.8); }
       `}</style>
     </div>
   )

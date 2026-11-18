@@ -7,11 +7,12 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
-import { Download, GitCompareArrows, Play } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { apiClient } from '../../api/client'
 import type { GeometryLab, StoredRun } from '../../hooks/useGeometryLab'
 import type { CompareResult, GeometryRun } from '../../types/geometry'
 import { Dropdown } from '../common/Dropdown'
+import { Spinner } from '../common/Spinner'
 import { ChartTooltip, Findings, Placeholder, Segmented, StatTiles, type Finding } from '../lab/chartKit'
 import { pointerIn, useElementWidth, useLabColors } from '../lab/labTheme'
 import { closedPath, downloadSvg, encodeWire, formatValue, layerName, linePath, positionLabel, sameValues, valueColors } from './geometryUtils'
@@ -33,7 +34,7 @@ export function CompareView({ lab }: { lab: GeometryLab }) {
   if (!lab.run || lab.runId == null) {
     return (
       <section className="pl-panel">
-        <Placeholder icon={GitCompareArrows}>Run a concept, then compare it with another layer, model, or its base/instruct sibling.</Placeholder>
+        <Placeholder glyph="geometry">Run a concept, then compare it with another layer, model, or its base/instruct sibling.</Placeholder>
       </section>
     )
   }
@@ -167,7 +168,7 @@ function CompareBody({ lab, run, runId }: { lab: GeometryLab; run: GeometryRun; 
             style={{ borderColor: colors.border, color: colors.text, marginBottom: '0.75rem' }}
             title="Run this concept on the model's base or instruct counterpart and compare"
           >
-            {lab.running ? <span className="pl-spinner" style={{ borderColor: colors.border, borderTopColor: colors.text }} /> : <Play className="pl-icon" aria-hidden="true" />}
+            {lab.running && <Spinner />}
             {siblingRun ? `Compare with ${lab.modelName(sibling)}` : `Run on ${lab.modelName(sibling)}`}
           </button>
         )}
@@ -283,7 +284,7 @@ function CompareChart({ result, positions, selected, onSelect }: { result: Compa
           ) : null,
         )}
         {endLabels.map(({ s, py }) => (
-          <text key={s.key} x={CHART_MARGIN.left + innerW + 6} y={py} dy="0.32em" fontSize={10} fontWeight={600} fill={colors.text}>
+          <text key={s.key} x={CHART_MARGIN.left + innerW + 6} y={py} dy="0.32em" fontSize={10} fontWeight={500} fill={colors.text}>
             {s.label}
           </text>
         ))}
@@ -376,7 +377,6 @@ function Overlay({ result, run, fills, labelA, labelB }: { result: CompareResult
           title="Download SVG"
           aria-label="Download SVG"
           onClick={() => svgRef.current && downloadSvg(svgRef.current, `${run.concept.name}-overlay.svg`.replace(/[^\w.-]+/g, '_'), colors.surface)}
-          style={{ color: colors.text }}
         >
           <Download className="pl-icon" />
         </button>
@@ -396,7 +396,7 @@ function Overlay({ result, run, fills, labelA, labelB }: { result: CompareResult
         ))}
         {b.map((p, v) =>
           v % labelEvery === 0 || v === k - 1 ? (
-            <text key={v} x={px(p[0]) + 7} y={py(p[1]) - 7} fontSize={10} fontWeight={600} fill={colors.text} stroke={colors.surface} strokeWidth={3} paintOrder="stroke">
+            <text key={v} x={px(p[0]) + 7} y={py(p[1]) - 7} fontSize={10} fontWeight={500} fill={colors.text} stroke={colors.surface} strokeWidth={3} paintOrder="stroke">
               {values[v]}
             </text>
           ) : null,

@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { Play, AlertCircle, Database, Cpu, Settings, Zap, Download } from 'lucide-react'
+import {  AlertCircle } from 'lucide-react'
 import { DatasetUpload } from './DatasetUpload'
 import { useTrainingEstimate, useGpuPricing } from '../../hooks/useTraining'
 import type { GpuType, DatasetMetadata, GenericDatasetInfo } from '../../api/client'
@@ -11,6 +11,7 @@ import { apiClient } from '../../api/client'
 import { useAuthStore } from '../../stores/authStore'
 import { useThemeColors } from '../../hooks/useTheme'
 import { Dropdown } from '../common/Dropdown'
+import { Spinner } from '../common/Spinner'
 import { isReservedModelName, sanitizeModelName } from '../../data/defaultModels'
 
 // Dataset sources - "uploaded" is user's uploaded dataset, "upload-new" shows upload UI, others are generic datasets
@@ -233,31 +234,10 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
       ]
 
   return (
-    <div
-      style={{
-        background: tc.surface,
-        borderRadius: '0',
-        border: `1px solid ${tc.border}`,
-        padding: '20px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '20px',
-      }}
-    >
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Cpu size={20} color={tc.textMid} />
-        <h3 style={{ color: tc.text, fontSize: '16px', fontWeight: 600, margin: 0 }}>
-          Train Custom Model
-        </h3>
-      </div>
-
+    <div className="training-panel oz-steps">
       {/* Dataset Section */}
-      <div>
-        <label style={{ display: 'block', color: tc.textSub, fontSize: '12px', marginBottom: '8px' }}>
-          <Database size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-          Dataset
-        </label>
+      <div className="oz-section">
+        <h2 className="oz-title">Dataset</h2>
 
         {/* Dataset source selector */}
         <div style={{ marginBottom: '12px' }}>
@@ -278,14 +258,14 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
             {datasetSource === 'uploaded' && uploadedDataset ? (
               <div
                 style={{
-                  background: 'rgba(34, 197, 94, 0.1)',
-                  border: '1px solid rgba(34, 197, 94, 0.3)',
+                  background: 'transparent',
+                  border: `1px solid ${tc.ok}`,
                   padding: '10px 12px',
                   marginBottom: '12px',
-                  fontSize: '12px',
+                  fontSize: '14px',
                 }}
               >
-                <div style={{ color: '#22c55e', fontWeight: 500 }}>
+                <div style={{ color: tc.text, fontWeight: 500 }}>
                   {uploadedDataset.name}
                 </div>
                 <div style={{ color: tc.textSub, marginTop: '4px' }}>
@@ -293,7 +273,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
                 </div>
               </div>
             ) : datasetSource === 'uploaded' && !uploadedDataset ? (
-              <div style={{ color: tc.textMuted, fontSize: '12px', marginBottom: '12px' }}>
+              <div style={{ color: tc.textMuted, fontSize: '14px', marginBottom: '12px' }}>
                 No dataset uploaded yet
               </div>
             ) : null}
@@ -303,16 +283,13 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
       </div>
 
       {/* Model Configuration */}
-      <div>
-        <label style={{ display: 'block', color: tc.textSub, fontSize: '12px', marginBottom: '8px' }}>
-          <Settings size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-          Model Configuration
-        </label>
+      <div className="oz-section">
+        <h2 className="oz-title">Model configuration</h2>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           {/* Architecture */}
           <div>
-            <label style={{ display: 'block', color: tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
+            <label style={{ display: 'block', color: tc.textMuted, fontSize: '13.5px', marginBottom: '4px' }}>
               Architecture
             </label>
             <Dropdown
@@ -328,8 +305,8 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
 
           {/* Model Name */}
           <div>
-            <label style={{ display: 'block', color: isReservedName ? '#ef4444' : tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
-              Model Name
+            <label style={{ display: 'block', color: isReservedName ? tc.danger : tc.textMuted, fontSize: '13.5px', marginBottom: '4px' }}>
+              Model name
             </label>
             <input
               type="text"
@@ -337,19 +314,11 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
               onChange={(e) => setModelName(sanitizeModelName(e.target.value))}
               placeholder="my-custom-model"
               disabled={disabled || starting}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                background: tc.inputBg,
-                border: isReservedName ? '1px solid rgba(239, 68, 68, 0.5)' : `1px solid ${tc.borderStrong}`,
-                borderRadius: '0',
-                color: tc.text,
-                fontSize: '12px',
-                boxSizing: 'border-box',
-              }}
+              className="oz-input"
+              style={isReservedName ? { borderColor: tc.danger } : undefined}
             />
             {isReservedName && (
-              <div style={{ color: '#ef4444', fontSize: '11px', marginTop: '4px' }}>
+              <div style={{ color: tc.danger, fontSize: '13.5px', marginTop: '4px' }}>
                 This name is reserved for a built-in model
               </div>
             )}
@@ -358,13 +327,10 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
       </div>
 
       {/* GPU Selection */}
-      <div>
-        <label style={{ display: 'block', color: tc.textSub, fontSize: '12px', marginBottom: '8px' }}>
-          <Zap size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-          GPU Selection
-        </label>
+      <div className="oz-section">
+        <h2 className="oz-title">GPU selection</h2>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="tp-gpus">
           {gpuPricing.map((gpu) => {
             const isSelected = gpuType === gpu.gpu_type
             const tokensPerSec = modelConfig === 'nano' ? gpu.nano_tokens_per_sec : gpu.mini_tokens_per_sec
@@ -374,43 +340,26 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
                 type="button"
                 onClick={() => setGpuType(gpu.gpu_type)}
                 disabled={disabled || starting}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  background: isSelected ? 'rgba(59, 130, 246, 0.15)' : tc.deepBg,
-                  border: isSelected ? '1px solid rgba(59, 130, 246, 0.5)' : `1px solid ${tc.border}`,
-                  borderRadius: '0',
-                  cursor: disabled || starting ? 'not-allowed' : 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.15s ease',
-                }}
+                className={`tp-gpu${isSelected ? ' is-active' : ''}`}
+                aria-pressed={isSelected}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ color: tc.text, fontSize: '13px', fontWeight: 500 }}>
+                    <div style={{ color: tc.text, fontSize: '15px', fontWeight: 500 }}>
                       {gpu.display_name}
                       {gpu.gpu_type === 'a10g' && (
-                        <span style={{
-                          marginLeft: '8px',
-                          fontSize: '10px',
-                          color: '#22c55e',
-                          background: 'rgba(34, 197, 94, 0.15)',
-                          padding: '2px 6px',
-                          borderRadius: '2px',
-                        }}>
-                          Recommended
-                        </span>
+                        <span className="oz-tag" style={{ marginLeft: '8px' }}>Recommended</span>
                       )}
                     </div>
-                    <div style={{ color: tc.textMuted, fontSize: '11px', marginTop: '2px' }}>
+                    <div style={{ color: tc.textMuted, fontSize: '13.5px', marginTop: '2px' }}>
                       {gpu.description}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ color: tc.text, fontSize: '13px', fontWeight: 600 }}>
+                    <div style={{ color: tc.text, fontSize: '15px', fontWeight: 500 }}>
                       ${gpu.rate_per_hour.toFixed(2)}/hr
                     </div>
-                    <div style={{ color: tc.textMuted, fontSize: '10px', marginTop: '2px' }}>
+                    <div style={{ color: tc.textMuted, fontSize: '12.5px', marginTop: '2px' }}>
                       ~{(tokensPerSec / 1000).toFixed(0)}K tok/s
                     </div>
                   </div>
@@ -422,15 +371,13 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
       </div>
 
       {/* Hyperparameters */}
-      <div>
-        <label style={{ display: 'block', color: tc.textSub, fontSize: '12px', marginBottom: '8px' }}>
-          Hyperparameters
-        </label>
+      <div className="oz-section">
+        <h2 className="oz-title">Hyperparameters</h2>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           {/* Epochs */}
           <div>
-            <label style={{ display: 'block', color: tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
+            <label style={{ display: 'block', color: tc.textMuted, fontSize: '13.5px', marginBottom: '4px' }}>
               Epochs: {epochs}
             </label>
             <input
@@ -441,14 +388,14 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
               value={epochs}
               onChange={(e) => setEpochs(parseInt(e.target.value))}
               disabled={disabled || starting}
-              style={{ width: '100%', accentColor: tc.text }}
+              style={{ width: '100%' }}
             />
           </div>
 
           {/* Batch Size */}
           <div>
-            <label style={{ display: 'block', color: tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
-              Batch Size
+            <label style={{ display: 'block', color: tc.textMuted, fontSize: '13.5px', marginBottom: '4px' }}>
+              Batch size
             </label>
             <Dropdown
               value={String(batchSize)}
@@ -465,8 +412,8 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
 
           {/* Learning Rate */}
           <div>
-            <label style={{ display: 'block', color: tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
-              Learning Rate: {learningRate.toExponential(0)}
+            <label style={{ display: 'block', color: tc.textMuted, fontSize: '13.5px', marginBottom: '4px' }}>
+              Learning rate: {learningRate.toExponential(0)}
             </label>
             <input
               type="range"
@@ -476,14 +423,14 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
               value={Math.log10(learningRate)}
               onChange={(e) => setLearningRate(Math.pow(10, parseFloat(e.target.value)))}
               disabled={disabled || starting}
-              style={{ width: '100%', accentColor: tc.text }}
+              style={{ width: '100%' }}
             />
           </div>
 
           {/* Sequence Length */}
           <div>
-            <label style={{ display: 'block', color: tc.textMuted, fontSize: '11px', marginBottom: '4px' }}>
-              Sequence Length
+            <label style={{ display: 'block', color: tc.textMuted, fontSize: '13.5px', marginBottom: '4px' }}>
+              Sequence length
             </label>
             <Dropdown
               value={String(seqLen)}
@@ -499,213 +446,129 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
         </div>
       </div>
 
-      {/* Cost Estimate */}
-      {estimate && (
-        <div
-          style={{
-            background: 'rgba(59, 130, 246, 0.1)',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
-            borderRadius: '0',
-            padding: '12px 16px',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="oz-section tp-run">
+        {/* Cost Estimate */}
+        {estimate && (
+          <div className="tp-estimate">
             <div>
-              <div style={{ color: tc.textSub, fontSize: '11px', marginBottom: '2px' }}>
-                Estimated Time
-              </div>
-              <div style={{ color: tc.text, fontSize: '16px', fontWeight: 600 }}>
+              <div className="tp-estimate-label">Estimated time</div>
+              <div className="tp-estimate-value">
                 {estimate.estimated_minutes < 60
                   ? `${estimate.estimated_minutes.toFixed(0)} min`
                   : `${(estimate.estimated_minutes / 60).toFixed(1)} hr`}
               </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ color: tc.textSub, fontSize: '11px', marginBottom: '2px' }}>
-                Estimated Cost
-              </div>
-              <div style={{ color: tc.text, fontSize: '16px', fontWeight: 600 }}>
-                ${estimate.estimated_cost_usd.toFixed(2)}
-              </div>
+            <div>
+              <div className="tp-estimate-label">Estimated cost</div>
+              <div className="tp-estimate-value">${estimate.estimated_cost_usd.toFixed(2)}</div>
             </div>
           </div>
-          {estimate.warning && (
-            <div style={{ color: '#fbbf24', fontSize: '11px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <AlertCircle size={12} />
-              {estimate.warning}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div
-          style={{
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            borderRadius: '0',
-            padding: '10px 12px',
-            color: '#ef4444',
-            fontSize: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
-          <AlertCircle size={14} />
-          {error}
-        </div>
-      )}
-
-      {/* Auto-download option */}
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          padding: '12px',
-          background: tc.deepBg,
-          border: `1px solid ${tc.border}`,
-          cursor: disabled || starting ? 'not-allowed' : 'pointer',
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={autoDownload}
-          onChange={(e) => setAutoDownload(e.target.checked)}
-          disabled={disabled || starting}
-          style={{
-            width: '16px',
-            height: '16px',
-            accentColor: '#3b82f6',
-            cursor: disabled || starting ? 'not-allowed' : 'pointer',
-          }}
-        />
-        <div>
-          <div style={{ color: tc.text, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Download size={14} />
-            Download model when complete
-          </div>
-          <div style={{ color: tc.textMuted, fontSize: '11px', marginTop: '2px' }}>
-            Automatically download model weights as a .zip file
-          </div>
-        </div>
-      </label>
-
-      {/* Start Button */}
-      <button
-        onClick={handleStartTraining}
-        disabled={disabled || starting || !isValid}
-        style={{
-          width: '100%',
-          padding: '12px 16px',
-          background: isValid && !disabled && !starting
-            ? `linear-gradient(135deg, ${tc.borderStrong}, ${tc.surfaceHover})`
-            : tc.surfaceHover,
-          border: `1px solid ${tc.borderHover}`,
-          borderRadius: '0',
-          color: isValid && !disabled && !starting ? tc.text : tc.textDisabled,
-          fontSize: '14px',
-          fontWeight: 600,
-          cursor: isValid && !disabled && !starting ? 'pointer' : 'not-allowed',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
-          transition: 'all 0.2s ease',
-        }}
-      >
-        {starting ? (
-          <>
-            <div
-              style={{
-                width: '16px',
-                height: '16px',
-                border: `2px solid ${tc.spinnerTrack}`,
-                borderTopColor: tc.spinnerHead,
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite',
-              }}
-            />
-            Starting...
-          </>
-        ) : (
-          <>
-            <Play size={16} />
-            Start Training
-          </>
         )}
-      </button>
+        {estimate?.warning && (
+          <div className="oz-note oz-note--warn">
+            <AlertCircle aria-hidden="true" />
+            <span>{estimate.warning}</span>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="oz-note oz-note--error" role="alert">
+            <AlertCircle aria-hidden="true" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Auto-download option */}
+        <label className={`tp-option${disabled || starting ? ' is-off' : ''}`}>
+          <input
+            type="checkbox"
+            checked={autoDownload}
+            onChange={(e) => setAutoDownload(e.target.checked)}
+            disabled={disabled || starting}
+          />
+          <span>
+            <span className="tp-option-name">Download model when complete</span>
+            <span className="oz-hint">Automatically download model weights as a .zip file</span>
+          </span>
+        </label>
+
+        {/* Start Button */}
+        <button
+          onClick={handleStartTraining}
+          disabled={disabled || starting || !isValid}
+          className={`oz-btn oz-btn--block${starting ? '' : ' oz-btn--arrow'}`}
+        >
+          {starting ? (
+            <>
+              <Spinner />
+              Starting...
+            </>
+          ) : (
+            'Start Training'
+          )}
+        </button>
+      </div>
 
       <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
+        .training-panel .oz-section:last-of-type { border-bottom: none; }
+        .training-panel .tp-gpus { display: flex; flex-direction: column; }
+        /* The GPUs: a ruled list, the chosen one marked */
+        .training-panel .tp-gpu {
+          position: relative;
+          width: 100%;
+          padding: 0.8rem 0;
+          border-top: 1px solid var(--oz-rule);
+          color: var(--oz-fg-dim);
+          text-align: left;
+          cursor: pointer;
+          transition: color 0.2s ease;
         }
+        .training-panel .tp-gpu:last-child { border-bottom: 1px solid var(--oz-rule); }
+        .training-panel .tp-gpu:hover:not(:disabled), .training-panel .tp-gpu.is-active { color: var(--oz-fg); }
+        .training-panel .tp-gpu:disabled { cursor: not-allowed; }
+        .training-panel .tp-gpu.is-active::after {
+          content: '';
+          position: absolute;
+          left: 0;
+          bottom: -1px;
+          width: 100%;
+          height: 1px;
+          background: var(--oz-mark);
+        }
+        .training-panel .tp-gpu div { color: inherit !important; }
+        .training-panel .tp-run { display: flex; flex-direction: column; gap: 1rem; }
+        .training-panel .tp-estimate { display: flex; gap: 3rem; }
+        .training-panel .tp-estimate-label { color: var(--oz-fg-dim); font-size: 0.85rem; font-weight: 500; }
+        .training-panel .tp-estimate-value {
+          margin-top: 0.15rem;
+          font-size: 2rem;
+          font-weight: 500;
+          letter-spacing: -0.035em;
+          line-height: 1.1;
+          font-variant-numeric: tabular-nums;
+        }
+        .training-panel .tp-option { display: flex; align-items: flex-start; gap: 0.65rem; cursor: pointer; }
+        .training-panel .tp-option.is-off { cursor: not-allowed; }
+        .training-panel .tp-option input { margin-top: 0.2rem; }
+        .training-panel .tp-option > span { display: flex; flex-direction: column; gap: 0.1rem; }
+        .training-panel .tp-option-name { font-size: 0.9375rem; font-weight: 500; }
       `}</style>
 
       {/* Dataset Overwrite Warning Modal */}
       {showDatasetOverwriteWarning && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-          onClick={handleCancelOverwrite}
-        >
-          <div
-            style={{
-              background: '#1a1a1a',
-              border: `1px solid ${tc.borderStrong}`,
-              padding: '24px',
-              maxWidth: '400px',
-              width: '90%',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ color: tc.text, fontSize: '16px', fontWeight: 600, margin: '0 0 12px 0' }}>
-              Replace Existing Dataset?
-            </h3>
-            <p style={{ color: tc.textSub, fontSize: '13px', margin: '0 0 8px 0', lineHeight: 1.5 }}>
-              You already have a dataset uploaded: <strong style={{ color: tc.text }}>{uploadedDataset?.name}</strong>
+        <div className="oz-overlay" onClick={handleCancelOverwrite}>
+          <div className="oz-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h3 className="oz-modal__title">Replace existing dataset?</h3>
+            <p className="oz-modal__text">
+              You already have a dataset uploaded: <strong>{uploadedDataset?.name}</strong>. Uploading a new dataset will
+              permanently replace it.
             </p>
-            <p style={{ color: tc.textSub, fontSize: '13px', margin: '0 0 20px 0', lineHeight: 1.5 }}>
-              Uploading a new dataset will permanently replace your current one.
-            </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={handleCancelOverwrite}
-                style={{
-                  padding: '10px 16px',
-                  background: 'transparent',
-                  border: `1px solid ${tc.borderHover}`,
-                  color: tc.textMid,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                }}
-              >
+            <div className="oz-modal__actions">
+              <button className="oz-btn oz-btn--ghost" onClick={handleCancelOverwrite}>
                 Cancel
               </button>
-              <button
-                onClick={handleConfirmOverwrite}
-                style={{
-                  padding: '10px 16px',
-                  background: 'rgba(239, 68, 68, 0.2)',
-                  border: '1px solid rgba(239, 68, 68, 0.5)',
-                  color: '#ef4444',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}
-              >
+              <button className="oz-btn oz-btn--danger" onClick={handleConfirmOverwrite}>
                 Replace Dataset
               </button>
             </div>
@@ -715,65 +578,19 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
 
       {/* Overwrite Confirmation Modal */}
       {showOverwriteModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-          onClick={() => setShowOverwriteModal(false)}
-        >
-          <div
-            style={{
-              background: '#1a1a1a',
-              border: `1px solid ${tc.borderStrong}`,
-              padding: '24px',
-              maxWidth: '400px',
-              width: '90%',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ color: tc.text, fontSize: '16px', fontWeight: 600, margin: '0 0 12px 0' }}>
-              Replace Existing Model?
-            </h3>
-            <p style={{ color: tc.textSub, fontSize: '13px', margin: '0 0 20px 0', lineHeight: 1.5 }}>
+        <div className="oz-overlay" onClick={() => setShowOverwriteModal(false)}>
+          <div className="oz-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h3 className="oz-modal__title">Replace existing model?</h3>
+            <p className="oz-modal__text">
               You already have a custom model. Ozera currently limits users to 1 custom model.
               Your existing model will be permanently deleted once the new model finishes
               training. If training fails or is cancelled, your existing model is kept.
             </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setShowOverwriteModal(false)}
-                style={{
-                  padding: '10px 16px',
-                  background: 'transparent',
-                  border: `1px solid ${tc.borderHover}`,
-                  color: tc.textMid,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                }}
-              >
+            <div className="oz-modal__actions">
+              <button className="oz-btn oz-btn--ghost" onClick={() => setShowOverwriteModal(false)}>
                 Cancel
               </button>
-              <button
-                onClick={() => startTrainingWithOverwrite(true)}
-                style={{
-                  padding: '10px 16px',
-                  background: 'rgba(239, 68, 68, 0.2)',
-                  border: '1px solid rgba(239, 68, 68, 0.5)',
-                  color: '#ef4444',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}
-              >
+              <button className="oz-btn oz-btn--danger" onClick={() => startTrainingWithOverwrite(true)}>
                 Replace & Train
               </button>
             </div>

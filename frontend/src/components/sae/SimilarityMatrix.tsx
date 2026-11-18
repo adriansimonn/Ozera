@@ -8,6 +8,8 @@ import { useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import { Grid3x3, Info } from 'lucide-react'
 import { useThemeColors } from '../../hooks/useTheme'
+import { inkOnSequential, sequentialScale } from '../../styles/appTheme'
+import { MONO } from '../home/homeKit'
 
 interface SimilarityMatrixProps {
   ckaMatrix: number[][]
@@ -66,10 +68,8 @@ export function SimilarityMatrix({
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`)
 
     // Color scale for similarity
-    const colorScale = d3
-      .scaleSequential()
-      .domain([0, 1])
-      .interpolator(d3.interpolateRgb(tc.isLight ? '#ccc' : '#333', tc.isLight ? '#111' : '#fff'))
+    // The app's sequential scale: the theme's ramp on ink, grays on white
+    const colorScale = sequentialScale(tc.isLight)
 
     // Draw cells
     for (let i = 0; i < nRows; i++) {
@@ -82,16 +82,16 @@ export function SimilarityMatrix({
           .attr('width', cellSize - 1)
           .attr('height', cellSize - 1)
           .attr('fill', colorScale(value))
-          .attr('stroke', tc.isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)')
+          .attr('stroke', tc.border)
           .attr('stroke-width', 0.5)
           .style('cursor', 'pointer')
           .on('mouseenter', function () {
-            d3.select(this).attr('stroke', tc.isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)').attr('stroke-width', 2)
+            d3.select(this).attr('stroke', tc.text).attr('stroke-width', 1.5)
             setHoveredCell({ layerA: layersA[i], layerB: layersB[j], value })
           })
           .on('mouseleave', function () {
             d3.select(this)
-              .attr('stroke', tc.isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)')
+              .attr('stroke', tc.border)
               .attr('stroke-width', 0.5)
             setHoveredCell(null)
           })
@@ -103,9 +103,9 @@ export function SimilarityMatrix({
             .attr('y', i * cellSize + cellSize / 2)
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'middle')
-            .attr('fill', (tc.isLight ? value <= 0.5 : value > 0.5) ? '#111' : '#ffffff')
-            .attr('font-size', '9px')
-            .attr('font-family', 'monospace')
+            .attr('fill', inkOnSequential(tc.isLight, value))
+            .attr('font-size', '10.5px')
+            .attr('font-family', MONO)
             .attr('pointer-events', 'none')
             .text(value.toFixed(2))
         }
@@ -222,16 +222,16 @@ export function SimilarityMatrix({
   const isSameModel = modelA === modelB && activationTypeA === activationTypeB
 
   return (
-    <div className={`bg-black/40 border border-gray-800 ${className}`}>
+    <div className={`bg-transparent border border-rule ${className}`}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-800">
+      <div className="p-4 border-b border-rule">
         <div className="flex items-center gap-2 mb-1">
           <Grid3x3 className="w-5 h-5" style={{ color: tc.textMid }} />
-          <h3 className="text-lg font-semibold text-white tracking-tight">
+          <h3 className="text-lg font-medium text-fg tracking-tight">
             {title || 'Layer Similarity Matrix'}
           </h3>
         </div>
-        <p className="text-xs text-white">
+        <p className="text-[0.82rem] text-fg">
           {subtitle || (isSameModel
             ? `CKA similarity across layers of ${modelA}`
             : `CKA similarity: ${modelA} vs ${modelB}`)}
@@ -246,20 +246,20 @@ export function SimilarityMatrix({
       {/* Hover info */}
       {hoveredCell && (
         <div className="px-4 pb-3 flex items-center gap-2 text-sm">
-          <Info className="w-3.5 h-3.5 text-white" />
-          <span className="text-white">
+          <Info className="w-3.5 h-3.5 text-fg" />
+          <span className="text-fg">
             <span style={{ color: tc.textStrong }}>{modelA} {labelPrefix}{hoveredCell.layerA}</span>
             {' vs '}
             <span style={{ color: tc.textStrong }}>{modelB} {labelPrefix}{hoveredCell.layerB}</span>
             {': '}
-            <span className="text-white font-mono">{hoveredCell.value.toFixed(4)}</span>
+            <span className="text-fg font-mono">{hoveredCell.value.toFixed(4)}</span>
           </span>
         </div>
       )}
 
       {/* Interpretation guide */}
       <div className="px-4 pb-4">
-        <div className="text-xs text-white space-y-1">
+        <div className="text-[0.82rem] text-fg space-y-1">
           <p>
             {isSameModel
               ? 'Diagonal values show self-similarity (always 1.0). Off-diagonal shows how similar representations are across layers.'

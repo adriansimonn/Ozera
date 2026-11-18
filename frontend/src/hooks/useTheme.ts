@@ -4,6 +4,7 @@
  */
 
 import { useSettingsStore } from '../stores/settingsStore'
+import { appPalette, type AppPalette } from '../styles/appTheme'
 
 export type EffectiveBg = 'dark' | 'light'
 
@@ -25,34 +26,44 @@ export function useTheme() {
   }
 }
 
+/** The app's colors as literals (styles/appTheme.ts), for canvases and anything else CSS can't reach. */
+export function useAppPalette(): AppPalette {
+  return appPalette(useTheme().isLight)
+}
+
 /**
  * Theme-aware colors for inline style props.
  * Use in components that rely on React inline styles instead of CSS classes.
  */
 export function useThemeColors() {
-  const { isLight } = useTheme()
-
-  // All readable text tiers share one full-contrast color; hierarchy comes from size/weight.
-  const text = isLight ? '#1d1d1f' : '#ffffff'
+  const p = useAppPalette()
 
   return {
-    text,
-    textStrong: text,
-    textMid: text,
-    textSub: text,
-    textMuted: text,
-    textFaint: text,
-    textDisabled: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)',
-    border: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
-    borderStrong: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)',
-    borderHover: isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.25)',
-    surface: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)',
-    surfaceHover: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
-    surfaceActive: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)',
-    inputBg: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(0,0,0,0.4)',
-    deepBg: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.2)',
-    spinnerTrack: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.3)',
-    spinnerHead: isLight ? '#1d1d1f' : '#fff',
-    isLight,
+    text: p.fg,
+    textStrong: p.fg,
+    textMid: p.fg,
+    textSub: p.fg,
+    // Supporting text: descriptions, hints, meta
+    textMuted: p.fgDim,
+    textFaint: p.fgDim,
+    textDisabled: p.fgFaint,
+    border: p.rule,
+    borderStrong: p.ruleStrong,
+    borderHover: p.fg,
+    surface: 'transparent',
+    surfaceHover: p.fill,
+    surfaceActive: p.fillStrong,
+    inputBg: 'transparent',
+    deepBg: p.fill,
+    spinnerTrack: p.rule,
+    spinnerHead: p.fg,
+    accent: p.accent,
+    onAccent: p.onAccent,
+    mark: p.mark,
+    danger: p.danger,
+    warn: p.warn,
+    ok: p.ok,
+    bg: p.bg,
+    isLight: p.isLight,
   }
 }

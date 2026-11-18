@@ -4,9 +4,10 @@
  */
 
 import { useRef, useState } from 'react'
-import { ArrowLeftRight, Upload, X } from 'lucide-react'
+import { ArrowLeftRight,  X } from 'lucide-react'
 import type { ParsedProbeDataset, ProbeDatasetSummary } from '../../types/probes'
 import type { ProbeLab } from '../../hooks/useProbeLab'
+import { Spinner } from '../common/Spinner'
 import { Segmented } from '../lab/chartKit'
 import { useLabColors } from '../lab/labTheme'
 
@@ -26,7 +27,6 @@ export function FileButton({
   disabled?: boolean
   onFile: (file: File) => void
 }) {
-  const colors = useLabColors()
   const input = useRef<HTMLInputElement>(null)
   return (
     <>
@@ -46,13 +46,9 @@ export function FileButton({
         className="pl-button"
         disabled={busy || disabled}
         onClick={() => input.current?.click()}
-        style={{ borderColor: colors.border, color: colors.text, width: '100%' }}
+        style={{ width: '100%' }}
       >
-        {busy ? (
-          <span className="pl-spinner" style={{ borderColor: colors.border, borderTopColor: colors.text }} />
-        ) : (
-          <Upload className="pl-icon" aria-hidden="true" />
-        )}
+        {busy && <Spinner />}
         {label}
       </button>
     </>
@@ -73,12 +69,12 @@ function ParsedSummary({
   const colors = useLabColors()
   const positives = parsed.rows.filter((r) => r.label === 1).length
   return (
-    <div className="pl-parsed" style={{ borderColor: colors.border, background: colors.panel }}>
+    <div className="pl-parsed">
       <div className="pl-parsed-head">
         <span className="pl-parsed-name" title={parsed.filename} data-assist="probes.dataset_name">
           {parsed.filename}
         </span>
-        <button type="button" className="pl-icon-button" onClick={onClear} disabled={disabled} aria-label="Remove file" style={{ color: colors.text }}>
+        <button type="button" className="pl-icon-button" onClick={onClear} disabled={disabled} aria-label="Remove file">
           <X className="pl-icon" />
         </button>
       </div>
@@ -97,7 +93,6 @@ function ParsedSummary({
           disabled={disabled}
           title="Swap which label is the positive class"
           aria-label="Swap positive and negative labels"
-          style={{ color: colors.text }}
         >
           <ArrowLeftRight className="pl-icon" />
         </button>
@@ -147,22 +142,19 @@ export function DatasetPanel({ lab, disabled }: { lab: ProbeLab; disabled?: bool
         <div className="pl-builtin">
           {(['contrastive', 'minimal_pairs'] as const).map((category) => (
             <div key={category}>
-              <div className="pl-control-label" style={{ marginTop: '0.75rem' }}>
-                {CATEGORY_LABELS[category]}
-              </div>
+              <div className="pl-control-label pl-list-label">{CATEGORY_LABELS[category]}</div>
               {lab.datasets
                 .filter((d) => d.category === category)
                 .map((d) => {
                   const active = d.id === lab.builtinId
                   return (
-                    <div key={d.id} className="pl-dataset-item" style={{ borderColor: active ? colors.text : colors.border, background: active ? colors.hover : 'transparent' }}>
+                    <div key={d.id} className={`pl-dataset-item${active ? ' is-active' : ''}`}>
                       <button
                         type="button"
                         className="pl-dataset-pick"
                         onClick={() => lab.setBuiltinId(d.id)}
                         disabled={disabled}
                         aria-pressed={active}
-                        style={{ color: colors.text }}
                       >
                         <span className="pl-dataset-name">{d.name}</span>
                         <span className="pl-hint">
@@ -191,7 +183,7 @@ export function DatasetPanel({ lab, disabled }: { lab: ProbeLab; disabled?: bool
                               <span className="pl-hint">Include its OOD test set</span>
                             </label>
                           )}
-                          <button type="button" className="pl-link" onClick={() => togglePreview(d.id)} style={{ color: colors.accent }}>
+                          <button type="button" className="pl-link" onClick={() => togglePreview(d.id)}>
                             {preview === d.id ? 'Hide examples' : 'Show examples'}
                           </button>
                           {preview === d.id && detail && (
@@ -228,7 +220,7 @@ export function DatasetPanel({ lab, disabled }: { lab: ProbeLab; disabled?: bool
         </div>
       )}
 
-      <div className="pl-control-label" style={{ marginTop: '1rem' }}>
+      <div className="pl-control-label" style={{ marginTop: '1.25rem' }}>
         OOD test set (optional)
       </div>
       {lab.oodUpload ? (
@@ -238,30 +230,39 @@ export function DatasetPanel({ lab, disabled }: { lab: ProbeLab; disabled?: bool
       )}
 
       <style>{`
-        .probe-lab .pl-dataset-item { border: 1px solid; margin-bottom: 0.35rem; }
+        /* The built-in sets: a ruled list, the chosen one open and marked (as the homepage lists its instruments) */
+        .probe-lab .pl-list-label { margin: 1.1rem 0 0.5rem; }
+        .probe-lab .pl-dataset-item { position: relative; border-top: 1px solid var(--oz-rule); }
+        .probe-lab .pl-dataset-item:last-child { border-bottom: 1px solid var(--oz-rule); }
+        .probe-lab .pl-dataset-item.is-active::after { content: ''; position: absolute; left: 0; bottom: -1px; width: 100%; height: 1px; background: var(--oz-mark); }
         .probe-lab .pl-dataset-pick {
           display: flex;
           width: 100%;
           justify-content: space-between;
           align-items: baseline;
-          gap: 0.5rem;
-          padding: 0.5rem 0.65rem;
+          gap: 0.75rem;
+          padding: 0.7rem 0;
           background: none;
           border: none;
+          color: var(--oz-fg-dim);
           cursor: pointer;
           text-align: left;
+          transition: color 0.2s ease;
         }
+        .probe-lab .pl-dataset-pick:hover:not(:disabled),
+        .probe-lab .pl-dataset-item.is-active .pl-dataset-pick { color: var(--oz-fg); }
         .probe-lab .pl-dataset-pick:disabled { cursor: not-allowed; }
-        .probe-lab .pl-dataset-name { font-size: 0.82rem; font-weight: 600; }
-        .probe-lab .pl-dataset-detail { padding: 0 0.65rem 0.6rem; display: flex; flex-direction: column; gap: 0.4rem; }
-        .probe-lab .pl-preview { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
-        .probe-lab .pl-preview li { display: flex; gap: 0.4rem; align-items: baseline; font-size: 0.75rem; }
+        .probe-lab .pl-dataset-pick .pl-hint { color: inherit; font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .probe-lab .pl-dataset-name { font-size: 0.9375rem; font-weight: 500; letter-spacing: -0.01em; }
+        .probe-lab .pl-dataset-detail { padding: 0 0 1rem; display: flex; flex-direction: column; align-items: flex-start; gap: 0.6rem; }
+        .probe-lab .pl-preview { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+        .probe-lab .pl-preview li { display: flex; gap: 0.5rem; align-items: baseline; font-size: 0.85rem; }
         .probe-lab .pl-preview .pl-legend-dot { flex-shrink: 0; transform: translateY(-1px); }
-        .probe-lab .pl-parsed { border: 1px solid; padding: 0.5rem 0.65rem; }
+        .probe-lab .pl-parsed { border: 1px solid var(--oz-rule-strong); padding: 0.6rem 0.75rem; }
         .probe-lab .pl-parsed-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
-        .probe-lab .pl-parsed-name { font-size: 0.8rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .probe-lab .pl-parsed-counts { display: flex; align-items: center; gap: 0.75rem; font-size: 0.75rem; }
-        .probe-lab .pl-parsed-counts > span { display: inline-flex; align-items: center; gap: 0.3rem; }
+        .probe-lab .pl-parsed-name { font-size: 0.9rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .probe-lab .pl-parsed-counts { display: flex; align-items: center; gap: 0.9rem; font-size: 0.85rem; }
+        .probe-lab .pl-parsed-counts > span { display: inline-flex; align-items: center; gap: 0.35rem; }
       `}</style>
     </div>
   )

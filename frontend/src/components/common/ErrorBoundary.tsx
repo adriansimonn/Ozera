@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { THEME } from '../home/homeTheme'
 
 interface Props {
   children: ReactNode
@@ -24,11 +25,23 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      // Outside the app's theme (it may be what failed), so the colors are spelled out
       return (
-        <div className="min-h-screen bg-black flex items-center justify-center">
-          <div className="text-center p-8 max-w-md">
-            <h1 className="text-2xl font-bold text-white mb-4">Something went wrong</h1>
-            <p className="text-white mb-6">
+        <div
+          style={{
+            minHeight: '125vh',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 clamp(20px, 3.4vw, 52px)',
+            background: THEME.ink,
+            color: '#fff',
+          }}
+        >
+          <div style={{ maxWidth: '34rem' }}>
+            <h1 style={{ fontSize: '3rem', fontWeight: 500, letterSpacing: '-0.04em', lineHeight: 1, marginBottom: '1.25rem' }}>
+              Something went wrong.
+            </h1>
+            <p style={{ color: 'rgba(255, 255, 255, 0.7)', lineHeight: 1.55, marginBottom: '1.75rem' }}>
               An unexpected error occurred. Please try refreshing the page.
             </p>
             <button
@@ -36,9 +49,9 @@ export class ErrorBoundary extends Component<Props, State> {
                 this.setState({ hasError: false })
                 window.location.reload()
               }}
-              className="px-4 py-2 bg-white text-black rounded-lg hover:bg-neutral-200 transition-colors"
+              style={{ padding: '0.85rem 1.2rem', background: '#fff', color: THEME.ink, fontSize: '0.9375rem', fontWeight: 500 }}
             >
-              Refresh page
+              Refresh page →
             </button>
           </div>
         </div>

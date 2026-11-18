@@ -1,6 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronDown } from 'lucide-react'
-import { useTheme } from '../../hooks/useTheme'
 
 export interface DropdownOption {
   value: string
@@ -39,7 +37,6 @@ export function Dropdown({
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const { isLight } = useTheme()
 
   const allOptions: DropdownOption[] = options
     ? options
@@ -90,26 +87,25 @@ export function Dropdown({
     close()
   }
 
-  const themeClass = isLight ? 'ozera-dropdown--light' : 'ozera-dropdown--dark'
-
   return (
     <div
       ref={ref}
       id={id}
-      className={`ozera-dropdown ${themeClass} ${disabled ? 'ozera-dropdown--disabled' : ''} ${className}`}
+      className={`ozera-dropdown ${open ? 'ozera-dropdown--open' : ''} ${disabled ? 'ozera-dropdown--disabled' : ''} ${className}`}
       style={style}
     >
       <button
         type="button"
         className="ozera-dropdown__trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
       >
         <span className="ozera-dropdown__label">{selectedLabel}</span>
-        <ChevronDown
-          size={14}
-          className={`ozera-dropdown__chevron ${open ? 'ozera-dropdown__chevron--open' : ''}`}
-        />
+        <svg className="oz-caret" viewBox="0 0 10 6" aria-hidden="true">
+          <path d="M1 1l4 4 4-4" />
+        </svg>
       </button>
 
       {open && (

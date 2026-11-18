@@ -14,12 +14,15 @@ import type {
   ModelLayerInfo,
   PatchingExperiment,
 } from '../types/patching'
-import { Play, Zap, Trash2, AlertCircle, Info, ChevronDown, ChevronUp } from 'lucide-react'
+import { Trash2, AlertCircle } from 'lucide-react'
 import { Dropdown, type DropdownGroup } from '../components/common/Dropdown'
+import { EmptyState } from '../components/common/EmptyState'
+import { Spinner } from '../components/common/Spinner'
 import { useAuthStore } from '../stores/authStore'
 import { useAssistantPage } from '../hooks/useAssistantPage'
 import { patchingBridge } from '../components/assistant/pages/patching'
-import { useTheme } from '../hooks/useTheme'
+
+const MODEL_TYPE_LABELS: Record<string, string> = { ozera: 'Ozera', open_source: 'Open source', custom: 'Custom' }
 
 interface PatchingPlaygroundProps {
   onShowPurchaseCredits?: () => void
@@ -28,7 +31,6 @@ interface PatchingPlaygroundProps {
 export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: PatchingPlaygroundProps) {
   const { isAuthenticated } = useAuthStore()
   const navigate = useNavigate()
-  const { isLight } = useTheme()
 
   // Model selection
   const [models, setModels] = useState<PatchingModelInfo[]>([])
@@ -215,55 +217,28 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
   const numHeads = modelInfo?.num_heads ?? 8
 
   // Color tokens
-  const c = {
-    bg: isLight ? '#f5f5f7' : '#0a0a0a',
-    panelBg: isLight ? '#ffffff' : '#111111',
-    divider: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
-    text: isLight ? '#1d1d1f' : '#ffffff',
-    textMid: isLight ? '#1d1d1f' : '#ffffff',
-    textSub: isLight ? '#1d1d1f' : '#ffffff',
-    controlBg: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)',
-    controlBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
-    controlHover: isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.08)',
-    inputBg: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(0,0,0,0.4)',
-    inputBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
-    errorBg: 'rgba(239, 68, 68, 0.08)',
-    errorBorder: 'rgba(239, 68, 68, 0.2)',
-    errorText: '#ef4444',
-    accentBg: isLight ? 'rgba(59,130,246,0.08)' : 'rgba(59,130,246,0.12)',
-    accentText: isLight ? '#2563eb' : 'rgba(96,165,250,0.9)',
-    ablationBg: isLight ? 'rgba(168,85,247,0.06)' : 'rgba(168,85,247,0.1)',
-    ablationBorder: isLight ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.25)',
-    ablationText: isLight ? '#7c3aed' : 'rgba(168,85,247,0.9)',
-    spinnerTrack: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
-    spinnerHead: isLight ? '#1d1d1f' : '#ffffff',
-  }
-
   return (
-    <div className="dp-page" style={{ background: c.bg }}>
+    <div className="dp-page oz-page oz-steps">
       <NavBar />
 
-      <div className="dp-layout" style={{ borderColor: c.divider }}>
+      <div className="dp-layout oz-page__body">
         {/* Left Panel — 20%: Model, Prompts, Settings */}
-        <div className="dp-left" style={{ background: c.panelBg, borderRight: `1px solid ${c.divider}` }}>
-          <div className="dp-left-scroll">
+        <div className="dp-left">
+          <div className="oz-scroll">
             {/* Error banner */}
             {error && (
-              <div className="dp-error" style={{ background: c.errorBg, borderColor: c.errorBorder }}>
-                <AlertCircle style={{ width: 14, height: 14, color: c.errorText, flexShrink: 0 }} />
-                <span style={{ color: c.errorText, fontSize: '0.8rem', flex: 1 }}>{error}</span>
-                <button
-                  onClick={() => setError(null)}
-                  style={{ background: 'none', border: 'none', color: c.errorText, cursor: 'pointer', fontSize: '0.75rem', padding: '0.125rem 0.5rem' }}
-                >
+              <div className="dp-error oz-note oz-note--error" role="alert">
+                <AlertCircle aria-hidden="true" />
+                <span>{error}</span>
+                <button className="oz-link" onClick={() => setError(null)}>
                   Dismiss
                 </button>
               </div>
             )}
 
             {/* Model section */}
-            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
-              <div className="dp-section-label" style={{ color: c.textSub }}>Model</div>
+            <div className="oz-section">
+              <h2 className="oz-title">Model</h2>
               <div data-assist="patching.model">
               <Dropdown
                 value={selectedModel}
@@ -289,20 +264,9 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
               />
               </div>
               {modelInfo && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginTop: '0.625rem' }}>
-                  <span style={{
-                    padding: '0.2rem 0.5rem',
-                    background: c.controlBg,
-                    border: `1px solid ${c.controlBorder}`,
-                    color: c.textSub,
-                    fontSize: '0.65rem',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                  }}>
-                    {modelInfo.model_type.replace(/_/g, ' ')}
-                  </span>
-                  <span style={{ fontSize: '0.75rem', color: c.textSub }}>
+                <div className="dp-model-meta">
+                  <span className="oz-tag">{MODEL_TYPE_LABELS[modelInfo.model_type] ?? modelInfo.model_type.replace(/_/g, ' ')}</span>
+                  <span className="oz-hint">
                     {modelInfo.num_layers} layers, {modelInfo.num_heads} heads
                   </span>
                 </div>
@@ -310,14 +274,14 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
             </div>
 
             {/* Prompts section */}
-            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
-              <div className="dp-section-label" style={{ color: c.textSub }}>Prompts</div>
+            <div className="oz-section">
+              <h2 className="oz-title">Prompts</h2>
 
               {requiresSourcePrompt && (
-                <div style={{ marginBottom: '0.875rem' }}>
-                  <div style={{ marginBottom: '0.375rem' }}>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 500, color: c.textMid }}>Source Prompt</div>
-                    <div style={{ fontSize: '0.7rem', color: c.textSub }}>Activations captured from this prompt</div>
+                <div className="dp-field">
+                  <div className="dp-field-head">
+                    <div className="dp-field-name">Source prompt</div>
+                    <div className="oz-hint">Activations captured from this prompt</div>
                   </div>
                   <textarea
                     data-assist="patching.source_prompt"
@@ -326,31 +290,19 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
                     placeholder="Enter source prompt..."
                     disabled={running}
                     rows={3}
-                    className="dp-textarea"
-                    style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
+                    className="oz-textarea"
                   />
                 </div>
               )}
 
               {!requiresSourcePrompt && patches.length > 0 && (
-                <div style={{
-                  padding: '0.625rem 0.75rem',
-                  background: c.ablationBg,
-                  border: `1px solid ${c.ablationBorder}`,
-                  color: c.ablationText,
-                  fontSize: '0.8rem',
-                  marginBottom: '0.875rem',
-                }}>
-                  Ablation mode: No source prompt needed
-                </div>
+                <div className="dp-field oz-note">Ablation mode: no source prompt needed</div>
               )}
 
-              <div>
-                <div style={{ marginBottom: '0.375rem' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 500, color: c.textMid }}>
-                    {requiresSourcePrompt ? 'Target Prompt' : 'Prompt'}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: c.textSub }}>
+              <div className="dp-field">
+                <div className="dp-field-head">
+                  <div className="dp-field-name">{requiresSourcePrompt ? 'Target prompt' : 'Prompt'}</div>
+                  <div className="oz-hint">
                     {isMixed
                       ? 'Generation runs on this prompt with interventions'
                       : requiresSourcePrompt
@@ -365,18 +317,17 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
                   placeholder={requiresSourcePrompt ? 'Enter target prompt...' : 'Enter prompt...'}
                   disabled={running}
                   rows={3}
-                  className="dp-textarea"
-                  style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
+                  className="oz-textarea"
                 />
               </div>
             </div>
 
             {/* Generation Settings */}
-            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
-              <div className="dp-section-label" style={{ color: c.textSub }}>Generation Settings</div>
+            <div className="oz-section">
+              <h2 className="oz-title">Generation settings</h2>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '0.7rem', color: c.textSub, marginBottom: '0.3rem', fontWeight: 500 }}>Max Tokens</div>
+                  <div className="oz-label">Max tokens</div>
                   <input
                     type="number"
                     data-assist="patching.max_tokens"
@@ -384,12 +335,11 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
                     onChange={e => setMaxTokens(parseInt(e.target.value) || 20)}
                     min={1} max={100}
                     disabled={running}
-                    className="dp-input"
-                    style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
+                    className="oz-input oz-input--number"
                   />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '0.7rem', color: c.textSub, marginBottom: '0.3rem', fontWeight: 500 }}>Temperature</div>
+                  <div className="oz-label">Temperature</div>
                   <input
                     type="number"
                     data-assist="patching.temperature"
@@ -397,40 +347,28 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
                     onChange={e => setTemperature(parseFloat(e.target.value) || 0)}
                     min={0} max={2} step={0.1}
                     disabled={running}
-                    className="dp-input"
-                    style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
+                    className="oz-input oz-input--number"
                   />
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginTop: '0.5rem' }}>
-                <Info style={{ width: 12, height: 12, color: c.textSub }} />
-                <span style={{ fontSize: '0.7rem', color: c.textSub }}>Temperature 0 recommended for deterministic comparison</span>
-              </div>
+              <p className="oz-hint" style={{ marginTop: '0.6rem' }}>Temperature 0 recommended for deterministic comparison</p>
             </div>
 
             {/* Run button */}
-            <div className="dp-section">
+            <div className="oz-section dp-run">
               <button
-                className="dp-run-btn"
+                className={`oz-btn oz-btn--block${running ? '' : ' oz-btn--arrow'}`}
                 data-assist="patching.run_button"
                 onClick={handleRunExperiment}
                 disabled={running || !selectedModel || patches.length === 0}
-                style={{
-                  background: running ? c.controlBg : (isLight ? '#1d1d1f' : '#ffffff'),
-                  color: running ? c.textSub : (isLight ? '#ffffff' : '#0a0a0a'),
-                  borderColor: 'transparent',
-                }}
               >
                 {running ? (
                   <>
-                    <div className="dp-spinner" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
+                    <Spinner />
                     Running...
                   </>
                 ) : (
-                  <>
-                    <Play style={{ width: 14, height: 14 }} />
-                    Run Experiment
-                  </>
+                  'Run Experiment'
                 )}
               </button>
             </div>
@@ -438,10 +376,10 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
         </div>
 
         {/* Center Panel — 40%: Layer Selector, Config, Captured Activations */}
-        <div className="dp-center" style={{ background: c.bg, borderRight: `1px solid ${c.divider}` }}>
-          <div className="dp-center-scroll">
+        <div className="dp-center">
+          <div className="oz-scroll">
             {/* Visual Layer Selector */}
-            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            <div className="oz-section">
               <PatchSelector
                 modelInfo={modelInfo}
                 patches={patches}
@@ -451,7 +389,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
             </div>
 
             {/* Intervention Configuration */}
-            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            <div className="oz-section">
               <div data-assist="patching.patches">
               <PatchConfigPanel
                 modelId={selectedModel}
@@ -468,78 +406,48 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
             </div>
 
             {/* Captured Activations */}
-            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            <div className="oz-section">
               <button
                 className="dp-toggle-btn"
+                aria-expanded={showCaptured}
                 onClick={() => setShowCaptured(!showCaptured)}
-                style={{ color: c.textMid }}
               >
-                <span style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Captured Activations ({capturedActivations.length})
-                </span>
-                {showCaptured ? <ChevronUp style={{ width: 14, height: 14 }} /> : <ChevronDown style={{ width: 14, height: 14 }} />}
+                <h2 className="oz-title">
+                  Captured activations
+                  <span className="oz-title__end">{capturedActivations.length}</span>
+                </h2>
+                <svg className="oz-caret" viewBox="0 0 10 6" aria-hidden="true">
+                  <path d="M1 1l4 4 4-4" />
+                </svg>
               </button>
 
               {showCaptured && (
-                <div style={{ marginTop: '0.75rem' }}>
+                <div className="dp-captured">
                   {capturedActivations.length === 0 ? (
-                    <div style={{
-                      padding: '1.25rem',
-                      textAlign: 'center',
-                      color: c.textSub,
-                      fontSize: '0.8rem',
-                      background: c.controlBg,
-                      border: `1px dashed ${c.controlBorder}`,
-                    }}>
-                      No captured activations yet
-                    </div>
+                    <p className="oz-hint">No captured activations yet</p>
                   ) : (
                     <>
-                      <button
-                        onClick={handleClearAllCaptured}
-                        style={{
-                          width: '100%',
-                          padding: '0.4rem',
-                          background: 'transparent',
-                          border: `1px solid ${c.errorBorder}`,
-                          color: c.errorText,
-                          fontSize: '0.75rem',
-                          cursor: 'pointer',
-                          marginBottom: '0.625rem',
-                        }}
-                      >
-                        Clear All
-                      </button>
                       {capturedActivations.map(activation => (
-                        <div
-                          key={activation.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '0.625rem 0.75rem',
-                            background: c.controlBg,
-                            border: `1px solid ${c.controlBorder}`,
-                            marginBottom: '0.375rem',
-                          }}
-                        >
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1, minWidth: 0 }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 500, color: c.accentText }}>{activation.model_id}</span>
-                            <span style={{ fontSize: '0.75rem', color: c.textSub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              "{activation.prompt.slice(0, 50)}..."
-                            </span>
-                            <span style={{ fontSize: '0.65rem', color: c.textSub }}>
-                              {activation.num_tokens} tokens, {activation.num_layers} layers
+                        <div key={activation.id} className="dp-captured-item">
+                          <div className="dp-captured-main">
+                            <span className="dp-captured-prompt">"{activation.prompt.slice(0, 50)}..."</span>
+                            <span className="oz-hint">
+                              {activation.model_id} · {activation.num_tokens} tokens, {activation.num_layers} layers
                             </span>
                           </div>
                           <button
+                            className="oz-icon-btn"
                             onClick={() => handleDeleteCaptured(activation.id)}
-                            style={{ background: 'none', border: 'none', color: c.textSub, cursor: 'pointer', padding: '0.25rem' }}
+                            aria-label="Delete captured activations"
+                            title="Delete"
                           >
-                            <Trash2 style={{ width: 14, height: 14 }} />
+                            <Trash2 />
                           </button>
                         </div>
                       ))}
+                      <button className="oz-link dp-captured-clear" onClick={handleClearAllCaptured}>
+                        Clear all
+                      </button>
                     </>
                   )}
                 </div>
@@ -549,11 +457,11 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
         </div>
 
         {/* Right Panel — 40%: Results + Saved Experiments */}
-        <div className="dp-right" style={{ background: c.panelBg }}>
-          <div className="dp-right-scroll">
+        <div className="dp-right">
+          <div className="oz-scroll">
             {/* Results */}
-            <div className="dp-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
-              <div className="dp-section-label" style={{ color: c.textSub }}>Results</div>
+            <div className="oz-section dp-results">
+              <h2 className="dp-heading">Results</h2>
               {result ? (
                 <PromptComparer
                   baselineOutput={result.baseline_output}
@@ -564,17 +472,12 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
                   interventionMode={isMixed ? 'mixed' : hasAblations ? 'ablation' : 'patch'}
                 />
               ) : (
-                <div className="dp-placeholder">
-                  <Zap style={{ width: 36, height: 36, color: c.textSub, opacity: 0.3, marginBottom: '0.75rem' }} />
-                  <p style={{ color: c.textSub, fontSize: '0.8rem', margin: 0 }}>
-                    Configure patches and run an experiment to see results
-                  </p>
-                </div>
+                <EmptyState glyph="patching">Configure patches and run an experiment to see results</EmptyState>
               )}
             </div>
 
             {/* Saved Experiments */}
-            <div className="dp-section">
+            <div className="oz-section dp-saved">
               <ExperimentsList
                 currentExperiment={{
                   sourcePrompt,
@@ -592,584 +495,136 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
       </div>
 
       <style>{`
-        .dp-page {
-          height: 125vh;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-
-        .dp-layout {
-          display: flex;
-          flex: 1;
-          margin-top: 76px;
-          overflow: hidden;
-        }
-
-        /* Left: 20% */
+        /* Three columns: what to run, where to intervene, what came back */
         .dp-left {
-          width: 20%;
-          min-width: 280px;
-          max-width: 380px;
           display: flex;
           flex-direction: column;
+          flex: none;
+          width: 22%;
+          min-width: 300px;
+          max-width: 400px;
           overflow: hidden;
+          border-right: 1px solid var(--oz-rule);
         }
 
-        .dp-left-scroll {
-          flex: 1;
-          overflow-y: auto;
-        }
-
-        /* Center: 40% */
         .dp-center {
-          width: 40%;
           display: flex;
           flex-direction: column;
+          flex: 1 1 0;
+          min-width: 0;
           overflow: hidden;
+          border-right: 1px solid var(--oz-rule);
         }
 
-        .dp-center-scroll {
-          flex: 1;
-          overflow-y: auto;
-        }
-
-        /* Right: 40% */
         .dp-right {
-          width: 40%;
           display: flex;
           flex-direction: column;
+          flex: 1 1 0;
+          min-width: 0;
           overflow: hidden;
         }
 
-        .dp-right-scroll {
-          flex: 1;
-          overflow-y: auto;
+        .dp-page .dp-error {
+          margin: 1rem var(--oz-gutter) 0;
         }
 
-        .dp-section {
-          padding: 1rem 1.25rem;
-        }
-
-        .dp-section-label {
-          font-size: 0.65rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-          margin-bottom: 0.625rem;
-        }
-
-        .dp-textarea {
-          width: 100%;
-          padding: 0.625rem 0.75rem;
-          border: 1px solid;
-          font-size: 0.85rem;
-          font-family: inherit;
-          resize: vertical;
-          min-height: 68px;
-          outline: none;
-          box-sizing: border-box;
-        }
-
-        .dp-textarea:focus {
-          border-color: rgba(59, 130, 246, 0.4) !important;
-        }
-
-        .dp-input {
-          width: 100%;
-          padding: 0.5rem 0.625rem;
-          border: 1px solid;
-          font-size: 0.85rem;
-          outline: none;
-          box-sizing: border-box;
-        }
-
-        .dp-input:focus {
-          border-color: rgba(59, 130, 246, 0.4) !important;
-        }
-
-        .dp-run-btn {
-          width: 100%;
+        .dp-model-meta {
           display: flex;
           align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-          padding: 0.75rem 1rem;
-          border: 1px solid;
-          font-size: 0.85rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: opacity 0.15s;
-          letter-spacing: 0.01em;
-        }
-
-        .dp-run-btn:hover:not(:disabled) {
-          opacity: 0.85;
-        }
-
-        .dp-run-btn:disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
-        }
-
-        .dp-spinner {
-          width: 14px;
-          height: 14px;
-          border: 2px solid;
-          border-radius: 50%;
-          animation: dp-spin 0.8s linear infinite;
-        }
-
-        @keyframes dp-spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .dp-toggle-btn {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          background: transparent;
-          border: none;
-          cursor: pointer;
-          padding: 0;
-        }
-
-        .dp-placeholder {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 3rem 2rem;
-          text-align: center;
-        }
-
-        .dp-error {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.625rem 0.875rem;
-          border: 1px solid;
-          margin: 0.75rem 1.25rem 0;
-        }
-
-        @media (max-width: 1200px) {
-          .dp-layout {
-            flex-wrap: wrap;
-          }
-          .dp-left {
-            width: 100%;
-            max-width: 100%;
-            max-height: 35vh;
-            border-right: none !important;
-            border-bottom: 1px solid;
-          }
-          .dp-center {
-            width: 50%;
-            border-right: 1px solid;
-          }
-          .dp-right {
-            width: 50%;
-          }
-        }
-
-        @media (max-width: 768px) {
-          .dp-center,
-          .dp-right {
-            width: 100%;
-            border-right: none !important;
-          }
-        }
-
-        /* ===== Overrides for PatchSelector ===== */
-        .dp-page .patch-selector {
-          background: none;
-          border: none;
-          margin-bottom: 0;
-        }
-
-        .dp-page .selector-header {
-          padding: 0 0 0.5rem 0;
-          border-bottom: none;
-        }
-
-        .dp-page .selector-header h3 {
-          font-size: 0.7rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .dp-page .header-icon {
-          width: 13px;
-          height: 13px;
-        }
-
-        .dp-page .patches-legend {
-          padding: 0.5rem 0 0;
-          border-top: none;
-        }
-
-        .dp-page .legend-label {
-          font-size: 0.7rem;
-        }
-
-        .dp-page .legend-badge {
-          font-size: 0.65rem;
-          padding: 0.1rem 0.375rem;
-        }
-
-        /* ===== Overrides for PatchConfigPanel ===== */
-        .dp-page .patch-config-panel {
-          background: none;
-          border: none;
-          padding: 0;
-        }
-
-        .dp-page .patch-config-panel .panel-header {
-          padding-bottom: 0.5rem;
-          border-bottom: none;
-          margin-bottom: 0.75rem;
-        }
-
-        .dp-page .patch-config-panel .panel-header h3 {
-          font-size: 0.7rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .dp-page .patch-config-panel .config-form {
-          gap: 0.75rem;
-        }
-
-        .dp-page .patch-config-panel .form-group label {
-          font-size: 0.65rem;
-        }
-
-        .dp-page .patch-config-panel .form-group select,
-        .dp-page .patch-config-panel .form-group input[type="text"] {
-          padding: 0.5rem 0.625rem;
-          font-size: 0.8rem;
-        }
-
-        .dp-page .patch-config-panel .intervention-hint {
-          font-size: 0.65rem;
-        }
-
-        .dp-page .patch-config-panel .add-patch-btn {
-          padding: 0.5rem 0.75rem;
-          font-size: 0.8rem;
-        }
-
-        .dp-page .patch-config-panel .patches-list {
+          gap: 0.65rem;
           margin-top: 0.75rem;
-          padding-top: 0.75rem;
         }
 
-        .dp-page .patch-config-panel .list-header {
-          font-size: 0.7rem;
+        .dp-field + .dp-field {
+          margin-top: 1.1rem;
+        }
+
+        .dp-field-head {
           margin-bottom: 0.5rem;
         }
 
-        .dp-page .patch-config-panel .patch-item {
-          padding: 0.5rem 0.625rem;
-          margin-bottom: 0.375rem;
+        .dp-field-name {
+          font-size: 0.9rem;
+          font-weight: 500;
         }
 
-        .dp-page .patch-config-panel .patch-info {
-          gap: 0.5rem;
+        .dp-page .dp-run {
+          border-bottom: none;
         }
 
-        .dp-page .patch-config-panel .patch-intervention {
-          font-size: 0.6rem;
-          padding: 0.1rem 0.3rem;
-        }
-
-        .dp-page .patch-config-panel .patch-layer {
-          font-size: 0.75rem;
-        }
-
-        .dp-page .patch-config-panel .patch-type {
-          font-size: 0.7rem;
-          padding: 0.1rem 0.375rem;
-        }
-
-        .dp-page .patch-config-panel .patch-detail {
-          font-size: 0.7rem;
-        }
-
-        .dp-page .patch-config-panel .patch-blend {
-          font-size: 0.7rem;
-        }
-
-        .dp-page .patch-config-panel .blend-labels {
-          font-size: 0.65rem;
-        }
-
-        /* ===== Overrides for ExperimentsList ===== */
-        .dp-page .section-toggle {
-          padding: 0;
+        /* A section's title that also opens and closes it */
+        .dp-toggle-btn {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 1rem;
           width: 100%;
+          padding: 0;
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .dp-toggle-btn .oz-title {
+          flex: 1;
+          margin: 0;
+          transition: color 0.2s ease;
+        }
+
+        .dp-toggle-btn:hover .oz-title {
+          color: var(--oz-mark);
+        }
+
+        .dp-captured {
+          margin-top: 0.9rem;
+        }
+
+        .dp-captured-item {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          background: transparent;
-          border: none;
-          cursor: pointer;
-          color: #ffffff;
+          gap: 0.75rem;
+          padding: 0.65rem 0;
+          border-top: 1px solid var(--oz-rule);
         }
 
-        [data-bg="light"] .dp-page .section-toggle {
-          color: #1d1d1f;
+        .dp-captured-main {
+          display: flex;
+          flex-direction: column;
+          gap: 0.15rem;
+          flex: 1;
+          min-width: 0;
         }
 
-        .dp-page .section-toggle h2 {
-          font-size: 0.7rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          margin: 0;
+        .dp-captured-prompt {
+          overflow: hidden;
+          font-size: 0.9rem;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
-        .dp-page .section-toggle svg {
-          width: 14px;
-          height: 14px;
+        .dp-page .dp-captured-clear {
+          margin-top: 0.75rem;
+          font-size: 0.85rem;
         }
 
-        .dp-page .exp-content {
-          margin-top: 0.625rem;
+        /* The results column isn't a step: its titles aren't numbered */
+        .dp-heading {
+          margin: 0 0 1rem;
+          font-size: 1.5rem;
+          font-weight: 500;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
         }
 
-        .dp-page .exp-save-section {
-          margin-bottom: 0.625rem;
+        @media (max-width: 1200px) {
+          .dp-page.oz-page { height: auto; overflow: visible; }
+          .dp-layout.oz-page__body { flex-wrap: wrap; }
+          .dp-left { width: 100%; max-width: 100%; border-right: none; border-bottom: 1px solid var(--oz-rule); }
+          .dp-center, .dp-right { flex: 1 1 50%; }
         }
 
-        .dp-page .exp-save-form {
-          gap: 0.375rem;
-        }
-
-        .dp-page .exp-save-form input {
-          padding: 0.375rem 0.625rem;
-          font-size: 0.75rem;
-        }
-
-        .dp-page .exp-save-btn,
-        .dp-page .exp-cancel-btn {
-          padding: 0.375rem 0.625rem;
-          font-size: 0.7rem;
-        }
-
-        .dp-page .exp-show-save-btn {
-          padding: 0.4rem 0.75rem;
-          font-size: 0.75rem;
-          gap: 0.375rem;
-        }
-
-        .dp-page .exp-btn-icon {
-          width: 12px;
-          height: 12px;
-        }
-
-        .dp-page .exp-actions-row {
-          margin-bottom: 0.625rem;
-          gap: 0.375rem;
-        }
-
-        .dp-page .exp-action-btn {
-          padding: 0.35rem 0.625rem;
-          font-size: 0.7rem;
-          gap: 0.25rem;
-        }
-
-        .dp-page .exp-action-icon {
-          width: 12px;
-          height: 12px;
-        }
-
-        .dp-page .exp-empty {
-          padding: 1.25rem 0.75rem;
-        }
-
-        .dp-page .exp-empty p {
-          font-size: 0.75rem;
-        }
-
-        .dp-page .exp-empty-hint {
-          font-size: 0.65rem !important;
-        }
-
-        .dp-page .exp-grid {
-          gap: 0.375rem;
-        }
-
-        .dp-page .exp-card {
-          padding: 0.5rem 0.625rem;
-        }
-
-        .dp-page .exp-card-header {
-          margin-bottom: 0.375rem;
-        }
-
-        .dp-page .exp-name {
-          font-size: 0.75rem;
-        }
-
-        .dp-page .exp-card-action-btn .exp-action-icon {
-          width: 12px;
-          height: 12px;
-        }
-
-        .dp-page .exp-card-body {
-          margin-bottom: 0.375rem;
-          gap: 0.375rem;
-        }
-
-        .dp-page .exp-prompt-label {
-          font-size: 0.6rem;
-          margin-bottom: 0.05rem;
-        }
-
-        .dp-page .exp-prompt-text {
-          font-size: 0.7rem;
-        }
-
-        .dp-page .exp-arrow-icon {
-          width: 12px;
-          height: 12px;
-        }
-
-        .dp-page .exp-ablation-label {
-          font-size: 0.6rem;
-          padding: 0.15rem 0.375rem;
-        }
-
-        .dp-page .exp-card-meta {
-          margin-bottom: 0.375rem;
-          gap: 0.5rem;
-        }
-
-        .dp-page .exp-meta-item {
-          font-size: 0.65rem;
-        }
-
-        .dp-page .exp-card-footer {
-          padding-top: 0.375rem;
-        }
-
-        .dp-page .exp-timestamp {
-          font-size: 0.65rem;
-          gap: 0.25rem;
-        }
-
-        .dp-page .exp-time-icon {
-          width: 10px;
-          height: 10px;
-        }
-
-        .dp-page .exp-load-btn {
-          padding: 0.25rem 0.625rem;
-          font-size: 0.65rem;
-        }
-
-        /* ===== Dark-mode input overrides ===== */
-        .dp-page .patch-config-panel .form-group select,
-        .dp-page .patch-config-panel .form-group input[type="text"] {
-          background: rgba(0, 0, 0, 0.4);
-          border-color: rgba(255, 255, 255, 0.08);
-        }
-
-        .dp-page .patch-config-panel .add-patch-btn {
-          background: rgba(255, 255, 255, 0.04);
-          border-color: rgba(255, 255, 255, 0.08);
-        }
-
-        .dp-page .patch-config-panel .add-patch-btn:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.08);
-        }
-
-        .dp-page .patch-config-panel .patch-item {
-          background: rgba(255, 255, 255, 0.02);
-          border-color: rgba(255, 255, 255, 0.06);
-        }
-
-        .dp-page .patch-config-panel .patches-list {
-          border-top-color: rgba(255, 255, 255, 0.06);
-        }
-
-        .dp-page .patch-config-panel .clear-btn {
-          font-size: 0.65rem;
-        }
-
-        .dp-page .exp-card {
-          background: rgba(255, 255, 255, 0.02);
-          border-color: rgba(255, 255, 255, 0.06);
-        }
-
-        .dp-page .exp-card:hover {
-          border-color: rgba(255, 255, 255, 0.12);
-        }
-
-        .dp-page .exp-action-btn {
-          border-color: rgba(255, 255, 255, 0.06);
-        }
-
-        .dp-page .exp-save-form input {
-          background: rgba(0, 0, 0, 0.4);
-          border-color: rgba(255, 255, 255, 0.08);
-        }
-
-        /* ===== Light-mode overrides ===== */
-        [data-bg="light"] .dp-page .patch-config-panel .form-group select,
-        [data-bg="light"] .dp-page .patch-config-panel .form-group input[type="text"] {
-          background: rgba(0, 0, 0, 0.03);
-          border-color: rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .dp-page .patch-config-panel .add-patch-btn {
-          background: rgba(0, 0, 0, 0.04);
-          border-color: rgba(0, 0, 0, 0.1);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .dp-page .patch-config-panel .add-patch-btn:hover:not(:disabled) {
-          background: rgba(0, 0, 0, 0.07);
-        }
-
-        [data-bg="light"] .dp-page .patch-config-panel .patch-item {
-          background: rgba(0, 0, 0, 0.02);
-          border-color: rgba(0, 0, 0, 0.06);
-        }
-
-        [data-bg="light"] .dp-page .patch-config-panel .patches-list {
-          border-top-color: rgba(0, 0, 0, 0.06);
-        }
-
-        [data-bg="light"] .dp-page .selector-header h3,
-        [data-bg="light"] .dp-page .patch-config-panel .panel-header h3 {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .dp-page .patch-config-panel .form-group label {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .dp-page .exp-card {
-          background: rgba(0, 0, 0, 0.02);
-          border-color: rgba(0, 0, 0, 0.06);
-        }
-
-        [data-bg="light"] .dp-page .exp-card:hover {
-          border-color: rgba(0, 0, 0, 0.12);
-        }
-
-        [data-bg="light"] .dp-page .exp-action-btn {
-          border-color: rgba(0, 0, 0, 0.08);
-        }
-
-        [data-bg="light"] .dp-page .exp-save-form input {
-          background: rgba(0, 0, 0, 0.03);
-          border-color: rgba(0, 0, 0, 0.1);
+        @media (max-width: 768px) {
+          .dp-center, .dp-right { flex: 1 1 100%; border-right: none; }
         }
       `}</style>
     </div>

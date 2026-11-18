@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
-import { Download, Spline } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { apiClient } from '../../api/client'
 import { runConceptSpec, type GeometryLab } from '../../hooks/useGeometryLab'
 import type { GeometryRun, PerPosition, SteerEstimate, SteerMethodId, SteerMethodResult, SteerRequest, SteerResult, TopToken } from '../../types/geometry'
@@ -190,14 +190,14 @@ export function SteerView({ lab }: { lab: GeometryLab }) {
   if (!run || runId == null) {
     return (
       <section className="pl-panel">
-        <Placeholder icon={Spline}>{lab.running ? 'Reading every layer…' : 'Run a concept, then steer along its shape.'}</Placeholder>
+        <Placeholder glyph="geometry">{lab.running ? 'Reading every layer…' : 'Run a concept, then steer along its shape.'}</Placeholder>
       </section>
     )
   }
   if (run.concept.structure === 'categorical') {
     return (
       <section className="pl-panel">
-        <Placeholder icon={Spline}>Steering follows the values' order; categorical concepts have none.</Placeholder>
+        <Placeholder glyph="geometry">Steering follows the values' order; categorical concepts have none.</Placeholder>
       </section>
     )
   }
@@ -297,7 +297,6 @@ function SteerBody({ lab, run, result, onResult }: { lab: GeometryLab; run: Geom
   }
 
   const valueOptions = values.map((v, i) => ({ value: String(i), label: v }))
-  const field = { borderColor: colors.border, background: colors.panel, color: colors.text }
   const note = !lab.isAuthenticated ? 'Sign in to steer' : problem ?? (estimate ? estimateNote(estimate) : null)
 
   return (
@@ -361,7 +360,7 @@ function SteerBody({ lab, run, result, onResult }: { lab: GeometryLab; run: Geom
               placeholder="Today is {x}. Tomorrow is"
               maxLength={300}
               aria-invalid={!templateOk}
-              style={{ ...field, borderColor: evalTemplate && !templateOk ? '#ef4444' : colors.border }}
+              style={{ borderColor: evalTemplate && !templateOk ? colors.danger : undefined }}
             />
             {evalTemplates.length > 1 && (
               <div className="gl-eval-picks">
@@ -371,7 +370,7 @@ function SteerBody({ lab, run, result, onResult }: { lab: GeometryLab; run: Geom
                     type="button"
                     className="pl-link"
                     onClick={() => setEvalTemplate(t)}
-                    style={{ color: t === evalTemplate ? colors.text : colors.accent, fontWeight: t === evalTemplate ? 600 : 400 }}
+                    style={{ color: t === evalTemplate ? colors.text : colors.dim, fontWeight: t === evalTemplate ? 500 : 400 }}
                   >
                     {t}
                   </button>
@@ -397,9 +396,9 @@ function SteerBody({ lab, run, result, onResult }: { lab: GeometryLab; run: Geom
       <style>{`
         .geometry-lab .gl-value-pick { min-width: 150px; }
         .geometry-lab .gl-eval { flex: 1; min-width: 260px; }
-        .geometry-lab .gl-eval-picks { display: flex; flex-wrap: wrap; gap: 0.25rem 0.9rem; margin-top: 0.35rem; }
-        .geometry-lab .gl-steer-prompt { font-size: 0.75rem; margin: -0.4rem 0 0.875rem; }
-        .geometry-lab .gl-steer-prompt code { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; }
+        .geometry-lab .gl-eval-picks { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin-top: 0.4rem; }
+        .geometry-lab .gl-steer-prompt { color: var(--oz-fg-dim); font-size: 0.85rem; margin: -0.4rem 0 1rem; }
+        .geometry-lab .gl-steer-prompt code { font-family: var(--oz-mono); font-size: 0.8rem; color: var(--oz-fg); }
       `}</style>
     </div>
   )
@@ -636,7 +635,6 @@ function ProbHeatmap({
           title="Download SVG"
           aria-label="Download SVG"
           onClick={() => svgRef.current && downloadSvg(svgRef.current, `${filename}.svg`, colors.surface)}
-          style={{ color: colors.text }}
         >
           <Download className="pl-icon" />
         </button>
@@ -780,7 +778,7 @@ function StepChart({
           </>
         )}
         {endLabels.map(({ s, py }) => (
-          <text key={s.key} x={STEP_MARGIN.left + innerW + 6} y={py} dy="0.32em" fontSize={10} fontWeight={600} fill={colors.text}>
+          <text key={s.key} x={STEP_MARGIN.left + innerW + 6} y={py} dy="0.32em" fontSize={10} fontWeight={500} fill={colors.text}>
             {s.label}
           </text>
         ))}
@@ -915,7 +913,6 @@ function PathPlane({
           title="Download SVG"
           aria-label="Download SVG"
           onClick={() => svgRef.current && downloadSvg(svgRef.current, `${filename}.svg`, colors.surface)}
-          style={{ color: colors.text }}
         >
           <Download className="pl-icon" />
         </button>

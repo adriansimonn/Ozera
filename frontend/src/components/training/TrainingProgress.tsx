@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { X, CheckCircle, AlertCircle, Clock, Activity, Download, Play } from 'lucide-react'
 import type { TrainingProgress as TrainingProgressType } from '../../api/client'
 import { useThemeColors } from '../../hooks/useTheme'
+import { EmptyState } from '../common/EmptyState'
 
 interface TrainingProgressProps {
   progress: TrainingProgressType | null
@@ -93,20 +94,19 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
     return (
       <div
         style={{
-          background: 'rgba(34, 197, 94, 0.1)',
-          border: '1px solid rgba(34, 197, 94, 0.3)',
-          borderRadius: '0',
+          background: 'transparent',
+          border: `1px solid ${tc.ok}`,
           padding: '20px',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <CheckCircle size={24} color="#22c55e" />
+            <CheckCircle size={24} color={tc.ok} />
             <div>
-              <div style={{ color: '#22c55e', fontSize: '16px', fontWeight: 600 }}>
+              <div style={{ color: tc.ok, fontSize: '17px', fontWeight: 500 }}>
                 Training Complete
               </div>
-              <div style={{ color: tc.textSub, fontSize: '12px' }}>
+              <div style={{ color: tc.textSub, fontSize: '14px' }}>
                 Model ready: {completedModelName}
               </div>
             </div>
@@ -126,7 +126,7 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
             </button>
           )}
         </div>
-        <div style={{ color: tc.textSub, fontSize: '12px', marginBottom: '12px' }}>
+        <div style={{ color: tc.textSub, fontSize: '14px', marginBottom: '12px' }}>
           Your custom model has been trained and is ready for text generation and visualization.
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -135,11 +135,10 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
             style={{
               flex: 1,
               padding: '10px 16px',
-              background: 'rgba(34, 197, 94, 0.2)',
-              border: '1px solid rgba(34, 197, 94, 0.4)',
-              borderRadius: '0',
-              color: '#22c55e',
-              fontSize: '13px',
+              background: 'transparent',
+              border: `1px solid ${tc.ok}`,
+              color: tc.ok,
+              fontSize: '15px',
               fontWeight: 500,
               cursor: 'pointer',
               display: 'flex',
@@ -158,11 +157,10 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
               style={{
                 flex: 1,
                 padding: '10px 16px',
-                background: downloading ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.2)',
-                border: '1px solid rgba(59, 130, 246, 0.4)',
-                borderRadius: '0',
-                color: '#3b82f6',
-                fontSize: '13px',
+                background: downloading ? 'transparent' : tc.surfaceActive,
+                border: `1px solid ${tc.borderHover}`,
+                color: tc.mark,
+                fontSize: '15px',
                 fontWeight: 500,
                 cursor: downloading ? 'not-allowed' : 'pointer',
                 display: 'flex',
@@ -177,9 +175,8 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
                     style={{
                       width: '14px',
                       height: '14px',
-                      border: '2px solid rgba(59, 130, 246, 0.3)',
-                      borderTopColor: '#3b82f6',
-                      borderRadius: '50%',
+                      border: `1px solid ${tc.borderHover}`,
+                      borderTopColor: tc.mark,
                       animation: 'spin 1s linear infinite',
                     }}
                   />
@@ -202,20 +199,19 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
     return (
       <div
         style={{
-          background: 'rgba(239, 68, 68, 0.1)',
-          border: '1px solid rgba(239, 68, 68, 0.3)',
-          borderRadius: '0',
+          background: 'transparent',
+          border: `1px solid ${tc.danger}`,
           padding: '20px',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <AlertCircle size={24} color="#ef4444" />
+            <AlertCircle size={24} color={tc.danger} />
             <div>
-              <div style={{ color: '#ef4444', fontSize: '16px', fontWeight: 600 }}>
+              <div style={{ color: tc.danger, fontSize: '17px', fontWeight: 500 }}>
                 Training Failed
               </div>
-              <div style={{ color: tc.textSub, fontSize: '12px' }}>
+              <div style={{ color: tc.textSub, fontSize: '14px' }}>
                 {error}
               </div>
             </div>
@@ -241,20 +237,7 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
 
   if (!progress) {
     return (
-      <div
-        style={{
-          background: tc.surface,
-          border: `1px solid ${tc.border}`,
-          borderRadius: '0',
-          padding: '40px 20px',
-          textAlign: 'center',
-        }}
-      >
-        <Activity size={32} color={tc.textFaint} style={{ marginBottom: '12px' }} />
-        <div style={{ color: tc.textSub, fontSize: '13px' }}>
-          No active training job
-        </div>
-      </div>
+      <EmptyState glyph="training">No active training job</EmptyState>
     )
   }
 
@@ -262,7 +245,6 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
     <div
       style={{
         background: tc.surface,
-        borderRadius: '0',
         border: `1px solid ${tc.border}`,
         padding: '20px',
       }}
@@ -274,12 +256,11 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
             style={{
               width: '10px',
               height: '10px',
-              borderRadius: '50%',
-              background: '#22c55e',
+              background: tc.ok,
               animation: 'pulse 2s ease-in-out infinite',
             }}
           />
-          <span style={{ color: tc.text, fontSize: '14px', fontWeight: 600 }}>
+          <span style={{ color: tc.text, fontSize: '15.5px', fontWeight: 500 }}>
             Training in Progress
           </span>
         </div>
@@ -287,12 +268,11 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
           <button
             onClick={() => setShowCancelConfirm(true)}
             style={{
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              borderRadius: '0',
+              background: 'transparent',
+              border: `1px solid ${tc.danger}`,
               padding: '6px 12px',
-              color: '#ef4444',
-              fontSize: '12px',
+              color: tc.danger,
+              fontSize: '14px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -308,10 +288,10 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
       {/* Progress Bar */}
       <div style={{ marginBottom: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-          <span style={{ color: tc.textSub, fontSize: '12px' }}>
+          <span style={{ color: tc.textSub, fontSize: '14px' }}>
             Epoch {progress.current_epoch} / {progress.total_epochs}
           </span>
-          <span style={{ color: tc.textSub, fontSize: '12px' }}>
+          <span style={{ color: tc.textSub, fontSize: '14px' }}>
             {progressPercent}%
           </span>
         </div>
@@ -319,7 +299,6 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
           style={{
             height: '8px',
             background: tc.border,
-            borderRadius: '0',
             overflow: 'hidden',
           }}
         >
@@ -328,9 +307,8 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
             style={{
               height: '100%',
               width: `${progressPercent}%`,
-              background: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #3b82f6)',
+              background: tc.mark,
               backgroundSize: '200% 100%',
-              borderRadius: '0',
               transition: 'width 0.5s ease',
               animation: 'gradientShift 3s ease infinite',
             }}
@@ -344,24 +322,23 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
         <div
           style={{
             background: tc.deepBg,
-            borderRadius: '0',
             padding: '12px',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
             <Clock size={12} color={tc.textSub} />
-            <span style={{ color: tc.textSub, fontSize: '11px' }}>Time</span>
+            <span style={{ color: tc.textSub, fontSize: '13.5px' }}>Time</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ color: tc.textMuted, fontSize: '10px' }}>Elapsed</div>
-              <div style={{ color: tc.text, fontSize: '14px', fontWeight: 500 }}>
+              <div style={{ color: tc.textMuted, fontSize: '12.5px' }}>Elapsed</div>
+              <div style={{ color: tc.text, fontSize: '15.5px', fontWeight: 500 }}>
                 {formatTime(liveElapsedSeconds)}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ color: tc.textMuted, fontSize: '10px' }}>Remaining</div>
-              <div style={{ color: tc.text, fontSize: '14px', fontWeight: 500 }}>
+              <div style={{ color: tc.textMuted, fontSize: '12.5px' }}>Remaining</div>
+              <div style={{ color: tc.text, fontSize: '15.5px', fontWeight: 500 }}>
                 {formatTime(Math.max(0, progress.estimated_remaining_seconds - (liveElapsedSeconds - progress.elapsed_seconds)))}
               </div>
             </div>
@@ -373,24 +350,23 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
           <div
             style={{
               background: tc.deepBg,
-              borderRadius: '0',
               padding: '12px',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
               <Activity size={12} color={tc.textSub} />
-              <span style={{ color: tc.textSub, fontSize: '11px' }}>Loss</span>
+              <span style={{ color: tc.textSub, fontSize: '13.5px' }}>Loss</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ color: tc.textMuted, fontSize: '10px' }}>Train</div>
-                <div style={{ color: tc.text, fontSize: '14px', fontWeight: 500 }}>
+                <div style={{ color: tc.textMuted, fontSize: '12.5px' }}>Train</div>
+                <div style={{ color: tc.text, fontSize: '15.5px', fontWeight: 500 }}>
                   {lossDisplay.train}
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ color: tc.textMuted, fontSize: '10px' }}>Val</div>
-                <div style={{ color: tc.text, fontSize: '14px', fontWeight: 500 }}>
+                <div style={{ color: tc.textMuted, fontSize: '12.5px' }}>Val</div>
+                <div style={{ color: tc.text, fontSize: '15.5px', fontWeight: 500 }}>
                   {lossDisplay.val}
                 </div>
               </div>
@@ -404,15 +380,14 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
         <div
           style={{
             background: tc.deepBg,
-            borderRadius: '0',
             padding: '12px',
             display: 'flex',
             alignItems: 'center',
           }}
         >
           <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ color: tc.textMuted, fontSize: '10px' }}>Train PPL</div>
-            <div style={{ color: tc.text, fontSize: '16px', fontWeight: 600 }}>
+            <div style={{ color: tc.textMuted, fontSize: '12.5px' }}>Train PPL</div>
+            <div style={{ color: tc.text, fontSize: '17px', fontWeight: 500 }}>
               {lossDisplay.trainPpl}
             </div>
           </div>
@@ -424,8 +399,8 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
             }}
           />
           <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ color: tc.textMuted, fontSize: '10px' }}>Val PPL</div>
-            <div style={{ color: tc.text, fontSize: '16px', fontWeight: 600 }}>
+            <div style={{ color: tc.textMuted, fontSize: '12.5px' }}>Val PPL</div>
+            <div style={{ color: tc.text, fontSize: '17px', fontWeight: 500 }}>
               {lossDisplay.valPpl}
             </div>
           </div>
@@ -441,7 +416,7 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'rgba(0, 0, 0, 0.7)',
+            background: 'color-mix(in srgb, var(--oz-bg) 84%, transparent)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -451,9 +426,8 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
         >
           <div
             style={{
-              background: 'rgba(20, 20, 20, 0.95)',
+              background: tc.bg,
               border: `1px solid ${tc.border}`,
-              borderRadius: '0',
               padding: '24px',
               maxWidth: '400px',
               width: '90%',
@@ -462,12 +436,12 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
           >
             <div style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                <AlertCircle size={24} color="#ef4444" />
-                <h3 style={{ color: tc.text, fontSize: '18px', fontWeight: 600, margin: 0 }}>
+                <AlertCircle size={24} color={tc.danger} />
+                <h3 style={{ color: tc.text, fontSize: '22px', fontWeight: 500, margin: 0 }}>
                   Cancel Training?
                 </h3>
               </div>
-              <p style={{ color: tc.textSub, fontSize: '14px', lineHeight: '1.5', margin: 0 }}>
+              <p style={{ color: tc.textSub, fontSize: '15.5px', lineHeight: '1.5', margin: 0 }}>
                 Are you sure you want to cancel this training job? All progress will be lost and cannot be recovered.
               </p>
             </div>
@@ -478,10 +452,9 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
                 style={{
                   background: tc.surface,
                   border: `1px solid ${tc.border}`,
-                  borderRadius: '0',
                   padding: '8px 16px',
                   color: tc.textSub,
-                  fontSize: '13px',
+                  fontSize: '15px',
                   cursor: 'pointer',
                   fontWeight: 500,
                 }}
@@ -494,12 +467,11 @@ export const TrainingProgress: React.FC<TrainingProgressProps> = ({
                   onCancel?.()
                 }}
                 style={{
-                  background: '#ef4444',
-                  border: '1px solid #dc2626',
-                  borderRadius: '0',
+                  background: tc.danger,
+                  border: `1px solid ${tc.danger}`,
                   padding: '8px 16px',
                   color: tc.text,
-                  fontSize: '13px',
+                  fontSize: '15px',
                   cursor: 'pointer',
                   fontWeight: 500,
                 }}

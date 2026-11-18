@@ -6,7 +6,6 @@
  */
 
 import { useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { LineChart as LineChartIcon } from 'lucide-react'
 import type { GeometryLab } from '../../hooks/useGeometryLab'
 import type { GeometryRun, PerPosition } from '../../types/geometry'
 import { ChartTooltip, Placeholder, Segmented, type TooltipRow } from '../lab/chartKit'
@@ -106,7 +105,7 @@ export function LayerChart({ lab }: { lab: GeometryLab }) {
   if (!lab.run) {
     return (
       <section className="pl-panel">
-        <Placeholder icon={LineChartIcon}>{lab.running ? 'Reading every layer…' : 'Run a concept to see it layer by layer.'}</Placeholder>
+        <Placeholder glyph="chart">{lab.running ? 'Reading every layer…' : 'Run a concept to see it layer by layer.'}</Placeholder>
       </section>
     )
   }
@@ -252,7 +251,7 @@ function LayerChartBody({ lab, run }: { lab: GeometryLab; run: GeometryRun }) {
 
                 {/* Selected layer */}
                 <rect x={x(position) - Math.max(step, 8) / 2} y={MARGIN.top} width={Math.max(step, 8)} height={innerH} fill={colors.hover} />
-                <text x={x(position)} y={MARGIN.top - 10} textAnchor="middle" fontSize={11} fontWeight={600} fill={colors.text} {...halo}>
+                <text x={x(position)} y={MARGIN.top - 10} textAnchor="middle" fontSize={11} fontWeight={500} fill={colors.text} {...halo}>
                   {layerName(position).toLowerCase()}
                 </text>
 
@@ -287,7 +286,7 @@ function LayerChartBody({ lab, run }: { lab: GeometryLab; run: GeometryRun }) {
                     <circle key={s.key} cx={x(position)} cy={y(s.values[position] as number)} r={4} fill={s.color} stroke={colors.surface} strokeWidth={2} />
                   ))}
                 {endLabels.map(({ s, py }) => (
-                  <text key={s.key} x={MARGIN.left + innerW + 6} y={py} dy="0.32em" fontSize={10} fontWeight={600} fill={colors.text}>
+                  <text key={s.key} x={MARGIN.left + innerW + 6} y={py} dy="0.32em" fontSize={10} fontWeight={500} fill={colors.text}>
                     {s.label}
                   </text>
                 ))}
@@ -346,7 +345,7 @@ function LayerTable({ run, data, position, onSelect }: { run: GeometryRun; data:
     <div style={{ maxHeight: 360, overflowY: 'auto', border: `1px solid ${colors.border}` }}>
       <table className="pl-table" aria-label={`${data.title} per layer`}>
         <thead>
-          <tr style={{ background: colors.isLight ? '#f5f5f7' : '#151515' }}>
+          <tr>
             <th>Layer</th>
             {data.series.map((s) => (
               <th key={s.key}>{s.label}</th>
@@ -357,7 +356,7 @@ function LayerTable({ run, data, position, onSelect }: { run: GeometryRun; data:
         <tbody>
           {Array.from({ length: run.num_layers + 1 }, (_, i) => (
             <tr key={i} onClick={() => onSelect(i)} style={{ background: i === position ? colors.hover : undefined, borderTop: `1px solid ${colors.grid}` }}>
-              <td style={{ fontWeight: i === position ? 600 : 400 }}>{positionLabel(i)}</td>
+              <td style={{ fontWeight: i === position ? 500 : 400 }}>{positionLabel(i)}</td>
               {data.series.map((s) => (
                 <td key={s.key}>{data.format(s.values[i])}</td>
               ))}

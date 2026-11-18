@@ -167,7 +167,7 @@ export function ProbeMonitor({ trace, probe, live }: ProbeMonitorProps) {
     .filter((t) => showPrompt || t.i >= trace.promptTokens)
 
   return (
-    <div className="probe-lab lab-kit probe-monitor" style={{ borderColor: colors.border, color: colors.text }}>
+    <div className="probe-lab lab-kit probe-monitor">
       <div className="pm-head">
         <span className="pm-title">Probe monitor</span>
         <span className="pl-note">
@@ -195,7 +195,7 @@ export function ProbeMonitor({ trace, probe, live }: ProbeMonitorProps) {
       {trace.tokens.length > 1 && <ScoreTrace trace={trace} probe={probe} />}
 
       <div className="pm-tokens-head">
-        <button type="button" className="pm-link" onClick={() => setShowPrompt((v) => !v)} style={{ color: colors.text }}>
+        <button type="button" className="pm-link" onClick={() => setShowPrompt((v) => !v)}>
           {showPrompt ? 'Hide' : 'Show'} the prompt ({trace.promptTokens} tokens)
         </button>
         {unscored > 0 && !live && <span className="pl-note">Faded tokens weren&apos;t read after being generated, so have no score.</span>}
@@ -235,24 +235,28 @@ export function ProbeMonitor({ trace, probe, live }: ProbeMonitorProps) {
 
       <LabKitStyles />
       <style>{`
-        .probe-monitor { border: 1px solid; padding: 0.75rem 0.875rem; margin-top: 0.75rem; text-align: left; }
-        .probe-monitor .pm-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; margin-bottom: 0.3rem; }
-        .probe-monitor .pm-title { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-        .probe-monitor .pm-live { font-size: 0.7rem; margin-left: auto; }
-        .probe-monitor .pm-summary { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; font-size: 0.78rem; margin-bottom: 0.4rem; }
-        .probe-monitor .pm-tokens-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.75rem; margin: 0.35rem 0; }
-        .probe-monitor .pm-link { background: none; border: none; padding: 0; font-size: 0.72rem; text-decoration: underline; cursor: pointer; }
+        .probe-monitor { border: 1px solid var(--oz-rule); padding: 0.9rem 1rem; margin-top: 0.9rem; text-align: left; }
+        .probe-monitor .pm-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem; margin-bottom: 0.4rem; }
+        .probe-monitor .pm-title { font-size: 0.95rem; font-weight: 500; letter-spacing: -0.015em; }
+        .probe-monitor .pm-live { color: var(--oz-fg-dim); font-size: 0.8rem; margin-left: auto; }
+        .probe-monitor .pm-summary { display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem; font-size: 0.85rem; margin-bottom: 0.5rem; }
+        .probe-monitor .pm-tokens-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.75rem; margin: 0.45rem 0; }
+        .probe-monitor .pm-link {
+          background: none; border: none; border-bottom: 1px solid var(--oz-fg-faint); padding: 0 0 1px; font-size: 0.8rem; font-weight: 500;
+          cursor: pointer; transition: color 0.2s ease, border-color 0.2s ease;
+        }
+        .probe-monitor .pm-link:hover { color: var(--oz-mark); border-color: var(--oz-mark); }
         .probe-monitor .pl-tokens {
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 0.78rem;
+          font-family: var(--oz-mono);
+          font-size: 0.82rem;
           line-height: 1.85;
           white-space: pre-wrap;
           word-break: break-word;
           max-height: 220px;
           overflow-y: auto;
         }
-        .probe-monitor .pl-scale { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.5rem; font-size: 0.72rem; }
-        .probe-monitor .pl-scale-bar { width: 120px; height: 8px; border-radius: 4px; }
+        .probe-monitor .pl-scale { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.6rem; color: var(--oz-fg-dim); font-size: 0.8rem; }
+        .probe-monitor .pl-scale-bar { width: 120px; height: 8px; }
       `}</style>
     </div>
   )

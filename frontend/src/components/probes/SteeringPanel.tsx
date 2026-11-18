@@ -382,7 +382,7 @@ export function SteeringPanel({
       </div>
 
       {!canSteer ? (
-        <div className="pl-empty" style={{ borderColor: colors.border }}>
+        <div className="pl-empty">
           {probe.classGap == null
             ? 'Saved without a class gap. Save it again from a training run to steer.'
             : "The class means don't differ along this direction."}
@@ -397,7 +397,7 @@ export function SteeringPanel({
             placeholder="Prompt to continue…"
             maxLength={2000}
             rows={2}
-            style={{ borderColor: colors.border, background: colors.panel, color: colors.text }}
+           
           />
           <div className="pl-steer-controls">
             <label>
@@ -411,7 +411,7 @@ export function SteeringPanel({
                 value={alphaText}
                 onChange={(e) => setAlphaText(e.target.value)}
                 aria-invalid={alphaError != null}
-                style={{ width: '11rem', borderColor: alphaError ? '#ef4444' : colors.border, background: colors.panel, color: colors.text }}
+                style={{ width: '11rem', borderColor: alphaError ? colors.danger : undefined }}
               />
             </label>
             <label>
@@ -424,7 +424,7 @@ export function SteeringPanel({
                 data-assist="probes.steer_max_tokens"
                 value={maxTokens}
                 onChange={(e) => setMaxTokens(Math.max(1, Math.min(MAX_TOKENS, Math.floor(Number(e.target.value) || 1))))}
-                style={{ width: '5.5rem', borderColor: colors.border, background: colors.panel, color: colors.text }}
+                style={{ width: '5.5rem' }}
               />
             </label>
             <label>
@@ -439,7 +439,7 @@ export function SteeringPanel({
                 value={temperature}
                 title="0 decodes greedily; above 0, every column samples from the same seed"
                 onChange={(e) => setTemperature(Math.max(0, Math.min(2, Number(e.target.value) || 0)))}
-                style={{ width: '5.5rem', borderColor: colors.border, background: colors.panel, color: colors.text }}
+                style={{ width: '5.5rem' }}
               />
             </label>
             <div data-assist="probes.steer_generated_only">
@@ -480,7 +480,7 @@ export function SteeringPanel({
       {error && <div className="pl-error-note">{error}</div>}
 
       {response && (
-        <div className="pl-result" style={{ borderColor: colors.border, opacity: running ? 0.55 : 1 }}>
+        <div className="pl-result" style={{ opacity: running ? 0.55 : 1 }}>
           <div className="pl-run-meta">
             {stale && <strong style={{ color: colors.warning }}>From a different probe · </strong>}
             “{response.prompt.length > 80 ? `${response.prompt.slice(0, 80)}…` : response.prompt}” · layer {response.layer} ·{' '}
@@ -520,15 +520,16 @@ export function SteeringPanel({
       )}
 
       <style>{`
-        .probe-lab .pl-steer-controls { display: flex; flex-wrap: wrap; gap: 0.75rem 1.1rem; align-items: flex-end; margin-top: 0.6rem; }
-        .probe-lab .pl-alpha-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-bottom: 0.5rem; }
-        .probe-lab .pl-alpha-chart-title { font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem; }
-        .probe-lab .pl-tooltip-text { margin-top: 0.3rem; font-size: 0.72rem; white-space: normal; max-width: 220px; opacity: 0.9; }
-        .probe-lab .pl-gen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0.6rem; }
-        .probe-lab .pl-gen-card { border: 1px solid; border-top-width: 3px; padding: 0.6rem 0.7rem; display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
-        .probe-lab .pl-gen-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; font-size: 0.8rem; }
+        .probe-lab .pl-steer-controls { display: flex; flex-wrap: wrap; gap: 0.9rem 1.25rem; align-items: flex-end; margin-top: 0.75rem; }
+        .probe-lab .pl-alpha-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; margin-bottom: 0.75rem; }
+        .probe-lab .pl-alpha-chart-title { font-size: 0.85rem; font-weight: 500; margin-bottom: 0.3rem; }
+        .probe-lab .pl-tooltip-text { margin-top: 0.3rem; font-size: 0.78rem; white-space: normal; max-width: 220px; color: var(--oz-fg-dim); }
+        .probe-lab .pl-gen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem 1.25rem; }
+        /* A generation: ruled off in its strength's color */
+        .probe-lab .pl-gen-card { border: none; border-top: 2px solid; padding: 0.7rem 0 0; display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; }
+        .probe-lab .pl-gen-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; font-size: 0.9rem; font-weight: 500; }
         .probe-lab .pl-gen-text {
-          font-size: 0.8rem;
+          font-size: 0.875rem;
           line-height: 1.55;
           white-space: pre-wrap;
           word-break: break-word;
@@ -536,8 +537,8 @@ export function SteeringPanel({
           overflow-y: auto;
           flex: 1;
         }
-        .probe-lab .pl-gen-text .pl-token { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.75rem; }
-        .probe-lab .pl-gen-stats { display: flex; flex-wrap: wrap; gap: 0.35rem 0.8rem; font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+        .probe-lab .pl-gen-text .pl-token { font-family: var(--oz-mono); font-size: 0.8rem; }
+        .probe-lab .pl-gen-stats { display: flex; flex-wrap: wrap; gap: 0.35rem 0.9rem; color: var(--oz-fg-dim); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
         .probe-lab .pl-gen-stats .pl-legend-dot { display: inline-block; margin-right: 0.3rem; vertical-align: 0; }
         @media (max-width: 900px) {
           .probe-lab .pl-alpha-charts { grid-template-columns: 1fr; }

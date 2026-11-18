@@ -2,7 +2,7 @@
  * Modal for purchasing credits via Stripe.
  */
 import { useState, useEffect } from 'react';
-import { X, CreditCard, Check, Loader2, AlertCircle, DollarSign } from 'lucide-react';
+import { X, Check, AlertCircle } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -12,6 +12,8 @@ import {
 } from '@stripe/react-stripe-js';
 import { usePricing, usePayment, useStripeConfig } from '../../hooks/useCredits';
 import { useAuthStore } from '../../stores/authStore';
+import { useAppPalette } from '../../hooks/useTheme';
+import { Spinner } from '../common/Spinner'
 
 interface PurchaseCreditsModalProps {
   isOpen: boolean;
@@ -34,53 +36,40 @@ function AmountInput({
   const isValid = numericAmount >= minAmount && numericAmount <= maxAmount;
 
   return (
-    <div className="space-y-3">
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-          <DollarSign size={20} className="text-white" />
-        </div>
+    <div className="pc-amount">
+      <div className="pc-amount-field">
+        <span aria-hidden="true">$</span>
         <input
           type="number"
           value={amount}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Enter amount"
+          placeholder="0.00"
           min={minAmount}
           max={maxAmount}
           step="0.01"
-          className="w-full pl-10 pr-4 py-4 bg-black border border-white/10 text-white text-xl font-medium focus:outline-none focus:border-white/40 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          aria-label="Amount in dollars"
         />
       </div>
 
-      <div className="flex justify-between text-sm text-white">
-        <span>Min: ${minAmount}</span>
-        <span>Max: ${maxAmount}</span>
-      </div>
-
-      {amount && !isValid && (
-        <p className="text-sm text-red-400">
+      {amount && !isValid ? (
+        <p className="pc-error">
           Amount must be between ${minAmount} and ${maxAmount}
+        </p>
+      ) : (
+        <p className="oz-hint">
+          ${minAmount} to ${maxAmount}. You receive exactly what you pay.
         </p>
       )}
 
-      {amount && isValid && (
-        <div className="p-3 bg-green-500/10 border border-green-500/30">
-          <p className="text-green-400 text-sm">
-            You'll receive <span className="font-bold">${numericAmount.toFixed(2)}</span> in credits
-          </p>
-        </div>
-      )}
-
       {/* Quick amount buttons */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="oz-chips">
         {[10, 25, 50, 100].map((quickAmount) => (
           <button
             key={quickAmount}
+            type="button"
             onClick={() => onChange(quickAmount.toString())}
-            className={`px-4 py-2 border transition-all ${
-              parseFloat(amount) === quickAmount
-                ? 'border-blue-500 bg-blue-500/10 text-blue-400'
-                : 'border-white/10 hover:border-white/20 bg-black text-white'
-            }`}
+            className="oz-chip"
+            aria-pressed={parseFloat(amount) === quickAmount}
           >
             ${quickAmount}
           </button>
@@ -151,29 +140,18 @@ function CheckoutForm({
 
   if (succeeded) {
     return (
-      <div className="text-center py-8">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
-          <Check size={32} className="text-green-400" />
-        </div>
-        <h3 className="text-xl font-bold text-white mb-2">Payment Successful!</h3>
-        <p className="text-white">
-          ${amount.toFixed(2)} credits have been added to your account.
-        </p>
+      <div className="oz-note oz-note--ok">
+        <Check aria-hidden="true" />
+        <span>Payment successful. ${amount.toFixed(2)} in credits have been added to your account.</span>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="bg-black border border-white/10 p-4 mb-4">
-        <div className="flex justify-between items-center">
-          <span className="text-white">Payment Amount</span>
-          <span className="text-xl font-bold text-white">${amount.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between items-center mt-1">
-          <span className="text-white text-sm">Credits Received</span>
-          <span className="text-green-400 font-medium">${amount.toFixed(2)}</span>
-        </div>
+    <form onSubmit={handleSubmit} className="pc-form">
+      <div className="pc-summary">
+        <span className="oz-hint">Payment amount</span>
+        <span className="pc-summary-value">${amount.toFixed(2)}</span>
       </div>
 
       <PaymentElement
@@ -183,36 +161,24 @@ function CheckoutForm({
       />
 
       {error && (
-        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-          <AlertCircle size={16} />
-          {error}
+        <div className="oz-note oz-note--error" role="alert">
+          <AlertCircle aria-hidden="true" />
+          <span>{error}</span>
         </div>
       )}
 
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={processing}
-          className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white transition-colors disabled:opacity-50"
-        >
-          Cancel
+      <div className="oz-modal__actions">
+        <button type="button" onClick={onCancel} disabled={processing} className="oz-btn oz-btn--ghost">
+          Back
         </button>
-        <button
-          type="submit"
-          disabled={!stripe || processing}
-          className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-        >
+        <button type="submit" disabled={!stripe || processing} className={`oz-btn${processing ? '' : ' oz-btn--arrow'}`}>
           {processing ? (
             <>
-              <Loader2 size={18} className="animate-spin" />
+              <Spinner />
               Processing...
             </>
           ) : (
-            <>
-              <CreditCard size={18} />
-              Pay ${amount.toFixed(2)}
-            </>
+            `Pay $${amount.toFixed(2)}`
           )}
         </button>
       </div>
@@ -222,6 +188,7 @@ function CheckoutForm({
 
 export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalProps) {
   const { isAuthenticated } = useAuthStore();
+  const palette = useAppPalette();
   const { minPurchase, maxPurchase, loading: pricingLoading } = usePricing();
   const { createPaymentIntent, onPaymentSuccess, loading: paymentLoading, error: paymentError } = usePayment();
   const { publishableKey, isConfigured } = useStripeConfig();
@@ -280,15 +247,15 @@ export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalPr
 
   if (!isAuthenticated) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-        <div className="bg-black border border-white/10 p-6 w-full max-w-md">
-          <p className="text-center text-white">Please log in to purchase credits.</p>
-          <button
-            onClick={onClose}
-            className="w-full mt-4 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors"
-          >
-            Close
-          </button>
+      <div className="oz-overlay" onClick={onClose}>
+        <div className="oz-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+          <h2 className="oz-modal__title">Add credits</h2>
+          <p className="oz-modal__text">Please log in to purchase credits.</p>
+          <div className="oz-modal__actions">
+            <button onClick={onClose} className="oz-btn oz-btn--ghost">
+              Close
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -296,126 +263,136 @@ export function PurchaseCreditsModal({ isOpen, onClose }: PurchaseCreditsModalPr
 
   if (!isConfigured) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-        <div className="bg-black border border-white/10 p-6 w-full max-w-md">
-          <div className="flex items-center gap-2 text-yellow-400 mb-4">
-            <AlertCircle size={20} />
-            <span className="font-medium">Payment Not Available</span>
+      <div className="oz-overlay" onClick={onClose}>
+        <div className="oz-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+          <h2 className="oz-modal__title">Payment not available</h2>
+          <p className="oz-modal__text">Payment processing is not configured. Please contact support.</p>
+          <div className="oz-modal__actions">
+            <button onClick={onClose} className="oz-btn oz-btn--ghost">
+              Close
+            </button>
           </div>
-          <p className="text-white text-sm">
-            Payment processing is not configured. Please contact support.
-          </p>
-          <button
-            onClick={onClose}
-            className="w-full mt-4 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors"
-          >
-            Close
-          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="bg-black border border-white/10 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
-          <h2 className="text-lg font-semibold text-white">
-            {step === 'select' ? 'Add Credits' : 'Checkout'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-white/5 transition-colors"
-          >
-            <X size={20} className="text-white" />
-          </button>
-        </div>
+    <div className="oz-overlay">
+      <div className="oz-modal purchase-credits" role="dialog" aria-modal="true">
+        <button onClick={onClose} className="oz-icon-btn oz-modal__close" aria-label="Close">
+          <X />
+        </button>
+        <h2 className="oz-modal__title">{step === 'select' ? 'Add credits' : 'Checkout'}</h2>
 
-        {/* Content */}
-        <div className="p-4">
-          {step === 'select' ? (
-            <>
-              {pricingLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 size={24} className="animate-spin text-white" />
-                </div>
-              ) : (
-                <>
-                  <p className="text-sm text-white mb-4">
-                    Enter the amount you'd like to add. You'll receive exactly what you pay.
-                  </p>
+        {step === 'select' ? (
+          <>
+            {pricingLoading ? (
+              <div className="oz-empty">
+                <Spinner large />
+              </div>
+            ) : (
+              <>
+                <AmountInput
+                  amount={amount}
+                  onChange={setAmount}
+                  minAmount={minPurchase}
+                  maxAmount={maxPurchase}
+                />
 
-                  <AmountInput
-                    amount={amount}
-                    onChange={setAmount}
-                    minAmount={minPurchase}
-                    maxAmount={maxPurchase}
-                  />
+                {paymentError && (
+                  <div className="oz-note oz-note--error pc-note" role="alert">
+                    <AlertCircle aria-hidden="true" />
+                    <span>{paymentError}</span>
+                  </div>
+                )}
 
-                  {paymentError && (
-                    <div className="mt-4 flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-                      <AlertCircle size={16} />
-                      {paymentError}
-                    </div>
-                  )}
-
-                  <button
-                    onClick={handleProceedToCheckout}
-                    disabled={!isValidAmount || paymentLoading}
-                    className="w-full mt-4 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2"
-                  >
-                    {paymentLoading ? (
-                      <>
-                        <Loader2 size={18} className="animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        Continue to Payment
-                        {isValidAmount && (
-                          <span className="text-blue-200">
-                            (${numericAmount.toFixed(2)})
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </button>
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              {clientSecret && stripePromise && paymentIntentId && (
-                <Elements
-                  stripe={stripePromise}
-                  options={{
-                    clientSecret,
-                    appearance: {
-                      theme: 'night',
-                      variables: {
-                        colorPrimary: '#3b82f6',
-                        colorBackground: '#000000',
-                        colorText: '#ffffff',
-                        colorDanger: '#ef4444',
-                        fontFamily: 'system-ui, sans-serif',
-                        borderRadius: '0px',
-                      },
-                    },
-                  }}
+                <button
+                  onClick={handleProceedToCheckout}
+                  disabled={!isValidAmount || paymentLoading}
+                  className={`oz-btn oz-btn--block pc-continue${paymentLoading ? '' : ' oz-btn--arrow'}`}
                 >
-                  <CheckoutForm
-                    clientSecret={clientSecret}
-                    paymentIntentId={paymentIntentId}
-                    amount={numericAmount}
-                    onSuccess={handlePaymentSuccess}
-                    onCancel={handleBack}
-                  />
-                </Elements>
-              )}
-            </>
-          )}
-        </div>
+                  {paymentLoading ? (
+                    <>
+                      <Spinner />
+                      Loading...
+                    </>
+                  ) : (
+                    <>Continue to Payment{isValidAmount && ` ($${numericAmount.toFixed(2)})`}</>
+                  )}
+                </button>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            {clientSecret && stripePromise && paymentIntentId && (
+              <Elements
+                stripe={stripePromise}
+                options={{
+                  clientSecret,
+                  // Stripe's own fields, in the app's colors
+                  appearance: {
+                    theme: palette.isLight ? 'stripe' : 'night',
+                    variables: {
+                      colorPrimary: palette.fg,
+                      colorBackground: palette.bg,
+                      colorText: palette.fg,
+                      colorDanger: palette.danger,
+                      fontFamily: 'Inter, system-ui, sans-serif',
+                      borderRadius: '0px',
+                    },
+                  },
+                }}
+              >
+                <CheckoutForm
+                  clientSecret={clientSecret}
+                  paymentIntentId={paymentIntentId}
+                  amount={numericAmount}
+                  onSuccess={handlePaymentSuccess}
+                  onCancel={handleBack}
+                />
+              </Elements>
+            )}
+          </>
+        )}
+
+        <style>{`
+          .purchase-credits .pc-amount { display: flex; flex-direction: column; gap: 0.9rem; }
+          /* The amount, in the homepage's display type */
+          .purchase-credits .pc-amount-field {
+            display: flex;
+            align-items: baseline;
+            gap: 0.35rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--oz-rule-strong);
+            font-size: 3.5rem;
+            font-weight: 500;
+            letter-spacing: -0.04em;
+            line-height: 1;
+            transition: border-color 0.2s ease;
+          }
+          .purchase-credits .pc-amount-field:focus-within { border-color: var(--oz-fg); }
+          .purchase-credits .pc-amount-field span { color: var(--oz-fg-faint); }
+          .purchase-credits .pc-amount-field input {
+            flex: 1;
+            min-width: 0;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--oz-fg);
+            font: inherit;
+            letter-spacing: inherit;
+            font-variant-numeric: tabular-nums;
+          }
+          .purchase-credits .pc-amount-field input::placeholder { color: var(--oz-fg-faint); }
+          .purchase-credits .pc-error { color: var(--oz-danger); font-size: 0.875rem; }
+          .purchase-credits .pc-note { margin-top: 1rem; }
+          .purchase-credits .pc-continue { margin-top: 1.5rem; }
+          .purchase-credits .pc-form { display: flex; flex-direction: column; gap: 1.25rem; }
+          .purchase-credits .pc-summary { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 0.9rem; border-bottom: 1px solid var(--oz-rule); }
+          .purchase-credits .pc-summary-value { font-size: 2rem; font-weight: 500; letter-spacing: -0.035em; line-height: 1; font-variant-numeric: tabular-nums; }
+        `}</style>
       </div>
     </div>
   );

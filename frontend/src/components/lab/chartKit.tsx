@@ -2,10 +2,13 @@
  * Shared components of the labs' charts and controls (Probe Lab, Geometry Lab): the hover
  * tooltip, segmented controls, findings, stat tiles, run bars, placeholders, and the styles
  * they use, scoped under .lab-kit (the root class of every page or widget that uses the kit).
+ * Colors come from the app's custom properties (styles/app.css); buttons and chips are the app's.
  */
 
 import type { ReactNode } from 'react'
-import { AlertTriangle, CheckCircle2, Info, Play, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
+import { EmptyState, type EmptyGlyph } from '../common/EmptyState'
+import { Spinner } from '../common/Spinner'
 import { useLabColors } from './labTheme'
 
 export interface Finding {
@@ -24,9 +27,9 @@ export function Findings({ items }: { items: Finding[] }) {
           {f.level === 'warning' ? (
             <AlertTriangle className="pl-icon" aria-label="Warning" style={{ color: colors.warning }} />
           ) : f.level === 'good' ? (
-            <CheckCircle2 className="pl-icon" aria-label="Good" style={{ color: colors.methods.diff_means }} />
+            <CheckCircle2 className="pl-icon" aria-label="Good" style={{ color: colors.good }} />
           ) : (
-            <Info className="pl-icon" aria-label="Note" style={{ opacity: 0.6 }} />
+            <Info className="pl-icon" aria-label="Note" style={{ color: colors.dim }} />
           )}
           <span>{f.text}</span>
         </li>
@@ -44,11 +47,10 @@ export interface Tile {
 }
 
 export function StatTiles({ tiles }: { tiles: Tile[] }) {
-  const colors = useLabColors()
   return (
     <div className="pl-tiles">
       {tiles.map((tile) => (
-        <div key={tile.label} className="pl-tile" title={tile.title} style={{ borderColor: colors.border, background: colors.panel }}>
+        <div key={tile.label} className="pl-tile" title={tile.title}>
           <div className="pl-tile-label">{tile.label}</div>
           <div className="pl-tile-value">{tile.value}</div>
           {tile.hint && <div className="pl-tile-hint">{tile.hint}</div>}
@@ -85,17 +87,12 @@ export function RunBar({
       </span>
       <button
         type="button"
-        className="pl-button"
+        className={`oz-btn oz-btn--small${running ? '' : ' oz-btn--arrow'}`}
         data-assist={assist}
         onClick={onRun}
         disabled={running || disabled}
-        style={{ borderColor: colors.border, color: colors.text }}
       >
-        {running ? (
-          <span className="pl-spinner" style={{ borderColor: colors.border, borderTopColor: colors.text }} />
-        ) : (
-          <Play className="pl-icon" aria-hidden="true" />
-        )}
+        {running && <Spinner />}
         {label}
       </button>
     </div>
@@ -103,13 +100,8 @@ export function RunBar({
 }
 
 /** What a view shows before it has anything to show. */
-export function Placeholder({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
-  return (
-    <div className="pl-placeholder">
-      <Icon className="pl-placeholder-icon" aria-hidden="true" />
-      <p>{children}</p>
-    </div>
-  )
+export function Placeholder({ glyph, children }: { glyph: EmptyGlyph; children: ReactNode }) {
+  return <EmptyState glyph={glyph}>{children}</EmptyState>
 }
 
 export interface TooltipRow {
@@ -137,7 +129,6 @@ export function ChartTooltip({
   rows?: TooltipRow[]
   children?: ReactNode
 }) {
-  const colors = useLabColors()
   const width = 240
   const left = x + 14 + width > containerWidth ? Math.max(0, x - width - 14) : x + 14
   return (
@@ -148,9 +139,6 @@ export function ChartTooltip({
         left,
         top: Math.max(0, y - 10),
         maxWidth: width,
-        background: colors.isLight ? 'rgba(255,255,255,0.97)' : 'rgba(20,20,20,0.97)',
-        borderColor: colors.border,
-        color: colors.text,
       }}
     >
       {title && <div className="pl-tooltip-title">{title}</div>}
@@ -174,23 +162,24 @@ export function LabKitStyles() {
         position: absolute;
         z-index: 20;
         pointer-events: none;
-        padding: 0.5rem 0.625rem;
-        border: 1px solid;
-        font-size: 0.75rem;
-        line-height: 1.35;
-        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+        padding: 0.55rem 0.7rem;
+        background: var(--oz-bg);
+        border: 1px solid var(--oz-rule-strong);
+        color: var(--oz-fg);
+        font-size: 0.8rem;
+        line-height: 1.4;
       }
-      .lab-kit .pl-tooltip-title { font-weight: 600; margin-bottom: 0.25rem; }
-      .lab-kit .pl-tooltip-row { display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
-      .lab-kit .pl-tooltip-key { width: 12px; height: 2px; border-radius: 1px; flex-shrink: 0; }
-      .lab-kit .pl-tooltip-key-space { width: 12px; flex-shrink: 0; }
-      .lab-kit .pl-tooltip-value { font-weight: 600; font-variant-numeric: tabular-nums; }
-      .lab-kit .pl-tooltip-label { opacity: 0.85; }
+      .lab-kit .pl-tooltip-title { font-weight: 500; margin-bottom: 0.25rem; }
+      .lab-kit .pl-tooltip-row { display: flex; align-items: center; gap: 0.45rem; white-space: nowrap; }
+      .lab-kit .pl-tooltip-key { width: 8px; height: 8px; flex-shrink: 0; }
+      .lab-kit .pl-tooltip-key-space { width: 8px; flex-shrink: 0; }
+      .lab-kit .pl-tooltip-value { font-weight: 500; font-variant-numeric: tabular-nums; }
+      .lab-kit .pl-tooltip-label { color: var(--oz-fg-dim); }
 
       .lab-kit .pl-chart { position: relative; width: 100%; }
       .lab-kit .pl-chart svg { display: block; overflow: visible; }
       .lab-kit .pl-chart svg text { font-family: inherit; }
-      .lab-kit .pl-chart:focus-visible { outline: 2px solid rgba(59, 130, 246, 0.6); outline-offset: 2px; }
+      .lab-kit .pl-chart:focus-visible { outline: 1.5px solid var(--oz-mark); outline-offset: 3px; }
 
       .lab-kit .pl-card-title {
         display: flex;
@@ -198,130 +187,126 @@ export function LabKitStyles() {
         justify-content: space-between;
         flex-wrap: wrap;
         gap: 0.5rem 0.75rem;
-        min-height: 1.75rem;
-        margin-bottom: 0.625rem;
+        min-height: 2rem;
+        margin-bottom: 0.9rem;
       }
       .lab-kit .pl-card-title h3 {
         margin: 0;
-        font-size: 0.8rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
+        font-size: 1.0625rem;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+        text-transform: none;
       }
 
-      .lab-kit .pl-legend { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; font-size: 0.75rem; margin-top: 0.5rem; }
-      .lab-kit .pl-legend-item { display: inline-flex; align-items: center; gap: 0.4rem; }
-      .lab-kit .pl-legend-line { width: 16px; height: 2px; border-radius: 1px; }
+      .lab-kit .pl-legend { display: flex; flex-wrap: wrap; gap: 0.35rem 1.1rem; font-size: 0.8rem; color: var(--oz-fg-dim); margin-top: 0.6rem; }
+      .lab-kit .pl-legend-item { display: inline-flex; align-items: center; gap: 0.45rem; }
+      .lab-kit .pl-legend-line { width: 16px; height: 2px; }
       .lab-kit .pl-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
       .lab-kit .pl-legend-ring { width: 8px; height: 8px; border-radius: 50%; border: 2px solid; box-sizing: border-box; }
-      .lab-kit .pl-legend-rect { width: 10px; height: 10px; border-radius: 2px; }
+      .lab-kit .pl-legend-rect { width: 9px; height: 9px; }
 
-      .lab-kit .pl-segmented { display: inline-flex; border: 1px solid; }
-      .lab-kit .pl-segmented button {
-        padding: 0.35rem 0.7rem;
-        font-size: 0.75rem;
-        font-weight: 500;
-        background: transparent;
-        border: none;
-        cursor: pointer;
-        color: inherit;
-        white-space: nowrap;
-      }
-      .lab-kit .pl-segmented button:disabled { opacity: 0.4; cursor: not-allowed; }
+      .lab-kit .pl-segmented { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+      .lab-kit .pl-segmented .oz-chip { padding: 0.42rem 0.7rem; }
       .lab-kit .pl-control-label {
-        font-size: 0.65rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        margin-bottom: 0.3rem;
+        margin-bottom: 0.45rem;
+        color: var(--oz-fg-dim);
+        font-size: 0.85rem;
+        font-weight: 500;
+        letter-spacing: 0;
+        text-transform: none;
       }
 
       .lab-kit .pl-input, .lab-kit .pl-textarea {
         width: 100%;
-        padding: 0.5rem 0.625rem;
-        border: 1px solid;
-        font-size: 0.85rem;
+        padding: 0.55rem 0.7rem;
+        background: transparent;
+        border: 1px solid var(--oz-rule-strong);
+        color: var(--oz-fg);
+        font-size: 0.9rem;
         font-family: inherit;
         outline: none;
         box-sizing: border-box;
+        transition: border-color 0.2s ease;
       }
-      .lab-kit .pl-textarea { resize: vertical; min-height: 84px; }
-      .lab-kit .pl-input:focus, .lab-kit .pl-textarea:focus { border-color: rgba(59, 130, 246, 0.5) !important; }
+      .lab-kit .pl-textarea { resize: vertical; min-height: 84px; line-height: 1.5; }
+      .lab-kit .pl-input:hover:not(:disabled):not(:focus), .lab-kit .pl-textarea:hover:not(:disabled):not(:focus) { border-color: var(--oz-fg-faint); }
+      .lab-kit .pl-input:focus, .lab-kit .pl-textarea:focus { border-color: var(--oz-fg); }
+      .lab-kit .pl-input::placeholder, .lab-kit .pl-textarea::placeholder { color: var(--oz-fg-faint); }
+      .lab-kit .pl-input:disabled, .lab-kit .pl-textarea:disabled { border-color: var(--oz-rule); color: var(--oz-fg-faint); cursor: not-allowed; }
+      .lab-kit .pl-input[type="number"] { font-variant-numeric: tabular-nums; }
 
+      /* The second button of a tool: outlined */
       .lab-kit .pl-button {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 0.4rem;
-        padding: 0.5rem 0.875rem;
-        border: 1px solid;
-        font-size: 0.8rem;
-        font-weight: 600;
-        cursor: pointer;
+        gap: 0.45rem;
+        padding: 0.5rem 0.8rem;
         background: transparent;
-        color: inherit;
+        border: 1px solid var(--oz-rule-strong);
+        color: var(--oz-fg);
+        font-size: 0.85rem;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        line-height: 1.2;
+        cursor: pointer;
         white-space: nowrap;
+        transition: border-color 0.2s ease, color 0.2s ease;
       }
-      .lab-kit .pl-button:disabled { opacity: 0.45; cursor: not-allowed; }
-      .lab-kit .pl-icon { width: 14px; height: 14px; flex-shrink: 0; }
+      .lab-kit .pl-button:hover:not(:disabled) { border-color: var(--oz-mark); color: var(--oz-mark); }
+      .lab-kit .pl-button:disabled { border-color: var(--oz-rule); color: var(--oz-fg-faint); cursor: not-allowed; }
+      .lab-kit .pl-icon { width: 16px; height: 16px; flex-shrink: 0; stroke-width: 2.25; }
 
-      .lab-kit .pl-spinner {
-        width: 14px;
-        height: 14px;
-        border: 2px solid;
-        border-radius: 50%;
-        animation: pl-spin 0.8s linear infinite;
+      .lab-kit .pl-hint { color: var(--oz-fg-dim); font-size: 0.85rem; line-height: 1.45; }
+      .lab-kit .pl-hint code { font-family: var(--oz-mono); font-size: 0.8rem; }
+      .lab-kit .pl-note { color: var(--oz-fg-dim); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+      .lab-kit .pl-empty { padding: 1.1rem; border: 1px dashed var(--oz-rule-strong); color: var(--oz-fg-dim); font-size: 0.875rem; text-align: center; }
+      .lab-kit .pl-check-row { display: flex; gap: 0.55rem; align-items: flex-start; cursor: pointer; font-size: 0.875rem; }
+      .lab-kit .pl-check-row input { margin-top: 0.2rem; }
+      .lab-kit .pl-icon-button {
+        display: inline-flex; padding: 0.35rem; background: none; border: 1px solid transparent; color: var(--oz-fg); cursor: pointer;
+        transition: border-color 0.2s ease, color 0.2s ease;
       }
-      @keyframes pl-spin { to { transform: rotate(360deg); } }
-
-      .lab-kit .pl-hint { font-size: 0.72rem; line-height: 1.45; }
-      .lab-kit .pl-hint code { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
-      .lab-kit .pl-note { font-size: 0.72rem; }
-      .lab-kit .pl-empty { font-size: 0.8rem; padding: 1rem; border: 1px dashed; text-align: center; }
-      .lab-kit .pl-check-row { display: flex; gap: 0.4rem; align-items: flex-start; cursor: pointer; font-size: 0.8rem; }
-      .lab-kit .pl-check-row input { margin-top: 0.15rem; }
-      .lab-kit .pl-icon-button { background: none; border: none; padding: 0.3rem; cursor: pointer; display: inline-flex; }
-      .lab-kit .pl-icon-button:disabled { opacity: 0.35; cursor: not-allowed; }
-      .lab-kit .pl-link { background: none; border: none; padding: 0; font-size: 0.72rem; cursor: pointer; text-align: left; }
-
-      .lab-kit .pl-controls-row { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 1rem; }
-      .lab-kit .pl-run-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.75rem; }
-      .lab-kit .pl-token { padding: 0.12rem 0.05rem; border-radius: 3px; margin-right: 1px; cursor: default; }
-      .lab-kit .pl-run-meta { font-size: 0.75rem; margin-bottom: 0.875rem; }
-      .lab-kit .pl-result { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid; }
-      .lab-kit .pl-error-note { color: #ef4444; font-size: 0.75rem; margin-top: 0.5rem; }
-      .lab-kit .pl-placeholder {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 4rem 2rem;
-        text-align: center;
+      .lab-kit .pl-icon-button:hover:not(:disabled) { border-color: var(--oz-rule-strong); color: var(--oz-mark); }
+      .lab-kit .pl-icon-button:disabled { color: var(--oz-fg-faint); cursor: not-allowed; }
+      .lab-kit .pl-link {
+        padding: 0 0 1px; background: none; border: none; border-bottom: 1px solid var(--oz-fg-faint); color: var(--oz-fg);
+        font-size: 0.85rem; font-weight: 500; text-align: left; cursor: pointer; transition: color 0.2s ease, border-color 0.2s ease;
       }
-      .lab-kit .pl-placeholder-icon { width: 36px; height: 36px; opacity: 0.3; margin-bottom: 0.75rem; }
-      .lab-kit .pl-placeholder p { margin: 0; font-size: 0.8rem; max-width: 360px; line-height: 1.5; }
+      .lab-kit .pl-link:hover { color: var(--oz-mark); border-color: var(--oz-mark); }
+      .lab-kit a.pl-inline-link { color: inherit; text-decoration: underline; text-decoration-color: var(--oz-fg-faint); text-underline-offset: 3px; transition: color 0.2s ease; }
+      .lab-kit a.pl-inline-link:hover { color: var(--oz-mark); text-decoration-color: currentColor; }
 
+      .lab-kit .pl-controls-row { display: flex; flex-wrap: wrap; gap: 0.9rem 1.5rem; margin-bottom: 1.1rem; }
+      .lab-kit .pl-run-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.9rem; }
+      .lab-kit .pl-token { padding: 0.12rem 0.05rem; margin-right: 1px; cursor: default; }
+      .lab-kit .pl-run-meta { color: var(--oz-fg-dim); font-size: 0.85rem; margin-bottom: 1rem; }
+      .lab-kit .pl-result { margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--oz-rule); }
+      .lab-kit .pl-error-note { color: var(--oz-danger); font-size: 0.85rem; margin-top: 0.5rem; }
+
+      /* Headline numbers, each under a rule */
       .lab-kit .pl-tiles {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-        gap: 0.5rem;
-        margin-bottom: 0.875rem;
+        grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+        gap: 1rem 1.25rem;
+        margin-bottom: 1.25rem;
       }
-      .lab-kit .pl-tile { border: 1px solid; padding: 0.5rem 0.65rem; }
-      .lab-kit .pl-tile-label { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-      .lab-kit .pl-tile-value { font-size: 1.15rem; font-weight: 600; margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
-      .lab-kit .pl-tile-hint { font-size: 0.68rem; margin-top: 0.1rem; }
-      .lab-kit .pl-checks { list-style: none; margin: 0 0 0.875rem; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
-      .lab-kit .pl-check { display: flex; gap: 0.5rem; align-items: flex-start; font-size: 0.78rem; line-height: 1.4; }
-      .lab-kit .pl-check .pl-icon { margin-top: 0.1rem; }
+      .lab-kit .pl-tile { padding-top: 0.6rem; border-top: 1px solid var(--oz-rule-strong); }
+      .lab-kit .pl-tile-label { color: var(--oz-fg-dim); font-size: 0.8rem; font-weight: 500; letter-spacing: 0; text-transform: none; }
+      .lab-kit .pl-tile-value { margin-top: 0.2rem; font-size: 1.6rem; font-weight: 500; letter-spacing: -0.03em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+      .lab-kit .pl-tile-hint { margin-top: 0.2rem; color: var(--oz-fg-dim); font-size: 0.78rem; }
+      .lab-kit .pl-checks { list-style: none; margin: 0 0 1.1rem; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+      .lab-kit .pl-check { display: flex; gap: 0.55rem; align-items: flex-start; font-size: 0.875rem; line-height: 1.45; }
+      .lab-kit .pl-check .pl-icon { margin-top: 0.12rem; }
 
-      .lab-kit .pl-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
-      .lab-kit .pl-table th { text-align: right; font-weight: 600; padding: 0.35rem 0.5rem; position: sticky; top: 0; }
+      .lab-kit .pl-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+      .lab-kit .pl-table th { text-align: right; font-size: 0.8rem; font-weight: 500; color: var(--oz-fg-dim); padding: 0.45rem 0.6rem; position: sticky; top: 0; background: var(--oz-bg); }
       .lab-kit .pl-table th:first-child, .lab-kit .pl-table td:first-child { text-align: left; }
-      .lab-kit .pl-table td { text-align: right; padding: 0.3rem 0.5rem; }
+      .lab-kit .pl-table td { text-align: right; padding: 0.4rem 0.6rem; }
       .lab-kit .pl-table tbody tr { cursor: pointer; }
-      .lab-kit .pl-feature-link { display: inline-flex; align-items: center; gap: 0.2rem; font-weight: 600; text-decoration: none; font-variant-numeric: tabular-nums; }
-      .lab-kit .pl-feature-link:hover { text-decoration: underline; }
+      .lab-kit .pl-table tbody tr:hover { background: var(--oz-fill); }
+      .lab-kit .pl-feature-link { display: inline-flex; align-items: center; gap: 0.2rem; font-weight: 500; text-decoration: none; font-variant-numeric: tabular-nums; transition: color 0.2s ease; }
+      .lab-kit .pl-feature-link:hover { color: var(--oz-mark); }
     `}</style>
   )
 }
@@ -340,30 +325,22 @@ export function Segmented<T extends string>({
   disabled?: boolean
   ariaLabel: string
 }) {
-  const colors = useLabColors()
   return (
-    <div className="pl-segmented" role="radiogroup" aria-label={ariaLabel} style={{ borderColor: colors.border }}>
-      {options.map((option) => {
-        const active = option.value === value
-        return (
-          <button
-            key={option.value}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            title={option.title}
-            disabled={disabled || option.disabled}
-            onClick={() => onChange(option.value)}
-            style={{
-              background: active ? (colors.isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.12)') : 'transparent',
-              color: colors.text,
-              fontWeight: active ? 600 : 500,
-            }}
-          >
-            {option.label}
-          </button>
-        )
-      })}
+    <div className="pl-segmented" role="radiogroup" aria-label={ariaLabel}>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          className="oz-chip"
+          aria-checked={option.value === value}
+          title={option.title}
+          disabled={disabled || option.disabled}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   )
 }

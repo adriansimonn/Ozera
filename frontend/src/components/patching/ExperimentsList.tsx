@@ -6,16 +6,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Trash2,
-  Clock,
-  ArrowRight,
-  ChevronDown,
-  ChevronUp,
-  Download,
-  Upload,
+  
+  
+  
+  
+  
+  
   Copy,
-  Check,
-  Sparkles
-} from 'lucide-react'
+  Check } from 'lucide-react'
 import type {
   PatchingExperiment,
   PatchSpec,
@@ -187,13 +185,18 @@ export function ExperimentsList({
     (!requiresSourcePrompt || (currentExperiment.sourcePrompt?.trim() ?? false))
 
   return (
-    <>
+    <div className="exp-list">
       <button
-        className="section-toggle"
+        className="exp-toggle"
+        aria-expanded={isExpanded}
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <h2>Saved Experiments ({experiments.length})</h2>
-        {isExpanded ? <ChevronUp /> : <ChevronDown />}
+        <h2>
+          Saved experiments <span className="exp-count">{experiments.length}</span>
+        </h2>
+        <svg className="oz-caret" viewBox="0 0 10 6" aria-hidden="true">
+          <path d="M1 1l4 4 4-4" />
+        </svg>
       </button>
 
       {isExpanded && (
@@ -204,6 +207,7 @@ export function ExperimentsList({
                 <div className="exp-save-form">
                   <input
                     type="text"
+                    className="oz-input"
                     value={saveName}
                     onChange={e => setSaveName(e.target.value)}
                     placeholder="Experiment name..."
@@ -211,14 +215,14 @@ export function ExperimentsList({
                     autoFocus
                   />
                   <button
-                    className="exp-save-btn"
+                    className="oz-btn oz-btn--small"
                     onClick={handleSave}
                     disabled={!saveName.trim()}
                   >
                     Save
                   </button>
                   <button
-                    className="exp-cancel-btn"
+                    className="oz-btn oz-btn--ghost oz-btn--small"
                     onClick={() => setShowSaveForm(false)}
                   >
                     Cancel
@@ -226,20 +230,18 @@ export function ExperimentsList({
                 </div>
               ) : (
                 <button
-                  className="exp-show-save-btn"
+                  className="oz-btn oz-btn--ghost oz-btn--small"
                   onClick={() => setShowSaveForm(true)}
                   disabled={disabled}
                 >
-                  <Sparkles className="exp-btn-icon" />
-                  Save Current Experiment
+                  Save current experiment
                 </button>
               )}
             </div>
           )}
 
           <div className="exp-actions-row">
-            <label className="exp-action-btn">
-              <Upload className="exp-action-icon" />
+            <label className="oz-link">
               <span>Import</span>
               <input
                 type="file"
@@ -249,20 +251,16 @@ export function ExperimentsList({
               />
             </label>
             <button
-              className="exp-action-btn"
+              className="oz-link"
               onClick={handleExport}
               disabled={experiments.length === 0}
             >
-              <Download className="exp-action-icon" />
               <span>Export</span>
             </button>
           </div>
 
           {experiments.length === 0 ? (
-            <div className="exp-empty">
-              <p>No saved experiments yet</p>
-              <p className="exp-empty-hint">Run an experiment and save it for later</p>
-            </div>
+            <p className="oz-hint exp-empty">No saved experiments yet</p>
           ) : (
             <div className="exp-grid">
               {experiments.map(experiment => (
@@ -271,9 +269,10 @@ export function ExperimentsList({
                     <span className="exp-name">{experiment.name}</span>
                     <div className="exp-card-actions">
                       <button
-                        className="exp-card-action-btn"
+                        className="oz-icon-btn"
                         onClick={() => handleDuplicate(experiment)}
                         title="Duplicate"
+                        aria-label="Duplicate"
                       >
                         {copiedId === experiment.id ? (
                           <Check className="exp-action-icon exp-success" />
@@ -282,9 +281,10 @@ export function ExperimentsList({
                         )}
                       </button>
                       <button
-                        className="exp-card-action-btn exp-delete"
+                        className="oz-icon-btn"
                         onClick={() => handleDelete(experiment.id)}
                         title="Delete"
+                        aria-label="Delete"
                       >
                         <Trash2 className="exp-action-icon" />
                       </button>
@@ -295,36 +295,34 @@ export function ExperimentsList({
                     {experiment.source_prompt ? (
                       <>
                         <div className="exp-prompt-preview">
-                          <span className="exp-prompt-label">Source:</span>
+                          <span className="exp-prompt-label">Source</span>
                           <span className="exp-prompt-text">{truncate(experiment.source_prompt, 40)}</span>
                         </div>
-                        <div className="exp-prompt-arrow">
-                          <ArrowRight className="exp-arrow-icon" />
-                        </div>
+                        <div className="exp-prompt-arrow" aria-hidden="true">→</div>
                       </>
                     ) : (
                       <div className="exp-ablation-badge">
-                        <span className="exp-ablation-label">Ablation</span>
+                        <span className="oz-tag">Ablation</span>
                       </div>
                     )}
                     <div className="exp-prompt-preview">
-                      <span className="exp-prompt-label">Target:</span>
+                      <span className="exp-prompt-label">Target</span>
                       <span className="exp-prompt-text">{truncate(experiment.target_prompt, 40)}</span>
                     </div>
                   </div>
 
                   <div className="exp-card-meta">
                     <span className="exp-meta-item">
-                      <span className="exp-meta-label">Model:</span>
+                      <span className="exp-meta-label">Model</span>
                       <span className="exp-meta-value">{experiment.model_id}</span>
                     </span>
                     <span className="exp-meta-item">
-                      <span className="exp-meta-label">Patches:</span>
+                      <span className="exp-meta-label">Patches</span>
                       <span className="exp-meta-value">{experiment.patches.length}</span>
                     </span>
                     {experiment.effect_summary && (
                       <span className="exp-meta-item exp-has-result">
-                        <span className="exp-meta-label">Changes:</span>
+                        <span className="exp-meta-label">Changes</span>
                         <span className="exp-meta-value">{experiment.effect_summary.token_changes}</span>
                       </span>
                     )}
@@ -332,11 +330,10 @@ export function ExperimentsList({
 
                   <div className="exp-card-footer">
                     <span className="exp-timestamp">
-                      <Clock className="exp-time-icon" />
                       {formatRelativeTime(experiment.created_at)}
                     </span>
                     <button
-                      className="exp-load-btn"
+                      className="oz-btn oz-btn--ghost oz-btn--small"
                       onClick={() => handleLoad(experiment)}
                       disabled={disabled}
                     >
@@ -351,360 +348,170 @@ export function ExperimentsList({
       )}
 
       <style>{`
-        .exp-content {
-          margin-top: 0.75rem;
-        }
-
-        .exp-save-section {
-          margin-bottom: 1rem;
-        }
-
-        .exp-save-form {
+        /* The section's title, which also opens and closes it */
+        .exp-list .exp-toggle {
           display: flex;
-          gap: 0.5rem;
-        }
-
-        .exp-save-form input {
-          flex: 1;
-          padding: 0.5rem 0.75rem;
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-          font-size: 0.85rem;
-        }
-
-        .exp-save-form input:focus {
-          outline: none;
-          border-color: rgba(59, 130, 246, 0.5);
-        }
-
-        .exp-save-btn, .exp-cancel-btn {
-          padding: 0.5rem 0.875rem;
-          font-size: 0.8rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          border: 1px solid;
-        }
-
-        .exp-save-btn {
-          background: rgba(59, 130, 246, 0.2);
-          border-color: rgba(59, 130, 246, 0.3);
-          color: rgba(59, 130, 246, 1);
-        }
-
-        .exp-save-btn:hover:not(:disabled) {
-          background: rgba(59, 130, 246, 0.3);
-        }
-
-        .exp-save-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .exp-cancel-btn {
-          background: transparent;
-          border-color: rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-        }
-
-        .exp-cancel-btn:hover {
-          background: rgba(255, 255, 255, 0.05);
-        }
-
-        .exp-show-save-btn {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-          padding: 0.625rem 1rem;
-          background: rgba(34, 197, 94, 0.15);
-          border: 1px solid rgba(34, 197, 94, 0.25);
-          color: rgba(34, 197, 94, 0.9);
-          font-size: 0.85rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .exp-show-save-btn:hover:not(:disabled) {
-          background: rgba(34, 197, 94, 0.25);
-          border-color: rgba(34, 197, 94, 0.4);
-        }
-
-        .exp-show-save-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .exp-btn-icon {
-          width: 14px;
-          height: 14px;
-        }
-
-        .exp-actions-row {
-          display: flex;
-          gap: 0.5rem;
-          margin-bottom: 1rem;
-        }
-
-        .exp-action-btn {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.375rem;
-          padding: 0.5rem 0.75rem;
-          background: transparent;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #ffffff;
-          font-size: 0.75rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .exp-action-btn:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.05);
-          border-color: rgba(255, 255, 255, 0.2);
-          color: #ffffff;
-        }
-
-        .exp-action-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .exp-action-icon {
-          width: 14px;
-          height: 14px;
-        }
-
-        .exp-empty {
-          padding: 2rem 1rem;
-          text-align: center;
-        }
-
-        .exp-empty p {
-          margin: 0;
-          font-size: 0.85rem;
-          color: #ffffff;
-        }
-
-        .exp-empty-hint {
-          margin-top: 0.25rem !important;
-          font-size: 0.75rem !important;
-          color: #ffffff !important;
-        }
-
-        .exp-grid {
-          display: flex;
-          flex-direction: column;
-          gap: 0.625rem;
-        }
-
-        .exp-card {
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 0.75rem;
-          transition: border-color 0.2s;
-        }
-
-        .exp-card:hover {
-          border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        .exp-card-header {
-          display: flex;
-          align-items: center;
+          align-items: baseline;
           justify-content: space-between;
-          margin-bottom: 0.625rem;
-        }
-
-        .exp-name {
-          font-size: 0.9rem;
-          font-weight: 600;
-          color: #ffffff;
-        }
-
-        .exp-card-actions {
-          display: flex;
-          gap: 0.25rem;
-        }
-
-        .exp-card-action-btn {
-          padding: 0.25rem;
-          background: transparent;
-          border: none;
+          gap: 1rem;
+          width: 100%;
+          padding: 0;
+          text-align: left;
           cursor: pointer;
-          color: #ffffff;
-          transition: color 0.2s;
         }
 
-        .exp-card-action-btn:hover {
-          color: #ffffff;
+        .exp-list .exp-toggle h2 {
+          margin: 0;
+          font-size: 1.5rem;
+          font-weight: 500;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
+          transition: color 0.2s ease;
         }
 
-        .exp-card-action-btn.exp-delete:hover {
-          color: rgba(239, 68, 68, 0.8);
+        .exp-list .exp-toggle:hover h2 {
+          color: var(--oz-mark);
         }
 
-        .exp-card-action-btn .exp-action-icon {
-          width: 14px;
-          height: 14px;
+        .exp-list .exp-count {
+          margin-left: 0.35rem;
+          color: var(--oz-fg-faint);
+          font-variant-numeric: tabular-nums;
         }
 
-        .exp-success {
-          color: rgba(34, 197, 94, 0.8);
+        .exp-list .exp-content {
+          margin-top: 1.1rem;
         }
 
-        .exp-card-body {
+        .exp-list .exp-save-section {
+          margin-bottom: 1rem;
+        }
+
+        .exp-list .exp-save-form {
           display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          margin-bottom: 0.625rem;
+          gap: 6px;
         }
 
-        .exp-prompt-preview {
+        .exp-list .exp-save-form .oz-input {
           flex: 1;
           min-width: 0;
         }
 
-        .exp-ablation-badge {
-          flex-shrink: 0;
-          margin-right: 0.5rem;
-        }
-
-        .exp-ablation-label {
-          display: inline-block;
-          padding: 0.25rem 0.5rem;
-          background: rgba(168, 85, 247, 0.2);
-          border: 1px solid rgba(168, 85, 247, 0.3);
-          color: rgba(168, 85, 247, 0.9);
-          font-size: 0.65rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .exp-prompt-label {
-          display: block;
-          font-size: 0.65rem;
-          color: #ffffff;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          margin-bottom: 0.125rem;
-        }
-
-        .exp-prompt-text {
-          display: block;
-          font-size: 0.8rem;
-          color: #ffffff;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .exp-prompt-arrow {
-          flex-shrink: 0;
-        }
-
-        .exp-arrow-icon {
-          width: 14px;
-          height: 14px;
-          color: #ffffff;
-        }
-
-        .exp-card-meta {
+        .exp-list .exp-actions-row {
           display: flex;
-          flex-wrap: wrap;
-          gap: 0.75rem;
-          margin-bottom: 0.625rem;
+          gap: 1.25rem;
+          margin-bottom: 1rem;
+          font-size: 0.85rem;
         }
 
-        .exp-meta-item {
-          font-size: 0.7rem;
+        .exp-list .exp-empty {
+          margin: 0;
         }
 
-        .exp-meta-label {
-          color: #ffffff;
-          margin-right: 0.25rem;
+        /* The saved experiments: a ruled list */
+        .exp-list .exp-card {
+          padding: 0.9rem 0 1rem;
+          border-top: 1px solid var(--oz-rule);
         }
 
-        .exp-meta-value {
-          color: #ffffff;
-          font-weight: 500;
+        .exp-list .exp-card:last-child {
+          border-bottom: 1px solid var(--oz-rule);
         }
 
-        .exp-has-result .exp-meta-value {
-          color: rgba(34, 197, 94, 0.8);
-        }
-
-        .exp-card-footer {
+        .exp-list .exp-card-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding-top: 0.5rem;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          gap: 0.75rem;
+          margin-bottom: 0.4rem;
         }
 
-        .exp-timestamp {
+        .exp-list .exp-name {
+          overflow: hidden;
+          font-size: 1.0625rem;
+          font-weight: 500;
+          letter-spacing: -0.02em;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .exp-list .exp-card-actions {
+          display: flex;
+          gap: 0.1rem;
+          flex: none;
+        }
+
+        .exp-list .exp-success {
+          color: var(--oz-ok);
+        }
+
+        .exp-list .exp-card-body {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 0.35rem 0.75rem;
+          margin-bottom: 0.6rem;
+        }
+
+        .exp-list .exp-prompt-preview {
+          display: flex;
+          align-items: baseline;
+          gap: 0.5rem;
+          min-width: 0;
+        }
+
+        .exp-list .exp-prompt-label {
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
+        }
+
+        .exp-list .exp-prompt-text {
+          overflow: hidden;
+          font-family: var(--oz-mono);
+          font-size: 0.82rem;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .exp-list .exp-prompt-arrow {
+          color: var(--oz-fg-faint);
+        }
+
+        .exp-list .exp-card-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.25rem 1.25rem;
+          margin-bottom: 0.75rem;
+        }
+
+        .exp-list .exp-meta-item {
+          display: inline-flex;
+          align-items: baseline;
+          gap: 0.4rem;
+          font-size: 0.85rem;
+        }
+
+        .exp-list .exp-meta-label {
+          color: var(--oz-fg-dim);
+        }
+
+        .exp-list .exp-meta-value {
+          font-variant-numeric: tabular-nums;
+        }
+
+        .exp-list .exp-card-footer {
           display: flex;
           align-items: center;
-          gap: 0.375rem;
-          font-size: 0.7rem;
-          color: #ffffff;
+          justify-content: space-between;
+          gap: 0.75rem;
         }
 
-        .exp-time-icon {
-          width: 12px;
-          height: 12px;
+        .exp-list .exp-timestamp {
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
         }
-
-        .exp-load-btn {
-          padding: 0.375rem 0.875rem;
-          background: rgba(59, 130, 246, 0.15);
-          border: 1px solid rgba(59, 130, 246, 0.25);
-          color: rgba(59, 130, 246, 0.9);
-          font-size: 0.75rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .exp-load-btn:hover:not(:disabled) {
-          background: rgba(59, 130, 246, 0.25);
-          border-color: rgba(59, 130, 246, 0.4);
-        }
-
-        .exp-load-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        /* Light mode */
-        [data-bg="light"] .exp-save-form input { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .exp-cancel-btn { border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .exp-cancel-btn:hover { background: rgba(0,0,0,0.05); }
-        [data-bg="light"] .exp-action-btn { border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .exp-action-btn:hover:not(:disabled) { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.2); color: #1d1d1f; }
-        [data-bg="light"] .exp-empty p { color: #1d1d1f; }
-        [data-bg="light"] .exp-empty-hint { color: #1d1d1f !important; }
-        [data-bg="light"] .exp-card { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .exp-card:hover { border-color: rgba(0,0,0,0.15); }
-        [data-bg="light"] .exp-name { color: #1d1d1f; }
-        [data-bg="light"] .exp-card-action-btn { color: #1d1d1f; }
-        [data-bg="light"] .exp-card-action-btn:hover { color: #1d1d1f; }
-        [data-bg="light"] .exp-prompt-label { color: #1d1d1f; }
-        [data-bg="light"] .exp-prompt-text { color: #1d1d1f; }
-        [data-bg="light"] .exp-arrow-icon { color: #1d1d1f; }
-        [data-bg="light"] .exp-meta-label { color: #1d1d1f; }
-        [data-bg="light"] .exp-meta-value { color: #1d1d1f; }
-        [data-bg="light"] .exp-card-footer { border-top-color: rgba(0,0,0,0.06); }
-        [data-bg="light"] .exp-timestamp { color: #1d1d1f; }
       `}</style>
-    </>
+    </div>
   )
 }
 

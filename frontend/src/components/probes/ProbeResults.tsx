@@ -5,7 +5,6 @@
  */
 
 import { useState } from 'react'
-import { Microscope } from 'lucide-react'
 import type { ProbeLab } from '../../hooks/useProbeLab'
 import { Placeholder } from '../lab/chartKit'
 import { ErrorList } from './ErrorList'
@@ -26,7 +25,7 @@ export function ProbeResults({ lab }: { lab: ProbeLab }) {
   if (!run) {
     return (
       <section className="pl-panel">
-        <Placeholder icon={Microscope}>
+        <Placeholder glyph="probes">
           {lab.training ? 'Training probes…' : 'Choose a model and a dataset, then train probes to see results.'}
         </Placeholder>
       </section>

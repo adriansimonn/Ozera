@@ -44,28 +44,26 @@ export function HeadClassifier({
     <div className="head-classifier">
       {/* Summary Stats */}
       <div className="summary-section">
-        <h3>Classification Summary</h3>
-        <div className="summary-buttons">
+        <h3>Classification summary</h3>
+        <div className="summary-buttons oz-chips">
           {Object.entries(summary).map(([type, count]) => (
             <button
               key={type}
               onClick={() => setFilterType(filterType === type ? 'all' : type as HeadType)}
-              className={`summary-btn ${filterType === type ? 'active' : ''}`}
-              style={{
-                backgroundColor: `${HEAD_TYPE_COLORS[type as HeadType]}20`,
-                color: HEAD_TYPE_COLORS[type as HeadType],
-                borderColor: HEAD_TYPE_COLORS[type as HeadType],
-              }}
+              className={`oz-chip summary-btn ${filterType === type ? 'active' : ''}`}
+              aria-pressed={filterType === type}
             >
-              {HEAD_TYPE_NAMES[type as HeadType]}: {count}
+              <i style={{ backgroundColor: HEAD_TYPE_COLORS[type as HeadType] }} />
+              {HEAD_TYPE_NAMES[type as HeadType]}
+              <span className="summary-count">{count}</span>
             </button>
           ))}
           {filterType !== 'all' && (
             <button
               onClick={() => setFilterType('all')}
-              className="show-all-btn"
+              className="oz-link show-all-btn"
             >
-              Show All
+              Show all
             </button>
           )}
         </div>
@@ -98,11 +96,7 @@ export function HeadClassifier({
                       onMouseEnter={() => setHoveredHead(classification)}
                       onMouseLeave={() => setHoveredHead(null)}
                       className={`head-btn ${isFiltered ? 'filtered' : ''} ${isSelected ? 'selected' : ''} ${isHovered && !isSelected ? 'hovered' : ''}`}
-                      style={{
-                        backgroundColor: `${HEAD_TYPE_COLORS[classification.primary_type]}30`,
-                        borderColor: HEAD_TYPE_COLORS[classification.primary_type],
-                        color: HEAD_TYPE_COLORS[classification.primary_type],
-                      }}
+                      style={{ borderTopColor: HEAD_TYPE_COLORS[classification.primary_type] }}
                     >
                       <div className="head-label">H{headIdx}</div>
                       <div className="head-confidence">
@@ -130,12 +124,7 @@ export function HeadClassifier({
             </span>
           </div>
           <div className="hover-type">
-            Type: <span style={{ color: HEAD_TYPE_COLORS[hoveredHead.primary_type] }}>
-              {HEAD_TYPE_NAMES[hoveredHead.primary_type]}
-            </span>
-          </div>
-          <div className="hover-confidence">
-            Confidence: <span>{(hoveredHead.confidence * 100).toFixed(1)}%</span>
+            {HEAD_TYPE_NAMES[hoveredHead.primary_type]} · {(hoveredHead.confidence * 100).toFixed(1)}% confidence
           </div>
           <div className="hover-summary">
             {hoveredHead.pattern_summary}
@@ -143,13 +132,13 @@ export function HeadClassifier({
           <div className="hover-scores">
             {Object.entries(hoveredHead.scores).map(([type, score]) => (
               <div key={type} className="score-row">
-                <span className="score-label">{type}:</span>
+                <span className="score-label">{HEAD_TYPE_NAMES[type as HeadType] ?? type}</span>
                 <div className="score-bar-container">
                   <div
                     className="score-bar"
                     style={{
                       width: `${score * 100}%`,
-                      backgroundColor: HEAD_TYPE_COLORS[type as HeadType] || '#6B7280',
+                      backgroundColor: HEAD_TYPE_COLORS[type as HeadType] || 'var(--oz-fg-dim)',
                     }}
                   />
                 </div>
@@ -167,216 +156,171 @@ export function HeadClassifier({
           gap: 1.5rem;
         }
 
-        .summary-section {
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 1rem;
+        .head-classifier .summary-section h3 {
+          margin: 0 0 1rem;
+          font-size: 1.5rem;
+          font-weight: 500;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
         }
 
-        .summary-section h3 {
-          margin: 0 0 0.75rem 0;
-          font-size: 0.8rem;
-          font-weight: 600;
-          color: #ffffff;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
+        .head-classifier .summary-buttons {
+          align-items: center;
         }
 
-        .summary-buttons {
+        /* A head type, keyed by a cell of its color; pressing one filters the heads to it */
+        .head-classifier .summary-btn i {
+          flex: none;
+          width: 8px;
+          height: 8px;
+        }
+
+        .head-classifier .summary-count {
+          opacity: 0.7;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .head-classifier .show-all-btn {
+          margin-left: 0.5rem;
+          font-size: 0.85rem;
+        }
+
+        /* A row of head cells to a layer */
+        .head-classifier .layer-section {
+          display: grid;
+          grid-template-columns: 5.5rem minmax(0, 1fr);
+          align-items: center;
+          padding: 0.6rem 0;
+          border-top: 1px solid var(--oz-rule);
+        }
+
+        .head-classifier .layer-section:last-child {
+          border-bottom: 1px solid var(--oz-rule);
+        }
+
+        .head-classifier .layer-section h4 {
+          margin: 0;
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
+          font-weight: 500;
+          letter-spacing: 0;
+        }
+
+        .head-classifier .layer-heads {
           display: flex;
           flex-wrap: wrap;
-          gap: 0.75rem;
+          gap: 4px;
         }
 
-        .summary-btn {
-          padding: 0.375rem 0.75rem;
-          font-size: 0.75rem;
-          font-weight: 500;
-          transition: all 0.2s;
-          border: 1px solid;
-          cursor: pointer;
-        }
-
-        .summary-btn:hover {
-          opacity: 0.8;
-        }
-
-        .summary-btn.active {
-          box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.9), 0 0 0 4px currentColor;
-        }
-
-        .show-all-btn {
-          padding: 0.375rem 0.75rem;
-          font-size: 0.75rem;
-          font-weight: 500;
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          color: #ffffff;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .show-all-btn:hover {
-          background: rgba(255, 255, 255, 0.15);
-        }
-
-        .layers-container {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .layer-section {
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 1rem;
-        }
-
-        .layer-section h4 {
-          margin: 0 0 0.75rem 0;
-          font-size: 0.8rem;
-          font-weight: 600;
-          color: #ffffff;
-        }
-
-        .layer-heads {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.5rem;
-        }
-
-        .head-btn {
+        .head-classifier .head-btn {
           position: relative;
-          padding: 0.5rem 0.75rem;
-          font-size: 0.75rem;
-          font-family: monospace;
-          transition: all 0.2s;
-          border: 1px solid;
+          min-width: 3.4rem;
+          padding: 0.35rem 0.5rem 0.4rem;
+          border: 1px solid var(--oz-rule);
+          border-top: 2px solid var(--oz-rule-strong);
+          color: var(--oz-fg);
+          font-family: var(--oz-mono);
+          font-size: 0.78rem;
+          text-align: center;
           cursor: pointer;
+          transition: background 0.15s ease, opacity 0.15s ease;
         }
 
-        .head-btn:hover {
-          transform: scale(1.05);
+        .head-classifier .head-btn:hover,
+        .head-classifier .head-btn.hovered {
+          background: var(--oz-fill-strong);
         }
 
-        .head-btn.filtered {
-          opacity: 0.3;
+        .head-classifier .head-btn.filtered {
+          opacity: 0.25;
         }
 
-        .head-btn.selected {
-          box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+        .head-classifier .head-btn.selected {
+          outline: 1.5px solid var(--oz-fg);
+          outline-offset: 1px;
         }
 
-        .head-btn.hovered {
-          box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+        .head-classifier .head-confidence {
+          color: var(--oz-fg-dim);
+          font-size: 0.72rem;
         }
 
-        .head-label {
-          font-weight: 600;
-        }
-
-        .head-confidence {
-          font-size: 0.625rem;
-          opacity: 0.8;
-        }
-
-        .hover-detail {
+        /* The head under the pointer, in the corner of the window */
+        .head-classifier .hover-detail {
           position: fixed;
-          bottom: 1rem;
-          right: 1rem;
+          bottom: 1.25rem;
+          right: 1.25rem;
           z-index: 50;
-          background: rgba(0, 0, 0, 0.95);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          padding: 1rem;
-          max-width: 20rem;
+          width: 21rem;
+          padding: 1rem 1.1rem 1.1rem;
+          background: var(--oz-bg);
+          border: 1px solid var(--oz-rule-strong);
+          pointer-events: none;
         }
 
-        .hover-header {
+        .head-classifier .hover-header {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          margin-bottom: 0.5rem;
+          gap: 0.55rem;
         }
 
-        .hover-dot {
-          width: 0.75rem;
-          height: 0.75rem;
+        .head-classifier .hover-dot {
+          width: 9px;
+          height: 9px;
         }
 
-        .hover-title {
-          font-weight: 600;
-          color: #ffffff;
+        .head-classifier .hover-title {
+          font-size: 1.0625rem;
+          font-weight: 500;
+          letter-spacing: -0.02em;
         }
 
-        .hover-type {
-          font-size: 0.875rem;
-          color: #ffffff;
-          margin-bottom: 0.25rem;
+        .head-classifier .hover-type {
+          margin-top: 0.2rem;
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
         }
 
-        .hover-confidence {
-          font-size: 0.875rem;
-          color: #ffffff;
-          margin-bottom: 0.5rem;
+        .head-classifier .hover-summary {
+          margin-top: 0.6rem;
+          font-size: 0.85rem;
+          line-height: 1.45;
         }
 
-        .hover-confidence span {
-          color: #ffffff;
-        }
-
-        .hover-summary {
-          font-size: 0.75rem;
-          color: #ffffff;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
-          padding-top: 0.5rem;
-          margin-top: 0.5rem;
-        }
-
-        .hover-scores {
-          margin-top: 0.5rem;
+        .head-classifier .hover-scores {
+          margin-top: 0.8rem;
           display: flex;
           flex-direction: column;
-          gap: 0.25rem;
+          gap: 0.3rem;
         }
 
-        .score-row {
+        .head-classifier .score-row {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          font-size: 0.75rem;
+          gap: 0.6rem;
+          font-size: 0.8rem;
         }
 
-        .score-label {
-          color: #ffffff;
-          width: 6rem;
+        .head-classifier .score-label {
+          width: 7rem;
+          color: var(--oz-fg-dim);
         }
 
-        .score-bar-container {
+        .head-classifier .score-bar-container {
           flex: 1;
-          height: 0.375rem;
-          background: rgba(255, 255, 255, 0.1);
-          overflow: hidden;
+          height: 4px;
+          background: var(--oz-rule);
         }
 
-        .score-bar {
+        .head-classifier .score-bar {
           height: 100%;
-          transition: width 0.2s;
         }
 
-        .score-value {
-          color: #ffffff;
-          width: 2.5rem;
+        .head-classifier .score-value {
+          width: 2.6rem;
           text-align: right;
+          font-variant-numeric: tabular-nums;
         }
-
-        /* Light mode (the .hover-detail panel stays dark in both themes) */
-        [data-bg="light"] .head-classifier .summary-section,
-        [data-bg="light"] .head-classifier .layer-section { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .head-classifier .summary-section h3,
-        [data-bg="light"] .head-classifier .layer-section h4 { color: #1d1d1f; }
-        [data-bg="light"] .head-classifier .show-all-btn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
-        [data-bg="light"] .head-classifier .show-all-btn:hover { background: rgba(0,0,0,0.08); }
-        [data-bg="light"] .head-classifier .head-btn.selected { box-shadow: 0 0 0 2px rgba(0,0,0,0.8); }
       `}</style>
     </div>
   )

@@ -6,6 +6,9 @@
 
 import { memo, useEffect, useRef, useState } from 'react'
 import type { ActivationData } from '../../types/model'
+import { useAppPalette } from '../../hooks/useTheme'
+import { rgbChannels } from '../../styles/appTheme'
+import { MONO } from '../home/homeKit'
 
 // Nodes drawn per layer; node i shows hidden dimension i, so this is also how many
 // dimensions of each layer's activations the view needs
@@ -21,6 +24,8 @@ export const GenerationFlow = memo(function GenerationFlow({
   className = ''
 }: GenerationFlowProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  // The canvas is drawn in the app's colors: ink for cells and lines, the accent for what's active
+  const palette = useAppPalette()
   const outputBoxRef = useRef<HTMLDivElement>(null)
   const animationRef = useRef<number>()
   const [isPlaying, setIsPlaying] = useState(false)
@@ -256,6 +261,9 @@ export const GenerationFlow = memo(function GenerationFlow({
     canvas.width = width
     canvas.height = height
 
+    const ink = rgbChannels(palette.fg)
+    const mark = rgbChannels(palette.mark)
+
     // Network layout - horizontal flow with multiple nodes per layer
     const layerSpacing = (width - 200) / (numLayers + 2)
     const tokenHeight = 40
@@ -293,7 +301,7 @@ export const GenerationFlow = memo(function GenerationFlow({
       if (!ctx) return
 
       // Clear canvas
-      ctx.fillStyle = '#0a0a0a'
+      ctx.fillStyle = palette.bg
       ctx.fillRect(0, 0, width, height)
 
       // Update progress
@@ -389,7 +397,7 @@ export const GenerationFlow = memo(function GenerationFlow({
             // Base opacity for inactive connections
             let opacity = 0.02
             let lineWidth = 0.4
-            let color = '255, 255, 255' // White for all connections
+            let color = ink
 
             if (tokensInCurrentStep > 0 && flowingTokenIdx < totalTokens) {
               // Use actual node activations to determine connection strength
@@ -405,9 +413,10 @@ export const GenerationFlow = memo(function GenerationFlow({
                 const waveFactor = Math.sin(layerActivationProgress * Math.PI)
                 const boostedStrength = connectionStrength * (0.5 + waveFactor * 0.5)
 
-                // Much brighter and more visible activations
+                // The layer at work is drawn in the accent
+                color = mark
                 opacity = 0.1 + boostedStrength * 0.6
-                lineWidth = 1.0 + boostedStrength * 2.5
+                lineWidth = 0.8 + boostedStrength * 1.6
               } else if (hasProcessed && stepProgress < 0.95) {
                 // Keep connections activated (persistent) after processing until token generation completes
                 opacity = 0.08 + connectionStrength * 0.4
@@ -490,59 +499,30 @@ export const GenerationFlow = memo(function GenerationFlow({
 
           node.active = intensity
 
-          // White color for all nodes
-          let nodeColor = '255, 255, 255'
-
-          // Enhanced glow during activation - much brighter
-          const glowSize = nodeRadius * (2.5 + intensity * 3)
-          const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, glowSize)
-          gradient.addColorStop(0, `rgba(${nodeColor}, ${intensity * 0.8})`)
-          gradient.addColorStop(0.5, `rgba(${nodeColor}, ${intensity * 0.4})`)
-          gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
-          ctx.fillStyle = gradient
-          ctx.beginPath()
-          ctx.arc(node.x, node.y, glowSize, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Node core with intensity-based sizing - brighter
-          const coreSize = nodeRadius * (0.8 + intensity * 0.4)
-          ctx.fillStyle = `rgba(${nodeColor}, ${0.4 + intensity * 0.6})`
-          ctx.beginPath()
-          ctx.arc(node.x, node.y, coreSize, 0, Math.PI * 2)
-          ctx.fill()
-
-          // Bright center for high activation - lower threshold, brighter core
-          if (intensity > 0.4) {
-            ctx.fillStyle = `rgba(255, 255, 255, ${(intensity - 0.4) * 1.8})`
-            ctx.beginPath()
-            ctx.arc(node.x, node.y, coreSize * 0.5, 0, Math.PI * 2)
-            ctx.fill()
+          // A node is a square cell, as in the homepage's mosaic: small and faint at rest, larger
+          // and solid as it activates, and lit in the accent while its layer is at work
+          const side = Math.round(nodeRadius * (0.7 + intensity * 1.7))
+          const left = Math.round(node.x - side / 2)
+          const top = Math.round(node.y - side / 2)
+          const lit = isProcessing && intensity > 0.55
+          ctx.fillStyle = palette.bg
+          ctx.fillRect(left - 2, top - 2, side + 4, side + 4)
+          ctx.fillStyle = lit ? palette.accent : `rgba(${ink}, ${0.3 + intensity * 0.7})`
+          ctx.fillRect(left, top, side, side)
+          if (lit && palette.isLight) {
+            // The accent is pale on white, so the cell is outlined
+            ctx.strokeStyle = palette.fg
+            ctx.lineWidth = 1
+            ctx.strokeRect(left + 0.5, top + 0.5, side - 1, side - 1)
           }
-
-          // Node border - brighter and thicker during activation
-          ctx.strokeStyle = `rgba(${nodeColor}, ${0.6 + intensity * 0.4})`
-          ctx.lineWidth = intensity > 0.5 ? 2 : 1.2
-          ctx.beginPath()
-          ctx.arc(node.x, node.y, coreSize, 0, Math.PI * 2)
-          ctx.stroke()
         })
 
         // Layer label with highlight when active
         if (showLabels) {
-          ctx.font = 'bold 13px Monaco'
-
-          if (isProcessing) {
-            ctx.fillStyle = '#ffffff'
-            ctx.shadowColor = '#ffffff'
-            ctx.shadowBlur = 10
-          } else {
-            ctx.fillStyle = '#ffffff'
-            ctx.shadowBlur = 0
-          }
-
+          ctx.font = `500 13px ${MONO}`
+          ctx.fillStyle = isProcessing ? palette.mark : palette.fgDim
           ctx.textAlign = 'center'
           ctx.fillText(layer.label, layer.x, 85)
-          ctx.shadowBlur = 0
         }
       })
     }
@@ -560,7 +540,7 @@ export const GenerationFlow = memo(function GenerationFlow({
     ) => {
       // Show generated token appearing next to output layer
       if (tokensInCurrentStep > 0) {
-        const color = '#ffffff' // White for all tokens
+        const color = palette.mark
 
         // Calculate layer progress
         const layerProgress = stepProgress * layers.length
@@ -593,7 +573,6 @@ export const GenerationFlow = memo(function GenerationFlow({
 
           // Arrow indicator showing current layer
           ctx.fillStyle = color
-          ctx.globalAlpha = 0.7
           ctx.beginPath()
           ctx.moveTo(currentLayer.x, indicatorY)
           ctx.lineTo(currentLayer.x - 6, indicatorY - 8)
@@ -616,8 +595,8 @@ export const GenerationFlow = memo(function GenerationFlow({
         const labelText = getDecodedToken(currentTokenIdx)
         const displayLabel = labelText.length > 12 ? labelText.substring(0, 11) + '…' : labelText
 
-        ctx.font = 'bold 14px Monaco'
-        ctx.fillStyle = '#ffffff'
+        ctx.font = `500 14px ${MONO}`
+        ctx.fillStyle = palette.fg
         ctx.textAlign = 'center'
         const pulseAlpha = 0.6 + Math.sin(progress * Math.PI * 8) * 0.4
         ctx.globalAlpha = pulseAlpha
@@ -627,19 +606,19 @@ export const GenerationFlow = memo(function GenerationFlow({
 
       // Progress bar at bottom
       const barWidth = 500
-      const barHeight = 6
+      const barHeight = 2
       const barX = (width - barWidth) / 2
       const barY = height - 30
 
-      ctx.fillStyle = 'rgba(100, 116, 139, 0.3)'
+      ctx.fillStyle = palette.ruleStrong
       ctx.fillRect(barX, barY, barWidth, barHeight)
 
-      ctx.fillStyle = '#ffffff'
+      ctx.fillStyle = palette.mark
       ctx.fillRect(barX, barY, barWidth * progress, barHeight)
 
       // Progress percentage
-      ctx.font = '11px Monaco'
-      ctx.fillStyle = '#ffffff'
+      ctx.font = `12px ${MONO}`
+      ctx.fillStyle = palette.fgDim
       ctx.textAlign = 'center'
       ctx.fillText(`${Math.floor(progress * 100)}%`, width / 2, barY + barHeight + 15)
     }
@@ -651,7 +630,7 @@ export const GenerationFlow = memo(function GenerationFlow({
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [activationData, isPlaying, animationSpeed, showLabels, numLayers, promptTokens, generatedTokens, totalTokens, decodedTokens, tokenDecodeCache, width, height, canvasDimensions])
+  }, [activationData, isPlaying, animationSpeed, showLabels, numLayers, promptTokens, generatedTokens, totalTokens, decodedTokens, tokenDecodeCache, width, height, canvasDimensions, palette])
 
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying)
@@ -688,7 +667,9 @@ export const GenerationFlow = memo(function GenerationFlow({
       <div className="controls-panel">
         <div className="controls-section controls-left">
           <div className="control-group speed-control">
-            <label>Speed: {animationSpeed.toFixed(2)}x</label>
+            <label>
+              Speed <span className="speed-value">{animationSpeed.toFixed(2)}x</span>
+            </label>
             <input
               type="range"
               min="0.01"
@@ -701,24 +682,24 @@ export const GenerationFlow = memo(function GenerationFlow({
         </div>
 
         <div className="controls-section controls-center">
-          <button onClick={handlePrevious} className="btn-control">
-            ⏮ Previous
+          <button onClick={handlePrevious} className="oz-btn oz-btn--ghost oz-btn--small">
+            Previous
           </button>
-          <button onClick={handlePlayPause} className="btn-control primary">
-            {isPlaying ? '⏸ Pause' : '▶ Play'}
+          <button onClick={handlePlayPause} className="oz-btn oz-btn--small btn-play">
+            {isPlaying ? 'Pause' : 'Play'}
           </button>
-          <button onClick={handleNext} className="btn-control">
-            Next ⏭
+          <button onClick={handleNext} className="oz-btn oz-btn--ghost oz-btn--small">
+            Next
           </button>
-          <button onClick={handleReset} className="btn-control">
-            ↺ Reset
+          <button onClick={handleReset} className="oz-btn oz-btn--ghost oz-btn--small">
+            Reset
           </button>
         </div>
 
         <div className="controls-section controls-right">
           <button
             onClick={() => setShowLabels(!showLabels)}
-            className="btn-control"
+            className="oz-btn oz-btn--ghost oz-btn--small"
           >
             {showLabels ? 'Hide Labels' : 'Show Labels'}
           </button>
@@ -736,7 +717,7 @@ export const GenerationFlow = memo(function GenerationFlow({
 
           <div className="top-tokens-panel" style={{ maxHeight: `${canvasDimensions.height}px` }}>
             <div className="top-tokens-header">
-              <span className="top-tokens-title">Top-{topK} Token Choices</span>
+              <span className="top-tokens-title">Top-{topK} token choices</span>
             </div>
             <div className="top-tokens-list">
               {topTokenChoices.length === 0 ? (
@@ -751,14 +732,11 @@ export const GenerationFlow = memo(function GenerationFlow({
                     onMouseEnter={() => setHoveredTopToken({ token: choice.token, probability: choice.probability })}
                     onMouseLeave={() => setHoveredTopToken(null)}
                   >
-                    <div className="top-token-rank">#{idx + 1}</div>
+                    <div className="top-token-rank">{String(idx + 1).padStart(2, '0')}</div>
                     <div className="top-token-text">{choice.token}</div>
                     <div className="top-token-probability">
                       {(choice.probability * 100).toFixed(2)}%
                     </div>
-                    {choice.isSelected && (
-                      <div className="selected-indicator">✓</div>
-                    )}
                   </div>
                 ))
               )}
@@ -769,7 +747,7 @@ export const GenerationFlow = memo(function GenerationFlow({
 
       <div className="output-panel" ref={outputBoxRef}>
         <div className="output-header">
-          <span className="output-title">Generated Output</span>
+          <span className="output-title">Generated output</span>
           <span className="output-count">{currentOutputTokens.length} tokens</span>
         </div>
         <div className="output-content">
@@ -789,7 +767,7 @@ export const GenerationFlow = memo(function GenerationFlow({
 
       <div className="prompt-tokens-panel">
         <div className="prompt-tokens-header">
-          <span className="prompt-tokens-title">Tokenized Prompt</span>
+          <span className="prompt-tokens-title">Tokenized prompt</span>
           <span className="prompt-tokens-count">{promptTokens} tokens</span>
         </div>
         <div className="prompt-tokens-content">
@@ -816,646 +794,246 @@ export const GenerationFlow = memo(function GenerationFlow({
           padding: 0;
         }
 
-        .controls-panel {
+        /* Playback: speed, transport, labels */
+        .generation-flow .controls-panel {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 1rem;
-          margin-bottom: 1.5rem;
-          background: rgba(0, 0, 0, 0.5);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
           flex-wrap: wrap;
-          gap: 0.75rem;
+          gap: 0.75rem 1.5rem;
+          padding: 0.9rem var(--oz-gutter);
+          border-bottom: 1px solid var(--oz-rule);
         }
 
-        .controls-section {
+        .generation-flow .controls-section {
           display: flex;
           align-items: center;
-          gap: 0.75rem;
+          gap: 6px;
         }
 
-        .controls-left {
+        .generation-flow .controls-left {
           flex: 1;
           justify-content: flex-start;
         }
 
-        .controls-center {
+        .generation-flow .controls-center {
           flex: 0 0 auto;
         }
 
-        .controls-right {
+        .generation-flow .controls-right {
           flex: 1;
           justify-content: flex-end;
         }
 
-        .btn-control {
-          padding: 0.5rem 1rem;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          font-size: 0.9rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-          white-space: nowrap;
-          color: #ffffff;
-        }
-
-        .btn-control:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.12);
-          box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
-          transform: translateY(-1px);
-        }
-
-        .btn-control:active:not(:disabled) {
-          transform: translateY(0);
-        }
-
-        .btn-control.primary {
-          background: rgba(255, 255, 255, 0.15);
-          border-color: rgba(255, 255, 255, 0.3);
-          box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
+        .generation-flow .btn-play {
+          min-width: 4.75rem;
         }
 
         .generation-flow .control-group {
           display: flex;
           flex-direction: column;
-          gap: 0.25rem;
-          min-width: 150px;
+          gap: 0.2rem;
         }
 
         .generation-flow .control-group.speed-control {
-          min-width: 300px;
+          width: min(300px, 100%);
         }
 
         .generation-flow .control-group label {
-          font-size: 0.75rem;
-          color: #ffffff;
-          font-weight: 600;
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
+          font-weight: 500;
+        }
+
+        .generation-flow .speed-value {
+          margin-left: 0.35rem;
+          color: var(--oz-fg);
+          font-family: var(--oz-mono);
+          font-size: 0.8rem;
         }
 
         .generation-flow .control-group input[type="range"] {
           width: 100%;
-          height: 4px;
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 2px;
-          outline: none;
-          -webkit-appearance: none;
         }
 
-        .generation-flow .control-group input[type="range"]::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          width: 14px;
-          height: 14px;
-          background: #ffffff;
-          border-radius: 50%;
-          cursor: pointer;
-          box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
-        }
-
-        .visualization-container {
-          margin-bottom: 1.5rem;
-        }
-
-        .visualization-content {
+        .generation-flow .visualization-content {
           display: flex;
-          gap: 1rem;
-          align-items: flex-start;
+          align-items: stretch;
+          border-bottom: 1px solid var(--oz-rule);
         }
 
-        .canvas-container {
+        .generation-flow .canvas-container {
           position: relative;
           flex: 1;
           min-width: 0;
         }
 
-        .flow-canvas {
+        .generation-flow .flow-canvas {
           display: block;
-          cursor: crosshair;
           width: 100%;
           height: auto;
         }
 
-        .top-tokens-panel {
-          width: 280px;
-          background: rgba(0, 0, 0, 0.5);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
+        /* The model's choices for the token being generated */
+        .generation-flow .top-tokens-panel {
           display: flex;
           flex-direction: column;
           flex-shrink: 0;
+          width: 290px;
+          border-left: 1px solid var(--oz-rule);
         }
 
-        .top-tokens-header {
+        .generation-flow .top-tokens-header,
+        .generation-flow .output-header,
+        .generation-flow .prompt-tokens-header {
           display: flex;
           justify-content: space-between;
-          align-items: center;
-          padding: 1rem;
-          background: transparent;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          align-items: baseline;
+          gap: 1rem;
+          padding: 1rem var(--oz-gutter) 0.6rem;
         }
 
-        .top-tokens-title {
-          font-size: 0.75rem;
-          color: #ffffff;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          font-weight: 400;
+        .generation-flow .top-tokens-title,
+        .generation-flow .output-title,
+        .generation-flow .prompt-tokens-title {
+          font-size: 1.0625rem;
+          font-weight: 500;
+          letter-spacing: -0.02em;
         }
 
-        .top-tokens-count {
-          font-size: 0.7rem;
-          color: #ffffff;
-          font-weight: 400;
+        .generation-flow .output-count,
+        .generation-flow .prompt-tokens-count {
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
+          font-variant-numeric: tabular-nums;
         }
 
-        .top-tokens-list {
+        .generation-flow .top-tokens-list {
           flex: 1;
           overflow-y: auto;
-          padding: 0.5rem;
+          padding: 0 var(--oz-gutter) 0.75rem;
         }
 
-        .top-tokens-placeholder {
-          color: #ffffff;
-          font-size: 0.8rem;
-          font-style: italic;
-          text-align: center;
-          padding: 2rem 1rem;
+        .generation-flow .top-tokens-placeholder,
+        .generation-flow .output-placeholder,
+        .generation-flow .prompt-tokens-placeholder {
+          padding: 0.5rem 0 1rem;
+          color: var(--oz-fg-faint);
+          font-size: 0.875rem;
         }
 
-        .top-token-item {
+        /* A ruled list: rank, token, probability; the token the model took is lit */
+        .generation-flow .top-token-item {
           display: grid;
-          grid-template-columns: 35px 1fr 70px 20px;
-          gap: 0.5rem;
-          align-items: center;
-          padding: 0.6rem 0.75rem;
-          margin-bottom: 0.4rem;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 0;
-          transition: all 0.2s ease;
-          cursor: pointer;
-          font-family: 'Monaco', 'Courier New', monospace;
-          font-size: 0.75rem;
+          grid-template-columns: 1.6rem 1fr auto;
+          gap: 0.6rem;
+          align-items: baseline;
+          padding: 0.45rem 0;
+          border-top: 1px solid var(--oz-rule);
+          color: var(--oz-fg-dim);
+          font-family: var(--oz-mono);
+          font-size: 0.82rem;
+          cursor: default;
+          transition: color 0.15s ease;
         }
 
-        .top-token-item:hover {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.2);
-          transform: translateX(3px);
+        .generation-flow .top-token-item:hover {
+          color: var(--oz-fg);
         }
 
-        .top-token-item.selected {
-          background: rgba(255, 255, 255, 0.12);
-          border-color: rgba(255, 255, 255, 0.3);
-          box-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
-          font-weight: 600;
+        .generation-flow .top-token-item.selected {
+          margin: 0 calc(var(--oz-gutter) * -1);
+          padding-left: var(--oz-gutter);
+          padding-right: var(--oz-gutter);
+          background: var(--oz-accent);
+          border-top-color: transparent;
+          color: var(--oz-on-accent);
         }
 
-        .top-token-item.selected .top-token-text {
-          color: #ffffff;
-          font-weight: 700;
+        .generation-flow .top-token-item.selected + .top-token-item {
+          border-top-color: transparent;
         }
 
-        .top-token-rank {
-          color: #ffffff;
-          font-size: 0.7rem;
-          font-weight: 600;
+        .generation-flow .top-token-rank {
+          color: var(--oz-fg-faint);
+          font-size: 0.72rem;
         }
 
-        .top-token-item.selected .top-token-rank {
-          color: #ffffff;
+        .generation-flow .top-token-item.selected .top-token-rank {
+          color: inherit;
         }
 
-        .top-token-text {
-          color: #ffffff;
+        .generation-flow .top-token-text {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
 
-        .top-token-probability {
-          color: #ffffff;
-          font-size: 0.7rem;
+        .generation-flow .top-token-probability {
           text-align: right;
-          font-weight: 600;
+          font-variant-numeric: tabular-nums;
         }
 
-        .top-token-item.selected .top-token-probability {
-          color: #ffffff;
+        .generation-flow .output-panel,
+        .generation-flow .prompt-tokens-panel {
+          border-bottom: 1px solid var(--oz-rule);
         }
 
-        .selected-indicator {
-          color: #ffffff;
-          font-size: 0.9rem;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .top-tokens-list::-webkit-scrollbar {
-          width: 6px;
-        }
-
-        .top-tokens-list::-webkit-scrollbar-track {
-          background: rgba(15, 23, 42, 0.5);
-          border-radius: 3px;
-        }
-
-        .top-tokens-list::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.15);
-          border-radius: 3px;
-        }
-
-        .top-tokens-list::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.25);
-        }
-
-        .output-panel {
-          background: rgba(0, 0, 0, 0.5);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
-          overflow: hidden;
-        }
-
-        .generation-flow .output-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 1rem;
-          background: transparent;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .output-title {
-          font-size: 0.75rem;
-          color: #ffffff;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          font-weight: 400;
-        }
-
-        .output-count {
-          font-size: 0.7rem;
-          color: #ffffff;
-          font-weight: 400;
-        }
-
-        .generation-flow .output-content {
-          padding: 1rem;
-          max-height: 200px;
+        .generation-flow .output-content,
+        .generation-flow .prompt-tokens-content {
+          padding: 0.25rem var(--oz-gutter) 1.1rem;
+          max-height: 220px;
           overflow-y: auto;
         }
 
-        .output-placeholder {
-          color: #ffffff;
-          font-size: 0.85rem;
-          font-style: italic;
-          text-align: center;
-          padding: 2rem 1rem;
-        }
-
-        .output-text {
-          font-family: 'Monaco', 'Courier New', monospace;
+        .generation-flow .output-text {
+          font-family: var(--oz-mono);
           font-size: 0.9rem;
           line-height: 1.8;
-          color: #ffffff;
           word-wrap: break-word;
         }
 
-        .output-token {
+        .generation-flow .output-token {
           display: inline;
           animation: tokenFadeIn 0.3s ease-out;
-          background: rgba(255, 255, 255, 0.05);
-          padding: 0.15rem 0.25rem;
-          margin: 0 1px;
         }
 
         @keyframes tokenFadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(-3px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
 
-        .generation-flow .output-content::-webkit-scrollbar {
-          width: 8px;
-        }
-
-        .generation-flow .output-content::-webkit-scrollbar-track {
-          background: rgba(15, 23, 42, 0.5);
-          border-radius: 4px;
-        }
-
-        .generation-flow .output-content::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.15);
-        }
-
-        .generation-flow .output-content::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.25);
-        }
-
-        .prompt-tokens-panel {
-          margin-top: 1.5rem;
-          background: rgba(0, 0, 0, 0.5);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
-          overflow: hidden;
-        }
-
-        .prompt-tokens-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 1rem;
-          background: transparent;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .prompt-tokens-title {
-          font-size: 0.75rem;
-          color: #ffffff;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          font-weight: 400;
-        }
-
-        .prompt-tokens-count {
-          font-size: 0.7rem;
-          color: #ffffff;
-          font-weight: 400;
-        }
-
-        .prompt-tokens-content {
-          padding: 1rem;
-          max-height: 200px;
-          overflow-y: auto;
-        }
-
-        .prompt-tokens-placeholder {
-          color: #ffffff;
-          font-size: 0.85rem;
-          font-style: italic;
-          text-align: center;
-          padding: 2rem 1rem;
-        }
-
-        .prompt-tokens-list {
+        .generation-flow .prompt-tokens-list {
           display: flex;
           flex-wrap: wrap;
-          gap: 0.5rem;
+          gap: 3px;
         }
 
-        .prompt-token {
+        /* A token and its position, as a cell */
+        .generation-flow .prompt-token {
           display: inline-flex;
-          align-items: center;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 4px;
-          overflow: hidden;
-          font-family: 'Monaco', 'Courier New', monospace;
-          font-size: 0.8rem;
-          transition: all 0.2s ease;
+          align-items: baseline;
+          gap: 6px;
+          padding: 3px 7px;
+          border: 1px solid var(--oz-rule);
+          font-family: var(--oz-mono);
+          font-size: 0.82rem;
+          white-space: pre;
+          transition: border-color 0.15s ease;
         }
 
-        .prompt-token:hover {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: rgba(255, 255, 255, 0.2);
+        .generation-flow .prompt-token:hover {
+          border-color: var(--oz-fg);
         }
 
-        .prompt-token-index {
-          padding: 0.3rem 0.5rem;
-          background: rgba(255, 255, 255, 0.08);
-          color: #ffffff;
-          font-size: 0.65rem;
-          font-weight: 600;
-          border-right: 1px solid rgba(255, 255, 255, 0.1);
+        .generation-flow .prompt-token-index {
+          color: var(--oz-fg-faint);
+          font-size: 0.72rem;
         }
 
-        .prompt-token-text {
-          padding: 0.3rem 0.5rem;
-          color: #ffffff;
-        }
-
-        .prompt-tokens-content::-webkit-scrollbar {
-          width: 8px;
-        }
-
-        .prompt-tokens-content::-webkit-scrollbar-track {
-          background: rgba(15, 23, 42, 0.5);
-          border-radius: 4px;
-        }
-
-        .prompt-tokens-content::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.15);
-        }
-
-        .prompt-tokens-content::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.25);
-        }
-
-        /* Light mode */
-        [data-bg="light"] .controls-panel {
-          background: rgba(255, 255, 255, 0.9);
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.05);
-        }
-
-        [data-bg="light"] .btn-control {
-          background: rgba(0, 0, 0, 0.04);
-          border: 1px solid rgba(0, 0, 0, 0.12);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .btn-control:hover:not(:disabled) {
-          background: rgba(0, 0, 0, 0.06);
-          box-shadow: 0 0 15px rgba(0, 0, 0, 0.08);
-        }
-
-        [data-bg="light"] .btn-control.primary {
-          background: rgba(0, 0, 0, 0.06);
-          border-color: rgba(0, 0, 0, 0.2);
-          box-shadow: 0 0 10px rgba(0, 0, 0, 0.06);
-        }
-
-        [data-bg="light"] .generation-flow .control-group label {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .generation-flow .control-group input[type="range"] {
-          background: rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .generation-flow .control-group input[type="range"]::-webkit-slider-thumb {
-          background: #1d1d1f;
-          box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
-        }
-
-        [data-bg="light"] .top-tokens-panel {
-          background: rgba(255, 255, 255, 0.9);
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.05);
-        }
-
-        [data-bg="light"] .top-tokens-header {
-          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .top-tokens-title {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .top-tokens-count {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .top-token-item {
-          background: rgba(0, 0, 0, 0.03);
-          border: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .top-token-item:hover {
-          background: rgba(0, 0, 0, 0.05);
-          border-color: rgba(0, 0, 0, 0.15);
-        }
-
-        [data-bg="light"] .top-token-item.selected {
-          background: rgba(0, 0, 0, 0.06);
-          border-color: rgba(0, 0, 0, 0.2);
-          box-shadow: 0 0 20px rgba(0, 0, 0, 0.06);
-        }
-
-        [data-bg="light"] .top-token-item.selected .top-token-text {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .top-token-text {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .top-token-item.selected .top-token-probability {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .selected-indicator {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .top-tokens-list::-webkit-scrollbar-track {
-          background: rgba(0, 0, 0, 0.03);
-        }
-
-        [data-bg="light"] .top-tokens-list::-webkit-scrollbar-thumb {
-          background: rgba(0, 0, 0, 0.12);
-        }
-
-        [data-bg="light"] .top-tokens-list::-webkit-scrollbar-thumb:hover {
-          background: rgba(0, 0, 0, 0.2);
-        }
-
-        [data-bg="light"] .output-panel {
-          background: rgba(255, 255, 255, 0.9);
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.05);
-        }
-
-        [data-bg="light"] .generation-flow .output-header {
-          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .output-title {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .output-count {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .output-text {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .output-token {
-          background: rgba(0, 0, 0, 0.04);
-        }
-
-        [data-bg="light"] .generation-flow .output-content::-webkit-scrollbar-track {
-          background: rgba(0, 0, 0, 0.03);
-        }
-
-        [data-bg="light"] .generation-flow .output-content::-webkit-scrollbar-thumb {
-          background: rgba(0, 0, 0, 0.12);
-        }
-
-        [data-bg="light"] .generation-flow .output-content::-webkit-scrollbar-thumb:hover {
-          background: rgba(0, 0, 0, 0.2);
-        }
-
-        [data-bg="light"] .prompt-tokens-panel {
-          background: rgba(255, 255, 255, 0.9);
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.05);
-        }
-
-        [data-bg="light"] .prompt-tokens-header {
-          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .prompt-tokens-title {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .prompt-tokens-count {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .prompt-token {
-          background: rgba(0, 0, 0, 0.04);
-          border: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .prompt-token:hover {
-          background: rgba(0, 0, 0, 0.06);
-          border-color: rgba(0, 0, 0, 0.15);
-        }
-
-        [data-bg="light"] .prompt-token-index {
-          background: rgba(0, 0, 0, 0.05);
-          border-right: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .prompt-token-text {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .top-tokens-placeholder,
-        [data-bg="light"] .output-placeholder,
-        [data-bg="light"] .prompt-tokens-placeholder,
-        [data-bg="light"] .top-token-rank,
-        [data-bg="light"] .top-token-item.selected .top-token-rank,
-        [data-bg="light"] .prompt-token-index {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .prompt-tokens-content::-webkit-scrollbar-track {
-          background: rgba(0, 0, 0, 0.03);
-        }
-
-        [data-bg="light"] .prompt-tokens-content::-webkit-scrollbar-thumb {
-          background: rgba(0, 0, 0, 0.12);
-        }
-
-        [data-bg="light"] .prompt-tokens-content::-webkit-scrollbar-thumb:hover {
-          background: rgba(0, 0, 0, 0.2);
-        }
-
-        /* No gap below controls panel */
-        .generation-flow .controls-panel {
-          margin-bottom: 0;
+        @media (max-width: 1100px) {
+          .generation-flow .visualization-content { flex-direction: column; }
+          .generation-flow .top-tokens-panel { width: 100%; border-left: none; border-top: 1px solid var(--oz-rule); }
         }
       `}</style>
     </div>

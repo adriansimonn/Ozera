@@ -6,6 +6,9 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
 import * as d3 from 'd3'
 import { useThemeColors } from '../../hooks/useTheme'
+import { sequentialScale } from '../../styles/appTheme'
+import { MONO } from '../home/homeKit'
+import { pointerIn } from '../lab/labTheme'
 import type { FeatureLabels } from '../../hooks/useFeatureLabels'
 interface FeatureActivation {
   feature_idx: number
@@ -131,10 +134,9 @@ export function FeatureActivationDisplay({
     // Find max value for color scale
     const maxValue = d3.max(matrix.flat()) || 1
 
-    // Color scale - purple gradient for features
-    const colorScale = d3.scaleSequential()
-      .domain([0, maxValue])
-      .interpolator(d3.interpolatePurples)
+    // The app's sequential scale: the theme's ramp on ink, grays on white
+    const scale = sequentialScale(tc.isLight)
+    const colorScale = (value: number) => scale(value / maxValue)
 
     // Create main group
     const g = svg.append('g')
@@ -142,12 +144,13 @@ export function FeatureActivationDisplay({
 
     // Add title
     svg.append('text')
-      .attr('x', dimensions.width / 2)
+      .attr('x', margin.left)
       .attr('y', 25)
-      .attr('text-anchor', 'middle')
-      .attr('class', 'text-lg font-semibold')
+      .attr('font-size', 17)
+      .attr('font-weight', 500)
+      .attr('letter-spacing', '-0.02em')
       .attr('fill', tc.text)
-      .text('Feature Activations')
+      .text('Feature activations')
 
     // Create heatmap cells
     matrix.forEach((featureRow, featDisplayIdx) => {
@@ -160,41 +163,36 @@ export function FeatureActivationDisplay({
           .attr('y', yScale(String(featDisplayIdx)) || 0)
           .attr('width', xScale.bandwidth())
           .attr('height', yScale.bandwidth())
-          .attr('fill', value > 0 ? colorScale(value) : '#1a1a2e')
-          .attr('stroke', isSelected ? '#a855f7' : '#1f2937')
+          .attr('fill', colorScale(value > 0 ? value : 0))
+          .attr('stroke', isSelected ? tc.mark : tc.border)
           .attr('stroke-width', isSelected ? 2 : 0.5)
           .style('cursor', 'pointer')
           .on('mouseenter', function(event) {
             d3.select(this)
-              .attr('stroke', '#ffffff')
-              .attr('stroke-width', 2)
+              .attr('stroke', tc.text)
+              .attr('stroke-width', 1.5)
 
-            const containerRect = containerRef.current?.getBoundingClientRect()
-            if (containerRect) {
+            // The pointer in the container's own pixels (the page is zoomed, see pointerIn)
+            if (containerRef.current) {
               setHoveredCell({
                 position: posIdx,
                 featureIdx: featIdx,
                 value: value,
                 token: activations.tokens[posIdx] || '',
-                x: event.clientX - containerRect.left,
-                y: event.clientY - containerRect.top,
+                ...pointerIn(event, containerRef.current),
               })
             }
           })
           .on('mousemove', function(event) {
-            const containerRect = containerRef.current?.getBoundingClientRect()
-            if (containerRect) {
-              setHoveredCell(prev => prev ? {
-                ...prev,
-                x: event.clientX - containerRect.left,
-                y: event.clientY - containerRect.top,
-              } : null)
+            if (containerRef.current) {
+              const at = pointerIn(event, containerRef.current)
+              setHoveredCell(prev => prev ? { ...prev, ...at } : null)
             }
           })
           .on('mouseleave', function() {
             const isSelected = selectedCell?.featureIdx === featIdx && selectedCell?.position === posIdx
             d3.select(this)
-              .attr('stroke', isSelected ? '#a855f7' : '#1f2937')
+              .attr('stroke', isSelected ? tc.mark : tc.border)
               .attr('stroke-width', isSelected ? 2 : 0.5)
             setHoveredCell(null)
           })
@@ -218,7 +216,9 @@ export function FeatureActivationDisplay({
     g.append('g')
       .attr('transform', `translate(0,${innerHeight})`)
       .call(xAxis)
-      .attr('class', 'text-xs')
+      .attr('color', tc.borderStrong)
+      .attr('font-size', 12)
+      .attr('font-family', MONO)
       .selectAll('text')
       .attr('fill', tc.text)
       .attr('transform', 'rotate(-45)')
@@ -229,7 +229,9 @@ export function FeatureActivationDisplay({
 
     g.append('g')
       .call(yAxis)
-      .attr('class', 'text-xs')
+      .attr('color', tc.borderStrong)
+      .attr('font-size', 12)
+      .attr('font-family', MONO)
       .selectAll('text')
       .attr('fill', tc.text)
 
@@ -238,22 +240,22 @@ export function FeatureActivationDisplay({
       .attr('x', dimensions.width / 2)
       .attr('y', dimensions.height - 5)
       .attr('text-anchor', 'middle')
-      .attr('class', 'text-sm')
-      .attr('fill', tc.text)
-      .text('Token Position')
+      .attr('font-size', 13.5)
+      .attr('fill', tc.textMuted)
+      .text('Token position')
 
     svg.append('text')
       .attr('transform', 'rotate(-90)')
       .attr('x', -dimensions.height / 2)
       .attr('y', 20)
       .attr('text-anchor', 'middle')
-      .attr('class', 'text-sm')
-      .attr('fill', tc.text)
-      .text('Feature Index')
+      .attr('font-size', 13.5)
+      .attr('fill', tc.textMuted)
+      .text('Feature index')
 
     // Add color legend
     const legendWidth = 150
-    const legendHeight = 12
+    const legendHeight = 8
     const legendX = dimensions.width - legendWidth - 30
     const legendY = 20
 
@@ -272,7 +274,7 @@ export function FeatureActivationDisplay({
       .enter()
       .append('stop')
       .attr('offset', d => `${d * 100}%`)
-      .attr('stop-color', d => colorScale(d * maxValue))
+      .attr('stop-color', d => scale(d))
 
     svg.append('rect')
       .attr('x', legendX)
@@ -280,7 +282,7 @@ export function FeatureActivationDisplay({
       .attr('width', legendWidth)
       .attr('height', legendHeight)
       .style('fill', 'url(#feature-legend-gradient)')
-      .attr('stroke', '#374151')
+      .attr('stroke', tc.borderStrong)
       .attr('stroke-width', 1)
 
     const legendAxis = d3.axisBottom(legendScale)
@@ -290,11 +292,13 @@ export function FeatureActivationDisplay({
     svg.append('g')
       .attr('transform', `translate(${legendX},${legendY + legendHeight})`)
       .call(legendAxis)
-      .attr('class', 'text-xs')
+      .attr('color', tc.borderStrong)
+      .attr('font-size', 11)
+      .attr('font-family', MONO)
       .selectAll('text')
-      .attr('fill', tc.text)
+      .attr('fill', tc.textMuted)
 
-  }, [activations, featuresToShow, selectedCell, dimensions, tc.text])
+  }, [activations, featuresToShow, selectedCell, dimensions, tc.text, tc.textMuted, tc.border, tc.borderStrong, tc.mark, tc.isLight])
 
   // Tooltip positioning
   const getTooltipStyle = () => {
@@ -320,18 +324,18 @@ export function FeatureActivationDisplay({
   return (
     <div className={`feature-activation-display relative ${className}`} ref={containerRef}>
       {/* Summary stats */}
-      <div className="flex gap-4 mb-4 text-sm">
-        <div className="bg-black/30 border border-gray-800 px-3 py-2">
-          <span className="text-white uppercase text-xs tracking-wide">Tokens</span>
-          <div className="text-white font-mono">{activations.tokens.length}</div>
+      <div className="fad-stats">
+        <div className="fad-stat">
+          <span className="fad-stat-label">Tokens</span>
+          <div className="fad-stat-value">{activations.tokens.length}</div>
         </div>
-        <div className="bg-black/30 border border-gray-800 px-3 py-2">
-          <span className="text-white uppercase text-xs tracking-wide">Features Shown</span>
-          <div className="text-white font-mono">{featuresToShow.length}</div>
+        <div className="fad-stat">
+          <span className="fad-stat-label">Features shown</span>
+          <div className="fad-stat-value">{featuresToShow.length}</div>
         </div>
-        <div className="bg-black/30 border border-gray-800 px-3 py-2">
-          <span className="text-white uppercase text-xs tracking-wide">Avg L0</span>
-          <div className="text-white font-mono">
+        <div className="fad-stat">
+          <span className="fad-stat-label">Avg L0</span>
+          <div className="fad-stat-value">
             {(activations.active_features_per_position.reduce((a, b) => a + b, 0) /
               activations.active_features_per_position.length).toFixed(1)}
           </div>
@@ -342,58 +346,52 @@ export function FeatureActivationDisplay({
         ref={svgRef}
         width="100%"
         height={dimensions.height}
-        className="bg-black/40 border border-gray-800"
       />
 
       {hoveredCell && (
         <div
-          className="absolute z-20 bg-black/90 border border-gray-700 px-4 py-3 text-sm pointer-events-none"
+          className="oz-tip absolute z-20"
           style={getTooltipStyle()}
         >
-          <div className="text-white font-semibold mb-2 text-xs uppercase tracking-wide">
-            Feature Activation
+          <div className="font-medium">
+            <span className="font-mono">{hoveredCell.value.toFixed(4)}</span> · feature{' '}
+            <span className="font-mono">F{hoveredCell.featureIdx}</span>
           </div>
-          <div className="space-y-1 text-xs">
-            <div className="text-white">
-              Token: <span className="text-white font-mono">"{hoveredCell.token}"</span>
-            </div>
-            <div className="text-white">
-              Feature: <span className="text-purple-300 font-mono">F{hoveredCell.featureIdx}</span>
-            </div>
-            {labels?.get(hoveredCell.featureIdx) && (
-              <div className="text-white" style={{ maxWidth: 260, whiteSpace: 'normal' }}>
-                {labels.get(hoveredCell.featureIdx)?.explanation}
-              </div>
-            )}
-            <div className="text-white">
-              Value: <span className="text-white font-mono">{hoveredCell.value.toFixed(4)}</span>
-            </div>
-            <div className="text-white">
-              Position: <span className="text-white font-mono">{hoveredCell.position}</span>
-            </div>
+          {labels?.get(hoveredCell.featureIdx) && (
+            <div style={{ maxWidth: 260, whiteSpace: 'normal' }}>{labels.get(hoveredCell.featureIdx)?.explanation}</div>
+          )}
+          <div className="text-dim">
+            Token <span className="font-mono">"{hoveredCell.token}"</span> at position{' '}
+            <span className="font-mono">{hoveredCell.position}</span>
           </div>
         </div>
       )}
 
       <style>{`
-        .feature-activation-display .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
-        .feature-activation-display .px-4 { padding-left: 1rem; padding-right: 1rem; }
-        .feature-activation-display .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
-        .feature-activation-display .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
-        .feature-activation-display .bg-black\\/30 { background: rgba(255,255,255,0.03); }
-        .feature-activation-display .bg-black\\/40 { background: rgba(255,255,255,0.03); }
-        .feature-activation-display .bg-black\\/90 { background: rgba(0,0,0,0.9); }
-        .feature-activation-display .border-gray-700 { border-color: rgba(255,255,255,0.1); }
-        .feature-activation-display .border-gray-800 { border-color: rgba(255,255,255,0.1); }
-        .feature-activation-display .text-white { color: #fff; }
-        .feature-activation-display .text-purple-300 { color: rgba(168,85,247,0.9); }
-
-        [data-bg="light"] .feature-activation-display .bg-black\\/30 { background: rgba(0,0,0,0.03); }
-        [data-bg="light"] .feature-activation-display .bg-black\\/40 { background: rgba(0,0,0,0.03); }
-        [data-bg="light"] .feature-activation-display .bg-black\\/90 { background: rgba(255,255,255,0.95); }
-        [data-bg="light"] .feature-activation-display .border-gray-700 { border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .feature-activation-display .border-gray-800 { border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .feature-activation-display .text-white { color: #1d1d1f; }
+        /* Headline numbers, each under a rule */
+        .feature-activation-display .fad-stats {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1rem 1.5rem;
+          margin-bottom: 1.25rem;
+        }
+        .feature-activation-display .fad-stat {
+          min-width: 9rem;
+          padding-top: 0.6rem;
+          border-top: 1px solid var(--oz-rule-strong);
+        }
+        .feature-activation-display .fad-stat-label {
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+        .feature-activation-display .fad-stat-value {
+          margin-top: 0.2rem;
+          font-family: var(--oz-mono);
+          font-size: 1.35rem;
+          letter-spacing: -0.02em;
+          line-height: 1.2;
+        }
       `}</style>
     </div>
   )

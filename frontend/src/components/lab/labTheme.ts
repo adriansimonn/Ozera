@@ -19,6 +19,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ProbeMethod } from '../../types/probes'
 import { useTheme } from '../../hooks/useTheme'
+import { appPalette } from '../../styles/appTheme'
 
 export interface LabColors {
   isLight: boolean
@@ -32,19 +33,50 @@ export interface LabColors {
   transfer: [string, string]
   midpoint: string
   baseline: string
+  /** The app's palette (styles/appTheme.ts), as the charts name it */
   text: string
+  /** Supporting text */
+  dim: string
+  /** The page, for halos under labels and anything that covers a chart */
   surface: string
   grid: string
   axis: string
   border: string
+  /** Outlines of controls */
+  borderStrong: string
   panel: string
   hover: string
   accent: string
+  onAccent: string
   warning: string
+  danger: string
+  good: string
+}
+
+/** The parts of the palette that aren't data: text, rules, washes, the accent. */
+function chrome(isLight: boolean) {
+  const p = appPalette(isLight)
+  return {
+    isLight,
+    text: p.fg,
+    dim: p.fgDim,
+    surface: p.bg,
+    grid: isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)',
+    axis: p.ruleStrong,
+    border: p.rule,
+    borderStrong: p.ruleStrong,
+    panel: 'transparent',
+    hover: p.fillStrong,
+    accent: p.mark,
+    onAccent: p.isLight ? '#ffffff' : p.onAccent,
+    warning: p.warn,
+    danger: p.danger,
+    good: p.ok,
+  }
 }
 
 const LIGHT: LabColors = {
-  isLight: true,
+  ...chrome(true),
   methods: { logreg: '#4a3aa7', diff_means: '#1baf7a' },
   classes: ['#2a78d6', '#e34948'],
   ablated: '#eb6834',
@@ -53,19 +85,10 @@ const LIGHT: LabColors = {
   transfer: ['#eb6834', '#184f95'],
   midpoint: '#f0efec',
   baseline: '#898781',
-  text: '#1d1d1f',
-  surface: '#ffffff',
-  grid: 'rgba(0, 0, 0, 0.07)',
-  axis: 'rgba(0, 0, 0, 0.22)',
-  border: 'rgba(0, 0, 0, 0.1)',
-  panel: 'rgba(0, 0, 0, 0.025)',
-  hover: 'rgba(0, 0, 0, 0.05)',
-  accent: '#2563eb',
-  warning: '#b77900',
 }
 
 const DARK: LabColors = {
-  isLight: false,
+  ...chrome(false),
   methods: { logreg: '#9085e9', diff_means: '#199e70' },
   classes: ['#3987e5', '#e66767'],
   ablated: '#d95926',
@@ -74,15 +97,6 @@ const DARK: LabColors = {
   transfer: ['#d95926', '#6da7ec'],
   midpoint: '#383835',
   baseline: '#898781',
-  text: '#ffffff',
-  surface: '#0a0a0a',
-  grid: 'rgba(255, 255, 255, 0.07)',
-  axis: 'rgba(255, 255, 255, 0.22)',
-  border: 'rgba(255, 255, 255, 0.1)',
-  panel: 'rgba(255, 255, 255, 0.025)',
-  hover: 'rgba(255, 255, 255, 0.06)',
-  accent: 'rgba(96, 165, 250, 0.95)',
-  warning: '#fab219',
 }
 
 export function useLabColors(): LabColors {

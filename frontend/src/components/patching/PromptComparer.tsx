@@ -3,7 +3,6 @@
  * Highlights token differences and shows effect summary.
  */
 
-import { GitCompare, AlertCircle, CheckCircle2 } from 'lucide-react'
 import type { EffectSummary } from '../../types/patching'
 
 type InterventionMode = 'patch' | 'ablation' | 'mixed'
@@ -18,9 +17,9 @@ interface PromptComparerProps {
 }
 
 const OUTPUT_LABELS: Record<InterventionMode, string> = {
-  patch: 'Patched Output',
-  ablation: 'Ablated Output',
-  mixed: 'Intervened Output',
+  patch: 'Patched output',
+  ablation: 'Ablated output',
+  mixed: 'Intervened output',
 }
 
 export function PromptComparer({
@@ -41,25 +40,22 @@ export function PromptComparer({
   return (
     <div className="prompt-comparer">
       <div className="comparer-header">
-        <GitCompare className="header-icon" />
-        <h3>Output Comparison</h3>
         {hasDifference ? (
-          <span className="diff-badge different">
-            <AlertCircle className="badge-icon" />
+          <span className="oz-tag oz-tag--accent">
             {token_changes} token{token_changes !== 1 ? 's' : ''} changed
           </span>
         ) : (
-          <span className="diff-badge same">
-            <CheckCircle2 className="badge-icon" />
-            No difference
-          </span>
+          <span className="oz-tag">No difference</span>
+        )}
+        {hasDifference && first_divergence_position !== null && (
+          <span className="oz-hint">First divergence at position {first_divergence_position}</span>
         )}
       </div>
 
       <div className="comparison-grid">
         <div className="output-column baseline">
           <div className="column-header">
-            <span className="column-label">Baseline Output</span>
+            <span className="column-label">Baseline output</span>
             <span className="token-count">{baseline_length} tokens</span>
           </div>
           <div className="output-content">
@@ -102,19 +98,12 @@ export function PromptComparer({
 
       {hasDifference && (
         <div className="effect-details">
-          <div className="detail-header">Effect Details</div>
-          <div className="detail-row">
-            <span className="detail-label">First divergence:</span>
-            <span className="detail-value">
-              {first_divergence_position !== null ? `Position ${first_divergence_position}` : 'N/A'}
-            </span>
-          </div>
           <div className="changed-tokens-list">
-            <span className="detail-label">Changed tokens:</span>
+            <span className="detail-label">Changed tokens</span>
             <div className="changes">
               {changed_tokens.slice(0, 10).map((ct, idx) => (
                 <div key={idx} className="token-change">
-                  <span className="change-position">[{ct.position}]</span>
+                  <span className="change-position">{String(ct.position).padStart(2, '0')}</span>
                   <span className="change-from">"{ct.baseline_token}"</span>
                   <span className="change-arrow">&rarr;</span>
                   <span className="change-to">"{ct.patched_token}"</span>
@@ -131,240 +120,128 @@ export function PromptComparer({
       )}
 
       <style>{`
-        .prompt-comparer {
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 1.25rem;
-        }
-
-        .comparer-header {
+        .prompt-comparer .comparer-header {
           display: flex;
+          flex-wrap: wrap;
           align-items: center;
-          gap: 0.5rem;
-          margin-bottom: 1rem;
-          padding-bottom: 0.75rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          gap: 0.5rem 0.9rem;
+          margin-bottom: 1.25rem;
         }
 
-        .comparer-header h3 {
-          margin: 0;
-          font-size: 0.9rem;
-          font-weight: 600;
-          color: #ffffff;
-          letter-spacing: 0.025em;
+        /* Baseline and intervened, side by side with a rule between */
+        .prompt-comparer .comparison-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          border-top: 1px solid var(--oz-rule);
+          border-bottom: 1px solid var(--oz-rule);
         }
 
-        .header-icon {
-          width: 16px;
-          height: 16px;
-          color: #ffffff;
+        .prompt-comparer .output-column {
+          min-width: 0;
+          padding: 1rem 1.25rem 1.25rem 0;
         }
 
-        .diff-badge {
-          margin-left: auto;
+        .prompt-comparer .output-column + .output-column {
+          padding: 1rem 0 1.25rem 1.25rem;
+          border-left: 1px solid var(--oz-rule);
+        }
+
+        .prompt-comparer .column-header {
           display: flex;
-          align-items: center;
-          gap: 0.375rem;
-          padding: 0.25rem 0.625rem;
-          font-size: 0.75rem;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 0.75rem;
+          margin-bottom: 0.75rem;
+        }
+
+        .prompt-comparer .column-label {
+          font-size: 0.9375rem;
           font-weight: 500;
         }
 
-        .diff-badge.different {
-          background: rgba(239, 68, 68, 0.15);
-          border: 1px solid rgba(239, 68, 68, 0.3);
-          color: rgba(239, 68, 68, 0.9);
+        .prompt-comparer .token-count {
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
+          font-variant-numeric: tabular-nums;
         }
 
-        .diff-badge.same {
-          background: rgba(34, 197, 94, 0.15);
-          border: 1px solid rgba(34, 197, 94, 0.3);
-          color: rgba(34, 197, 94, 0.9);
-        }
-
-        .badge-icon {
-          width: 12px;
-          height: 12px;
-        }
-
-        .comparison-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1rem;
-        }
-
-        .output-column {
-          background: rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .output-column.baseline {
-          border-left: 3px solid rgba(156, 163, 175, 0.5);
-        }
-
-        .output-column.patched {
-          border-left: 3px solid rgba(59, 130, 246, 0.5);
-        }
-
-        .column-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0.625rem 0.875rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .column-label {
-          font-size: 0.8rem;
-          font-weight: 600;
-          color: #ffffff;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .token-count {
-          font-size: 0.7rem;
-          color: #ffffff;
-        }
-
-        .output-content {
-          padding: 0.875rem;
-        }
-
-        .output-text {
-          font-size: 0.9rem;
-          color: #ffffff;
-          line-height: 1.6;
-          margin-bottom: 1rem;
-          padding-bottom: 0.75rem;
-          border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+        .prompt-comparer .output-text {
+          margin-bottom: 0.9rem;
+          font-family: var(--oz-mono);
+          font-size: 0.875rem;
+          line-height: 1.65;
           white-space: pre-wrap;
           word-break: break-word;
         }
 
-        .tokens-row {
+        .prompt-comparer .tokens-row {
           display: flex;
           flex-wrap: wrap;
-          gap: 0.25rem;
+          gap: 3px;
         }
 
-        .token {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.7rem;
-          padding: 0.125rem 0.375rem;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #ffffff;
-          white-space: nowrap;
+        /* A token as a cell; the ones the intervention changed are lit */
+        .prompt-comparer .token {
+          padding: 2px 6px;
+          border: 1px solid var(--oz-rule);
+          font-family: var(--oz-mono);
+          font-size: 0.78rem;
+          white-space: pre;
         }
 
-        .token.different {
-          background: rgba(239, 68, 68, 0.2);
-          border-color: rgba(239, 68, 68, 0.4);
-          color: rgba(239, 68, 68, 0.9);
+        .prompt-comparer .token.different {
+          background: var(--oz-accent);
+          border-color: var(--oz-accent);
+          color: var(--oz-on-accent);
         }
 
-        .effect-details {
+        .prompt-comparer .effect-details {
           margin-top: 1.25rem;
-          padding-top: 1rem;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .detail-header {
-          font-size: 0.8rem;
-          font-weight: 600;
-          color: #ffffff;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          margin-bottom: 0.75rem;
-        }
-
-        .detail-row {
-          display: flex;
-          gap: 0.5rem;
+        .prompt-comparer .detail-label {
+          display: block;
           margin-bottom: 0.5rem;
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
+          font-weight: 500;
+        }
+
+        .prompt-comparer .token-change {
+          display: flex;
+          align-items: baseline;
+          gap: 0.75rem;
+          padding: 0.4rem 0;
+          border-top: 1px solid var(--oz-rule);
+          font-family: var(--oz-mono);
+          font-size: 0.82rem;
+        }
+
+        .prompt-comparer .change-position {
+          color: var(--oz-fg-faint);
+          font-size: 0.75rem;
+        }
+
+        .prompt-comparer .change-from {
+          color: var(--oz-fg-dim);
+        }
+
+        .prompt-comparer .change-arrow {
+          color: var(--oz-fg-faint);
+        }
+
+        .prompt-comparer .more-changes {
+          padding-top: 0.5rem;
+          border-top: 1px solid var(--oz-rule);
+          color: var(--oz-fg-dim);
           font-size: 0.85rem;
         }
 
-        .detail-label {
-          color: #ffffff;
+        @media (max-width: 900px) {
+          .prompt-comparer .comparison-grid { grid-template-columns: 1fr; }
+          .prompt-comparer .output-column, .prompt-comparer .output-column + .output-column { padding: 1rem 0 1.25rem; border-left: none; }
+          .prompt-comparer .output-column + .output-column { border-top: 1px solid var(--oz-rule); }
         }
-
-        .detail-value {
-          color: #ffffff;
-          font-family: monospace;
-        }
-
-        .changed-tokens-list {
-          margin-top: 0.75rem;
-        }
-
-        .changes {
-          margin-top: 0.5rem;
-          display: flex;
-          flex-direction: column;
-          gap: 0.375rem;
-        }
-
-        .token-change {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.8rem;
-          padding: 0.375rem 0.5rem;
-          background: rgba(255, 255, 255, 0.03);
-        }
-
-        .change-position {
-          color: #ffffff;
-          font-size: 0.7rem;
-        }
-
-        .change-from {
-          color: rgba(156, 163, 175, 0.8);
-        }
-
-        .change-arrow {
-          color: #ffffff;
-        }
-
-        .change-to {
-          color: rgba(59, 130, 246, 0.9);
-        }
-
-        .more-changes {
-          font-size: 0.75rem;
-          color: #ffffff;
-          font-style: italic;
-          padding-left: 0.5rem;
-        }
-
-        @media (max-width: 768px) {
-          .comparison-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        /* Light mode */
-        [data-bg="light"] .prompt-comparer { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .prompt-comparer .comparer-header,
-        [data-bg="light"] .prompt-comparer .column-header { border-bottom-color: rgba(0,0,0,0.08); }
-        [data-bg="light"] .prompt-comparer .output-column { background: rgba(0,0,0,0.02); }
-        [data-bg="light"] .prompt-comparer .output-text { border-bottom-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .prompt-comparer .token:not(.different) { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .prompt-comparer .effect-details { border-top-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .prompt-comparer .token-change { background: rgba(0,0,0,0.03); }
-        [data-bg="light"] .prompt-comparer .comparer-header h3,
-        [data-bg="light"] .prompt-comparer .header-icon,
-        [data-bg="light"] .prompt-comparer .column-label,
-        [data-bg="light"] .prompt-comparer .token-count,
-        [data-bg="light"] .prompt-comparer .output-text,
-        [data-bg="light"] .prompt-comparer .token:not(.different),
-        [data-bg="light"] .prompt-comparer .detail-header,
-        [data-bg="light"] .prompt-comparer .change-position,
-        [data-bg="light"] .prompt-comparer .change-arrow,
-        [data-bg="light"] .prompt-comparer .more-changes { color: #1d1d1f; }
       `}</style>
     </div>
   )

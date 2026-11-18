@@ -1,9 +1,8 @@
 /**
  * HeadComparer component for side-by-side comparison of attention patterns.
- * Theme-aware: adapts to light/dark mode.
+ * Colors come from the app's custom properties (styles/app.css), so it follows the theme.
  */
 
-import { useThemeColors } from '../../hooks/useTheme'
 import type { CompareAttentionResponse } from '../../types/analysis'
 
 interface HeadComparerProps {
@@ -11,22 +10,7 @@ interface HeadComparerProps {
   onHeadSelect?: (layer: number, head: number) => void
 }
 
-function similarityColor(value: number, isLight: boolean) {
-  if (value > 0.7) return isLight ? '#16a34a' : '#4ade80'
-  if (value > 0.4) return isLight ? '#ca8a04' : '#facc15'
-  return isLight ? '#dc2626' : '#f87171'
-}
-
-function similarityBarBg(value: number) {
-  if (value > 0.7) return '#22c55e'
-  if (value > 0.4) return '#eab308'
-  return '#ef4444'
-}
-
 export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
-  const tc = useThemeColors()
-  const { isLight } = tc
-
   const {
     prompt1,
     prompt2,
@@ -42,51 +26,19 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
     ? layer_similarities.reduce((sum, l) => sum + l.mean_similarity, 0) / layer_similarities.length
     : 0
 
-  const card: React.CSSProperties = {
-    background: tc.surface,
-    border: `1px solid ${tc.border}`,
-    padding: '1rem',
-  }
-
-  const warningBg = isLight ? 'rgba(245,158,11,0.06)' : 'rgba(245,158,11,0.08)'
-  const warningBorder = isLight ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.3)'
-  const warningText = isLight ? '#b45309' : '#fbbf24'
-  const warningTextSub = isLight ? 'rgba(180,120,0,0.7)' : 'rgba(251,191,36,0.6)'
-
-  const greenAccent = isLight ? '#16a34a' : '#4ade80'
-  const greenBorder = isLight ? 'rgba(22,163,74,0.2)' : 'rgba(74,222,128,0.25)'
-  const redAccent = isLight ? '#dc2626' : '#f87171'
-  const redBorder = isLight ? 'rgba(220,38,38,0.2)' : 'rgba(248,113,113,0.25)'
-  const redBg = isLight ? 'rgba(220,38,38,0.04)' : 'rgba(248,113,113,0.06)'
-
-  const trackBg = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)'
-
   return (
     <div className="hc-root">
       {/* Length Mismatch Warning */}
       {length_warning && (
-        <div
-          style={{
-            background: warningBg,
-            border: `1px solid ${warningBorder}`,
-            padding: '1rem',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-            <span style={{ color: warningText, fontSize: '1rem', fontWeight: 700, lineHeight: 1 }}>!</span>
-            <div>
-              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: warningText, marginBottom: '0.25rem' }}>
-                Sequence Length Mismatch
-              </div>
-              <div style={{ fontSize: '0.8rem', color: warningTextSub }}>
-                {length_warning}
-              </div>
-              <div style={{ fontSize: '0.7rem', color: warningTextSub, marginTop: '0.5rem' }}>
-                Comparison method: <span style={{ fontFamily: 'monospace' }}>{comparison_method}</span>
-                {comparison_method === 'statistical' && (
-                  <span> (compares attention statistics instead of raw matrices)</span>
-                )}
-              </div>
+        <div className="oz-note oz-note--warn">
+          <div>
+            <div className="hc-note-title">Sequence length mismatch</div>
+            <div>{length_warning}</div>
+            <div className="oz-hint">
+              Comparison method: <span className="oz-mono">{comparison_method}</span>
+              {comparison_method === 'statistical' && (
+                <span> (compares attention statistics instead of raw matrices)</span>
+              )}
             </div>
           </div>
         </div>
@@ -98,70 +50,38 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
           { label: 'Prompt 1', text: prompt1 },
           { label: 'Prompt 2', text: prompt2 },
         ].map(({ label, text }) => (
-          <div key={label} style={card}>
-            <div style={{ fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: tc.textSub, marginBottom: '0.375rem' }}>
-              {label}
-            </div>
-            <div style={{ fontSize: '0.8rem', color: tc.text, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {text}
-            </div>
+          <div key={label} className="hc-prompt">
+            <div className="hc-label">{label}</div>
+            <div className="hc-prompt-text">{text}</div>
           </div>
         ))}
       </div>
 
       {/* Overall Similarity Score */}
-      <div style={card}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-          <div>
-            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: tc.textMid }}>Overall Similarity</div>
-            {comparison_method === 'statistical' && (
-              <div style={{ fontSize: '0.65rem', color: tc.textSub }}>(statistical comparison)</div>
-            )}
-          </div>
-          <span style={{ fontSize: '1.5rem', fontWeight: 700, color: similarityColor(overallSimilarity, isLight) }}>
-            {(overallSimilarity * 100).toFixed(1)}%
-          </span>
+      <div className="hc-overall">
+        <div className="hc-label">
+          Overall similarity
+          {comparison_method === 'statistical' && <span> (statistical comparison)</span>}
         </div>
-        <div style={{ height: 10, background: trackBg, borderRadius: 5, overflow: 'hidden' }}>
-          <div
-            style={{
-              height: '100%',
-              borderRadius: 5,
-              background: similarityBarBg(overallSimilarity),
-              width: `${overallSimilarity * 100}%`,
-              transition: 'width 0.3s ease',
-            }}
-          />
+        <div className="hc-overall-value">{(overallSimilarity * 100).toFixed(1)}%</div>
+        <div className="hc-track">
+          <div className="hc-bar" style={{ width: `${overallSimilarity * 100}%` }} />
         </div>
       </div>
 
       {/* Layer-by-Layer Similarity */}
-      <div style={card}>
-        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: tc.textMid, marginBottom: '1rem' }}>
-          Layer Similarity
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <div>
+        <h3 className="hc-heading">Layer similarity</h3>
+        <div className="hc-layers">
           {layer_similarities.map((layer) => (
-            <div key={layer.layer} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <span style={{ fontSize: '0.7rem', color: tc.textSub, width: 52, flexShrink: 0, fontFamily: 'monospace' }}>
-                L{layer.layer}
-              </span>
-              <div style={{ flex: 1, height: 6, background: trackBg, borderRadius: 3, overflow: 'hidden' }}>
-                <div
-                  style={{
-                    height: '100%',
-                    borderRadius: 3,
-                    background: similarityBarBg(layer.mean_similarity),
-                    width: `${layer.mean_similarity * 100}%`,
-                    transition: 'width 0.3s ease',
-                  }}
-                />
+            <div key={layer.layer} className="hc-layer">
+              <span className="hc-layer-name">L{layer.layer}</span>
+              <div className="hc-track">
+                <div className="hc-bar" style={{ width: `${layer.mean_similarity * 100}%` }} />
               </div>
-              <span style={{ fontSize: '0.7rem', color: tc.textMid, width: 36, textAlign: 'right', fontFamily: 'monospace' }}>
-                {(layer.mean_similarity * 100).toFixed(0)}%
-              </span>
-              <span style={{ fontSize: '0.65rem', color: tc.textFaint, width: 64 }}>
-                ({(layer.min_similarity * 100).toFixed(0)}-{(layer.max_similarity * 100).toFixed(0)}%)
+              <span className="hc-layer-value">{(layer.mean_similarity * 100).toFixed(0)}%</span>
+              <span className="hc-layer-range">
+                {(layer.min_similarity * 100).toFixed(0)}–{(layer.max_similarity * 100).toFixed(0)}%
               </span>
             </div>
           ))}
@@ -170,28 +90,18 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
 
       {/* Most Different Heads */}
       {head_differences.length > 0 && (
-        <div style={card}>
-          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: tc.textMid, marginBottom: '1rem' }}>
-            Most Different Heads
-          </div>
+        <div>
+          <h3 className="hc-heading">Most different heads</h3>
           <div className="hc-diff-grid">
             {head_differences.slice(0, 10).map((diff) => (
               <button
                 key={`${diff.layer}-${diff.head}`}
                 onClick={() => onHeadSelect?.(diff.layer, diff.head)}
                 className="hc-diff-item"
-                style={{
-                  background: redBg,
-                  border: `1px solid ${redBorder}`,
-                }}
               >
-                <div style={{ fontSize: '0.65rem', color: tc.textSub, fontFamily: 'monospace' }}>
-                  L{diff.layer}H{diff.head}
-                </div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: redAccent, marginTop: '0.125rem' }}>
-                  {(diff.difference * 100).toFixed(0)}%
-                </div>
-                <div style={{ fontSize: '0.6rem', color: tc.textFaint }}>different</div>
+                <div className="hc-diff-name">L{diff.layer}H{diff.head}</div>
+                <div className="hc-diff-value">{(diff.difference * 100).toFixed(0)}%</div>
+                <div className="hc-diff-note">different</div>
               </button>
             ))}
           </div>
@@ -199,49 +109,44 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
       )}
 
       {/* Pattern Analysis */}
-      <div className="hc-patterns-grid">
-        {common_patterns.length > 0 && (
-          <div style={{ ...card, borderColor: greenBorder }}>
-            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: greenAccent, marginBottom: '0.75rem' }}>
-              Common Patterns
+      {(common_patterns.length > 0 || divergent_patterns.length > 0) && (
+        <div className="hc-patterns-grid">
+          {common_patterns.length > 0 && (
+            <div>
+              <h3 className="hc-heading">Common patterns</h3>
+              <ul className="hc-patterns">
+                {common_patterns.map((pattern, idx) => (
+                  <li key={idx}>
+                    <span className="hc-mark hc-mark--same" aria-hidden="true">&#10003;</span>
+                    <span>{pattern}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {common_patterns.map((pattern, idx) => (
-                <div key={idx} style={{ fontSize: '0.8rem', color: tc.textMid, display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                  <span style={{ color: greenAccent, flexShrink: 0, marginTop: 1 }}>&#10003;</span>
-                  <span>{pattern}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          )}
 
-        {divergent_patterns.length > 0 && (
-          <div style={{ ...card, borderColor: redBorder }}>
-            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: redAccent, marginBottom: '0.75rem' }}>
-              Divergent Patterns
+          {divergent_patterns.length > 0 && (
+            <div>
+              <h3 className="hc-heading">Divergent patterns</h3>
+              <ul className="hc-patterns">
+                {divergent_patterns.map((pattern, idx) => (
+                  <li key={idx}>
+                    <span className="hc-mark hc-mark--different" aria-hidden="true">&#10007;</span>
+                    <span>{pattern}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {divergent_patterns.map((pattern, idx) => (
-                <div key={idx} style={{ fontSize: '0.8rem', color: tc.textMid, display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                  <span style={{ color: redAccent, flexShrink: 0, marginTop: 1 }}>&#10007;</span>
-                  <span>{pattern}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* No significant differences */}
       {head_differences.length === 0 && (
-        <div style={{ ...card, borderColor: greenBorder, textAlign: 'center', padding: '1.5rem' }}>
-          <div style={{ fontSize: '1rem', fontWeight: 600, color: greenAccent, marginBottom: '0.5rem' }}>
-            High Similarity Detected
-          </div>
-          <div style={{ fontSize: '0.8rem', color: tc.textMid }}>
-            Attention patterns are very similar between these two prompts.
-            This suggests the model processes them in similar ways.
+        <div className="oz-note oz-note--ok">
+          <div>
+            <div className="hc-note-title">High similarity detected</div>
+            <div>Attention patterns are very similar between these two prompts.</div>
           </div>
         </div>
       )}
@@ -250,40 +155,166 @@ export function HeadComparer({ comparison, onHeadSelect }: HeadComparerProps) {
         .hc-root {
           display: flex;
           flex-direction: column;
-          gap: 1rem;
-          padding: 1rem 1.25rem;
+          gap: 2rem;
         }
-        .hc-prompts-grid {
+        .hc-root .hc-note-title {
+          font-weight: 500;
+        }
+        .hc-root .hc-label {
+          margin-bottom: 0.35rem;
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
+          font-weight: 500;
+        }
+        .hc-root .hc-heading {
+          margin: 0 0 1rem;
+          font-size: 1.5rem;
+          font-weight: 500;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
+        }
+        /* The two prompts, with a rule between */
+        .hc-root .hc-prompts-grid {
           display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 0.75rem;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          border-top: 1px solid var(--oz-rule);
+          border-bottom: 1px solid var(--oz-rule);
         }
-        .hc-diff-grid {
+        .hc-root .hc-prompt {
+          min-width: 0;
+          padding: 0.9rem 1.25rem 1rem 0;
+        }
+        .hc-root .hc-prompt + .hc-prompt {
+          padding-left: 1.25rem;
+          padding-right: 0;
+          border-left: 1px solid var(--oz-rule);
+        }
+        .hc-root .hc-prompt-text {
+          overflow: hidden;
+          font-family: var(--oz-mono);
+          font-size: 0.9rem;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .hc-root .hc-overall-value {
+          margin-bottom: 0.75rem;
+          font-size: 3rem;
+          font-weight: 500;
+          letter-spacing: -0.04em;
+          line-height: 1;
+          font-variant-numeric: tabular-nums;
+        }
+        /* A share: a hairline filled from the left */
+        .hc-root .hc-track {
+          flex: 1;
+          height: 3px;
+          background: var(--oz-rule);
+        }
+        .hc-root .hc-bar {
+          height: 100%;
+          background: var(--oz-fg);
+          transition: width 0.5s cubic-bezier(0.16, 0.8, 0.2, 1);
+        }
+        .hc-root .hc-layer {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          padding: 0.55rem 0;
+          border-top: 1px solid var(--oz-rule);
+          font-family: var(--oz-mono);
+          font-size: 0.82rem;
+        }
+        .hc-root .hc-layer:last-child {
+          border-bottom: 1px solid var(--oz-rule);
+        }
+        .hc-root .hc-layer-name {
+          width: 2.5rem;
+          flex: none;
+          color: var(--oz-fg-dim);
+        }
+        .hc-root .hc-layer-value {
+          width: 2.75rem;
+          text-align: right;
+        }
+        .hc-root .hc-layer-range {
+          width: 5.5rem;
+          color: var(--oz-fg-dim);
+        }
+        .hc-root .hc-diff-grid {
           display: grid;
           grid-template-columns: repeat(5, 1fr);
-          gap: 0.5rem;
+          gap: 6px;
         }
-        .hc-diff-item {
-          padding: 0.625rem 0.5rem;
-          cursor: pointer;
-          transition: opacity 0.15s;
+        /* A head as a cell */
+        .hc-root .hc-diff-item {
+          padding: 0.7rem 0.5rem 0.75rem;
+          border: 1px solid var(--oz-rule);
           text-align: center;
-          background: transparent;
+          cursor: pointer;
+          transition: border-color 0.2s ease;
         }
-        .hc-diff-item:hover {
-          opacity: 0.75;
+        .hc-root .hc-diff-item:hover {
+          border-color: var(--oz-fg);
         }
-        .hc-patterns-grid {
+        .hc-root .hc-diff-name {
+          color: var(--oz-fg-dim);
+          font-family: var(--oz-mono);
+          font-size: 0.78rem;
+        }
+        .hc-root .hc-diff-value {
+          margin-top: 0.15rem;
+          font-size: 1.5rem;
+          font-weight: 500;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
+          font-variant-numeric: tabular-nums;
+        }
+        .hc-root .hc-diff-note {
+          color: var(--oz-fg-dim);
+          font-size: 0.78rem;
+        }
+        .hc-root .hc-patterns-grid {
           display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 0.75rem;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 2rem;
+        }
+        .hc-root .hc-patterns {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+        }
+        .hc-root .hc-patterns li {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.6rem;
+          padding: 0.55rem 0;
+          border-top: 1px solid var(--oz-rule);
+          font-size: 0.9rem;
+          line-height: 1.45;
+        }
+        .hc-root .hc-patterns li:last-child {
+          border-bottom: 1px solid var(--oz-rule);
+        }
+        .hc-root .hc-mark {
+          flex: none;
+        }
+        .hc-root .hc-mark--same {
+          color: var(--oz-ok);
+        }
+        .hc-root .hc-mark--different {
+          color: var(--oz-danger);
         }
         @media (max-width: 800px) {
-          .hc-prompts-grid,
-          .hc-patterns-grid {
+          .hc-root .hc-prompts-grid,
+          .hc-root .hc-patterns-grid {
             grid-template-columns: 1fr;
           }
-          .hc-diff-grid {
+          .hc-root .hc-prompt + .hc-prompt {
+            padding-left: 0;
+            border-left: none;
+            border-top: 1px solid var(--oz-rule);
+          }
+          .hc-root .hc-diff-grid {
             grid-template-columns: repeat(3, 1fr);
           }
         }

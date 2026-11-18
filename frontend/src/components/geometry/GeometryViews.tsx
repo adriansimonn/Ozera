@@ -4,7 +4,6 @@
  */
 
 import type { ReactNode } from 'react'
-import { GitCompareArrows, Grid3x3, LineChart, Map, Orbit, Puzzle, Spline, type LucideIcon } from 'lucide-react'
 import type { GeometryLab } from '../../hooks/useGeometryLab'
 import { AtlasView } from './AtlasView'
 import { CompareView } from './CompareView'
@@ -16,30 +15,29 @@ import { SteerView } from './SteerView'
 
 export type GeometryViewId = 'shape' | 'layers' | 'similarity' | 'compare' | 'steer' | 'sae' | 'atlas'
 
-const GEOMETRY_VIEWS: { id: GeometryViewId; label: string; icon: LucideIcon }[] = [
-  { id: 'shape', label: 'Shape', icon: Orbit },
-  { id: 'layers', label: 'Layers', icon: LineChart },
-  { id: 'similarity', label: 'Similarity', icon: Grid3x3 },
-  { id: 'compare', label: 'Compare', icon: GitCompareArrows },
-  { id: 'steer', label: 'Steer', icon: Spline },
-  { id: 'sae', label: 'SAE', icon: Puzzle },
-  { id: 'atlas', label: 'Atlas', icon: Map },
+const GEOMETRY_VIEWS: { id: GeometryViewId; label: string }[] = [
+  { id: 'shape', label: 'Shape' },
+  { id: 'layers', label: 'Layers' },
+  { id: 'similarity', label: 'Similarity' },
+  { id: 'compare', label: 'Compare' },
+  { id: 'steer', label: 'Steer' },
+  { id: 'sae', label: 'SAE' },
+  { id: 'atlas', label: 'Atlas' },
 ]
 
 export function GeometryViewTabs({ lab }: { lab: GeometryLab }) {
   return (
     <div className="pl-view-tabs" role="tablist" aria-label="Geometry Lab views" data-assist="geometry.view">
-      {GEOMETRY_VIEWS.map(({ id, label, icon: Icon }) => (
+      {GEOMETRY_VIEWS.map(({ id, label }) => (
         <button
           key={id}
           type="button"
           role="tab"
           aria-selected={lab.view === id}
-          className={`pl-view-tab${lab.view === id ? ' active' : ''}`}
+          className={`oz-chip${lab.view === id ? ' active' : ''}`}
           onClick={() => lab.setView(id)}
         >
-          <Icon className="pl-icon" aria-hidden="true" />
-          <span>{label}</span>
+          {label}
         </button>
       ))}
     </div>
@@ -66,8 +64,8 @@ export function GeometryViews({ lab }: { lab: GeometryLab }) {
       <style>{`
         .geometry-lab .gl-slider { min-width: 220px; flex: 1; max-width: 420px; }
         .geometry-lab .gl-slider input { width: 100%; margin-top: 0.35rem; }
-        .geometry-lab .gl-ramp-legend { display: flex; align-items: center; gap: 0.5rem; font-size: 0.72rem; margin-top: 0.25rem; }
-        .geometry-lab .gl-ramp { display: inline-block; width: 140px; height: 8px; border: 1px solid; border-radius: 4px; }
+        .geometry-lab .gl-ramp-legend { display: flex; align-items: center; gap: 0.5rem; color: var(--oz-fg-dim); font-size: 0.8rem; margin-top: 0.25rem; }
+        .geometry-lab .gl-ramp { display: inline-block; width: 140px; height: 8px; border: 1px solid var(--oz-rule-strong); }
       `}</style>
     </>
   )

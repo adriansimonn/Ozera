@@ -4,8 +4,7 @@
  */
 
 import { useState, useMemo } from 'react'
-import { Search, Filter, ChevronDown, ChevronUp, Zap, AlertTriangle } from 'lucide-react'
-import { useThemeColors } from '../../hooks/useTheme'
+import { Zap, AlertTriangle } from 'lucide-react'
 
 interface FeatureStats {
   feature_idx: number
@@ -41,19 +40,24 @@ interface FeatureBrowserProps {
 type SortField = 'feature_idx' | 'activation_frequency' | 'mean_activation' | 'polysemanticity' | 'confidence' | 'score'
 type FilterType = 'all' | 'dead' | 'monosemantic' | 'polysemantic' | 'active'
 
+const FILTER_LABELS: Record<FilterType, string> = {
+  all: 'All',
+  active: 'Active',
+  dead: 'Dead',
+  monosemantic: 'Monosemantic',
+  polysemantic: 'Polysemantic',
+}
+
 export function FeatureBrowser({
   catalog,
   selectedFeature,
   onFeatureSelect,
   className = '',
 }: FeatureBrowserProps) {
-  const tc = useThemeColors()
-
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState<SortField>('activation_frequency')
   const [sortAscending, setSortAscending] = useState(false)
   const [filterType, setFilterType] = useState<FilterType>('active')
-  const [showFilters, setShowFilters] = useState(false)
 
   // Filter and sort features
   const filteredFeatures = useMemo(() => {
@@ -109,180 +113,108 @@ export function FeatureBrowser({
     }
   }
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return null
-    return sortAscending
-      ? <ChevronUp className="w-3 h-3" />
-      : <ChevronDown className="w-3 h-3" />
-  }
-
-  const getFrequencyColor = (freq: number): string => {
-    if (freq === 0) return tc.textFaint
-    if (freq < 0.01) return tc.textFaint
-    if (freq < 0.1) return tc.textMid
-    if (freq < 0.5) return tc.textMid
-    return tc.textStrong
-  }
+  // The sorted column's direction
+  const sortMark = (field: SortField) => (sortField === field ? (sortAscending ? ' ↑' : ' ↓') : '')
 
   const getPolysemanticity = (score: number) => {
-    if (score < 0.3) return { label: 'Mono', color: 'rgba(34,197,94,0.9)' }
-    if (score < 0.7) return { label: 'Mixed', color: 'rgba(234,179,8,0.9)' }
-    return { label: 'Poly', color: 'rgba(239,68,68,0.9)' }
+    if (score < 0.3) return 'Mono'
+    if (score < 0.7) return 'Mixed'
+    return 'Poly'
   }
 
   return (
-    <div className={`feature-browser ${className}`} style={{ background: tc.surface, border: `1px solid ${tc.border}` }}>
-      {/* Header */}
-      <div className="p-4 border-b border-gray-800">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white tracking-tight">
-            Feature Browser
-          </h3>
-          <div className="text-sm text-white">
-            {filteredFeatures.length} / {catalog.num_features} features
-          </div>
-        </div>
+    <div className={`feature-browser ${className}`}>
+      <div className="fb-head">
+        <h3>Feature browser</h3>
+        <span className="fb-count">
+          {filteredFeatures.length} / {catalog.num_features} features
+        </span>
+      </div>
 
-        {/* Search and filter */}
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white" />
-            <input
-              type="text"
-              placeholder="Search by index or label..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-black/50 border border-gray-700 text-white text-sm focus:outline-none focus:border-purple-500"
-            />
-          </div>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`px-3 py-2 border ${showFilters ? 'border-purple-500 text-purple-400' : 'border-gray-700 text-white'} hover:border-purple-500 transition-colors`}
-          >
-            <Filter className="w-4 h-4" />
-          </button>
+      {/* Search and filter */}
+      <div className="fb-controls">
+        <input
+          type="text"
+          placeholder="Search by index or label..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="oz-input"
+          aria-label="Search features"
+        />
+        <div className="oz-chips" role="radiogroup" aria-label="Filter features">
+          {(['all', 'active', 'dead', 'monosemantic', 'polysemantic'] as FilterType[]).map(type => (
+            <button
+              key={type}
+              role="radio"
+              aria-checked={filterType === type}
+              onClick={() => setFilterType(type)}
+              className="oz-chip"
+            >
+              {FILTER_LABELS[type]}
+            </button>
+          ))}
         </div>
-
-        {/* Filter options */}
-        {showFilters && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {(['all', 'active', 'dead', 'monosemantic', 'polysemantic'] as FilterType[]).map(type => (
-              <button
-                key={type}
-                onClick={() => setFilterType(type)}
-                className={`px-3 py-1 text-xs uppercase tracking-wide border transition-colors ${
-                  filterType === type
-                    ? 'border-purple-500 text-purple-400 bg-purple-500/10'
-                    : 'border-gray-700 text-white hover:border-gray-600'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Summary stats */}
-      <div className="grid grid-cols-4 gap-px bg-gray-800 border-b border-gray-800">
-        <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-white uppercase tracking-wide">Total</div>
-          <div className="text-lg font-mono text-white">{catalog.num_features}</div>
+      <div className="fb-stats">
+        <div className="fb-stat">
+          <div className="fb-stat-label">Total</div>
+          <div className="fb-stat-value">{catalog.num_features}</div>
         </div>
-        <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-white uppercase tracking-wide">Dead</div>
-          <div className="text-lg font-mono text-red-400">{catalog.dead_features.length}</div>
+        <div className="fb-stat">
+          <div className="fb-stat-label">Dead</div>
+          <div className="fb-stat-value">{catalog.dead_features.length}</div>
         </div>
-        <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-white uppercase tracking-wide">Mono</div>
-          <div className="text-lg font-mono text-green-400">{catalog.monosemantic_features.length}</div>
+        <div className="fb-stat">
+          <div className="fb-stat-label">Monosemantic</div>
+          <div className="fb-stat-value">{catalog.monosemantic_features.length}</div>
         </div>
-        <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-white uppercase tracking-wide">Poly</div>
-          <div className="text-lg font-mono text-yellow-400">{catalog.polysemantic_features.length}</div>
+        <div className="fb-stat">
+          <div className="fb-stat-label">Polysemantic</div>
+          <div className="fb-stat-value">{catalog.polysemantic_features.length}</div>
         </div>
       </div>
 
       {/* Table header */}
-      <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-black/60 border-b border-gray-800 text-xs text-white uppercase tracking-wide">
-        <button
-          className="col-span-2 flex items-center gap-1 hover:text-white"
-          onClick={() => handleSort('feature_idx')}
-        >
-          Index <SortIcon field="feature_idx" />
+      <div className="fb-row fb-row--head">
+        <button onClick={() => handleSort('feature_idx')}>Index{sortMark('feature_idx')}</button>
+        <div>Label</div>
+        <button onClick={() => handleSort('activation_frequency')}>Freq{sortMark('activation_frequency')}</button>
+        <button onClick={() => handleSort('mean_activation')}>Mean{sortMark('mean_activation')}</button>
+        <button onClick={() => handleSort('score')} title="Autointerp score of the label's explanation (0.5 is chance)">
+          Score{sortMark('score')}
         </button>
-        <div className="col-span-4">Label</div>
-        <button
-          className="col-span-2 flex items-center gap-1 hover:text-white"
-          onClick={() => handleSort('activation_frequency')}
-        >
-          Freq <SortIcon field="activation_frequency" />
-        </button>
-        <button
-          className="col-span-1 flex items-center gap-1 hover:text-white"
-          onClick={() => handleSort('mean_activation')}
-        >
-          Mean <SortIcon field="mean_activation" />
-        </button>
-        <button
-          className="col-span-1 flex items-center gap-1 hover:text-white"
-          onClick={() => handleSort('score')}
-          title="Autointerp score of the label's explanation (0.5 is chance)"
-        >
-          Score <SortIcon field="score" />
-        </button>
-        <button
-          className="col-span-1 flex items-center gap-1 hover:text-white"
-          onClick={() => handleSort('polysemanticity')}
-        >
-          Type <SortIcon field="polysemanticity" />
-        </button>
-        <div className="col-span-1"></div>
+        <button onClick={() => handleSort('polysemanticity')}>Type{sortMark('polysemanticity')}</button>
+        <div></div>
       </div>
 
       {/* Feature list */}
-      <div className="max-h-[400px] overflow-y-auto">
+      <div className="fb-rows">
         {filteredFeatures.length === 0 ? (
-          <div className="p-8 text-center text-white">
-            No features match your criteria
-          </div>
+          <div className="fb-empty">No features match your criteria</div>
         ) : (
           filteredFeatures.map(feature => {
             const isDead = catalog.dead_features.includes(feature.feature_idx)
-            const polySem = getPolysemanticity(feature.polysemanticity)
             const isSelected = selectedFeature === feature.feature_idx
 
             return (
               <button
                 key={feature.feature_idx}
                 onClick={() => onFeatureSelect(feature.feature_idx)}
-                className={`w-full grid grid-cols-12 gap-2 px-4 py-3 text-left border-b border-gray-800/50 transition-colors ${
-                  isSelected
-                    ? 'bg-purple-500/20 border-l-2 border-l-purple-500'
-                    : 'hover:bg-gray-800/50'
-                } ${isDead ? 'opacity-50' : ''}`}
+                className={`fb-row${isSelected ? ' is-active' : ''}${isDead ? ' is-dead' : ''}`}
               >
-                <div className="col-span-2 font-mono text-purple-300">
-                  F{feature.feature_idx}
-                </div>
-                <div className="col-span-4 text-sm text-white truncate" title={feature.label_title ?? feature.suggested_label}>
+                <div className="fb-id">F{feature.feature_idx}</div>
+                <div className="fb-label" title={feature.label_title ?? feature.suggested_label}>
                   {feature.suggested_label}
                 </div>
-                <div className="col-span-2 font-mono text-sm" style={{ color: getFrequencyColor(feature.activation_frequency) }}>
-                  {(feature.activation_frequency * 100).toFixed(1)}%
-                </div>
-                <div className="col-span-1 font-mono text-sm text-white">
-                  {feature.mean_activation.toFixed(2)}
-                </div>
-                <div className="col-span-1 font-mono text-sm text-white">
-                  {feature.score != null ? feature.score.toFixed(2) : '–'}
-                </div>
-                <div className={`col-span-1 text-xs ${polySem.color}`}>
-                  {polySem.label}
-                </div>
-                <div className="col-span-1 flex items-center justify-end">
-                  {isDead && <AlertTriangle className="w-3 h-3 text-red-500" />}
-                  {feature.activation_frequency > 0.5 && <Zap className="w-3 h-3 text-yellow-500" />}
+                <div className="fb-num">{(feature.activation_frequency * 100).toFixed(1)}%</div>
+                <div className="fb-num">{feature.mean_activation.toFixed(2)}</div>
+                <div className="fb-num">{feature.score != null ? feature.score.toFixed(2) : '–'}</div>
+                <div className="fb-type">{getPolysemanticity(feature.polysemanticity)}</div>
+                <div className="fb-flags">
+                  {isDead && <AlertTriangle aria-label="Dead feature" />}
+                  {feature.activation_frequency > 0.5 && <Zap aria-label="Fires on more than half of tokens" />}
                 </div>
               </button>
             )
@@ -290,70 +222,151 @@ export function FeatureBrowser({
         )}
       </div>
 
-      {/* Footer with pagination hint */}
-      {filteredFeatures.length > 50 && (
-        <div className="p-3 text-center text-xs text-white border-t border-gray-800">
-          Scroll to see more features
-        </div>
-      )}
-
       <style>{`
-        .feature-browser .p-4 { padding: 1rem; }
-        .feature-browser .p-3 { padding: 0.75rem; }
-        .feature-browser .p-8 { padding: 2rem; }
-        .feature-browser .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
-        .feature-browser .px-4 { padding-left: 1rem; padding-right: 1rem; }
-        .feature-browser .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
-        .feature-browser .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
-        .feature-browser .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
-        .feature-browser .border-b { border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .feature-browser .border-t { border-top: 1px solid rgba(255,255,255,0.1); }
-        .feature-browser .bg-black\\/40 { background: rgba(0,0,0,0.2); }
-        .feature-browser .bg-black\\/50 { background: rgba(255,255,255,0.03); }
-        .feature-browser .bg-black\\/60 { background: rgba(0,0,0,0.3); }
-        .feature-browser .bg-gray-800 { background: rgba(255,255,255,0.1); }
-        .feature-browser .bg-gray-800\\/50 { background: rgba(255,255,255,0.03); }
-        .feature-browser .bg-purple-500\\/10 { background: rgba(255,255,255,0.08); }
-        .feature-browser .bg-purple-500\\/20 { background: rgba(255,255,255,0.12); }
-        .feature-browser .border-gray-700 { border-color: rgba(255,255,255,0.1); }
-        .feature-browser .border-gray-800 { border-color: rgba(255,255,255,0.1); }
-        .feature-browser .border-gray-800\\/50 { border-color: rgba(255,255,255,0.05); }
-        .feature-browser .border-purple-500 { border-color: rgba(255,255,255,0.4); }
-        .feature-browser .border-l-purple-500 { border-left-color: rgba(255,255,255,0.4); }
-        .feature-browser .text-white { color: #fff; }
-        .feature-browser .text-purple-300 { color: #ffffff; }
-        .feature-browser .text-purple-400 { color: #ffffff; }
-        .feature-browser .text-red-400 { color: rgba(239,68,68,0.9); }
-        .feature-browser .text-red-500 { color: rgba(239,68,68,0.9); }
-        .feature-browser .text-green-400 { color: rgba(34,197,94,0.9); }
-        .feature-browser .text-yellow-400 { color: rgba(234,179,8,0.9); }
-        .feature-browser .text-yellow-500 { color: rgba(234,179,8,0.9); }
-        .feature-browser input:focus { border-color: rgba(255,255,255,0.25); }
-        .feature-browser button:hover.border-gray-700 { border-color: rgba(255,255,255,0.2); }
-        .feature-browser button:hover.border-gray-600 { border-color: rgba(255,255,255,0.2); }
-        .feature-browser button:hover.border-purple-500 { border-color: rgba(255,255,255,0.5); }
-
-        [data-bg="light"] .feature-browser .border-b { border-bottom: 1px solid rgba(0,0,0,0.1); }
-        [data-bg="light"] .feature-browser .border-t { border-top: 1px solid rgba(0,0,0,0.1); }
-        [data-bg="light"] .feature-browser .bg-black\\/40 { background: rgba(0,0,0,0.04); }
-        [data-bg="light"] .feature-browser .bg-black\\/50 { background: rgba(0,0,0,0.03); }
-        [data-bg="light"] .feature-browser .bg-black\\/60 { background: rgba(0,0,0,0.05); }
-        [data-bg="light"] .feature-browser .bg-gray-800 { background: rgba(0,0,0,0.08); }
-        [data-bg="light"] .feature-browser .bg-gray-800\\/50 { background: rgba(0,0,0,0.03); }
-        [data-bg="light"] .feature-browser .bg-purple-500\\/10 { background: rgba(0,0,0,0.05); }
-        [data-bg="light"] .feature-browser .bg-purple-500\\/20 { background: rgba(0,0,0,0.08); }
-        [data-bg="light"] .feature-browser .border-gray-700 { border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .feature-browser .border-gray-800 { border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .feature-browser .border-gray-800\\/50 { border-color: rgba(0,0,0,0.05); }
-        [data-bg="light"] .feature-browser .border-purple-500 { border-color: rgba(0,0,0,0.3); }
-        [data-bg="light"] .feature-browser .border-l-purple-500 { border-left-color: rgba(0,0,0,0.3); }
-        [data-bg="light"] .feature-browser .text-white { color: #1d1d1f; }
-        [data-bg="light"] .feature-browser .text-purple-300 { color: #1d1d1f; }
-        [data-bg="light"] .feature-browser .text-purple-400 { color: #1d1d1f; }
-        [data-bg="light"] .feature-browser input:focus { border-color: rgba(0,0,0,0.25); }
-        [data-bg="light"] .feature-browser button:hover.border-gray-700 { border-color: rgba(0,0,0,0.2); }
-        [data-bg="light"] .feature-browser button:hover.border-gray-600 { border-color: rgba(0,0,0,0.2); }
-        [data-bg="light"] .feature-browser button:hover.border-purple-500 { border-color: rgba(0,0,0,0.4); }
+        .feature-browser .fb-head {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 1rem;
+          margin-bottom: 1rem;
+        }
+        .feature-browser .fb-head h3 {
+          margin: 0;
+          font-size: 1.5rem;
+          font-weight: 500;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
+        }
+        .feature-browser .fb-count {
+          color: var(--oz-fg-dim);
+          font-size: 0.875rem;
+          font-variant-numeric: tabular-nums;
+        }
+        .feature-browser .fb-controls {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.75rem 1rem;
+          margin-bottom: 1.25rem;
+        }
+        .feature-browser .fb-controls .oz-input {
+          flex: 1 1 16rem;
+          width: auto;
+        }
+        /* Headline numbers, each under a rule */
+        .feature-browser .fb-stats {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 1.5rem;
+          margin-bottom: 1.5rem;
+        }
+        .feature-browser .fb-stat {
+          padding-top: 0.6rem;
+          border-top: 1px solid var(--oz-rule-strong);
+        }
+        .feature-browser .fb-stat-label {
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+        .feature-browser .fb-stat-value {
+          margin-top: 0.2rem;
+          font-size: 1.6rem;
+          font-weight: 500;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
+          font-variant-numeric: tabular-nums;
+        }
+        /* The features: a ruled table, the chosen row marked */
+        .feature-browser .fb-row {
+          position: relative;
+          display: grid;
+          grid-template-columns: 5.5rem minmax(0, 1fr) 5rem 4.5rem 4.5rem 4.5rem 2.5rem;
+          align-items: baseline;
+          gap: 0.75rem;
+          width: 100%;
+          padding: 0.6rem 0;
+          border-top: 1px solid var(--oz-rule);
+          text-align: left;
+          font-size: 0.875rem;
+        }
+        .feature-browser button.fb-row {
+          cursor: pointer;
+          transition: background 0.15s ease;
+        }
+        .feature-browser button.fb-row:hover {
+          background: var(--oz-fill);
+        }
+        .feature-browser .fb-row.is-active::after {
+          content: '';
+          position: absolute;
+          left: 0;
+          bottom: -1px;
+          width: 100%;
+          height: 1px;
+          background: var(--oz-mark);
+        }
+        .feature-browser .fb-row.is-dead {
+          color: var(--oz-fg-faint);
+        }
+        .feature-browser .fb-row--head {
+          border-top: none;
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+        .feature-browser .fb-row--head button {
+          color: inherit;
+          font: inherit;
+          text-align: left;
+          cursor: pointer;
+          transition: color 0.2s ease;
+        }
+        .feature-browser .fb-row--head button:hover {
+          color: var(--oz-fg);
+        }
+        .feature-browser .fb-rows {
+          max-height: 420px;
+          overflow-y: auto;
+          border-bottom: 1px solid var(--oz-rule);
+        }
+        .feature-browser .fb-id,
+        .feature-browser .fb-num {
+          font-family: var(--oz-mono);
+          font-size: 0.82rem;
+        }
+        .feature-browser .fb-id {
+          font-weight: 500;
+        }
+        .feature-browser .fb-label {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .feature-browser .fb-type {
+          color: var(--oz-fg-dim);
+        }
+        .feature-browser .fb-flags {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.25rem;
+        }
+        .feature-browser .fb-flags svg {
+          width: 14px;
+          height: 14px;
+          stroke-width: 2.25;
+        }
+        .feature-browser .fb-flags .lucide-alert-triangle {
+          color: var(--oz-danger);
+        }
+        .feature-browser .fb-flags .lucide-zap {
+          color: var(--oz-warn);
+        }
+        .feature-browser .fb-empty {
+          padding: 2rem 0;
+          color: var(--oz-fg-dim);
+          text-align: center;
+        }
       `}</style>
     </div>
   )

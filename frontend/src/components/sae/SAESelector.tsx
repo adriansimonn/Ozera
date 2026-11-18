@@ -4,10 +4,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { Database, ExternalLink } from 'lucide-react'
 import { saeClient, type SAEListResponse, type ExternalSAEInfo } from '../../api/client'
 import { DEFAULT_SAE_LIST } from '../../data/defaultSAEs'
-import { useThemeColors } from '../../hooks/useTheme'
 import { Dropdown } from '../common/Dropdown'
 
 export interface SAESelection {
@@ -31,7 +29,6 @@ export function SAESelector({
   className = '',
   refreshKey = 0,
 }: SAESelectorProps) {
-  const tc = useThemeColors()
   // Use static default SAE list immediately - no loading needed
   const [saeList] = useState<SAEListResponse>(DEFAULT_SAE_LIST)
   const [externalSAEs, setExternalSAEs] = useState<ExternalSAEInfo[]>([])
@@ -153,29 +150,11 @@ export function SAESelector({
     : null
 
   return (
-    <div style={{ background: tc.surface, border: `1px solid ${tc.border}` }} className={className}>
-      {/* Header */}
-      <div style={{ padding: '1rem', borderBottom: `1px solid ${tc.border}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Database className="w-4 h-4" style={{ color: tc.textMid }} />
-            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: tc.textStrong, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
-              SAE Selection
-            </h3>
-          </div>
-          <div style={{ fontSize: '0.75rem', color: tc.textSub }}>
-            {saeList.total_saes + externalSAEs.length} SAEs available
-          </div>
-        </div>
-      </div>
-
+    <div className={`sae-selector ${className ?? ''}`}>
       {/* Selectors */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: tc.surfaceActive, opacity: isExternalSelected ? 0.4 : 1, transition: 'opacity 0.2s' }}>
-        {/* Model Selector */}
-        <div style={{ background: tc.deepBg, padding: '1rem' }}>
-          <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
-            Model
-          </label>
+      <div className={`sae-pickers${isExternalSelected ? ' is-off' : ''}`}>
+        <div>
+          <label className="oz-label">Model</label>
           <Dropdown
             value={selection?.model || ''}
             onChange={(v) => handleModelChange(v as 'nano' | 'mini')}
@@ -183,11 +162,8 @@ export function SAESelector({
           />
         </div>
 
-        {/* Layer Selector */}
-        <div style={{ background: tc.deepBg, padding: '1rem' }}>
-          <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
-            Layer
-          </label>
+        <div>
+          <label className="oz-label">Layer</label>
           <Dropdown
             value={String(selection?.layer ?? '')}
             onChange={(v) => handleLayerChange(parseInt(v))}
@@ -195,11 +171,8 @@ export function SAESelector({
           />
         </div>
 
-        {/* Activation Type Selector */}
-        <div style={{ background: tc.deepBg, padding: '1rem' }}>
-          <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
-            Activation Type
-          </label>
+        <div className="sae-picker-wide">
+          <label className="oz-label">Activation type</label>
           <Dropdown
             value={selection?.activationType || ''}
             onChange={(v) => handleActivationTypeChange(v as 'residual' | 'mlp_output')}
@@ -210,122 +183,179 @@ export function SAESelector({
 
       {/* SAE Info - Built-in */}
       {currentSaeInfo && !isExternalSelected && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: tc.surfaceActive, borderTop: `1px solid ${tc.border}` }}>
-          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
-            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{currentSaeInfo.d_input || '-'}</div>
+        <dl className="sae-specs">
+          <div>
+            <dt>d_input</dt>
+            <dd>{currentSaeInfo.d_input || '-'}</dd>
           </div>
-          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
-            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{currentSaeInfo.d_hidden || '-'}</div>
+          <div>
+            <dt>d_hidden</dt>
+            <dd>{currentSaeInfo.d_hidden || '-'}</dd>
           </div>
-          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
-            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{currentSaeInfo.activation || 'relu'}</div>
+          <div>
+            <dt>Activation</dt>
+            <dd>{currentSaeInfo.activation || 'relu'}</dd>
           </div>
-          {currentSaeInfo.training && (
-            <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Final L0</div>
-              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: 'rgba(34,197,94,0.9)' }}>
-                {currentSaeInfo.training.final_l0?.toFixed(1) || '-'}
-              </div>
+          {currentSaeInfo.training ? (
+            <div>
+              <dt>Final L0</dt>
+              <dd>{currentSaeInfo.training.final_l0?.toFixed(1) || '-'}</dd>
             </div>
-          )}
-          {!currentSaeInfo.training && (
-            <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Params</div>
-              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>
+          ) : (
+            <div>
+              <dt>Params</dt>
+              <dd>
                 {currentSaeInfo.num_parameters
                   ? `${(currentSaeInfo.num_parameters / 1e6).toFixed(1)}M`
                   : '-'}
-              </div>
+              </dd>
             </div>
           )}
-        </div>
+        </dl>
       )}
 
       {/* SAE Info - External */}
       {selectedExternalSae && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: tc.surfaceActive, borderTop: `1px solid ${tc.border}` }}>
-          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
-            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{selectedExternalSae.d_input || '-'}</div>
+        <dl className="sae-specs">
+          <div>
+            <dt>d_input</dt>
+            <dd>{selectedExternalSae.d_input || '-'}</dd>
           </div>
-          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
-            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{selectedExternalSae.d_hidden?.toLocaleString() || '-'}</div>
+          <div>
+            <dt>d_hidden</dt>
+            <dd>{selectedExternalSae.d_hidden?.toLocaleString() || '-'}</dd>
           </div>
-          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
-            <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{selectedExternalSae.activation_type || '-'}</div>
+          <div>
+            <dt>Activation</dt>
+            <dd>{selectedExternalSae.activation_type || '-'}</dd>
           </div>
-          <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
-            <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: tc.textStrong }}>{selectedExternalSae.base_model || '-'}</div>
+          <div>
+            <dt>Base model</dt>
+            <dd>{selectedExternalSae.base_model || '-'}</dd>
           </div>
-        </div>
+        </dl>
       )}
+
+      <p className="oz-hint sae-count">{saeList.total_saes + externalSAEs.length} SAEs available</p>
 
       {/* External SAEs */}
       {externalSAEs.length > 0 && (
-        <div style={{ borderTop: `1px solid ${tc.border}` }}>
-          <div style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ExternalLink className="w-3 h-3" style={{ color: tc.textSub }} />
-            <span style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              External SAEs ({externalSAEs.length})
-            </span>
-          </div>
-          <div style={{ padding: '0 0.75rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            {externalSAEs.map(ext => {
-              const isSelected = selection?.externalId === ext.id
-              return (
-                <button
-                  key={ext.id}
-                  onClick={() => onSelectionChange({
-                    model: 'nano',
-                    layer: 0,
-                    activationType: 'residual',
-                    externalId: ext.id,
-                  })}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    gap: '0.75rem', padding: '0.5rem 0.75rem', width: '100%', textAlign: 'left',
-                    background: isSelected ? tc.surfaceActive : tc.surface,
-                    border: `1px solid ${isSelected ? tc.borderHover : tc.border}`,
-                    cursor: 'pointer', transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.background = tc.surfaceHover
-                      e.currentTarget.style.borderColor = tc.borderHover
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.background = tc.surface
-                      e.currentTarget.style.borderColor = tc.border
-                    }
-                  }}
-                  title={`${ext.source_id || ext.id} - ${ext.base_model || 'unknown model'}`}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
-                    <span style={{ color: isSelected ? tc.textStrong : tc.textStrong, fontSize: '0.8rem', fontWeight: 500 }}>
-                      {ext.display_name || ext.id}
-                    </span>
-                    <span style={{ color: tc.textFaint, fontSize: '0.7rem' }}>
-                      {ext.base_model || 'unknown model'} {ext.hookpoint ? `· ${ext.hookpoint}` : ''}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.7rem', color: tc.textFaint, flexShrink: 0 }}>
-                    {ext.d_hidden && <span>{ext.d_hidden.toLocaleString()} features</span>}
-                    {ext.activation_type && <span>{ext.activation_type}</span>}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
+        <div className="sae-external">
+          <div className="oz-label">External SAEs ({externalSAEs.length})</div>
+          {externalSAEs.map(ext => {
+            const isSelected = selection?.externalId === ext.id
+            return (
+              <button
+                key={ext.id}
+                className={`sae-external-item${isSelected ? ' is-active' : ''}`}
+                aria-pressed={isSelected}
+                onClick={() => onSelectionChange({
+                  model: 'nano',
+                  layer: 0,
+                  activationType: 'residual',
+                  externalId: ext.id,
+                })}
+                title={`${ext.source_id || ext.id} - ${ext.base_model || 'unknown model'}`}
+              >
+                <span className="sae-external-name">{ext.display_name || ext.id}</span>
+                <span className="sae-external-meta">
+                  {ext.base_model || 'unknown model'}
+                  {ext.hookpoint ? ` · ${ext.hookpoint}` : ''}
+                  {ext.d_hidden ? ` · ${ext.d_hidden.toLocaleString()} features` : ''}
+                  {ext.activation_type ? ` · ${ext.activation_type}` : ''}
+                </span>
+              </button>
+            )
+          })}
         </div>
       )}
+
+      <style>{`
+        .sae-selector .sae-pickers {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.9rem 6px;
+          transition: opacity 0.2s ease;
+        }
+        .sae-selector .sae-pickers.is-off {
+          opacity: 0.4;
+        }
+        .sae-selector .sae-picker-wide {
+          grid-column: 1 / -1;
+        }
+        /* The SAE's numbers: a name and its value to a row */
+        .sae-selector .sae-specs {
+          margin: 1.1rem 0 0;
+        }
+        .sae-selector .sae-specs > div {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 0.5rem 0;
+          border-top: 1px solid var(--oz-rule);
+        }
+        .sae-selector .sae-specs > div:last-child {
+          border-bottom: 1px solid var(--oz-rule);
+        }
+        .sae-selector .sae-specs dt {
+          color: var(--oz-fg-dim);
+          font-size: 0.875rem;
+        }
+        .sae-selector .sae-specs dd {
+          margin: 0;
+          overflow: hidden;
+          font-family: var(--oz-mono);
+          font-size: 0.875rem;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .sae-selector .sae-count {
+          margin: 0.7rem 0 0;
+          font-variant-numeric: tabular-nums;
+        }
+        .sae-selector .sae-external {
+          margin-top: 1.4rem;
+        }
+        /* SAEs the user has loaded: a ruled list, the chosen one marked */
+        .sae-selector .sae-external-item {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          gap: 0.1rem;
+          width: 100%;
+          padding: 0.6rem 0;
+          border-top: 1px solid var(--oz-rule);
+          color: var(--oz-fg-dim);
+          text-align: left;
+          cursor: pointer;
+          transition: color 0.2s ease;
+        }
+        .sae-selector .sae-external-item:last-child {
+          border-bottom: 1px solid var(--oz-rule);
+        }
+        .sae-selector .sae-external-item:hover,
+        .sae-selector .sae-external-item.is-active {
+          color: var(--oz-fg);
+        }
+        .sae-selector .sae-external-item.is-active::after {
+          content: '';
+          position: absolute;
+          left: 0;
+          bottom: -1px;
+          width: 100%;
+          height: 1px;
+          background: var(--oz-mark);
+        }
+        .sae-selector .sae-external-name {
+          font-size: 0.9375rem;
+          font-weight: 500;
+          letter-spacing: -0.01em;
+        }
+        .sae-selector .sae-external-meta {
+          font-size: 0.8rem;
+        }
+      `}</style>
     </div>
   )
 }

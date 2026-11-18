@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { ArrowDown, ArrowUp, Download, ListTree } from 'lucide-react'
+import { ArrowDown, ArrowUp } from 'lucide-react'
 import { apiClient } from '../../api/client'
 import { useExplainedFeatures, type AutointerpAtlasRef } from '../../hooks/useAutointerp'
 import type { FeatureRow, FeatureSort } from '../../types/autointerp'
@@ -102,7 +102,7 @@ export function ExplanationTable({
   }
 
   if (data && data.explained === 0) {
-    return <Placeholder icon={ListTree}>No explanations on this atlas yet.</Placeholder>
+    return <Placeholder glyph="sae">No explanations on this atlas yet.</Placeholder>
   }
 
   return (
@@ -115,7 +115,7 @@ export function ExplanationTable({
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             placeholder="Explanations"
-            style={{ borderColor: colors.border, background: 'transparent', color: colors.text }}
+           
           />
         </div>
         <div>
@@ -158,15 +158,15 @@ export function ExplanationTable({
             value={minScore}
             onChange={(e) => setMinScore(e.target.value)}
             placeholder="0.5"
-            style={{ borderColor: colors.border, background: 'transparent', color: colors.text }}
+           
           />
         </div>
         <div className="ai-export">
-          <button type="button" className="pl-button" onClick={() => download('csv')} style={{ borderColor: colors.border, color: colors.text }} title="Every explanation and its scores, with the atlas, models and prompt version">
-            <Download className="pl-icon" aria-hidden="true" /> CSV
+          <button type="button" className="pl-button" onClick={() => download('csv')} title="Every explanation and its scores, with the atlas, models and prompt version">
+            CSV
           </button>
-          <button type="button" className="pl-button" onClick={() => download('json')} style={{ borderColor: colors.border, color: colors.text }}>
-            <Download className="pl-icon" aria-hidden="true" /> JSON
+          <button type="button" className="pl-button" onClick={() => download('json')}>
+            JSON
           </button>
         </div>
       </div>
@@ -183,7 +183,7 @@ export function ExplanationTable({
                   style={{ background: colors.surface, borderBottom: `1px solid ${colors.border}`, textAlign: c.align ?? (c.label === 'ID' ? 'left' : 'right') }}
                 >
                   {c.key ? (
-                    <button type="button" className="ai-sort" onClick={() => sortBy(c.key as FeatureSort)} style={{ color: colors.text }}>
+                    <button type="button" className="ai-sort" onClick={() => sortBy(c.key as FeatureSort)}>
                       {c.label}
                       {sort === c.key && (descending ? <ArrowDown size={11} aria-label="descending" /> : <ArrowUp size={11} aria-label="ascending" />)}
                     </button>
@@ -203,7 +203,7 @@ export function ExplanationTable({
                   onClick={() => onSelect(row.feature)}
                   style={{ background: row.feature === selected ? colors.hover : undefined, borderTop: `1px solid ${colors.grid}` }}
                 >
-                  <td style={{ color: colors.accent, fontWeight: 600 }}>#{row.feature}</td>
+                  <td style={{ fontWeight: 500 }}>#{row.feature}</td>
                   <td className="ai-explanation-cell" title={row.explanation ?? row.note ?? undefined}>
                     {row.explanation ?? <span style={{ opacity: 0.6 }}>{row.note ?? '–'}</span>}
                   </td>
@@ -231,7 +231,7 @@ export function ExplanationTable({
               : (query.error as Error | null)?.message ?? ''}
         </span>
         <span style={{ display: 'inline-flex', gap: 6 }}>
-          <button type="button" className="pl-button" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - PAGE))} style={{ borderColor: colors.border, color: colors.text }}>
+          <button type="button" className="pl-button" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - PAGE))}>
             Previous
           </button>
           <button
@@ -239,7 +239,6 @@ export function ExplanationTable({
             className="pl-button"
             disabled={!data || offset + PAGE >= data.total}
             onClick={() => setOffset((o) => o + PAGE)}
-            style={{ borderColor: colors.border, color: colors.text }}
           >
             Next
           </button>

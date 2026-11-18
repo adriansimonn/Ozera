@@ -1,0 +1,1317 @@
+/* The app's styles: every page but the homepage and the sign-in page, which keep their own.
+   Everything is scoped under .oz-app (App.tsx). Colors are the --oz-* custom properties that
+   App.tsx sets on <html> from styles/appTheme.ts, so nothing here names a color or a theme.
+
+   The look follows the homepage: one flat ground, hairline rules instead of boxes, medium-weight
+   type in sentence case, solid buttons that take the accent under the pointer, outlined chips
+   whose active one is filled, square cells, no radii, shadows or gradients.
+
+   The app is laid out under a page zoom of 0.8 (index.css), so sizes here render a fifth smaller. */
+
+html.oz-app-active body {
+  background: var(--oz-bg);
+  color: var(--oz-fg);
+}
+
+html.oz-app-active[data-oz-bg='light'] {
+  color-scheme: light;
+}
+
+.oz-app {
+  --oz-ease: cubic-bezier(0.16, 0.8, 0.2, 1);
+  --oz-nav-h: 72px;
+  --oz-gutter: 1.5rem;
+  /* The homepage's monospace stack (components/home/homeKit.ts) */
+  --oz-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  min-height: 125vh;
+  background: var(--oz-bg);
+  color: var(--oz-fg);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.oz-app ::selection {
+  background: var(--oz-fg);
+  color: var(--oz-bg);
+}
+
+.oz-app h1,
+.oz-app h2,
+.oz-app h3,
+.oz-app h4,
+.oz-app h5,
+.oz-app h6 {
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.oz-app a {
+  color: inherit;
+}
+
+.oz-app button {
+  color: inherit;
+}
+
+.oz-app a:focus-visible,
+.oz-app button:focus-visible,
+.oz-app [tabindex]:focus-visible,
+.oz-app input[type='checkbox']:focus-visible,
+.oz-app input[type='radio']:focus-visible,
+.oz-app input[type='range']:focus-visible {
+  outline: 1.5px solid var(--oz-mark);
+  outline-offset: 2px;
+}
+
+.oz-app code,
+.oz-app pre,
+.oz-app .oz-mono {
+  font-family: var(--oz-mono);
+}
+
+.oz-app svg.lucide {
+  stroke-width: 2;
+}
+
+.oz-app ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.oz-app ::-webkit-scrollbar-thumb {
+  background: var(--oz-rule);
+}
+
+.oz-app ::-webkit-scrollbar-thumb:hover {
+  background: var(--oz-rule-strong);
+}
+
+.oz-app ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ---- Nav ---- */
+
+.oz-nav {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 100;
+  display: flex;
+  align-items: stretch;
+  gap: 2.5rem;
+  height: var(--oz-nav-h);
+  padding: 0 var(--oz-gutter);
+  background: var(--oz-bg);
+  border-bottom: 1px solid var(--oz-rule);
+}
+
+.oz-nav__brand {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+/* The logo is white on transparent, with empty space under the mark (as on the homepage) */
+.oz-nav__brand img {
+  display: block;
+  width: auto;
+  height: 38px;
+  transform: translateY(9%);
+  filter: brightness(0) invert(1);
+}
+
+.oz-app[data-bg='light'] .oz-nav__brand img {
+  filter: brightness(0);
+}
+
+.oz-nav__links {
+  display: flex;
+  align-items: stretch;
+  gap: clamp(1rem, 1.9vw, 2rem);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.oz-nav__links::-webkit-scrollbar {
+  display: none;
+}
+
+.oz-nav__link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: none;
+  color: var(--oz-fg-dim);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.oz-nav__link:hover {
+  color: var(--oz-fg);
+}
+
+.oz-nav__link.is-active {
+  color: var(--oz-fg);
+}
+
+/* The page you're on, marked on the nav's rule */
+.oz-nav__link::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+  background: var(--oz-mark);
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.45s var(--oz-ease);
+}
+
+.oz-nav__link.is-active::after {
+  clip-path: inset(0);
+}
+
+.oz-nav__end {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-left: auto;
+  flex: none;
+}
+
+/* The account: balance and name, with a menu under them */
+.oz-account {
+  position: relative;
+}
+
+.oz-account__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.4rem 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: color 0.2s ease;
+}
+
+.oz-account__button:hover,
+.oz-account__button[aria-expanded='true'] {
+  color: var(--oz-mark);
+}
+
+.oz-account__balance {
+  color: var(--oz-fg-dim);
+  font-variant-numeric: tabular-nums;
+  transition: color 0.2s ease;
+}
+
+.oz-account__button:hover .oz-account__balance,
+.oz-account__button[aria-expanded='true'] .oz-account__balance {
+  color: inherit;
+}
+
+.oz-account__name {
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oz-caret {
+  flex: none;
+  width: 9px;
+  height: 6px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  transition: transform 0.3s var(--oz-ease);
+}
+
+[aria-expanded='true'] > .oz-caret,
+.oz-caret.is-open {
+  transform: rotate(180deg);
+}
+
+.oz-account__menu {
+  position: absolute;
+  top: calc(100% + 14px);
+  right: 0;
+  z-index: 10;
+  width: 17rem;
+}
+
+.oz-account__email {
+  padding: 0.6rem 0.75rem 0.8rem;
+  border-bottom: 1px solid var(--oz-rule);
+  overflow: hidden;
+  color: var(--oz-fg-dim);
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oz-account__credits {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 0.15rem 0.75rem;
+  margin-bottom: 6px;
+  padding: 0.85rem 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--oz-rule);
+}
+
+.oz-account__credits-label {
+  grid-column: 1 / -1;
+  color: var(--oz-fg-dim);
+  font-size: 0.85rem;
+}
+
+.oz-account__credits-value {
+  font-size: 1.6rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.oz-account__credits-note {
+  grid-column: 1 / -1;
+  color: var(--oz-fg-dim);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Menus: a bordered box whose items invert under the pointer ---- */
+
+.oz-app .oz-menu {
+  padding: 6px;
+  background: var(--oz-bg);
+  border: 1px solid var(--oz-rule-strong);
+  animation: oz-menu-in 0.22s var(--oz-ease);
+}
+
+@keyframes oz-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.oz-app .oz-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  color: var(--oz-fg);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.oz-app .oz-menu__item:hover:not(:disabled),
+.oz-app .oz-menu__item:focus-visible {
+  background: var(--oz-fg);
+  color: var(--oz-bg);
+}
+
+.oz-app .oz-menu__item:disabled {
+  color: var(--oz-fg-faint);
+  cursor: default;
+}
+
+/* ---- Buttons ---- */
+
+.oz-app .oz-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.8rem 1.1rem;
+  background: var(--oz-fg);
+  border: 1px solid var(--oz-fg);
+  color: var(--oz-bg);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.15;
+  text-decoration: none;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.oz-app .oz-btn:hover:not(:disabled) {
+  background: var(--oz-accent);
+  border-color: var(--oz-accent);
+  color: var(--oz-on-accent);
+}
+
+.oz-app .oz-btn:disabled {
+  background: transparent;
+  border-color: var(--oz-rule-strong);
+  color: var(--oz-fg-faint);
+  cursor: not-allowed;
+}
+
+.oz-app .oz-btn svg {
+  flex: none;
+  width: 1.1em;
+  height: 1.1em;
+  stroke-width: 2.25;
+}
+
+.oz-app .oz-btn svg.oz-caret {
+  width: 9px;
+  height: 6px;
+  stroke-width: 1.5;
+}
+
+/* The arrow of the homepage's buttons, which moves on under the pointer */
+.oz-app .oz-btn--arrow::after {
+  content: '→';
+  display: inline-block;
+  transition: transform 0.35s var(--oz-ease);
+}
+
+.oz-app .oz-btn--arrow:hover:not(:disabled)::after {
+  transform: translateX(4px);
+}
+
+.oz-app .oz-btn--block {
+  width: 100%;
+}
+
+.oz-app .oz-btn--small {
+  gap: 0.45rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+/* The second button of a pair: outlined */
+.oz-app .oz-btn--ghost {
+  background: transparent;
+  border-color: var(--oz-rule-strong);
+  color: var(--oz-fg);
+}
+
+.oz-app .oz-btn--ghost:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--oz-mark);
+  color: var(--oz-mark);
+}
+
+.oz-app .oz-btn--danger {
+  background: transparent;
+  border-color: var(--oz-danger);
+  color: var(--oz-danger);
+}
+
+.oz-app .oz-btn--danger:hover:not(:disabled) {
+  background: var(--oz-danger);
+  border-color: var(--oz-danger);
+  color: var(--oz-bg);
+}
+
+/* A square button holding one icon */
+.oz-app .oz-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--oz-fg);
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.oz-app .oz-icon-btn svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2.25;
+}
+
+.oz-app .oz-icon-btn:hover:not(:disabled) {
+  border-color: var(--oz-rule-strong);
+  color: var(--oz-mark);
+}
+
+.oz-app .oz-icon-btn:disabled {
+  color: var(--oz-fg-faint);
+  cursor: not-allowed;
+}
+
+.oz-app .oz-icon-btn--outlined {
+  border-color: var(--oz-rule-strong);
+}
+
+.oz-app .oz-icon-btn--outlined:hover:not(:disabled) {
+  border-color: var(--oz-mark);
+}
+
+/* A link in running text or beside a button */
+.oz-app .oz-link {
+  padding: 0 0 2px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--oz-fg-faint);
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.oz-app .oz-link:hover:not(:disabled) {
+  border-color: var(--oz-mark);
+  color: var(--oz-mark);
+}
+
+.oz-app .oz-link:disabled {
+  color: var(--oz-fg-faint);
+  cursor: default;
+}
+
+/* ---- Chips: a row of choices, the chosen one filled ---- */
+
+.oz-app .oz-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.oz-app .oz-chips--grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.oz-app .oz-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--oz-rule-strong);
+  color: var(--oz-fg);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  text-align: center;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.oz-app .oz-chip:hover:not(:disabled):not(.active):not([aria-checked='true']):not([aria-pressed='true']) {
+  border-color: var(--oz-mark);
+  color: var(--oz-mark);
+}
+
+.oz-app .oz-chip.active,
+.oz-app .oz-chip[aria-checked='true'],
+.oz-app .oz-chip[aria-pressed='true'] {
+  background: var(--oz-fg);
+  border-color: var(--oz-fg);
+  color: var(--oz-bg);
+}
+
+.oz-app .oz-chip:disabled {
+  border-color: var(--oz-rule);
+  color: var(--oz-fg-faint);
+  cursor: not-allowed;
+}
+
+.oz-app .oz-chip:disabled.active,
+.oz-app .oz-chip:disabled[aria-checked='true'] {
+  background: var(--oz-fill-strong);
+  color: var(--oz-fg-dim);
+}
+
+/* A label that isn't pressed: a count, a kind */
+.oz-app .oz-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--oz-rule-strong);
+  color: var(--oz-fg);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.oz-app .oz-tag--solid {
+  background: var(--oz-fg);
+  border-color: var(--oz-fg);
+  color: var(--oz-bg);
+}
+
+.oz-app .oz-tag--accent {
+  background: var(--oz-accent);
+  border-color: var(--oz-accent);
+  color: var(--oz-on-accent);
+}
+
+/* ---- Tabs: text, the current one marked on the rule under them ---- */
+
+.oz-app .oz-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 1.75rem;
+  border-bottom: 1px solid var(--oz-rule);
+}
+
+.oz-app .oz-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.85rem 0;
+  background: none;
+  border: none;
+  color: var(--oz-fg-dim);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.oz-app .oz-tab:hover,
+.oz-app .oz-tab.active {
+  color: var(--oz-fg);
+}
+
+.oz-app .oz-tab::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 -1px 0;
+  height: 2px;
+  background: var(--oz-mark);
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.4s var(--oz-ease);
+}
+
+.oz-app .oz-tab.active::after {
+  clip-path: inset(0);
+}
+
+/* ---- Fields ---- */
+
+.oz-app .oz-label {
+  display: block;
+  margin: 0 0 0.45rem;
+  color: var(--oz-fg-dim);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.oz-app .oz-input,
+.oz-app .oz-textarea {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--oz-rule-strong);
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--oz-fg);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.oz-app .oz-textarea {
+  min-height: 5.5rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.oz-app .oz-input:hover:not(:disabled):not(:focus),
+.oz-app .oz-textarea:hover:not(:disabled):not(:focus) {
+  border-color: var(--oz-fg-faint);
+}
+
+.oz-app .oz-input:focus,
+.oz-app .oz-textarea:focus {
+  border-color: var(--oz-fg);
+}
+
+.oz-app .oz-input::placeholder,
+.oz-app .oz-textarea::placeholder {
+  color: var(--oz-fg-faint);
+}
+
+.oz-app .oz-input:disabled,
+.oz-app .oz-textarea:disabled {
+  border-color: var(--oz-rule);
+  color: var(--oz-fg-faint);
+  cursor: not-allowed;
+}
+
+.oz-app .oz-input--number {
+  font-variant-numeric: tabular-nums;
+}
+
+.oz-app input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.oz-app input[type='number']::-webkit-outer-spin-button,
+.oz-app input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.oz-app select option {
+  background: var(--oz-bg);
+  color: var(--oz-fg);
+}
+
+/* A slider: a hairline with a square cell on it */
+.oz-app input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.oz-app input[type='range']::-webkit-slider-runnable-track {
+  height: 1px;
+  background: var(--oz-rule-strong);
+  border: none;
+  border-radius: 0;
+}
+
+.oz-app input[type='range']::-moz-range-track {
+  height: 1px;
+  background: var(--oz-rule-strong);
+  border: none;
+}
+
+.oz-app input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -5px;
+  background: var(--oz-fg);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  transition: background 0.2s ease;
+}
+
+.oz-app input[type='range']::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  background: var(--oz-fg);
+  border: none;
+  border-radius: 0;
+}
+
+.oz-app input[type='range']:hover:not(:disabled)::-webkit-slider-thumb,
+.oz-app input[type='range']:active:not(:disabled)::-webkit-slider-thumb {
+  background: var(--oz-mark);
+}
+
+.oz-app input[type='range']:hover:not(:disabled)::-moz-range-thumb {
+  background: var(--oz-mark);
+}
+
+.oz-app input[type='range']:disabled {
+  cursor: not-allowed;
+}
+
+.oz-app input[type='range']:disabled::-webkit-slider-thumb {
+  background: var(--oz-fg-faint);
+}
+
+/* A checkbox: an outlined cell, lit when checked */
+.oz-app input[type='checkbox'],
+.oz-app input[type='radio'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  background: transparent;
+  border: 1px solid var(--oz-rule-strong);
+  border-radius: 0;
+  vertical-align: -2px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.oz-app input[type='checkbox']::before,
+.oz-app input[type='radio']::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  background: var(--oz-mark);
+  transform: scale(0);
+  transition: transform 0.2s var(--oz-ease);
+}
+
+.oz-app input[type='checkbox']:hover:not(:disabled),
+.oz-app input[type='radio']:hover:not(:disabled),
+.oz-app input[type='checkbox']:checked,
+.oz-app input[type='radio']:checked {
+  border-color: var(--oz-fg);
+}
+
+.oz-app input[type='checkbox']:checked::before,
+.oz-app input[type='radio']:checked::before {
+  transform: scale(1);
+}
+
+.oz-app input[type='checkbox']:disabled,
+.oz-app input[type='radio']:disabled {
+  border-color: var(--oz-rule);
+  cursor: not-allowed;
+}
+
+.oz-app input[type='checkbox']:disabled::before,
+.oz-app input[type='radio']:disabled::before {
+  background: var(--oz-fg-faint);
+}
+
+/* ---- The custom dropdown (components/common/Dropdown.tsx) ---- */
+
+.ozera-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.ozera-dropdown__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--oz-rule-strong);
+  color: var(--oz-fg);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.ozera-dropdown__trigger:hover:not(:disabled) {
+  border-color: var(--oz-fg-faint);
+}
+
+.ozera-dropdown--open .ozera-dropdown__trigger,
+.ozera-dropdown__trigger:focus-visible {
+  border-color: var(--oz-fg);
+  outline: none;
+}
+
+.ozera-dropdown__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ozera-dropdown--disabled .ozera-dropdown__trigger {
+  border-color: var(--oz-rule);
+  color: var(--oz-fg-faint);
+  cursor: not-allowed;
+}
+
+.ozera-dropdown__menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 300px;
+  margin-top: -1px;
+  padding: 6px;
+  overflow-y: auto;
+  background: var(--oz-bg);
+  border: 1px solid var(--oz-fg);
+}
+
+.ozera-dropdown__item {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem 0.5rem 1.6rem;
+  overflow: hidden;
+  background: transparent;
+  color: var(--oz-fg);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.ozera-dropdown__item:hover:not(:disabled) {
+  background: var(--oz-fg);
+  color: var(--oz-bg);
+}
+
+/* The chosen option carries a lit cell */
+.ozera-dropdown__item--active::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0.65rem;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  background: var(--oz-mark);
+}
+
+.ozera-dropdown__item--active:hover::before {
+  background: currentColor;
+}
+
+.ozera-dropdown__item--disabled {
+  color: var(--oz-fg-faint);
+  cursor: default;
+}
+
+.ozera-dropdown__group-label {
+  padding: 0.5rem 0.75rem 0.3rem;
+  color: var(--oz-fg-dim);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: default;
+}
+
+.ozera-dropdown__group + .ozera-dropdown__group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--oz-rule);
+}
+
+/* ---- Page frame: controls in a column on the left, results beside them ---- */
+
+.oz-app .oz-page {
+  display: flex;
+  flex-direction: column;
+  height: 125vh;
+  overflow: hidden;
+  background: var(--oz-bg);
+  color: var(--oz-fg);
+}
+
+.oz-app .oz-page__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  margin-top: var(--oz-nav-h);
+}
+
+.oz-app .oz-side {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 27%;
+  min-width: 350px;
+  max-width: 450px;
+  overflow: hidden;
+  border-right: 1px solid var(--oz-rule);
+}
+
+.oz-app .oz-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.oz-app .oz-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* A section of a column, ruled off from the next. In a .oz-steps column its title is numbered,
+   the way the homepage numbers its instruments. */
+.oz-app .oz-section {
+  padding: 1.35rem var(--oz-gutter) 1.5rem;
+  border-bottom: 1px solid var(--oz-rule);
+}
+
+.oz-app .oz-steps {
+  counter-reset: oz-step;
+}
+
+.oz-app .oz-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin: 0 0 0.95rem;
+  color: var(--oz-fg);
+  font-size: 1.0625rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-transform: none;
+}
+
+.oz-app .oz-steps .oz-title::before {
+  counter-increment: oz-step;
+  content: counter(oz-step, decimal-leading-zero);
+  flex: none;
+  width: 1.5rem;
+  color: var(--oz-fg-faint);
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* What follows a title on its line: a count, a control */
+.oz-app .oz-title__end {
+  margin-left: auto;
+  color: var(--oz-fg-dim);
+  font-size: 0.85rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.oz-app .oz-hint {
+  color: var(--oz-fg-dim);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.oz-app .oz-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The bar over a results area: what's shown, and how */
+.oz-app .oz-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex: none;
+  min-height: 3.75rem;
+  padding: 0 var(--oz-gutter);
+  border-bottom: 1px solid var(--oz-rule);
+}
+
+/* ---- Before there's anything to show: a pictogram of cells and a line ---- */
+
+.oz-app .oz-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4rem;
+  padding: 3.5rem 2rem;
+  color: var(--oz-fg-dim);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.oz-app .oz-empty--fill {
+  flex: 1;
+  height: 100%;
+}
+
+.oz-app .oz-empty p {
+  max-width: 34ch;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.oz-app .oz-empty .ozh-glyph {
+  height: 60px;
+  margin: 0;
+}
+
+.oz-app .ozh-glyph__empty {
+  fill: var(--oz-fg-faint);
+}
+
+.oz-app .ozh-glyph__lit {
+  fill: var(--oz-fg);
+}
+
+/* ---- Working: three cells lit in turn ---- */
+
+.oz-app .oz-spinner {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 0.3em;
+  gap: 0.14em;
+  flex: none;
+  height: 0.3em;
+  font-size: 1.1em;
+  vertical-align: middle;
+}
+
+.oz-app .oz-spinner i {
+  background: currentColor;
+  opacity: 0.2;
+  animation: oz-cell 1s ease-in-out infinite;
+}
+
+.oz-app .oz-spinner i:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.oz-app .oz-spinner i:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+.oz-app .oz-spinner--large {
+  font-size: 2.2em;
+}
+
+@keyframes oz-cell {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+/* ---- Notices ---- */
+
+.oz-app .oz-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--oz-rule);
+  border-left: 2px solid var(--oz-fg-dim);
+  color: var(--oz-fg);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.oz-app .oz-note svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 0.1rem;
+  stroke-width: 2.25;
+}
+
+.oz-app .oz-note--error {
+  border-left-color: var(--oz-danger);
+}
+
+.oz-app .oz-note--error svg {
+  color: var(--oz-danger);
+}
+
+.oz-app .oz-note--warn {
+  border-left-color: var(--oz-warn);
+}
+
+.oz-app .oz-note--warn svg {
+  color: var(--oz-warn);
+}
+
+.oz-app .oz-note--ok {
+  border-left-color: var(--oz-ok);
+}
+
+.oz-app .oz-note--ok svg {
+  color: var(--oz-ok);
+}
+
+.oz-app .oz-note button {
+  margin-left: auto;
+}
+
+/* ---- Modals ---- */
+
+.oz-app .oz-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--oz-bg) 84%, transparent);
+  animation: oz-fade-in 0.2s ease;
+}
+
+.oz-app .oz-modal {
+  position: relative;
+  width: 100%;
+  max-width: 28rem;
+  max-height: calc(125vh - 3rem);
+  padding: 1.75rem;
+  overflow-y: auto;
+  background: var(--oz-bg);
+  border: 1px solid var(--oz-rule-strong);
+  color: var(--oz-fg);
+  animation: oz-rise-in 0.3s var(--oz-ease);
+}
+
+.oz-app .oz-modal__title {
+  margin: 0 2rem 0.75rem 0;
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.oz-app .oz-modal__text {
+  margin: 0 0 1.5rem;
+  color: var(--oz-fg-dim);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.oz-app .oz-modal__close {
+  position: absolute;
+  top: 1.1rem;
+  right: 1.1rem;
+}
+
+.oz-app .oz-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+@keyframes oz-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes oz-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* ---- Tables ---- */
+
+.oz-app .oz-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.oz-app .oz-table th {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--oz-rule);
+  color: var(--oz-fg-dim);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.oz-app .oz-table td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--oz-rule);
+}
+
+.oz-app .oz-table tbody tr:hover {
+  background: var(--oz-fill);
+}
+
+/* ---- A hover readout over a chart ---- */
+
+.oz-app .oz-tip {
+  padding: 0.5rem 0.65rem;
+  background: var(--oz-bg);
+  border: 1px solid var(--oz-rule-strong);
+  color: var(--oz-fg);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oz-app *,
+  .oz-app *::before,
+  .oz-app *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .oz-app .oz-spinner i {
+    opacity: 0.6;
+  }
+}

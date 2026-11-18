@@ -5,13 +5,14 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, Square } from 'lucide-react'
+import { Square } from 'lucide-react'
 import { useStreamingGeneration } from '../../hooks/useGeneration'
 import { useModels } from '../../hooks/useModels'
 import { apiClient, type FinishReason } from '../../api/client'
 import { useAuthStore } from '../../stores/authStore'
 import type { MonitorProbeInfo, MonitorTrace, SavedProbe } from '../../types/probes'
 import { Dropdown, type DropdownGroup } from '../common/Dropdown'
+import { Spinner } from '../common/Spinner'
 import { ProbeMonitor } from '../probes/ProbeMonitor'
 import { monitorProbeInfo } from '../probes/probeUtils'
 import { useAssistantPage } from '../../hooks/useAssistantPage'
@@ -287,15 +288,13 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
 
   return (
     <div className="text-generator">
-      <div className="generator-header">
-        <h2>Text Generation</h2>
-        {modelsLoading && <span className="status">Loading models...</span>}
-        {modelsError && <span className="error">Error: {modelsError}</span>}
-      </div>
-
-      <div className="controls">
+      <section className="oz-section">
+        <h2 className="oz-title">
+          Model
+          {modelsLoading && <span className="oz-title__end">Loading models...</span>}
+          {modelsError && <span className="oz-title__end tg-error">Error: {modelsError}</span>}
+        </h2>
         <div className="control-group" data-assist="generate.model">
-          <label htmlFor="model-select">Model:</label>
           <Dropdown
             id="model-select"
             value={model}
@@ -322,11 +321,12 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
             })()}
           />
         </div>
+      </section>
 
+      <section className="oz-section">
+        <h2 className="oz-title">Sampling</h2>
         <div className="control-group" data-assist="generate.max_tokens">
-          <label htmlFor="max-tokens">
-            Tokens: <span className="control-value-display">{untilEos ? `up to ${EOS_MAX_TOKENS}` : maxTokens}</span>
-          </label>
+          <label htmlFor="max-tokens">Tokens</label>
           <div className="control-row">
             <input
               id="max-tokens"
@@ -361,13 +361,9 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
             <span className="eos-toggle-title">Generate until EOS</span>
           </label>
         </div>
-      </div>
 
-      <div className="controls">
         <div className="control-group" data-assist="generate.temperature">
-          <label htmlFor="temperature">
-            Temperature: <span className="control-value-display">{temperature.toFixed(2)}</span>
-          </label>
+          <label htmlFor="temperature">Temperature</label>
           <div className="control-row">
             <input
               id="temperature"
@@ -396,9 +392,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         </div>
 
         <div className="control-group" data-assist="generate.top_k">
-          <label htmlFor="top-k">
-            Top-K: <span className="control-value-display">{topK}</span>
-          </label>
+          <label htmlFor="top-k">Top-K</label>
           <div className="control-row">
             <input
               id="top-k"
@@ -424,12 +418,12 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
             />
           </div>
         </div>
-      </div>
+      </section>
 
       {isAuthenticated && (
-        <div className="controls">
+        <section className="oz-section">
+          <h2 className="oz-title">Probe monitor</h2>
           <div className="control-group">
-            <label htmlFor="probe-monitor">Probe monitor:</label>
             <Dropdown
               id="probe-monitor"
               value={monitorId}
@@ -453,13 +447,15 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
               )}
             </span>
           </div>
-        </div>
+        </section>
       )}
 
+      <section className="oz-section">
+      <h2 className="oz-title">Prompt</h2>
       <div className="prompt-area" data-assist="generate.prompt">
-        <label htmlFor="prompt">Prompt:</label>
         <textarea
           id="prompt"
+          aria-label="Prompt"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Enter your prompt here..."
@@ -473,12 +469,12 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
           <button
             onClick={stop}
             disabled={stopping || capturing}
-            className="btn-stop"
+            className="oz-btn oz-btn--block btn-stop"
             title={capturing ? 'Generation is done; capturing activations' : 'Stop generating'}
           >
             {stopping ? 'Stopping...' : capturing ? 'Capturing...' : (
               <>
-                <Square size={11} fill="currentColor" />
+                <Square fill="currentColor" />
                 Stop
               </>
             )}
@@ -488,26 +484,30 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
             <button
               onClick={handleGenerateClick}
               disabled={!prompt.trim()}
-              className="btn-generate-main"
+              className="oz-btn oz-btn--arrow btn-generate-main"
             >
               {generationMode === 'visualize' ? 'Generate + Visualize' : 'Generate'}
             </button>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="btn-generate-toggle"
+              className="oz-btn oz-btn--ghost btn-generate-toggle"
               data-assist="generate.mode"
               title="Generation mode"
+              aria-label="Generation mode"
+              aria-expanded={dropdownOpen}
             >
-              <ChevronDown size={16} className={dropdownOpen ? 'chevron-up' : ''} />
+              <svg className="oz-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" />
+              </svg>
             </button>
             {dropdownOpen && (
-              <div className="generate-dropdown-menu">
+              <div className="generate-dropdown-menu oz-menu">
                 <button
                   onClick={() => {
                     setGenerationMode('visualize')
                     setDropdownOpen(false)
                   }}
-                  className={`dropdown-item ${generationMode === 'visualize' ? 'active' : ''}`}
+                  className={`oz-menu__item dropdown-item ${generationMode === 'visualize' ? 'active' : ''}`}
                 >
                   Generate + Visualize
                   <span className="dropdown-item-desc">Generate tokens and capture activations for visualization</span>
@@ -517,7 +517,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
                     setGenerationMode('tokens')
                     setDropdownOpen(false)
                   }}
-                  className={`dropdown-item ${generationMode === 'tokens' ? 'active' : ''}`}
+                  className={`oz-menu__item dropdown-item ${generationMode === 'tokens' ? 'active' : ''}`}
                 >
                   Generate
                   <span className="dropdown-item-desc">Generate tokens without visualization</span>
@@ -529,27 +529,27 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
         <button
           onClick={handleReset}
           disabled={busy}
-          className="btn-secondary"
+          className="oz-btn oz-btn--ghost oz-btn--block"
         >
           Reset
         </button>
       </div>
 
       {isWarmingUp && loading && (
-        <div className="warmup-message">
-          <span className="warmup-spinner"></span>
+        <div className="warmup-message oz-note">
+          <Spinner />
           <span>Model is warming up. This may take 10-30 seconds on first request...</span>
         </div>
       )}
 
       {insufficientCredits && (
-        <div className="insufficient-credits-message">
+        <div className="insufficient-credits-message oz-note oz-note--warn">
           <div className="insufficient-credits-content">
             <strong>Insufficient Credits</strong>
             <p>You don't have enough credits to generate text. Please add more credits to continue.</p>
             {onShowPurchaseCredits && (
               <button
-                className="add-credits-button"
+                className="oz-link"
                 onClick={() => {
                   clearInsufficientCredits()
                   onShowPurchaseCredits()
@@ -563,7 +563,7 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       )}
 
       {error && !insufficientCredits && (
-        <div className="error-message">
+        <div className="error-message oz-note oz-note--error">
           <strong>Error:</strong> {error}
         </div>
       )}
@@ -584,845 +584,283 @@ export const TextGenerator: React.FC<TextGeneratorProps> = ({
       {monitor && activeMonitor && !onPlainTextGenerated && (
         <ProbeMonitor trace={monitor} probe={activeMonitor} live={busy} />
       )}
+      </section>
 
       <style>{`
         .text-generator {
           max-width: 100%;
-          padding: 2.5rem;
         }
 
-        .text-generator .probe-monitor-hint {
-          font-size: 0.72rem;
-          opacity: 0.75;
-          line-height: 1.4;
-        }
-        .text-generator .probe-monitor-link {
-          background: none;
-          border: none;
-          padding: 0;
-          color: inherit;
-          font: inherit;
-          text-decoration: underline;
-          cursor: pointer;
+        .text-generator .tg-error {
+          color: var(--oz-danger);
         }
 
-        .generator-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 2.5rem;
-          padding-bottom: 1.5rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .generator-header h2 {
-          margin: 0;
-          font-size: 1.5rem;
-          font-weight: 600;
-          color: #ffffff;
-          letter-spacing: -0.02em;
-        }
-
-        .status {
-          color: #ffffff;
-          font-size: 0.85rem;
-          font-weight: 400;
-        }
-
-        .controls {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 2rem;
-          margin-bottom: 2.5rem;
-        }
-
-        .control-group {
+        .text-generator .control-group {
           display: flex;
           flex-direction: column;
+          gap: 0.5rem;
+        }
+
+        .text-generator .control-group + .control-group {
+          margin-top: 1.35rem;
+        }
+
+        .text-generator .control-group > label:not(.eos-toggle) {
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
+          font-weight: 500;
+        }
+
+        /* A slider with its value beside it */
+        .text-generator .control-row {
+          display: flex;
+          align-items: center;
           gap: 1rem;
         }
 
-        .control-group label {
-          font-weight: 500;
-          font-size: 0.85rem;
-          color: #ffffff;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-        }
-
-        .control-row {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-        }
-
-        .control-row input[type="range"] {
+        .text-generator .control-row input[type="range"] {
           flex: 1;
-        }
-
-        .control-number-input {
-          display: none;
-          width: 64px;
-          padding: 0.4rem 0.5rem;
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: #ffffff;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.8rem;
-          text-align: center;
-          outline: none;
-          transition: border-color 0.2s;
-          -moz-appearance: textfield;
+          min-width: 0;
         }
 
         .text-generator .control-number-input {
-          display: block;
-        }
-
-        .control-number-input::-webkit-inner-spin-button,
-        .control-number-input::-webkit-outer-spin-button {
-          -webkit-appearance: none;
-          margin: 0;
-        }
-
-        .control-number-input:focus {
-          border-color: rgba(255, 255, 255, 0.3);
-        }
-
-        .control-number-input:disabled {
-          opacity: 0.3;
-        }
-
-        .control-value-display {
-          font-family: 'JetBrains Mono', monospace;
-        }
-
-        .control-group input[type="range"] {
-          width: 100%;
-          height: 2px;
-          background: rgba(255, 255, 255, 0.1);
+          width: 4.75rem;
+          padding: 0.4rem 0.5rem;
+          background: transparent;
+          border: 1px solid var(--oz-rule-strong);
+          color: var(--oz-fg);
+          font-family: var(--oz-mono);
+          font-size: 0.85rem;
+          text-align: center;
           outline: none;
-          -webkit-appearance: none;
+          transition: border-color 0.2s ease;
         }
 
-        .control-group input[type="range"]::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          width: 14px;
-          height: 14px;
-          background: #ffffff;
-          border-radius: 50%;
-          cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          box-shadow:
-            0 2px 8px rgba(0, 0, 0, 0.3),
-            0 0 0 2px rgba(255, 255, 255, 0.1);
+        .text-generator .control-number-input:hover:not(:disabled):not(:focus) {
+          border-color: var(--oz-fg-faint);
         }
 
-        .control-group input[type="range"]::-webkit-slider-thumb:hover {
-          transform: scale(1.2);
-          box-shadow:
-            0 4px 12px rgba(0, 0, 0, 0.4),
-            0 0 0 3px rgba(255, 255, 255, 0.15),
-            0 0 12px rgba(255, 255, 255, 0.3);
+        .text-generator .control-number-input:focus {
+          border-color: var(--oz-fg);
         }
 
-        .control-group input[type="range"]:disabled {
-          opacity: 0.35;
+        .text-generator .control-number-input:disabled {
+          border-color: var(--oz-rule);
+          color: var(--oz-fg-faint);
           cursor: not-allowed;
         }
 
-        .control-group input[type="range"]:disabled::-webkit-slider-thumb {
-          cursor: not-allowed;
-        }
-
-        .control-group label.eos-toggle {
+        .text-generator .eos-toggle {
           display: flex;
           align-items: center;
-          gap: 0.625rem;
+          gap: 0.55rem;
+          margin-top: 0.3rem;
+          font-size: 0.875rem;
           cursor: pointer;
-          text-transform: none;
-          letter-spacing: normal;
-          font-weight: 400;
         }
 
-        .control-group label.eos-toggle.disabled {
+        .text-generator .eos-toggle.disabled {
+          color: var(--oz-fg-faint);
           cursor: not-allowed;
-          opacity: 0.5;
         }
 
-        .eos-toggle input[type="checkbox"] {
-          -webkit-appearance: none;
-          appearance: none;
-          flex-shrink: 0;
-          width: 14px;
-          height: 14px;
-          margin: 0;
-          display: grid;
-          place-content: center;
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.35);
-          cursor: inherit;
-          transition: background 0.15s, border-color 0.15s;
-        }
-
-        .eos-toggle input[type="checkbox"]::after {
-          content: '';
-          width: 8px;
-          height: 8px;
-          background: #0a0a0a;
-          clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
-          transform: scale(0);
-          transition: transform 0.12s ease-out;
-        }
-
-        .eos-toggle input[type="checkbox"]:checked {
-          background: #ffffff;
-          border-color: #ffffff;
-        }
-
-        .eos-toggle input[type="checkbox"]:checked::after {
-          transform: scale(1);
-        }
-
-        .eos-toggle:not(.disabled):hover input[type="checkbox"]:not(:checked) {
-          border-color: rgba(255, 255, 255, 0.6);
-        }
-
-        .eos-toggle input[type="checkbox"]:focus-visible {
-          outline: 1px solid rgba(255, 255, 255, 0.6);
-          outline-offset: 2px;
-        }
-
-        .eos-toggle-title {
-          font-size: 0.75rem;
-          font-weight: 500;
-          color: #ffffff;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-        }
-
-        .prompt-area {
-          margin-bottom: 2rem;
-        }
-
-        .prompt-area label {
-          display: block;
-          margin-bottom: 1rem;
-          font-weight: 500;
-          color: #ffffff;
+        .text-generator .probe-monitor-hint {
+          color: var(--oz-fg-dim);
           font-size: 0.85rem;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
+          line-height: 1.45;
         }
 
-        .prompt-area textarea {
+        .text-generator .probe-monitor-link {
+          padding: 0 0 1px;
+          background: none;
+          border: none;
+          border-bottom: 1px solid var(--oz-fg-faint);
+          color: var(--oz-fg);
+          font: inherit;
+          font-weight: 500;
+          cursor: pointer;
+          transition: color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .text-generator .probe-monitor-link:hover {
+          border-color: var(--oz-mark);
+          color: var(--oz-mark);
+        }
+
+        .text-generator .prompt-area textarea {
+          display: block;
           width: 100%;
-          padding: 1.25rem;
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: #ffffff;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.95rem;
-          resize: vertical;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          min-height: 9.5rem;
+          padding: 0.8rem 0.9rem;
+          background: transparent;
+          border: 1px solid var(--oz-rule-strong);
+          color: var(--oz-fg);
+          font-family: var(--oz-mono);
+          font-size: 0.9rem;
           line-height: 1.6;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+          resize: vertical;
+          outline: none;
+          transition: border-color 0.2s ease;
         }
 
-        .prompt-area textarea:hover {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.2);
-          box-shadow:
-            0 4px 12px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        .text-generator .prompt-area textarea:hover:not(:disabled):not(:focus) {
+          border-color: var(--oz-fg-faint);
         }
 
-        .prompt-area textarea:focus {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.25);
-          box-shadow:
-            0 4px 16px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.12),
-            0 0 0 2px rgba(255, 255, 255, 0.05);
+        .text-generator .prompt-area textarea:focus {
+          border-color: var(--oz-fg);
         }
 
-        .prompt-area textarea::placeholder {
-          color: rgba(255, 255, 255, 0.5);
+        .text-generator .prompt-area textarea::placeholder {
+          color: var(--oz-fg-faint);
         }
 
-        .actions {
+        .text-generator .prompt-area textarea:disabled {
+          border-color: var(--oz-rule);
+          color: var(--oz-fg-dim);
+          cursor: not-allowed;
+        }
+
+        .text-generator .actions {
           display: flex;
-          gap: 1rem;
-          margin-bottom: 2rem;
+          flex-direction: column;
+          gap: 6px;
+          margin-top: 1rem;
         }
 
-        .generate-dropdown {
+        /* The run button and, beside it, the mode it runs in */
+        .text-generator .generate-dropdown {
           position: relative;
           display: flex;
-        }
-
-        .btn-generate-main {
-          padding: 1rem 1.5rem;
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          border-right: none;
-          color: #ffffff;
-          font-size: 0.9rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-        }
-
-        .btn-generate-main:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.15);
-        }
-
-        .btn-generate-main:disabled {
-          opacity: 0.3;
-          cursor: not-allowed;
-        }
-
-        .btn-stop {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-          min-width: 12rem;
-          padding: 1rem 1.5rem;
-          background: rgba(239, 68, 68, 0.1);
-          border: 1px solid rgba(239, 68, 68, 0.35);
-          color: #fca5a5;
-          font-size: 0.9rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-        }
-
-        .btn-stop:hover:not(:disabled) {
-          background: rgba(239, 68, 68, 0.18);
-          border-color: rgba(239, 68, 68, 0.5);
-        }
-
-        .btn-stop:disabled {
-          background: rgba(255, 255, 255, 0.05);
-          border-color: rgba(255, 255, 255, 0.12);
-          color: rgba(255, 255, 255, 0.6);
-          cursor: default;
-        }
-
-        .btn-generate-toggle {
-          padding: 1rem 0.75rem;
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          border-left: 1px solid rgba(255, 255, 255, 0.1);
-          color: #ffffff;
-          cursor: pointer;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .btn-generate-toggle:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-        }
-
-        .btn-generate-toggle:disabled {
-          opacity: 0.3;
-          cursor: not-allowed;
-        }
-
-        .btn-generate-toggle .chevron-up {
-          transform: rotate(180deg);
-        }
-
-        .btn-generate-toggle svg {
-          transition: transform 0.2s;
-        }
-
-        .generate-dropdown-menu {
-          position: absolute;
-          top: 100%;
-          left: 0;
-          right: 0;
-          margin-top: 4px;
-          background: rgba(20, 20, 20, 0.98);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          z-index: 100;
-          min-width: 240px;
-        }
-
-        .dropdown-item {
-          width: 100%;
-          padding: 0.875rem 1rem;
-          background: transparent;
-          border: none;
-          color: #ffffff;
-          font-size: 0.85rem;
-          font-weight: 500;
-          text-align: left;
-          cursor: pointer;
-          transition: all 0.15s;
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-        }
-
-        .dropdown-item:hover {
-          background: rgba(255, 255, 255, 0.08);
-        }
-
-        .dropdown-item.active {
-          background: rgba(255, 255, 255, 0.1);
-          color: #ffffff;
-        }
-
-        .dropdown-item-desc {
-          font-size: 0.75rem;
-          font-weight: 400;
-          color: #ffffff;
-          text-transform: none;
-          letter-spacing: normal;
-        }
-
-        .dropdown-item + .dropdown-item {
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .btn-secondary {
-          padding: 1rem 2rem;
-          background: rgba(255, 255, 255, 0.02);
-          color: #ffffff;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          font-size: 0.9rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-        }
-
-        .btn-secondary:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.06);
-          border-color: rgba(255, 255, 255, 0.18);
-          color: #ffffff;
-        }
-
-        .btn-secondary:disabled {
-          opacity: 0.3;
-          cursor: not-allowed;
-        }
-
-        .warmup-message {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 1rem 1.25rem;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-          margin-bottom: 1.5rem;
-          font-size: 0.9rem;
-          animation: fadeIn 0.3s ease-in-out;
-        }
-
-        .warmup-spinner {
-          width: 16px;
-          height: 16px;
-          min-width: 16px;
-          min-height: 16px;
-          flex-shrink: 0;
-          border: 2px solid rgba(255, 255, 255, 0.2);
-          border-top-color: rgba(255, 255, 255, 0.8);
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        .error-message {
-          padding: 1rem 1.25rem;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #ffffff;
-          margin-bottom: 2rem;
-          font-size: 0.9rem;
-        }
-
-        .insufficient-credits-message {
-          padding: 1.5rem;
-          background: rgba(255, 200, 100, 0.08);
-          border: 1px solid rgba(255, 200, 100, 0.25);
-          margin-bottom: 2rem;
-          animation: fadeIn 0.3s ease-in-out;
-        }
-
-        .insufficient-credits-content {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-
-        .insufficient-credits-content strong {
-          color: rgba(255, 220, 150, 0.95);
-          font-size: 1rem;
-        }
-
-        .insufficient-credits-content p {
-          color: #ffffff;
-          font-size: 0.9rem;
-          margin: 0;
-        }
-
-        .add-credits-button {
-          align-self: flex-start;
-          padding: 0.75rem 1.5rem;
-          background: rgba(255, 200, 100, 0.15);
-          border: 1px solid rgba(255, 200, 100, 0.3);
-          color: rgba(255, 220, 150, 0.95);
-          font-size: 0.85rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          letter-spacing: 0.03em;
-        }
-
-        .add-credits-button:hover {
-          background: rgba(255, 200, 100, 0.25);
-          border-color: rgba(255, 200, 100, 0.5);
-          transform: translateY(-1px);
-        }
-
-        .output-area {
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          padding: 2rem;
-          background: rgba(0, 0, 0, 0.2);
-          box-shadow:
-            0 8px 24px rgba(0, 0, 0, 0.3),
-            inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        }
-
-        .output-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 1.5rem;
-          padding-bottom: 1rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .output-header h3 {
-          margin: 0;
-          font-size: 0.85rem;
-          font-weight: 500;
-          color: #ffffff;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-        }
-
-        .streaming-indicator {
-          color: #ffffff;
-          font-size: 1.2rem;
-          animation: pulse 1s infinite;
-        }
-
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-
-        .output-content {
-          white-space: pre-wrap;
-          word-wrap: break-word;
-          line-height: 1.8;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.95rem;
-          color: #ffffff;
-        }
-
-        .cursor {
-          color: #ffffff;
-          animation: blink 0.8s infinite;
-          margin-left: 2px;
-          font-weight: normal;
-        }
-
-        @keyframes blink {
-          0%, 50% { opacity: 1; }
-          51%, 100% { opacity: 0; }
-        }
-
-        /* Light mode */
-        [data-bg="light"] .generator-header {
-          border-bottom-color: rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .generator-header h2 {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .status {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .control-group label {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .control-group input[type="range"] {
-          background: rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .control-group input[type="range"]::-webkit-slider-thumb {
-          background: #1d1d1f;
-          box-shadow:
-            0 2px 8px rgba(0, 0, 0, 0.15),
-            0 0 0 2px rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .control-group input[type="range"]::-webkit-slider-thumb:hover {
-          box-shadow:
-            0 4px 12px rgba(0, 0, 0, 0.2),
-            0 0 0 3px rgba(0, 0, 0, 0.12),
-            0 0 12px rgba(0, 0, 0, 0.15);
-        }
-
-        [data-bg="light"] .prompt-area label {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .prompt-area textarea {
-          background: rgba(0, 0, 0, 0.03);
-          border-color: rgba(0, 0, 0, 0.12);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .prompt-area textarea:hover {
-          background: rgba(0, 0, 0, 0.05);
-          border-color: rgba(0, 0, 0, 0.2);
-          box-shadow:
-            0 4px 12px rgba(0, 0, 0, 0.08),
-            inset 0 1px 0 rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .prompt-area textarea:focus {
-          background: rgba(0, 0, 0, 0.05);
-          border-color: rgba(0, 0, 0, 0.2);
-          box-shadow:
-            0 4px 16px rgba(0, 0, 0, 0.08),
-            inset 0 1px 0 rgba(0, 0, 0, 0.1),
-            0 0 0 2px rgba(0, 0, 0, 0.04);
-        }
-
-        [data-bg="light"] .prompt-area textarea::placeholder {
-          color: rgba(0, 0, 0, 0.5);
-        }
-
-        [data-bg="light"] .btn-generate-main {
-          background: rgba(0, 0, 0, 0.06);
-          border-color: rgba(0, 0, 0, 0.12);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .btn-generate-main:hover:not(:disabled) {
-          background: rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .btn-stop {
-          background: rgba(220, 38, 38, 0.06);
-          border-color: rgba(220, 38, 38, 0.3);
-          color: #dc2626;
-        }
-
-        [data-bg="light"] .btn-stop:hover:not(:disabled) {
-          background: rgba(220, 38, 38, 0.1);
-          border-color: rgba(220, 38, 38, 0.45);
-        }
-
-        [data-bg="light"] .btn-stop:disabled {
-          background: rgba(0, 0, 0, 0.03);
-          border-color: rgba(0, 0, 0, 0.1);
-          color: rgba(29, 29, 31, 0.6);
-        }
-
-        [data-bg="light"] .eos-toggle input[type="checkbox"] {
-          background: rgba(0, 0, 0, 0.03);
-          border-color: rgba(0, 0, 0, 0.3);
-        }
-
-        [data-bg="light"] .eos-toggle input[type="checkbox"]::after {
-          background: #ffffff;
-        }
-
-        [data-bg="light"] .eos-toggle input[type="checkbox"]:checked {
-          background: #1d1d1f;
-          border-color: #1d1d1f;
-        }
-
-        [data-bg="light"] .eos-toggle:not(.disabled):hover input[type="checkbox"]:not(:checked) {
-          border-color: rgba(0, 0, 0, 0.55);
-        }
-
-        [data-bg="light"] .eos-toggle input[type="checkbox"]:focus-visible {
-          outline-color: rgba(0, 0, 0, 0.5);
-        }
-
-        [data-bg="light"] .eos-toggle-title {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .btn-generate-toggle {
-          background: rgba(0, 0, 0, 0.06);
-          border-color: rgba(0, 0, 0, 0.12);
-          border-left-color: rgba(0, 0, 0, 0.1);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .btn-generate-toggle:hover:not(:disabled) {
-          background: rgba(0, 0, 0, 0.1);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .generate-dropdown-menu {
-          background: rgba(255, 255, 255, 0.98);
-          border-color: rgba(0, 0, 0, 0.12);
-        }
-
-        [data-bg="light"] .dropdown-item {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .dropdown-item:hover {
-          background: rgba(0, 0, 0, 0.05);
-        }
-
-        [data-bg="light"] .dropdown-item.active {
-          background: rgba(0, 0, 0, 0.06);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .dropdown-item-desc {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .dropdown-item + .dropdown-item {
-          border-top-color: rgba(0, 0, 0, 0.06);
-        }
-
-        [data-bg="light"] .btn-secondary {
-          background: rgba(0, 0, 0, 0.03);
-          color: #1d1d1f;
-          border-color: rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .btn-secondary:hover:not(:disabled) {
-          background: rgba(0, 0, 0, 0.06);
-          border-color: rgba(0, 0, 0, 0.15);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .warmup-message {
-          background: rgba(0, 0, 0, 0.04);
-          border-color: rgba(0, 0, 0, 0.12);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .warmup-spinner {
-          border-color: rgba(0, 0, 0, 0.15);
-          border-top-color: #1d1d1f;
-        }
-
-        [data-bg="light"] .error-message {
-          background: rgba(0, 0, 0, 0.03);
-          border-color: rgba(0, 0, 0, 0.1);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .insufficient-credits-content p {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .output-area {
-          border-color: rgba(0, 0, 0, 0.12);
-          background: rgba(0, 0, 0, 0.03);
-          box-shadow:
-            0 8px 24px rgba(0, 0, 0, 0.06),
-            inset 0 1px 0 rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .output-header {
-          border-bottom-color: rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .output-header h3 {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .streaming-indicator {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .output-content {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .cursor {
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .control-number-input {
-          background: rgba(0, 0, 0, 0.03);
-          border-color: rgba(0, 0, 0, 0.12);
-          color: #1d1d1f;
-        }
-
-        [data-bg="light"] .control-number-input:focus {
-          border-color: rgba(0, 0, 0, 0.25);
-        }
-
-        /* Stack reset below generate */
-        .text-generator .actions {
-          flex-direction: column;
-        }
-
-        .text-generator .generate-dropdown {
-          width: 100%;
+          gap: 6px;
         }
 
         .text-generator .btn-generate-main {
           flex: 1;
-          padding: 0.625rem 1.5rem;
+          min-width: 0;
         }
 
-        .text-generator .btn-secondary {
-          width: 100%;
-          padding: 0.625rem 2rem;
+        .text-generator .btn-generate-toggle {
+          flex: none;
+          width: 2.9rem;
+          padding: 0;
         }
 
-        .text-generator .btn-stop {
-          width: 100%;
-          padding: 0.625rem 1.5rem;
+        .text-generator .btn-stop svg {
+          width: 0.7em;
+          height: 0.7em;
         }
 
-        .text-generator .control-row {
-          flex-direction: row-reverse;
+        .text-generator .generate-dropdown-menu {
+          position: absolute;
+          top: calc(100% + 6px);
+          left: 0;
+          right: 0;
+          z-index: 100;
         }
 
-        .text-generator .control-value-display {
-          display: none;
+        .text-generator .dropdown-item {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.15rem;
+          padding: 0.7rem 0.8rem;
+        }
+
+        /* The mode in use, marked */
+        .text-generator .dropdown-item.active {
+          box-shadow: inset 2px 0 0 var(--oz-mark);
+        }
+
+        .text-generator .dropdown-item-desc {
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
+          font-weight: 400;
+          line-height: 1.4;
+          white-space: normal;
+          transition: color 0.15s ease;
+        }
+
+        .text-generator .dropdown-item:hover .dropdown-item-desc {
+          color: inherit;
+        }
+
+        .text-generator .oz-note {
+          margin-top: 1rem;
+        }
+
+        .text-generator .warmup-message {
+          align-items: center;
+        }
+
+        .text-generator .insufficient-credits-content {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.35rem;
+        }
+
+        .text-generator .insufficient-credits-content strong,
+        .text-generator .error-message strong {
+          font-weight: 500;
+        }
+
+        .text-generator .insufficient-credits-content p {
+          margin: 0;
+          color: var(--oz-fg-dim);
+        }
+
+        .text-generator .error-message {
+          display: block;
+          overflow-wrap: anywhere;
+        }
+
+        /* The text itself, where the page doesn't show outputs of its own */
+        .text-generator .output-area {
+          margin-top: 1.5rem;
+          border-top: 1px solid var(--oz-rule);
+        }
+
+        .text-generator .output-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 1rem 0 0.6rem;
+        }
+
+        .text-generator .output-header h3 {
+          margin: 0;
+          font-size: 1.0625rem;
+          font-weight: 500;
+          letter-spacing: -0.02em;
+        }
+
+        .text-generator .streaming-indicator {
+          color: var(--oz-mark);
+          animation: tg-pulse 1.2s ease-in-out infinite;
+        }
+
+        .text-generator .output-content {
+          font-family: var(--oz-mono);
+          font-size: 0.9rem;
+          line-height: 1.7;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+
+        .text-generator .cursor {
+          margin-left: 2px;
+          color: var(--oz-mark);
+          animation: tg-blink 0.8s infinite;
+        }
+
+        @keyframes tg-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.25; }
+        }
+
+        @keyframes tg-blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0; }
         }
       `}</style>
     </div>

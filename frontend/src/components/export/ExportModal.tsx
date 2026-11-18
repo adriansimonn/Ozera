@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { X, Download, Loader2, Settings, FileImage } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Dropdown } from '../common/Dropdown'
 import { apiClient } from '../../api/client'
 import { downloadBlob } from '../../utils/svgExport'
@@ -18,6 +18,7 @@ import type {
 } from '../../types/export'
 import { COLORMAP_OPTIONS, PRESET_DISPLAY_INFO } from '../../types/export'
 import type { ExportType } from './ExportButton'
+import { Spinner } from '../common/Spinner'
 
 interface ExportModalProps {
   isOpen: boolean
@@ -166,44 +167,24 @@ export function ExportModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
-
+    <div className="oz-overlay" onClick={onClose}>
       {/* Modal */}
-      <div className="relative w-full max-w-lg mx-4 bg-black/60 border border-gray-800">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-          <div className="flex items-center gap-3">
-            <FileImage className="w-5 h-5 text-white" />
-            <h2 className="text-lg font-semibold text-white tracking-tight">{getTitle()}</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 text-white hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+      <div className="oz-modal export-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="oz-icon-btn oz-modal__close" aria-label="Close">
+          <X />
+        </button>
+        <h2 className="oz-modal__title">{getTitle()}</h2>
 
         {/* Content */}
-        <div className="px-6 py-4 space-y-5 max-h-[70vh] overflow-y-auto">
+        <div className="space-y-5">
           {/* Format Selection */}
           <div>
-            <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
-              Output Format
+            <label className="oz-label">
+              Output format
             </label>
-            <div className="flex gap-2">
+            <div className="oz-chips" role="radiogroup" aria-label="Output format">
               {(['png', 'pdf', 'svg'] as ExportFormat[]).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFormat(f)}
-                  className={`px-4 py-2 text-sm font-medium transition-all border ${
-                    format === f
-                      ? 'bg-white/10 text-white border-gray-600'
-                      : 'bg-white/5 text-white border-gray-700 hover:text-white hover:bg-white/8 hover:border-gray-600'
-                  }`}
-                >
+                <button key={f} role="radio" aria-checked={format === f} onClick={() => setFormat(f)} className="oz-chip">
                   {f.toUpperCase()}
                 </button>
               ))}
@@ -212,8 +193,8 @@ export function ExportModal({
 
           {/* Preset Selection */}
           <div>
-            <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
-              Publication Preset
+            <label className="oz-label">
+              Publication preset
             </label>
             <Dropdown
               value={preset}
@@ -230,7 +211,7 @@ export function ExportModal({
             <>
               {/* Colormap */}
               <div>
-                <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
+                <label className="oz-label">
                   Colormap
                 </label>
                 <Dropdown
@@ -244,7 +225,7 @@ export function ExportModal({
               {exportType === 'attention-heatmap' && (
                 <>
                   <div>
-                    <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
+                    <label className="oz-label">
                       Labels
                     </label>
                     <Dropdown
@@ -256,12 +237,11 @@ export function ExportModal({
                       ]}
                     />
                   </div>
-                  <label className="flex items-center gap-3 text-sm text-white cursor-pointer">
+                  <label className="flex items-center gap-3 text-sm cursor-pointer">
                     <input
                       type="checkbox"
                       checked={showColorbar}
                       onChange={(e) => setShowColorbar(e.target.checked)}
-                      className="w-4 h-4 border border-gray-600 bg-black/40 text-white focus:ring-0 focus:ring-offset-0"
                     />
                     Show colorbar
                   </label>
@@ -271,7 +251,7 @@ export function ExportModal({
               {/* Multi-head columns */}
               {exportType === 'multi-head-heatmap' && (
                 <div>
-                  <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
+                  <label className="oz-label">
                     Columns: {cols}
                   </label>
                   <input
@@ -280,7 +260,7 @@ export function ExportModal({
                     max="8"
                     value={cols}
                     onChange={(e) => setCols(parseInt(e.target.value))}
-                    className="w-full h-1 bg-gray-700 appearance-none cursor-pointer"
+                    className="w-full"
                   />
                 </div>
               )}
@@ -291,8 +271,8 @@ export function ExportModal({
             <>
               {/* Activation type */}
               <div>
-                <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
-                  Activation Type
+                <label className="oz-label">
+                  Activation type
                 </label>
                 <Dropdown
                   value={activationType}
@@ -307,7 +287,7 @@ export function ExportModal({
 
               {/* Bins */}
               <div>
-                <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
+                <label className="oz-label">
                   Bins: {bins}
                 </label>
                 <input
@@ -317,27 +297,25 @@ export function ExportModal({
                   step="5"
                   value={bins}
                   onChange={(e) => setBins(parseInt(e.target.value))}
-                  className="w-full h-1 bg-gray-700 appearance-none cursor-pointer"
+                  className="w-full"
                 />
               </div>
 
               {/* Histogram options */}
               <div className="flex gap-6">
-                <label className="flex items-center gap-3 text-sm text-white cursor-pointer">
+                <label className="flex items-center gap-3 text-sm cursor-pointer">
                   <input
                     type="checkbox"
                     checked={showStats}
                     onChange={(e) => setShowStats(e.target.checked)}
-                    className="w-4 h-4 border border-gray-600 bg-black/40 text-white focus:ring-0 focus:ring-offset-0"
                   />
                   Show statistics
                 </label>
-                <label className="flex items-center gap-3 text-sm text-white cursor-pointer">
+                <label className="flex items-center gap-3 text-sm cursor-pointer">
                   <input
                     type="checkbox"
                     checked={logScale}
                     onChange={(e) => setLogScale(e.target.checked)}
-                    className="w-4 h-4 border border-gray-600 bg-black/40 text-white focus:ring-0 focus:ring-offset-0"
                   />
                   Log scale
                 </label>
@@ -347,8 +325,8 @@ export function ExportModal({
 
           {/* Custom title */}
           <div>
-            <label className="block text-xs font-medium text-white mb-2 uppercase tracking-wide">
-              Custom Title (optional)
+            <label className="oz-label">
+              Custom title (optional)
             </label>
             <input
               type="text"
@@ -359,25 +337,21 @@ export function ExportModal({
                   ? `Layer ${layer}, Head ${head}`
                   : 'Activation Distribution'
               }
-              className="w-full px-4 py-3 bg-black/40 border border-gray-700 text-white placeholder-gray-500 focus:border-gray-500 focus:outline-none transition-colors"
+              className="oz-input"
             />
           </div>
 
           {/* Advanced options toggle */}
-          <button
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center gap-2 text-sm text-white hover:text-white transition-colors"
-          >
-            <Settings className="w-4 h-4" />
-            {showAdvanced ? 'Hide' : 'Show'} Advanced Options
+          <button onClick={() => setShowAdvanced(!showAdvanced)} className="oz-link text-sm" aria-expanded={showAdvanced}>
+            {showAdvanced ? 'Hide' : 'Show'} advanced options
           </button>
 
           {/* Advanced options */}
           {showAdvanced && (
-            <div className="space-y-4 pt-4 border-t border-gray-800">
+            <div className="space-y-4 pt-4 border-t border-rule">
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs text-white mb-1 uppercase tracking-wide">
+                  <label className="oz-label">
                     Width (inches)
                   </label>
                   <input
@@ -386,11 +360,11 @@ export function ExportModal({
                     value={customWidth}
                     onChange={(e) => setCustomWidth(e.target.value)}
                     placeholder="Auto"
-                    className="w-full px-3 py-2 bg-black/40 border border-gray-700 text-sm text-white placeholder-gray-500 focus:border-gray-500 focus:outline-none transition-colors"
+                    className="oz-input oz-input--number"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-white mb-1 uppercase tracking-wide">
+                  <label className="oz-label">
                     Height (inches)
                   </label>
                   <input
@@ -399,11 +373,11 @@ export function ExportModal({
                     value={customHeight}
                     onChange={(e) => setCustomHeight(e.target.value)}
                     placeholder="Auto"
-                    className="w-full px-3 py-2 bg-black/40 border border-gray-700 text-sm text-white placeholder-gray-500 focus:border-gray-500 focus:outline-none transition-colors"
+                    className="oz-input oz-input--number"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-white mb-1 uppercase tracking-wide">
+                  <label className="oz-label">
                     DPI
                   </label>
                   <input
@@ -412,17 +386,16 @@ export function ExportModal({
                     value={customDpi}
                     onChange={(e) => setCustomDpi(e.target.value)}
                     placeholder="Auto"
-                    className="w-full px-3 py-2 bg-black/40 border border-gray-700 text-sm text-white placeholder-gray-500 focus:border-gray-500 focus:outline-none transition-colors"
+                    className="oz-input oz-input--number"
                   />
                 </div>
               </div>
 
-              <label className="flex items-center gap-3 text-sm text-white cursor-pointer">
+              <label className="flex items-center gap-3 text-sm cursor-pointer">
                 <input
                   type="checkbox"
                   checked={transparent}
                   onChange={(e) => setTransparent(e.target.checked)}
-                  className="w-4 h-4 border border-gray-600 bg-black/40 text-white focus:ring-0 focus:ring-offset-0"
                 />
                 Transparent background
               </label>
@@ -431,38 +404,33 @@ export function ExportModal({
 
           {/* Error message */}
           {error && (
-            <div className="p-4 bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-              {error}
+            <div className="oz-note oz-note--error" role="alert">
+              <span>{error}</span>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-white hover:text-white bg-white/5 hover:bg-white/10 border border-gray-700 hover:border-gray-600 transition-all"
-          >
+        <div className="oz-modal__actions export-modal__actions">
+          <button onClick={onClose} className="oz-btn oz-btn--ghost">
             Cancel
           </button>
-          <button
-            onClick={handleExport}
-            disabled={isExporting}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white/10 hover:bg-white/15 disabled:bg-gray-800 disabled:cursor-not-allowed text-white border border-gray-700 hover:border-gray-600 transition-all"
-          >
+          <button onClick={handleExport} disabled={isExporting} className={`oz-btn${isExporting ? '' : ' oz-btn--arrow'}`}>
             {isExporting ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Spinner />
                 Exporting...
               </>
             ) : (
-              <>
-                <Download className="w-4 h-4" />
-                Export {format.toUpperCase()}
-              </>
+              `Export ${format.toUpperCase()}`
             )}
           </button>
         </div>
+
+        <style>{`
+          .oz-app .export-modal { max-width: 34rem; }
+          .export-modal .export-modal__actions { margin-top: 1.75rem; }
+        `}</style>
       </div>
     </div>
   )

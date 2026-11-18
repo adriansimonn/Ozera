@@ -10,6 +10,8 @@ import { AutointerpView } from '../components/autointerp/AutointerpView'
 import type { AtlasCorpusId } from '../types/geometry'
 import { useAuthStore } from '../stores/authStore'
 import { NavBar } from '../components/common/NavBar'
+import { EmptyState } from '../components/common/EmptyState'
+import { Spinner } from '../components/common/Spinner'
 import {
   SAESelector,
   FeatureActivationDisplay,
@@ -21,16 +23,13 @@ import {
   type SAESelection,
 } from '../components/sae'
 import {
-  Layers,
-  Search,
-  BarChart3,
-  GitCompare,
-  Play,
-  Loader2,
-  AlertCircle,
-  Download,
-  Sparkles,
-} from 'lucide-react'
+  
+  
+  
+  
+  
+  
+  AlertCircle } from 'lucide-react'
 import { saeClient, type SAEAnalyzeResponse, type SAEFeatureInfoResponse, type ExternalSAEInfo } from '../api/client'
 import type {
   SequenceFeatureActivations,
@@ -40,7 +39,6 @@ import type {
   SAEQualityMetrics,
   SAETrainingProgress,
 } from '../types/model'
-import { useTheme } from '../hooks/useTheme'
 
 interface SAEPageProps {
   onShowPurchaseCredits: () => void
@@ -296,7 +294,6 @@ function generateQualityMetrics(
 }
 
 export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) {
-  const { isLight } = useTheme()
 
   const [mode, setMode] = useState<SAEMode>('analyze')
   // The Autointerp view stays mounted once opened (its jobs and tables survive switching modes)
@@ -522,56 +519,31 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
 
   const trainingProgress: SAETrainingProgress[] = []
 
-  const c = {
-    bg: isLight ? '#f5f5f7' : '#0a0a0a',
-    panelBg: isLight ? '#ffffff' : '#111111',
-    divider: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
-    text: isLight ? '#1d1d1f' : '#ffffff',
-    textMid: isLight ? '#1d1d1f' : '#ffffff',
-    textSub: isLight ? '#1d1d1f' : '#ffffff',
-    controlBg: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)',
-    controlBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
-    inputBg: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(0,0,0,0.4)',
-    inputBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
-    errorBg: 'rgba(239, 68, 68, 0.08)',
-    errorBorder: 'rgba(239, 68, 68, 0.2)',
-    errorText: '#ef4444',
-    warningBg: isLight ? 'rgba(245,158,11,0.06)' : 'rgba(245,158,11,0.08)',
-    warningBorder: isLight ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.2)',
-    warningText: isLight ? 'rgba(180,120,0,0.8)' : 'rgba(245,158,11,0.8)',
-    spinnerTrack: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
-    spinnerHead: isLight ? '#1d1d1f' : '#ffffff',
-  }
-
-  const modes: { id: SAEMode; label: string; icon: typeof Search }[] = [
-    { id: 'analyze', label: 'Analyze', icon: Search },
-    { id: 'browse', label: 'Browse', icon: Layers },
-    { id: 'dashboard', label: 'Quality', icon: BarChart3 },
-    { id: 'compare', label: 'Compare', icon: GitCompare },
-    { id: 'autointerp', label: 'Autointerp', icon: Sparkles },
-    { id: 'load', label: 'Load', icon: Download },
+  const modes: { id: SAEMode; label: string }[] = [
+    { id: 'analyze', label: 'Analyze' },
+    { id: 'browse', label: 'Browse' },
+    { id: 'dashboard', label: 'Quality' },
+    { id: 'compare', label: 'Compare' },
+    { id: 'autointerp', label: 'Autointerp' },
+    { id: 'load', label: 'Load' },
   ]
 
   const renderLeftPanel = (compareConfigContent?: React.ReactNode) => (
-    <div className={`ds-left${mode === 'compare' ? ' ds-left-wide' : ''}`} style={{ background: c.panelBg, borderRight: `1px solid ${c.divider}` }}>
-      <div className="ds-left-scroll">
+    <div className={`ds-left oz-side${mode === 'compare' ? ' ds-left-wide' : ''}`}>
+      <div className="oz-scroll oz-steps">
         {/* Analysis Mode — always first */}
-        <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
-          <div className="ds-section-label" style={{ color: c.textSub }}>View</div>
-          <div data-assist="sae.mode" style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
-            {modes.map(({ id, label, icon: Icon }) => (
+        <div className="oz-section">
+          <h2 className="oz-title">View</h2>
+          <div data-assist="sae.mode" className="oz-chips oz-chips--grid" role="tablist" aria-label="SAE Analysis views">
+            {modes.map(({ id, label }) => (
               <button
                 key={id}
+                role="tab"
+                aria-selected={mode === id}
                 onClick={() => setMode(id)}
-                className="ds-mode-btn"
-                style={{
-                  background: mode === id ? (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)') : c.controlBg,
-                  borderColor: mode === id ? (isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)') : c.controlBorder,
-                  color: mode === id ? c.text : c.textSub,
-                }}
+                className={`oz-chip${mode === id ? ' active' : ''}`}
               >
-                <Icon style={{ width: 12, height: 12 }} />
-                <span>{label}</span>
+                {label}
               </button>
             ))}
           </div>
@@ -579,25 +551,19 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
 
         {/* Error banner */}
         {error && (
-          <div className="ds-error" style={{ background: c.errorBg, borderColor: c.errorBorder }}>
-            <AlertCircle style={{ width: 14, height: 14, color: c.errorText, flexShrink: 0 }} />
-            <span style={{ color: c.errorText, fontSize: '0.8rem', flex: 1 }}>
+          <div className="ds-error oz-note oz-note--error" role="alert">
+            <AlertCircle aria-hidden="true" />
+            <span>
               {error === 'INSUFFICIENT_CREDITS'
                 ? 'Insufficient credits for SAE analysis.'
                 : error}
             </span>
             {error === 'INSUFFICIENT_CREDITS' ? (
-              <button
-                onClick={onShowPurchaseCredits}
-                style={{ background: 'none', border: `1px solid ${c.errorBorder}`, color: c.errorText, cursor: 'pointer', fontSize: '0.7rem', padding: '0.2rem 0.5rem', fontWeight: 500 }}
-              >
+              <button className="oz-link" onClick={onShowPurchaseCredits}>
                 Add Credits
               </button>
             ) : (
-              <button
-                onClick={() => setError(null)}
-                style={{ background: 'none', border: 'none', color: c.errorText, cursor: 'pointer', fontSize: '0.75rem', padding: '0.125rem 0.5rem' }}
-              >
+              <button className="oz-link" onClick={() => setError(null)}>
                 Dismiss
               </button>
             )}
@@ -606,16 +572,16 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
 
         {/* Compare config in left panel */}
         {compareConfigContent && (
-          <div className="ds-section ds-compare-config" style={{ borderBottom: `1px solid ${c.divider}` }}>
-            <div className="ds-section-label" style={{ color: c.textSub }}>SAE Comparison</div>
+          <div className="oz-section ds-compare-config">
+            <h2 className="oz-title">SAE comparison</h2>
             {compareConfigContent}
           </div>
         )}
 
         {/* SAE Selection — hidden in compare & load modes */}
         {mode !== 'compare' && mode !== 'load' && (
-          <div className="ds-section" data-assist="sae.sae" style={{ borderBottom: `1px solid ${c.divider}` }}>
-            <div className="ds-section-label" style={{ color: c.textSub }}>SAE Selection</div>
+          <div className="oz-section" data-assist="sae.sae">
+            <h2 className="oz-title">SAE selection</h2>
             <SAESelector
               selection={saeSelection}
               onSelectionChange={setSaeSelection}
@@ -626,8 +592,8 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
 
         {/* Text Input — hidden in compare, load & autointerp modes */}
         {mode !== 'compare' && mode !== 'load' && mode !== 'autointerp' && (
-          <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
-            <div className="ds-section-label" style={{ color: c.textSub }}>Input Text</div>
+          <div className="oz-section">
+            <h2 className="oz-title">Input text</h2>
             {pendingFeature != null && <SaeDeepLinkNote feature={pendingFeature} />}
             <textarea
               value={inputText}
@@ -637,30 +603,21 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
               rows={3}
               disabled={analyzing}
               data-assist="sae.text"
-              className="ds-textarea"
-              style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.text }}
+              className="oz-textarea"
             />
             <button
               onClick={runAnalysis}
               disabled={analyzing || !saeSelection || !inputText.trim()}
               data-assist="sae.analyze_button"
-              className="ds-run-btn"
-              style={{
-                background: analyzing ? c.controlBg : (isLight ? '#1d1d1f' : '#ffffff'),
-                color: analyzing ? c.textSub : (isLight ? '#ffffff' : '#0a0a0a'),
-                borderColor: 'transparent',
-              }}
+              className={`oz-btn oz-btn--block ds-run-btn${analyzing ? '' : ' oz-btn--arrow'}`}
             >
               {analyzing ? (
                 <>
-                  <div className="ds-spinner" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
+                  <Spinner />
                   Analyzing...
                 </>
               ) : (
-                <>
-                  <Play style={{ width: 14, height: 14 }} />
-                  Analyze
-                </>
+                'Analyze'
               )}
             </button>
           </div>
@@ -668,43 +625,34 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
 
         {/* Analysis summary — show when we have results */}
         {analyzeResponse && mode !== 'compare' && mode !== 'load' && mode !== 'autointerp' && (
-          <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
-            <div className="ds-section-label" style={{ color: c.textSub }}>Analysis Summary</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                <span style={{ color: c.textMid }}>Tokens</span>
-                <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.num_tokens}</span>
+          <div className="oz-section">
+            <h2 className="oz-title">Analysis summary</h2>
+            <dl className="ds-specs">
+              <div>
+                <dt>Tokens</dt>
+                <dd>{analyzeResponse.num_tokens}</dd>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                <span style={{ color: c.textMid }}>Active Features</span>
-                <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.metrics.num_active_features}</span>
+              <div>
+                <dt>Active features</dt>
+                <dd>{analyzeResponse.metrics.num_active_features}</dd>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                <span style={{ color: c.textMid }}>Avg L0</span>
-                <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.metrics.avg_l0.toFixed(1)}</span>
+              <div>
+                <dt>Avg L0</dt>
+                <dd>{analyzeResponse.metrics.avg_l0.toFixed(1)}</dd>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                <span style={{ color: c.textMid }}>Max Activation</span>
-                <span style={{ color: c.text, fontFamily: 'monospace' }}>{analyzeResponse.metrics.max_activation.toFixed(2)}</span>
+              <div>
+                <dt>Max activation</dt>
+                <dd>{analyzeResponse.metrics.max_activation.toFixed(2)}</dd>
               </div>
-            </div>
+            </dl>
           </div>
         )}
 
         {/* Selected feature info */}
         {selectedFeature !== null && (
-          <div className="ds-section">
-            <div className="ds-section-label" style={{ color: c.textSub }}>Selected Feature</div>
-            <div style={{
-              padding: '0.625rem 0.75rem',
-              background: c.controlBg,
-              border: `1px solid ${c.controlBorder}`,
-              fontSize: '0.8rem',
-              color: c.text,
-              fontFamily: 'monospace',
-            }}>
-              Feature #{selectedFeature}
-            </div>
+          <div className="oz-section">
+            <h2 className="oz-title">Selected feature</h2>
+            <div className="ds-feature-id">#{selectedFeature}</div>
           </div>
         )}
       </div>
@@ -712,12 +660,12 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
   )
 
   const renderRightPanel = (compareResultsContent?: React.ReactNode) => (
-    <div className="ds-right" style={{ background: c.bg }}>
-      <div className="ds-right-scroll">
+    <div className="ds-right oz-main">
+      <div className="oz-scroll">
         {/* Analyze Activations Mode */}
         {mode === 'analyze' && !analyzing && analyzeResponse && activations && (
           <div className="ds-results" data-assist="sae.feature">
-            <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            <div className="oz-section">
               <FeatureActivationDisplay
                 activations={activations}
                 selectedFeatures={selectedFeatures}
@@ -727,23 +675,19 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
               />
             </div>
             {selectedFeature !== null && featureInfo ? (
-              <div className="ds-section">
+              <div className="oz-section">
                 <FeatureTopTokens
                   interpretation={featureInfo}
                   maxExamples={10}
                 />
               </div>
             ) : loadingFeature ? (
-              <div className="ds-loading-detail">
-                <Loader2 style={{ width: 20, height: 20, color: c.textSub }} className="ds-spinning" />
-                <p style={{ color: c.textSub, fontSize: '0.8rem', marginTop: '0.5rem' }}>Loading feature info...</p>
+              <div className="oz-empty ds-loading-detail">
+                <Spinner large />
+                <p>Loading feature info...</p>
               </div>
             ) : analyzeResponse ? (
-              <div className="ds-hint" style={{ borderTop: `1px solid ${c.divider}` }}>
-                <p style={{ color: c.textSub, fontSize: '0.8rem', margin: 0 }}>
-                  Click a cell in the heatmap above to view feature details.
-                </p>
-              </div>
+              <p className="oz-hint ds-hint">Click a cell in the heatmap above to view feature details.</p>
             ) : null}
           </div>
         )}
@@ -751,10 +695,11 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
         {/* Browse Features Mode */}
         {mode === 'browse' && !analyzing && (corpusCatalog ?? (analyzeResponse ? featureCatalog : null)) && (
           <div className="ds-results">
-            <div className="ds-section" style={{ borderBottom: `1px solid ${c.divider}` }}>
+            <div className="oz-section">
               {corpusAtlas && (
                 <p
-                  style={{ color: c.textSub, fontSize: '0.75rem', margin: '0 0 0.5rem' }}
+                  className="oz-hint"
+                  style={{ margin: '0 0 0.75rem' }}
                   title={`Feature statistics and top contexts from a Geometry Lab atlas (${corpusAtlas.corpus.license ?? ''})`}
                 >
                   Over {corpusAtlas.tokens.toLocaleString()} {corpusAtlas.corpus.name} tokens
@@ -767,7 +712,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
               />
             </div>
             {selectedFeature !== null && corpusAtlas && selectedRef && (
-              <div className="ds-section" style={{ paddingBottom: 0 }}>
+              <div className="oz-section">
                 <FeatureExplanation
                   atlasRef={{ model: corpusAtlas.model, sae: selectedRef, corpus: corpusAtlas.corpus.id as AtlasCorpusId }}
                   feature={selectedFeature}
@@ -776,16 +721,16 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
               </div>
             )}
             {selectedFeature !== null && featureInfo ? (
-              <div className="ds-section">
+              <div className="oz-section">
                 <FeatureTopTokens
                   interpretation={featureInfo}
                   maxExamples={15}
                 />
               </div>
             ) : loadingFeature ? (
-              <div className="ds-loading-detail">
-                <Loader2 style={{ width: 20, height: 20, color: c.textSub }} className="ds-spinning" />
-                <p style={{ color: c.textSub, fontSize: '0.8rem', marginTop: '0.5rem' }}>Loading feature info...</p>
+              <div className="oz-empty ds-loading-detail">
+                <Spinner large />
+                <p>Loading feature info...</p>
               </div>
             ) : null}
           </div>
@@ -793,7 +738,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
 
         {/* Quality Dashboard Mode */}
         {mode === 'dashboard' && !analyzing && analyzeResponse && qualityMetrics && (
-          <div className="ds-section">
+          <div className="oz-section">
             <SparsityDashboard
               metrics={qualityMetrics}
               trainingProgress={trainingProgress}
@@ -803,21 +748,21 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
 
         {/* Compare SAEs Mode — results only */}
         {mode === 'compare' && compareResultsContent && (
-          <div className="ds-section">
+          <div className="oz-section">
             {compareResultsContent}
           </div>
         )}
 
         {/* Autointerp Mode */}
         {autointerpOpened && (
-          <div className="ds-section" hidden={mode !== 'autointerp'}>
+          <div className="oz-section" hidden={mode !== 'autointerp'}>
             <AutointerpView sae={selectedRef} onShowPurchaseCredits={onShowPurchaseCredits} />
           </div>
         )}
 
         {/* Load External SAEs Mode */}
         {mode === 'load' && (
-          <div className="ds-section">
+          <div className="oz-section">
             <ExternalSAELoader
               loadedSAEs={externalSAEs}
               onSAELoaded={refreshExternalSAEs}
@@ -828,27 +773,24 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
 
         {/* Loading state */}
         {analyzing && (
-          <div className="ds-placeholder">
-            <div className="ds-spinner-lg" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
-            <p style={{ color: c.textSub, fontSize: '0.8rem', marginTop: '1rem' }}>Running SAE analysis on GPU...</p>
+          <div className="oz-empty oz-empty--fill ds-placeholder">
+            <Spinner large />
+            <p>Running SAE analysis on GPU...</p>
           </div>
         )}
 
         {/* Empty state */}
         {!analyzing && !analyzeResponse && mode !== 'compare' && mode !== 'load' && mode !== 'autointerp' && !(mode === 'browse' && corpusCatalog) && (
-          <div className="ds-placeholder">
-            <Search style={{ width: 36, height: 36, color: c.textSub, opacity: 0.3, marginBottom: '0.75rem' }} />
-            <p style={{ color: c.textSub, fontSize: '0.8rem', margin: 0, maxWidth: 360, lineHeight: 1.5 }}>
-              Select an SAE and enter text to analyze feature activations.
-            </p>
-          </div>
+          <EmptyState glyph="sae" fill className="ds-placeholder">
+            Select an SAE and enter text to analyze feature activations.
+          </EmptyState>
         )}
       </div>
     </div>
   )
 
   return (
-    <div className="ds-page" style={{ background: c.bg }}>
+    <div className="ds-page oz-page">
       <NavBar />
 
       {mode === 'compare' ? (
@@ -856,163 +798,68 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
           onFeatureSelect={handleComparisonFeatureSelect}
         >
           {({ configContent, resultsContent }) => (
-            <div className="ds-layout" style={{ borderColor: c.divider }}>
+            <div className="ds-layout oz-page__body">
               {renderLeftPanel(configContent)}
               {renderRightPanel(resultsContent)}
             </div>
           )}
         </ModelComparisonDashboard>
       ) : (
-        <div className="ds-layout" style={{ borderColor: c.divider }}>
+        <div className="ds-layout oz-page__body">
           {renderLeftPanel()}
           {renderRightPanel()}
         </div>
       )}
 
       <style>{`
-        .ds-page {
-          height: 125vh;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-
-        .ds-layout {
-          display: flex;
-          flex: 1;
-          margin-top: 76px;
-          overflow: hidden;
-        }
-
-        .ds-left {
-          width: 30%;
-          min-width: 340px;
-          max-width: 520px;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-
-        .ds-left.ds-left-wide {
+        .ds-left.oz-side.ds-left-wide {
           width: 40%;
-          max-width: 600px;
+          max-width: 620px;
         }
 
-        .ds-left-scroll {
-          flex: 1;
-          overflow-y: auto;
+        .ds-page .ds-error {
+          margin: 1rem var(--oz-gutter) 0;
         }
 
-        .ds-right {
-          flex: 1;
+        .ds-page .ds-run-btn {
+          margin-top: 6px;
+        }
+
+        /* A sheet of numbers: a name and its value to a row */
+        .ds-specs {
+          margin: 0;
+        }
+
+        .ds-specs > div {
           display: flex;
-          flex-direction: column;
-          overflow: hidden;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 0.55rem 0;
+          border-top: 1px solid var(--oz-rule);
         }
 
-        .ds-right-scroll {
-          flex: 1;
-          overflow-y: auto;
+        .ds-specs > div:last-child {
+          border-bottom: 1px solid var(--oz-rule);
         }
 
-        .ds-section {
-          padding: 1rem 1.25rem;
+        .ds-specs dt {
+          color: var(--oz-fg-dim);
+          font-size: 0.875rem;
         }
 
-        .ds-section-label {
-          font-size: 0.65rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-          margin-bottom: 0.625rem;
+        .ds-specs dd {
+          margin: 0;
+          font-family: var(--oz-mono);
+          font-size: 0.9rem;
         }
 
-        .ds-textarea {
-          width: 100%;
-          padding: 0.625rem 0.75rem;
-          border: 1px solid;
-          font-size: 0.85rem;
-          font-family: inherit;
-          resize: vertical;
-          min-height: 68px;
-          outline: none;
-          box-sizing: border-box;
-          margin-bottom: 0.625rem;
-        }
-
-        .ds-textarea:focus {
-          border-color: rgba(59, 130, 246, 0.4) !important;
-        }
-
-        .ds-textarea::placeholder {
-          color: ${isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)'};
-        }
-
-        .ds-run-btn {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-          padding: 0.75rem 1rem;
-          border: 1px solid;
-          font-size: 0.85rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: opacity 0.15s;
-          letter-spacing: 0.01em;
-        }
-
-        .ds-run-btn:hover:not(:disabled) {
-          opacity: 0.85;
-        }
-
-        .ds-run-btn:disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
-        }
-
-        .ds-mode-btn {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.375rem;
-          padding: 0.5rem 0.375rem;
-          border: 1px solid;
-          font-size: 0.7rem;
+        .ds-feature-id {
+          font-family: var(--oz-mono);
+          font-size: 2rem;
           font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s;
-          min-width: 0;
-        }
-
-        .ds-mode-btn:hover {
-          opacity: 0.85;
-        }
-
-        .ds-spinner {
-          width: 14px;
-          height: 14px;
-          border: 2px solid;
-          border-radius: 50%;
-          animation: ds-spin 0.8s linear infinite;
-        }
-
-        .ds-spinner-lg {
-          width: 28px;
-          height: 28px;
-          border: 2px solid;
-          border-radius: 50%;
-          animation: ds-spin 0.8s linear infinite;
-        }
-
-        @keyframes ds-spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .ds-spinning {
-          animation: ds-spin 1s linear infinite;
+          letter-spacing: -0.03em;
+          line-height: 1.1;
         }
 
         .ds-results {
@@ -1020,63 +867,27 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
           flex-direction: column;
         }
 
-        .ds-placeholder {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 4rem 2rem;
-          text-align: center;
-          height: 100%;
-          min-height: 400px;
+        .ds-results > .oz-section:last-child,
+        .ds-right .oz-scroll > .oz-section:last-child {
+          border-bottom: none;
         }
 
-        .ds-loading-detail {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 2rem;
+        .ds-page .ds-hint {
+          padding: 1.25rem var(--oz-gutter);
         }
 
-        .ds-hint {
-          padding: 1rem 1.25rem;
-          text-align: center;
-        }
-
-        .ds-error {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.625rem 0.875rem;
-          border: 1px solid;
-          margin: 0.75rem 1.25rem 0;
+        .ds-page .ds-placeholder {
+          min-height: calc(125vh - var(--oz-nav-h) - 2px);
         }
 
         .ds-compare-config .grid {
           grid-template-columns: 1fr !important;
         }
 
-        @media (max-width: 1000px) {
-          .ds-layout {
-            flex-wrap: wrap;
-          }
-          .ds-left {
-            width: 100%;
-            max-width: 100%;
-            max-height: 40vh;
-            border-right: none !important;
-            border-bottom: 1px solid;
-          }
-          .ds-right {
-            width: 100%;
-          }
-        }
-
-        @media (max-width: 600px) {
-          .ds-mode-btn span {
-            display: none;
-          }
+        @media (max-width: 1100px) {
+          .ds-page.oz-page { height: auto; overflow: visible; }
+          .ds-layout.oz-page__body { flex-direction: column; }
+          .ds-left.oz-side, .ds-left.oz-side.ds-left-wide { width: 100%; max-width: 100%; border-right: none; border-bottom: 1px solid var(--oz-rule); }
         }
       `}</style>
     </div>

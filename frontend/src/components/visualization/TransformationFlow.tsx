@@ -4,8 +4,10 @@
  */
 
 import { memo, useEffect, useRef, useState } from 'react'
-import * as d3 from 'd3'
 import type { ActivationData } from '../../types/model'
+import { useAppPalette } from '../../hooks/useTheme'
+import { sequentialScale } from '../../styles/appTheme'
+import { MONO } from '../home/homeKit'
 
 interface TransformationFlowProps {
   activationData: ActivationData
@@ -19,6 +21,7 @@ export const TransformationFlow = memo(function TransformationFlow({
   className = ''
 }: TransformationFlowProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const palette = useAppPalette()
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 1000, height: 600 })
 
@@ -72,8 +75,9 @@ export const TransformationFlow = memo(function TransformationFlow({
     canvas.height = height
 
     // Clear canvas
-    ctx.fillStyle = '#0a0a0a'
+    ctx.fillStyle = palette.bg
     ctx.fillRect(0, 0, width, height)
+    const scale = sequentialScale(palette.isLight)
 
     // Extract embeddings at each stage
     const stages: Array<{
@@ -131,8 +135,8 @@ export const TransformationFlow = memo(function TransformationFlow({
     })
 
     // Draw connections
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'
-    ctx.lineWidth = 2
+    ctx.strokeStyle = palette.ruleStrong
+    ctx.lineWidth = 1
     for (let i = 0; i < stages.length - 1; i++) {
       ctx.beginPath()
       ctx.moveTo(width / 2, stages[i].y + 20)
@@ -146,7 +150,7 @@ export const TransformationFlow = memo(function TransformationFlow({
       ctx.lineTo(width / 2 - 5, arrowY - 8)
       ctx.lineTo(width / 2 + 5, arrowY - 8)
       ctx.closePath()
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
+      ctx.fillStyle = palette.fgFaint
       ctx.fill()
     }
 
@@ -168,19 +172,18 @@ export const TransformationFlow = memo(function TransformationFlow({
 
       displayEmb.forEach((value, i) => {
         const normalized = (value - min) / (max - min || 1)
-        const color = d3.interpolateViridis(normalized)
-        ctx.fillStyle = color
+        ctx.fillStyle = scale(normalized)
         ctx.fillRect(embX + i * cellWidth, y - embHeight / 2, cellWidth, embHeight)
       })
 
       // Draw border
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'
+      ctx.strokeStyle = palette.ruleStrong
       ctx.lineWidth = 1
-      ctx.strokeRect(embX, y - embHeight / 2, embWidth, embHeight)
+      ctx.strokeRect(embX + 0.5, y - embHeight / 2 + 0.5, embWidth - 1, embHeight - 1)
 
       // Draw label
-      ctx.fillStyle = '#ffffff'
-      ctx.font = 'bold 14px Monaco, monospace'
+      ctx.fillStyle = palette.fg
+      ctx.font = `500 14px ${MONO}`
       ctx.textAlign = 'left'
       ctx.fillText(stage.name, embX - 100, y + 5)
 
@@ -188,86 +191,77 @@ export const TransformationFlow = memo(function TransformationFlow({
       const norm = Math.sqrt(stage.embedding.reduce((sum, v) => sum + v * v, 0))
       const mean = stage.embedding.reduce((sum, v) => sum + v, 0) / stage.embedding.length
 
-      ctx.fillStyle = '#ffffff'
-      ctx.font = '11px Monaco, monospace'
+      ctx.fillStyle = palette.fgDim
+      ctx.font = `12px ${MONO}`
       ctx.textAlign = 'right'
       ctx.fillText(`norm: ${norm.toFixed(2)}`, embX + embWidth + 80, y - 5)
       ctx.fillText(`mean: ${mean.toFixed(3)}`, embX + embWidth + 80, y + 10)
     })
 
-    // Draw title
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 16px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText(`Token ${selectedTokenIndex} Transformation Flow`, width / 2, 25)
+  }, [activationData, selectedTokenIndex, canvasDimensions, palette])
 
-  }, [activationData, selectedTokenIndex, canvasDimensions])
+  const legendScale = sequentialScale(palette.isLight)
+  const legendStops = [0, 0.25, 0.5, 0.75, 1].map(legendScale)
 
   return (
     <div className={`transformation-flow ${className}`}>
+      <h3 className="tf-title">Transformation flow · Token {selectedTokenIndex}</h3>
       <div className="canvas-container" ref={containerRef}>
         <canvas ref={canvasRef} className="flow-canvas" />
       </div>
       <div className="legend">
         <div className="legend-item">
-          <div className="legend-color" style={{ background: 'linear-gradient(to right, #440154, #31688e, #35b779, #fde724)' }} />
-          <span className="legend-label">Activation Value (Low → High)</span>
+          <span className="legend-label">Low</span>
+          <div className="legend-color" style={{ background: `linear-gradient(to right, ${legendStops.join(', ')})` }} />
+          <span className="legend-label">High activation</span>
         </div>
       </div>
 
       <style>{`
         .transformation-flow {
-          padding: 1.5rem;
+          padding: 1.5rem var(--oz-gutter) 2rem;
         }
 
-        .canvas-container {
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.06);
+        .transformation-flow .tf-title {
+          margin: 0 0 1rem;
+          font-size: 1.5rem;
+          font-weight: 500;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
+        }
+
+        .transformation-flow .canvas-container {
           width: 100%;
         }
 
-        .flow-canvas {
+        .transformation-flow .flow-canvas {
           display: block;
           image-rendering: pixelated;
           width: 100%;
           height: auto;
         }
 
-        .legend {
+        .transformation-flow .legend {
           margin-top: 1rem;
           display: flex;
           justify-content: center;
-          gap: 2rem;
         }
 
-        .legend-item {
+        .transformation-flow .legend-item {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
+          gap: 0.6rem;
         }
 
-        .legend-color {
-          width: 100px;
-          height: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
+        .transformation-flow .legend-color {
+          width: 140px;
+          height: 8px;
+          border: 1px solid var(--oz-rule-strong);
         }
 
-        .legend-label {
-          font-size: 0.75rem;
-          color: #ffffff;
-        }
-
-        /* Light mode */
-        [data-bg="light"] .canvas-container {
-          border: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .legend-color {
-          border: 1px solid rgba(0, 0, 0, 0.1);
-        }
-
-        [data-bg="light"] .legend-label {
-          color: #1d1d1f;
+        .transformation-flow .legend-label {
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
         }
       `}</style>
     </div>

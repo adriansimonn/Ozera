@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react'
-import { Download, Loader2, Plus, Trash2, Package } from 'lucide-react'
+import { Download,  Plus, Trash2, Package } from 'lucide-react'
 import { apiClient } from '../../api/client'
 import { downloadBlob } from '../../utils/svgExport'
 import type {
@@ -13,6 +13,7 @@ import type {
   ActivationType,
 } from '../../types/export'
 import { COLORMAP_OPTIONS, PRESET_DISPLAY_INFO } from '../../types/export'
+import { Spinner } from '../common/Spinner'
 
 interface BatchExportPanelProps {
   activationId: string
@@ -128,14 +129,14 @@ export function BatchExportPanel({
   }
 
   return (
-    <div className={`bg-black/40 border border-gray-800 ${className}`}>
+    <div className={`bg-transparent border border-rule ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-rule">
         <div className="flex items-center gap-2">
-          <Package className="w-5 h-5 text-white" />
-          <h3 className="text-sm font-semibold text-white tracking-tight">Batch Export</h3>
+          <Package className="w-5 h-5 text-fg" />
+          <h3 className="text-sm font-medium text-fg tracking-tight">Batch Export</h3>
           {items.length > 0 && (
-            <span className="px-2 py-0.5 bg-white/10 text-white text-xs border border-gray-700">
+            <span className="px-2 py-0.5 bg-fill-strong text-fg text-[0.82rem] border border-rule">
               {items.length} items
             </span>
           )}
@@ -143,7 +144,7 @@ export function BatchExportPanel({
         {items.length > 0 && (
           <button
             onClick={clearAll}
-            className="text-xs text-white hover:text-red-400 transition-colors"
+            className="text-[0.82rem] text-fg hover:text-danger transition-colors"
           >
             Clear all
           </button>
@@ -151,14 +152,14 @@ export function BatchExportPanel({
       </div>
 
       {/* Global settings */}
-      <div className="px-4 py-3 border-b border-gray-800 space-y-3">
+      <div className="px-4 py-3 border-b border-rule space-y-3">
         <div className="flex gap-4">
           <div className="flex-1">
-            <label className="block text-xs text-white mb-1 uppercase tracking-wide">Preset</label>
+            <label className="block text-[0.82rem] text-fg mb-1">Preset</label>
             <select
               value={preset}
               onChange={(e) => setPreset(e.target.value as PresetName)}
-              className="w-full px-3 py-2 bg-black/40 border border-gray-700 text-sm text-white focus:border-gray-500 focus:outline-none transition-colors"
+              className="w-full px-3 py-2 bg-transparent border border-rule text-sm text-fg focus:border-fg focus:outline-none transition-colors"
             >
               {Object.entries(PRESET_DISPLAY_INFO).map(([key, info]) => (
                 <option key={key} value={key}>
@@ -168,11 +169,11 @@ export function BatchExportPanel({
             </select>
           </div>
           <div className="flex-1">
-            <label className="block text-xs text-white mb-1 uppercase tracking-wide">Format</label>
+            <label className="block text-[0.82rem] text-fg mb-1">Format</label>
             <select
               value={format}
               onChange={(e) => setFormat(e.target.value as ExportFormat)}
-              className="w-full px-3 py-2 bg-black/40 border border-gray-700 text-sm text-white focus:border-gray-500 focus:outline-none transition-colors"
+              className="w-full px-3 py-2 bg-transparent border border-rule text-sm text-fg focus:border-fg focus:outline-none transition-colors"
             >
               <option value="png">PNG</option>
               <option value="pdf">PDF</option>
@@ -183,27 +184,27 @@ export function BatchExportPanel({
       </div>
 
       {/* Quick add buttons */}
-      <div className="px-4 py-3 border-b border-gray-800">
+      <div className="px-4 py-3 border-b border-rule">
         <div className="flex flex-wrap gap-2">
           <button
             onClick={addHeatmapItem}
-            className="flex items-center gap-1.5 px-2 py-1 text-xs
-              bg-white/5 text-white hover:text-white hover:bg-white/10
-              border border-gray-700 hover:border-gray-600 transition-all"
+            className="flex items-center gap-1.5 px-2 py-1 text-[0.82rem]
+ bg-fill text-fg hover:text-mark hover:bg-fill-strong
+ border border-rule hover:border-fg transition-all"
           >
             <Plus className="w-3 h-3" />
             Add Heatmap
           </button>
           <button
             onClick={addHistogramItem}
-            className="flex items-center gap-1.5 px-2 py-1 text-xs
-              bg-white/5 text-white hover:text-white hover:bg-white/10
-              border border-gray-700 hover:border-gray-600 transition-all"
+            className="flex items-center gap-1.5 px-2 py-1 text-[0.82rem]
+ bg-fill text-fg hover:text-mark hover:bg-fill-strong
+ border border-rule hover:border-fg transition-all"
           >
             <Plus className="w-3 h-3" />
             Add Histogram
           </button>
-          <div className="h-6 w-px bg-gray-700" />
+          <div className="h-6 w-px bg-fill-strong" />
           <select
             onChange={(e) => {
               if (e.target.value) {
@@ -211,7 +212,7 @@ export function BatchExportPanel({
                 e.target.value = ''
               }
             }}
-            className="px-2 py-1 text-xs bg-black/40 text-white border border-gray-700 focus:outline-none focus:border-gray-500"
+            className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none focus:border-fg"
             defaultValue=""
           >
             <option value="" disabled>
@@ -225,9 +226,9 @@ export function BatchExportPanel({
           </select>
           <button
             onClick={addAllLayers}
-            className="flex items-center gap-1.5 px-2 py-1 text-xs
-              bg-white/5 text-white hover:text-white hover:bg-white/10
-              border border-gray-700 hover:border-gray-600 transition-all"
+            className="flex items-center gap-1.5 px-2 py-1 text-[0.82rem]
+ bg-fill text-fg hover:text-mark hover:bg-fill-strong
+ border border-rule hover:border-fg transition-all"
           >
             <Plus className="w-3 h-3" />
             All Layer Histograms
@@ -238,24 +239,24 @@ export function BatchExportPanel({
       {/* Items list */}
       <div className="max-h-64 overflow-y-auto">
         {items.length === 0 ? (
-          <div className="px-4 py-8 text-center text-white text-sm">
+          <div className="px-4 py-8 text-center text-fg text-sm">
             No items added yet. Use the buttons above to add figures to export.
           </div>
         ) : (
-          <div className="divide-y divide-gray-800/50">
+          <div className="divide-y divide-rule">
             {items.map((item, index) => (
               <div key={index} className="px-4 py-2 flex items-center gap-3">
-                <span className="text-xs text-white w-6">{index + 1}.</span>
+                <span className="text-[0.82rem] text-fg w-6">{index + 1}.</span>
 
                 {item.type === 'attention-heatmap' ? (
                   <>
-                    <span className="text-xs text-white bg-white/10 px-2 py-0.5 border border-gray-700">
+                    <span className="text-[0.82rem] text-fg bg-fill-strong px-2 py-0.5 border border-rule">
                       Heatmap
                     </span>
                     <select
                       value={item.layer}
                       onChange={(e) => updateItem(index, { layer: parseInt(e.target.value) })}
-                      className="px-2 py-1 text-xs bg-black/40 text-white border border-gray-700 focus:outline-none"
+                      className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none"
                     >
                       {Array.from({ length: numLayers }, (_, i) => (
                         <option key={i} value={i}>
@@ -266,7 +267,7 @@ export function BatchExportPanel({
                     <select
                       value={item.head}
                       onChange={(e) => updateItem(index, { head: parseInt(e.target.value) })}
-                      className="px-2 py-1 text-xs bg-black/40 text-white border border-gray-700 focus:outline-none"
+                      className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none"
                     >
                       {Array.from({ length: numHeads }, (_, i) => (
                         <option key={i} value={i}>
@@ -277,7 +278,7 @@ export function BatchExportPanel({
                     <select
                       value={item.colormap || 'inferno'}
                       onChange={(e) => updateItem(index, { colormap: e.target.value })}
-                      className="px-2 py-1 text-xs bg-black/40 text-white border border-gray-700 focus:outline-none"
+                      className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none"
                     >
                       {COLORMAP_OPTIONS.map((opt) => (
                         <option key={opt.value} value={opt.value}>
@@ -288,7 +289,7 @@ export function BatchExportPanel({
                   </>
                 ) : (
                   <>
-                    <span className="text-xs text-purple-300 bg-purple-500/10 px-2 py-0.5 border border-purple-500/30">
+                    <span className="text-[0.82rem] text-fg bg-fill-strong px-2 py-0.5 border border-fg">
                       Histogram
                     </span>
                     <select
@@ -298,7 +299,7 @@ export function BatchExportPanel({
                           layer: e.target.value ? parseInt(e.target.value) : undefined,
                         })
                       }
-                      className="px-2 py-1 text-xs bg-black/40 text-white border border-gray-700 focus:outline-none"
+                      className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none"
                     >
                       <option value="">All</option>
                       {Array.from({ length: numLayers }, (_, i) => (
@@ -312,7 +313,7 @@ export function BatchExportPanel({
                       onChange={(e) =>
                         updateItem(index, { activation_type: e.target.value as ActivationType })
                       }
-                      className="px-2 py-1 text-xs bg-black/40 text-white border border-gray-700 focus:outline-none"
+                      className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none"
                     >
                       <option value="all">All</option>
                       <option value="attn_output">Attn</option>
@@ -325,7 +326,7 @@ export function BatchExportPanel({
 
                 <button
                   onClick={() => removeItem(index)}
-                  className="p-1 text-white hover:text-red-400 transition-colors"
+                  className="p-1 text-fg hover:text-danger transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -337,22 +338,22 @@ export function BatchExportPanel({
 
       {/* Error */}
       {error && (
-        <div className="px-4 py-2 text-sm text-red-400 bg-red-500/10 border-t border-red-500/30">
+        <div className="px-4 py-2 text-sm text-danger bg-transparent border-t border-danger">
           {error}
         </div>
       )}
 
       {/* Export button */}
-      <div className="px-4 py-3 border-t border-gray-800">
+      <div className="px-4 py-3 border-t border-rule">
         <button
           onClick={handleExport}
           disabled={isExporting || items.length === 0}
           className="w-full flex items-center justify-center gap-2 px-4 py-2
-            text-sm font-medium bg-white/10 hover:bg-white/15 disabled:bg-gray-800 disabled:cursor-not-allowed text-white border border-gray-700 hover:border-gray-600 transition-all"
+ text-sm font-medium bg-fill-strong hover:bg-fill-strong disabled:cursor-not-allowed text-fg border border-rule hover:border-fg transition-all"
         >
           {isExporting ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Spinner />
               Exporting {items.length} figures...
             </>
           ) : (

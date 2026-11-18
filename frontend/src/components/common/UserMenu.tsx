@@ -1,10 +1,11 @@
 /**
- * User menu dropdown component.
+ * The account in the app's nav: the balance and the user's name, opening a menu with their
+ * credits, Settings and Sign out. After the homepage's AccountMenu.
  */
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, LogOut, Wallet, Plus, Settings } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { usePurchaseCredits } from '../../contexts/PurchaseCreditsContext';
 
 export function UserMenu() {
@@ -12,19 +13,28 @@ export function UserMenu() {
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const showBalance = useSettingsStore((s) => s.settings?.credits?.show_balance_in_navbar ?? true);
   const { showPurchaseCredits } = usePurchaseCredits();
 
-  // Close menu when clicking outside
+  // A click anywhere else, or Escape, closes the menu
   useEffect(() => {
+    if (!isOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [isOpen]);
 
   if (!user) return null;
 
@@ -39,81 +49,53 @@ export function UserMenu() {
   };
 
   return (
-    <div className="relative" ref={menuRef}>
-      {/* User button */}
+    <div className="oz-account" ref={menuRef}>
       <button
+        type="button"
+        className="oz-account__button"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 bg-transparent border border-transparent hover:bg-white/5 hover:border-white/15 transition-colors"
       >
-        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
-          <User size={16} style={{ color: '#fff' }} />
-        </div>
-        <div className="hidden md:block text-left">
-          <div className="text-sm font-medium text-white">
-            {user.full_name || user.email.split('@')[0]}
-          </div>
-          <div className="text-xs text-white">
-            ${user.available_balance.toFixed(2)} available
-          </div>
-        </div>
+        {showBalance && (
+          <span className="oz-account__balance" title="Available credits">
+            ${user.available_balance.toFixed(2)}
+          </span>
+        )}
+        <span className="oz-account__name">{user.full_name || user.email.split('@')[0]}</span>
+        <svg className="oz-caret" viewBox="0 0 10 6" aria-hidden="true">
+          <path d="M1 1l4 4 4-4" />
+        </svg>
       </button>
 
-      {/* Dropdown menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 bg-black border border-gray-700 shadow-lg overflow-hidden z-50">
-          {/* User info */}
-          <div className="px-4 py-3 border-b border-gray-700">
-            <div className="text-sm font-medium text-white truncate">{user.email}</div>
-            {user.full_name && (
-              <div className="text-xs text-white truncate">{user.full_name}</div>
-            )}
-          </div>
+        <div className="oz-account__menu oz-menu" role="menu">
+          <p className="oz-account__email">{user.email}</p>
 
-          {/* Credit balance */}
-          <div className="px-4 py-3 border-b border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-white flex items-center gap-2">
-                <Wallet size={14} />
-                Credit Balance
-              </span>
-              <button
-                onClick={handleAddCredits}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
-              >
-                <Plus size={12} />
-                Add
-              </button>
-            </div>
-            <div className="text-lg font-bold text-white">
-              ${user.balance_usd.toFixed(2)}
-            </div>
+          <div className="oz-account__credits">
+            <span className="oz-account__credits-label">Credits</span>
+            <span className="oz-account__credits-value">${user.available_balance.toFixed(2)}</span>
+            <button type="button" className="oz-btn oz-btn--small" onClick={handleAddCredits}>
+              Add credits
+            </button>
             {user.reserved_usd > 0 && (
-              <div className="text-xs text-white">
-                ${user.reserved_usd.toFixed(2)} reserved
-              </div>
+              <span className="oz-account__credits-note">
+                ${user.reserved_usd.toFixed(2)} reserved of ${user.balance_usd.toFixed(2)}
+              </span>
             )}
-            <div className="text-xs text-green-400 font-medium mt-1">
-              ${user.available_balance.toFixed(2)} available
-            </div>
           </div>
 
-          {/* Menu items */}
-          <div className="py-1">
-            <button
-              onClick={() => { navigate('/settings'); setIsOpen(false); }}
-              className="w-full px-4 py-2 text-left text-sm text-white hover:bg-[#2a2a2a] flex items-center gap-2 transition-colors"
-            >
-              <Settings size={14} />
-              Settings
-            </button>
-            <button
-              onClick={handleLogout}
-              className="w-full px-4 py-2 text-left text-sm text-white hover:bg-[#2a2a2a] flex items-center gap-2 transition-colors"
-            >
-              <LogOut size={14} />
-              Logout
-            </button>
-          </div>
+          <button
+            type="button"
+            className="oz-menu__item"
+            role="menuitem"
+            onClick={() => { navigate('/settings'); setIsOpen(false); }}
+          >
+            Settings
+          </button>
+          <button type="button" className="oz-menu__item" role="menuitem" onClick={handleLogout}>
+            Sign out
+          </button>
         </div>
       )}
     </div>

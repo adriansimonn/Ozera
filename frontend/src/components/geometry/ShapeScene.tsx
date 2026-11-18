@@ -104,7 +104,7 @@ function Points({ points, colorOf, onHover }: { points: number[][]; colorOf: (i:
 function Label({ position, text, color, strong }: { position: [number, number, number]; text: string; color: string; strong?: boolean }) {
   return (
     <Html position={position} center style={{ pointerEvents: 'none' }} zIndexRange={[10, 0]}>
-      <span style={{ color, fontSize: 11, fontWeight: strong ? 600 : 500, whiteSpace: 'nowrap', textShadow: 'none' }}>{text}</span>
+      <span style={{ color, fontSize: 11, fontWeight: strong ? 500 : 500, whiteSpace: 'nowrap', textShadow: 'none' }}>{text}</span>
     </Html>
   )
 }
@@ -203,13 +203,12 @@ export default function ShapeScene({
       <style>{`
         .gl-scene-tip {
           transform: translate(10px, -50%);
-          padding: 0.35rem 0.5rem;
+          padding: 0.4rem 0.55rem;
           border: 1px solid;
-          font-size: 0.72rem;
+          font-size: 0.78rem;
           line-height: 1.35;
           width: max-content;
           max-width: 240px;
-          box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
         }
       `}</style>
     </div>

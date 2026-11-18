@@ -14,13 +14,10 @@ import {
   Eye,
   EyeOff,
   Check,
-  AlertCircle,
-  Loader2,
-  Lock,
-  Plus,
-} from 'lucide-react'
+  AlertCircle } from 'lucide-react'
 import { usePurchaseCredits } from '../contexts/PurchaseCreditsContext'
 import { Dropdown } from '../components/common/Dropdown'
+import { Spinner } from '../components/common/Spinner'
 
 type SettingsTab = 'account' | 'credits' | 'ui'
 
@@ -168,13 +165,13 @@ export default function SettingsPage() {
 
   if (!isAuthenticated || !user) {
     return (
-      <div className="min-h-screen" style={{ minHeight: '125vh' }}>
+      <div className="settings-page">
         <NavBar />
-        <div className="max-w-3xl mx-auto px-8 pt-28">
-          <div className="bg-white/[0.03] border border-white/10 p-10 text-center">
-            <p className="text-base text-white">Please log in to access settings.</p>
-          </div>
+        <div className="st-wrap">
+          <h1 className="st-title">Settings.</h1>
+          <p className="oz-hint">Please log in to access settings.</p>
         </div>
+        <SettingsStyles />
       </div>
     )
   }
@@ -185,24 +182,24 @@ export default function SettingsPage() {
     { key: 'ui', label: 'UI Preferences' },
   ]
 
+  const showBalance = settings?.credits.show_balance_in_navbar ?? true
+
   return (
-    <div className="min-h-screen" style={{ minHeight: '125vh' }}>
+    <div className="settings-page">
       <NavBar />
 
-      <div className="max-w-3xl mx-auto px-8 pt-28 pb-20">
-        <h1 className="text-3xl font-bold text-white mb-8">Settings</h1>
+      <div className="st-wrap">
+        <h1 className="st-title">Settings.</h1>
 
         {/* Tab Buttons */}
-        <div className="flex gap-1 mb-8 border-b border-white/10 pb-px">
+        <div className="oz-tabs" role="tablist">
           {tabs.map((tab) => (
             <button
               key={tab.key}
+              role="tab"
+              aria-selected={activeTab === tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`px-5 py-3 text-base font-medium transition-colors border-b-2 -mb-px ${
-                activeTab === tab.key
-                  ? 'border-white text-white'
-                  : 'border-transparent text-white hover:text-white'
-              }`}
+              className={`oz-tab${activeTab === tab.key ? ' active' : ''}`}
             >
               {tab.label}
             </button>
@@ -211,91 +208,86 @@ export default function SettingsPage() {
 
         {/* Account Tab */}
         {activeTab === 'account' && (
-          <div className="bg-white/[0.03] border border-white/10 p-7 space-y-6">
+          <div className="st-rows">
             {/* Display Name */}
-            <div>
-              <label className="block text-base text-white mb-2">Display Name</label>
-              <div className="flex items-center gap-3">
+            <div className="st-row">
+              <label className="st-name" htmlFor="st-display-name">Display name</label>
+              <div className="st-control st-inline">
                 <input
+                  id="st-display-name"
                   type="text"
                   value={displayName}
                   onChange={(e) => handleDisplayNameChange(e.target.value)}
-                  className="flex-1 bg-white/5 border border-white/10 px-4 py-3 text-base text-white placeholder-gray-400 focus:outline-none focus:border-white/30"
+                  className="oz-input"
                   placeholder="Your name"
                 />
-                {nameSaveStatus === 'saving' && <Loader2 size={18} className="text-white animate-spin" />}
-                {nameSaveStatus === 'saved' && <Check size={18} className="text-green-400" />}
-                {nameSaveStatus === 'error' && <AlertCircle size={18} className="text-red-400" />}
+                <span className="st-status">
+                  {nameSaveStatus === 'saving' && <Spinner />}
+                  {nameSaveStatus === 'saved' && <Check className="st-ok" aria-label="Saved" />}
+                  {nameSaveStatus === 'error' && <AlertCircle className="st-error" aria-label="Couldn't save" />}
+                </span>
               </div>
             </div>
 
             {/* Email (read-only) */}
-            <div>
-              <label className="block text-base text-white mb-2">Email</label>
-              <input
-                type="email"
-                value={user.email}
-                disabled
-                className="w-full bg-white/5 border border-white/10 px-4 py-3 text-base text-white cursor-not-allowed"
-              />
+            <div className="st-row">
+              <span className="st-name">Email</span>
+              <div className="st-control st-value">{user.email}</div>
             </div>
 
             {/* Change Password */}
-            <div className="pt-3 border-t border-white/5">
-              <div className="flex items-center gap-2 mb-4">
-                <Lock size={18} className="text-white" />
-                <span className="text-base font-medium text-white">Change Password</span>
-              </div>
-              <div className="space-y-4">
-                <div className="relative">
+            <div className="st-row">
+              <span className="st-name">Change password</span>
+              <div className="st-control st-stack">
+                <div className="st-password">
                   <input
                     type={showCurrentPassword ? 'text' : 'password'}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 px-4 py-3 text-base text-white placeholder-gray-400 focus:outline-none focus:border-white/30 pr-12"
+                    className="oz-input"
                     placeholder="Current password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-white"
+                    className="oz-icon-btn"
+                    aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
                   >
-                    {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showCurrentPassword ? <EyeOff /> : <Eye />}
                   </button>
                 </div>
-                <div className="relative">
+                <div className="st-password">
                   <input
                     type={showNewPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 px-4 py-3 text-base text-white placeholder-gray-400 focus:outline-none focus:border-white/30 pr-12"
+                    className="oz-input"
                     placeholder="New password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-white"
+                    className="oz-icon-btn"
+                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
                   >
-                    {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showNewPassword ? <EyeOff /> : <Eye />}
                   </button>
                 </div>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 px-4 py-3 text-base text-white placeholder-gray-400 focus:outline-none focus:border-white/30"
+                  className="oz-input"
                   placeholder="Confirm new password"
                 />
-                {passwordError && (
-                  <p className="text-sm text-red-400">{passwordError}</p>
-                )}
+                {passwordError && <p className="st-error">{passwordError}</p>}
                 <button
                   onClick={handlePasswordChange}
                   disabled={!currentPassword || !newPassword || !confirmPassword || passwordStatus === 'saving'}
-                  className="flex items-center gap-2 px-5 py-3 text-base text-white hover:text-white border border-white/10 hover:border-white/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className={`oz-btn st-submit${passwordStatus === 'saving' ? '' : ' oz-btn--arrow'}`}
                 >
-                  {passwordStatus === 'saving' && <Loader2 size={18} className="animate-spin" />}
-                  {passwordStatus === 'saved' && <Check size={18} className="text-green-400" />}
+                  {passwordStatus === 'saving' && <Spinner />}
+                  {passwordStatus === 'saved' && <Check />}
                   Update Password
                 </button>
               </div>
@@ -305,88 +297,209 @@ export default function SettingsPage() {
 
         {/* Credit Balance Tab */}
         {activeTab === 'credits' && (
-          <div className="bg-white/[0.03] border border-white/10 p-7 space-y-6">
+          <div className="st-rows">
+            {/* Balance */}
+            <div className="st-row">
+              <span className="st-name">Available credits</span>
+              <div className="st-control st-inline st-balance-row">
+                <span className="st-balance">${user.available_balance.toFixed(2)}</span>
+                <button onClick={handleAddCredits} className="oz-btn oz-btn--arrow">
+                  Add Credits
+                </button>
+              </div>
+            </div>
+
             {/* Low Balance Alert */}
-            <div>
-              <label className="block text-base text-white mb-2">Low Balance Alert Threshold ($)</label>
-              <input
-                type="number"
-                min={0}
-                step={0.5}
-                value={lowBalanceAlert ?? settings?.credits.low_balance_alert ?? 5}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value) || 0
-                  setLowBalanceAlert(val)
-                  handleCreditsSetting('low_balance_alert', val, true)
-                }}
-                className="w-40 bg-white/5 border border-white/10 px-4 py-3 text-base text-white focus:outline-none focus:border-white/30"
-              />
-              <p className="text-sm text-white mt-2">Warn when balance drops below this amount</p>
+            <div className="st-row">
+              <label className="st-name" htmlFor="st-low-balance">
+                Low balance alert threshold ($)
+                <span className="oz-hint">Warn when balance drops below this amount</span>
+              </label>
+              <div className="st-control">
+                <input
+                  id="st-low-balance"
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  value={lowBalanceAlert ?? settings?.credits.low_balance_alert ?? 5}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || 0
+                    setLowBalanceAlert(val)
+                    handleCreditsSetting('low_balance_alert', val, true)
+                  }}
+                  className="oz-input oz-input--number st-number"
+                />
+              </div>
             </div>
 
             {/* Show Balance in Navbar */}
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-base text-white">Show balance in navbar</label>
-                <p className="text-sm text-white">Display credit balance next to your profile</p>
-              </div>
-              <button
-                onClick={() => handleCreditsSetting('show_balance_in_navbar', !(settings?.credits.show_balance_in_navbar ?? true))}
-                className={`w-14 h-8 rounded-full transition-colors relative ${
-                  (settings?.credits.show_balance_in_navbar ?? true) ? 'bg-green-500' : 'bg-white/10'
-                }`}
-              >
-                <span
-                  className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-transform ${
-                    (settings?.credits.show_balance_in_navbar ?? true) ? 'left-[30px]' : 'left-1'
-                  }`}
+            <div className="st-row">
+              <label className="st-name" htmlFor="st-show-balance">
+                Show balance in navbar
+                <span className="oz-hint">Display credit balance next to your name</span>
+              </label>
+              <div className="st-control">
+                <input
+                  id="st-show-balance"
+                  type="checkbox"
+                  checked={showBalance}
+                  onChange={() => handleCreditsSetting('show_balance_in_navbar', !showBalance)}
                 />
-              </button>
-            </div>
-
-            {/* Add Credits */}
-            <div>
-              <button
-                onClick={handleAddCredits}
-                className="flex items-center gap-2 px-5 py-3 text-base text-white hover:text-white border border-white/10 hover:border-white/20 transition-colors"
-              >
-                <Plus size={18} />
-                Add Credits
-              </button>
+              </div>
             </div>
           </div>
         )}
 
         {/* UI Preferences Tab */}
         {activeTab === 'ui' && (
-          <div className="bg-white/[0.03] border border-white/10 p-7 space-y-6">
+          <div className="st-rows">
             {/* Background */}
-            <div>
-              <label className="block text-base text-white mb-2">Background</label>
-              <Dropdown
-                value={settings?.ui.background ?? 'system'}
-                onChange={(v) => handleUISetting('background', v)}
-                options={[
-                  { value: 'dark', label: 'Dark' },
-                  { value: 'light', label: 'Light' },
-                  { value: 'system', label: 'System' },
-                ]}
-              />
+            <div className="st-row">
+              <span className="st-name">Background</span>
+              <div className="st-control">
+                <Dropdown
+                  value={settings?.ui.background ?? 'system'}
+                  onChange={(v) => handleUISetting('background', v)}
+                  options={[
+                    { value: 'dark', label: 'Dark' },
+                    { value: 'light', label: 'Light' },
+                    { value: 'system', label: 'System' },
+                  ]}
+                />
+              </div>
             </div>
 
             {/* Default Landing Page */}
-            <div>
-              <label className="block text-base text-white mb-2">Default Landing Page</label>
-              <Dropdown
-                value={landingPath(settings)}
-                onChange={(v) => handleUISetting('default_page', v)}
-                options={APP_PAGES.map((p) => ({ value: p.path, label: p.label }))}
-              />
+            <div className="st-row">
+              <span className="st-name">Default landing page</span>
+              <div className="st-control">
+                <Dropdown
+                  value={landingPath(settings)}
+                  onChange={(v) => handleUISetting('default_page', v)}
+                  options={APP_PAGES.map((p) => ({ value: p.path, label: p.label }))}
+                />
+              </div>
             </div>
           </div>
         )}
-
       </div>
+
+      <SettingsStyles />
     </div>
+  )
+}
+
+/** The page's styles, scoped under .settings-page: a title in the homepage's display type over ruled rows. */
+function SettingsStyles() {
+  return (
+    <style>{`
+      .settings-page {
+        min-height: 125vh;
+      }
+      .settings-page .st-wrap {
+        max-width: 62rem;
+        padding: calc(var(--oz-nav-h) + 4rem) var(--oz-gutter) 6rem;
+      }
+      .settings-page .st-title {
+        margin: 0 0 2.5rem;
+        font-size: clamp(3rem, 6vw, 5.5rem);
+        font-weight: 500;
+        letter-spacing: -0.04em;
+        line-height: 1;
+      }
+      /* A setting to a row: its name on the left, its control on the right */
+      .settings-page .st-row {
+        display: grid;
+        grid-template-columns: minmax(0, 20rem) minmax(0, 28rem);
+        align-items: start;
+        gap: 1rem 3rem;
+        padding: 1.5rem 0;
+        border-bottom: 1px solid var(--oz-rule);
+      }
+      .settings-page .st-name {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        padding-top: 0.5rem;
+        font-size: 1.0625rem;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+      }
+      .settings-page .st-name .oz-hint {
+        font-weight: 400;
+        letter-spacing: 0;
+      }
+      .settings-page .st-control {
+        min-height: 2.6rem;
+        display: flex;
+        align-items: center;
+      }
+      .settings-page .st-control > .ozera-dropdown,
+      .settings-page .st-control > .oz-input {
+        flex: 1;
+      }
+      .settings-page .st-inline {
+        gap: 0.75rem;
+      }
+      .settings-page .st-stack {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+      }
+      .settings-page .st-value {
+        color: var(--oz-fg-dim);
+        font-size: 0.9375rem;
+      }
+      .settings-page .st-status {
+        display: inline-flex;
+        justify-content: center;
+        width: 1.5rem;
+      }
+      .settings-page .st-status svg {
+        width: 18px;
+        height: 18px;
+        stroke-width: 2.25;
+      }
+      .settings-page .st-ok {
+        color: var(--oz-ok);
+      }
+      .settings-page .st-error {
+        color: var(--oz-danger);
+        font-size: 0.875rem;
+      }
+      .settings-page .st-password {
+        position: relative;
+      }
+      .settings-page .st-password .oz-input {
+        padding-right: 2.75rem;
+      }
+      .settings-page .st-password .oz-icon-btn {
+        position: absolute;
+        top: 50%;
+        right: 0.3rem;
+        transform: translateY(-50%);
+      }
+      .settings-page .st-submit {
+        align-self: flex-start;
+        margin-top: 0.75rem;
+      }
+      .settings-page .st-number {
+        width: 9rem;
+        flex: none;
+      }
+      .settings-page .st-balance-row {
+        justify-content: space-between;
+      }
+      .settings-page .st-balance {
+        font-size: 2.5rem;
+        font-weight: 500;
+        letter-spacing: -0.04em;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+      }
+      @media (max-width: 800px) {
+        .settings-page .st-row { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+      }
+    `}</style>
   )
 }

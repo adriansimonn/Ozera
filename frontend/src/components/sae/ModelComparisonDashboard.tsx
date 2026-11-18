@@ -11,16 +11,15 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import {
-  GitCompare,
-  Play,
-  Loader2,
+  
+  
+  
   AlertCircle,
-  Database,
-  Grid3x3,
-  Zap,
+  
+  
+  
   ExternalLink,
-  X,
-} from 'lucide-react'
+  X } from 'lucide-react'
 import {
   saeClient,
   type SAEListResponse,
@@ -35,6 +34,8 @@ import { saeRef } from '../../hooks/useCorpusStats'
 import { useThemeColors } from '../../hooks/useTheme'
 import type { SaeRef } from '../../types/probes'
 import { Dropdown } from '../common/Dropdown'
+import { EmptyState } from '../common/EmptyState'
+import { Spinner } from '../common/Spinner'
 
 interface SAECompareSelection {
   model: 'nano' | 'mini'
@@ -313,22 +314,17 @@ export function ModelComparisonDashboard({
     return (
       <div style={{ background: tc.surface, border: `1px solid ${tc.border}` }}>
         {/* Header */}
-        <div style={{ padding: '1rem', borderBottom: `1px solid ${tc.border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Database className="w-4 h-4" style={{ color: tc.textMid }} />
-          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: tc.textStrong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <div style={{ padding: '0.8rem 1rem', borderBottom: `1px solid ${tc.border}`, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <span style={{ fontSize: '1rem', fontWeight: 500, letterSpacing: '-0.015em', color: tc.textStrong }}>
             {label}
           </span>
-          {isExternal && (
-            <span style={{ fontSize: '0.65rem', padding: '0.125rem 0.375rem', background: tc.surfaceActive, border: `1px solid ${tc.borderStrong}`, color: tc.textSub }}>
-              EXTERNAL
-            </span>
-          )}
+          {isExternal && <span className="oz-tag">External</span>}
         </div>
 
         {/* Ozera SAE Dropdowns */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: tc.surfaceActive, opacity: isExternal ? 0.35 : 1, pointerEvents: isExternal ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
-          <div style={{ background: tc.deepBg, padding: '1rem' }}>
-            <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: tc.border, opacity: isExternal ? 0.35 : 1, pointerEvents: isExternal ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
+          <div style={{ background: tc.bg, padding: '1rem' }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: tc.textSub, marginBottom: '0.5rem' }}>
               Model
             </label>
             <Dropdown
@@ -338,8 +334,8 @@ export function ModelComparisonDashboard({
               options={saeList ? Object.keys(saeList.models).map(model => ({ value: model, label: `ozera-${model}` })) : []}
             />
           </div>
-          <div style={{ background: tc.deepBg, padding: '1rem' }}>
-            <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+          <div style={{ background: tc.bg, padding: '1rem' }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: tc.textSub, marginBottom: '0.5rem' }}>
               Layer
             </label>
             <Dropdown
@@ -349,8 +345,8 @@ export function ModelComparisonDashboard({
               options={selection && !isExternal ? getAvailableLayers(selection.model).map(layer => ({ value: String(layer), label: `Layer ${layer}` })) : []}
             />
           </div>
-          <div style={{ background: tc.deepBg, padding: '1rem' }}>
-            <label style={{ display: 'block', fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+          <div style={{ background: tc.bg, padding: '1rem' }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: tc.textSub, marginBottom: '0.5rem' }}>
               Activation Type
             </label>
             <Dropdown
@@ -364,22 +360,22 @@ export function ModelComparisonDashboard({
 
         {/* SAE Info - Built-in */}
         {saeInfo && !isExternal && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: tc.surfaceActive, borderTop: `1px solid ${tc.border}` }}>
-            <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
-              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{saeInfo.d_input || '-'}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: tc.border, borderTop: `1px solid ${tc.border}` }}>
+            <div style={{ background: tc.bg, padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.85rem', color: tc.textSub }}>d_input</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'var(--oz-mono)', color: tc.text }}>{saeInfo.d_input || '-'}</div>
             </div>
-            <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
-              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{saeInfo.d_hidden || '-'}</div>
+            <div style={{ background: tc.bg, padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.85rem', color: tc.textSub }}>d_hidden</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'var(--oz-mono)', color: tc.text }}>{saeInfo.d_hidden || '-'}</div>
             </div>
-            <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
-              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{saeInfo.activation || 'relu'}</div>
+            <div style={{ background: tc.bg, padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.85rem', color: tc.textSub }}>Activation</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'var(--oz-mono)', color: tc.text }}>{saeInfo.activation || 'relu'}</div>
             </div>
-            <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
-              <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.textStrong }}>ozera-{selection?.model}</div>
+            <div style={{ background: tc.bg, padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.85rem', color: tc.textSub }}>Base Model</div>
+              <div style={{ fontSize: '0.875rem', fontFamily: 'var(--oz-mono)', color: tc.textStrong }}>ozera-{selection?.model}</div>
             </div>
           </div>
         )}
@@ -387,22 +383,22 @@ export function ModelComparisonDashboard({
         {/* SAE Info - External */}
         {extInfo && isExternal && (
           <div style={{ borderTop: `1px solid ${tc.border}` }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: tc.surfaceActive }}>
-              <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_input</div>
-                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{extInfo.d_input || '-'}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: tc.border }}>
+              <div style={{ background: tc.bg, padding: '0.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.85rem', color: tc.textSub }}>d_input</div>
+                <div style={{ fontSize: '0.875rem', fontFamily: 'var(--oz-mono)', color: tc.text }}>{extInfo.d_input || '-'}</div>
               </div>
-              <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>d_hidden</div>
-                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{extInfo.d_hidden?.toLocaleString() || '-'}</div>
+              <div style={{ background: tc.bg, padding: '0.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.85rem', color: tc.textSub }}>d_hidden</div>
+                <div style={{ fontSize: '0.875rem', fontFamily: 'var(--oz-mono)', color: tc.text }}>{extInfo.d_hidden?.toLocaleString() || '-'}</div>
               </div>
-              <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activation</div>
-                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.text }}>{extInfo.activation_type || '-'}</div>
+              <div style={{ background: tc.bg, padding: '0.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.85rem', color: tc.textSub }}>Activation</div>
+                <div style={{ fontSize: '0.875rem', fontFamily: 'var(--oz-mono)', color: tc.text }}>{extInfo.activation_type || '-'}</div>
               </div>
-              <div style={{ background: tc.deepBg, padding: '0.75rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Model</div>
-                <div style={{ fontSize: '0.875rem', fontFamily: 'monospace', color: tc.textStrong }}>{extInfo.base_model || '-'}</div>
+              <div style={{ background: tc.bg, padding: '0.75rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.85rem', color: tc.textSub }}>Base Model</div>
+                <div style={{ fontSize: '0.875rem', fontFamily: 'var(--oz-mono)', color: tc.textStrong }}>{extInfo.base_model || '-'}</div>
               </div>
             </div>
           </div>
@@ -414,7 +410,7 @@ export function ModelComparisonDashboard({
             <div style={{ padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                 <ExternalLink className="w-3 h-3" style={{ color: tc.textSub }} />
-                <span style={{ fontSize: '0.7rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <span style={{ fontSize: '0.82rem', color: tc.textSub }}>
                   External SAEs ({externalSAEs.length})
                 </span>
               </div>
@@ -423,7 +419,7 @@ export function ModelComparisonDashboard({
                   onClick={() => handleClearExternal(which)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.25rem',
-                    padding: '0.125rem 0.5rem', fontSize: '0.65rem',
+                    padding: '0.125rem 0.5rem', fontSize: '0.8rem',
                     background: tc.surfaceHover, border: `1px solid ${tc.borderStrong}`,
                     color: tc.textSub, cursor: 'pointer', transition: 'all 0.2s',
                   }}
@@ -470,14 +466,14 @@ export function ModelComparisonDashboard({
                     title={`${ext.source_id || ext.id} - ${ext.base_model || 'unknown model'}`}
                   >
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem', minWidth: 0, flex: 1 }}>
-                      <span style={{ color: isSelected ? tc.textStrong : tc.textMid, fontSize: '0.75rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ color: isSelected ? tc.textStrong : tc.textMid, fontSize: '0.85rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {ext.display_name || ext.id}
                       </span>
-                      <span style={{ color: tc.textFaint, fontSize: '0.65rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ color: tc.textFaint, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {ext.base_model || 'unknown model'} {ext.hookpoint ? `· ${ext.hookpoint}` : ''}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.65rem', color: tc.textFaint, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8rem', color: tc.textFaint, flexShrink: 0 }}>
                       {ext.d_hidden && <span>{ext.d_hidden.toLocaleString()}f</span>}
                     </div>
                   </button>
@@ -499,57 +495,18 @@ export function ModelComparisonDashboard({
       </div>
 
       {/* Compare mode toggle + text input + run button */}
-      <div className="bg-black/40 border border-gray-800 p-4">
+      <div className="mcd-run">
         {/* Mode toggle */}
-        <div className="flex items-center gap-3 mb-3">
-          <button
-            onClick={() => setCompareMode('features')}
-            style={{
-              background: compareMode === 'features' ? tc.surfaceActive : tc.inputBg,
-              border: `1px solid ${compareMode === 'features' ? tc.borderHover : tc.border}`,
-              color: compareMode === 'features' ? tc.textStrong : tc.textMuted,
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors"
-            onMouseEnter={(e) => {
-              if (compareMode !== 'features') {
-                e.currentTarget.style.borderColor = tc.borderHover
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (compareMode !== 'features') {
-                e.currentTarget.style.borderColor = tc.border
-              }
-            }}
-          >
-            <Zap className="w-3.5 h-3.5" />
+        <div className="oz-chips" role="radiogroup" aria-label="Comparison">
+          <button role="radio" aria-checked={compareMode === 'features'} className="oz-chip" onClick={() => setCompareMode('features')}>
             Feature Alignment
           </button>
-          <button
-            onClick={() => setCompareMode('layers')}
-            style={{
-              background: compareMode === 'layers' ? tc.surfaceActive : tc.inputBg,
-              border: `1px solid ${compareMode === 'layers' ? tc.borderHover : tc.border}`,
-              color: compareMode === 'layers' ? tc.textStrong : tc.textMuted,
-              cursor: 'pointer',
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors"
-            onMouseEnter={(e) => {
-              if (compareMode !== 'layers') {
-                e.currentTarget.style.borderColor = tc.borderHover
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (compareMode !== 'layers') {
-                e.currentTarget.style.borderColor = tc.border
-              }
-            }}
-          >
-            <Grid3x3 className="w-3.5 h-3.5" />
+          <button role="radio" aria-checked={compareMode === 'layers'} className="oz-chip" onClick={() => setCompareMode('layers')}>
             Layer Similarity
           </button>
         </div>
 
-        <p className="text-xs text-white mb-3">
+        <p className="oz-hint">
           {compareMode === 'features'
             ? 'Run shared text through both SAEs and align features by activation overlap or decoder similarity.'
             : hasExternalSelection
@@ -558,57 +515,35 @@ export function ModelComparisonDashboard({
         </p>
 
         {/* Text input + run */}
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <textarea
-              value={compareText}
-              onChange={(e) => setCompareText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Enter shared text for comparison..."
-              className="w-full h-full bg-black/50 border border-gray-700 text-white px-3 py-2 text-sm resize-none"
-              style={{ outline: 'none' }}
-              onFocus={(e) => e.currentTarget.style.borderColor = tc.borderHover}
-              onBlur={(e) => e.currentTarget.style.borderColor = tc.border}
-              rows={2}
-              disabled={comparing}
-            />
-          </div>
-          <button
-            onClick={runComparison}
-            disabled={comparing || !selectionA || !selectionB || !compareText.trim()}
-            style={{
-              background: (comparing || !selectionA || !selectionB || !compareText.trim()) ? tc.surface : tc.surfaceActive,
-              border: `1px solid ${(comparing || !selectionA || !selectionB || !compareText.trim()) ? tc.border : tc.borderHover}`,
-              color: (comparing || !selectionA || !selectionB || !compareText.trim()) ? tc.textDisabled : tc.textStrong,
-              cursor: (comparing || !selectionA || !selectionB || !compareText.trim()) ? 'not-allowed' : 'pointer',
-            }}
-            className="px-5 py-2 font-medium text-sm transition-colors flex items-center gap-2 self-stretch"
-            onMouseEnter={(e) => {
-              if (!comparing && selectionA && selectionB && compareText.trim()) {
-                e.currentTarget.style.background = tc.surfaceActive
-                e.currentTarget.style.borderColor = tc.borderHover
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!comparing && selectionA && selectionB && compareText.trim()) {
-                e.currentTarget.style.background = tc.surfaceActive
-                e.currentTarget.style.borderColor = tc.borderHover
-              }
-            }}
-          >
-            {comparing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Comparing...
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                Compare
-              </>
-            )}
-          </button>
-        </div>
+        <textarea
+          value={compareText}
+          onChange={(e) => setCompareText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Enter shared text for comparison..."
+          className="oz-textarea"
+          rows={3}
+          disabled={comparing}
+        />
+        <button
+          onClick={runComparison}
+          disabled={comparing || !selectionA || !selectionB || !compareText.trim()}
+          className={`oz-btn oz-btn--block${comparing ? '' : ' oz-btn--arrow'}`}
+        >
+          {comparing ? (
+            <>
+              <Spinner />
+              Comparing...
+            </>
+          ) : (
+            'Compare'
+          )}
+        </button>
+
+        <style>{`
+          .mcd-run { display: flex; flex-direction: column; gap: 0.9rem; margin-top: 1.25rem; }
+          .mcd-run .oz-btn { margin-top: -0.5rem; }
+          .mcd-placeholder { min-height: calc(125vh - var(--oz-nav-h) - 6rem); }
+        `}</style>
       </div>
     </>
   )
@@ -617,17 +552,17 @@ export function ModelComparisonDashboard({
     <div className="space-y-4">
       {/* Error display */}
       {error && (
-        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-800/50 text-red-400 text-sm">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          {error}
+        <div className="oz-note oz-note--error" role="alert">
+          <AlertCircle aria-hidden="true" />
+          <span>{error}</span>
         </div>
       )}
 
       {/* Loading state */}
       {comparing && (
-        <div className="flex flex-col items-center justify-center p-12 bg-black/20 border border-dashed border-gray-800">
-          <Loader2 className="w-8 h-8 animate-spin" style={{ color: tc.textMuted }} />
-          <p className="mt-4 text-white">
+        <div className="oz-empty mcd-placeholder">
+          <Spinner large />
+          <p>
             {compareMode === 'features'
               ? 'Running SAE comparison on GPU...'
               : 'Computing CKA across all layers...'}
@@ -639,10 +574,10 @@ export function ModelComparisonDashboard({
       {!comparing && featureResult && compareMode === 'features' && (
         <div className="space-y-4">
           {/* CKA Score banner */}
-          <div className="bg-black/40 border border-gray-800 p-4">
+          <div className="bg-transparent border border-rule p-4">
             <div className="grid grid-cols-5 gap-4 text-center">
               <div>
-                <div className="text-xs text-white uppercase tracking-wide mb-1">
+                <div className="text-[0.82rem] text-fg mb-1">
                   CKA Score
                 </div>
                 <div className="text-2xl font-mono" style={{ color: tc.textStrong }}>
@@ -650,23 +585,23 @@ export function ModelComparisonDashboard({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-white uppercase tracking-wide mb-1">
+                <div className="text-[0.82rem] text-fg mb-1">
                   Overall Similarity
                 </div>
-                <div className="text-2xl font-mono text-white">
+                <div className="text-2xl font-mono text-fg">
                   {(featureResult.overall_similarity * 100).toFixed(1)}%
                 </div>
               </div>
               <div>
-                <div className="text-xs text-white uppercase tracking-wide mb-1">
+                <div className="text-[0.82rem] text-fg mb-1">
                   Matched Features
                 </div>
-                <div className="text-2xl font-mono text-green-400">
+                <div className="text-2xl font-mono text-ok">
                   {featureResult.matched_features}
                 </div>
               </div>
               <div>
-                <div className="text-xs text-white uppercase tracking-wide mb-1">
+                <div className="text-[0.82rem] text-fg mb-1">
                   Unique to A
                 </div>
                 <div className="text-2xl font-mono" style={{ color: tc.textMid }}>
@@ -674,7 +609,7 @@ export function ModelComparisonDashboard({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-white uppercase tracking-wide mb-1">
+                <div className="text-[0.82rem] text-fg mb-1">
                   Unique to B
                 </div>
                 <div className="text-2xl font-mono" style={{ color: tc.textMid }}>
@@ -733,11 +668,11 @@ export function ModelComparisonDashboard({
             )}
 
           {/* Research insights */}
-          <div className="bg-black/40 border border-gray-800 p-4">
-            <h3 className="text-sm font-semibold text-white mb-2">
+          <div className="bg-transparent border border-rule p-4">
+            <h3 className="text-sm font-medium text-fg mb-2">
               Research Insights
             </h3>
-            <div className="space-y-2 text-xs text-white">
+            <div className="space-y-2 text-[0.82rem] text-fg">
               {featureResult.cka_score > 0.7 && (
                 <p>
                   High CKA ({featureResult.cka_score.toFixed(3)}) indicates
@@ -788,10 +723,10 @@ export function ModelComparisonDashboard({
       {!comparing && layerResult && compareMode === 'layers' && (
         <div className="space-y-4">
           {/* Summary stats */}
-          <div className="bg-black/40 border border-gray-800 p-4">
+          <div className="bg-transparent border border-rule p-4">
             <div className="grid grid-cols-4 gap-4 text-center">
               <div>
-                <div className="text-xs text-white uppercase tracking-wide mb-1">
+                <div className="text-[0.82rem] text-fg mb-1">
                   {layerResult.model_a} Layers
                 </div>
                 <div className="text-xl font-mono" style={{ color: tc.textMid }}>
@@ -799,7 +734,7 @@ export function ModelComparisonDashboard({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-white uppercase tracking-wide mb-1">
+                <div className="text-[0.82rem] text-fg mb-1">
                   {layerResult.model_b} Layers
                 </div>
                 <div className="text-xl font-mono" style={{ color: tc.textMid }}>
@@ -807,10 +742,10 @@ export function ModelComparisonDashboard({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-white uppercase tracking-wide mb-1">
+                <div className="text-[0.82rem] text-fg mb-1">
                   Mean CKA
                 </div>
-                <div className="text-xl font-mono text-white">
+                <div className="text-xl font-mono text-fg">
                   {(
                     layerResult.cka_matrix.flat().reduce((a, b) => a + b, 0) /
                     layerResult.cka_matrix.flat().length
@@ -818,10 +753,10 @@ export function ModelComparisonDashboard({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-white uppercase tracking-wide mb-1">
+                <div className="text-[0.82rem] text-fg mb-1">
                   Tokens
                 </div>
-                <div className="text-xl font-mono text-white">
+                <div className="text-xl font-mono text-fg">
                   {layerResult.num_tokens}
                 </div>
               </div>
@@ -840,11 +775,11 @@ export function ModelComparisonDashboard({
           />
 
           {/* Layer-wise insights */}
-          <div className="bg-black/40 border border-gray-800 p-4">
-            <h3 className="text-sm font-semibold text-white mb-2">
+          <div className="bg-transparent border border-rule p-4">
+            <h3 className="text-sm font-medium text-fg mb-2">
               Research Insights
             </h3>
-            <div className="space-y-2 text-xs text-white">
+            <div className="space-y-2 text-[0.82rem] text-fg">
               {layerResult.model_a === layerResult.model_b && (
                 <p>
                   Self-comparison: the diagonal shows how each layer's SAE features
@@ -899,16 +834,9 @@ export function ModelComparisonDashboard({
 
       {/* Empty state */}
       {!comparing && !featureResult && !layerResult && !error && (
-        <div className="flex flex-col items-center justify-center p-12 bg-black/20 border border-dashed border-gray-800 text-center">
-          <GitCompare className="w-12 h-12 text-gray-700 mb-4" />
-          <h3 className="text-white font-medium mb-1">
-            Select SAEs and Run Comparison
-          </h3>
-          <p className="text-white text-sm max-w-md">
-            Choose two SAEs to compare, enter shared text, and click Compare to
-            analyze feature alignment and representation similarity.
-          </p>
-        </div>
+        <EmptyState glyph="sae" className="mcd-placeholder">
+          Choose two SAEs, enter shared text, and compare.
+        </EmptyState>
       )}
     </div>
   )

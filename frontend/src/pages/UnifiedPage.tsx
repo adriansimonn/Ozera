@@ -11,10 +11,12 @@ import { TransformationFlow } from '../components/visualization/TransformationFl
 import { GenerationFlow } from '../components/visualization/GenerationFlow'
 import { NavBar } from '../components/common/NavBar'
 import { useActivationData, type VisualizationType } from '../hooks/useActivationData'
-import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, Copy, Check, BarChart3, FileText, Trash2, Info, Maximize2, MessageSquare, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, Copy, Check,    Info, Maximize2,  X } from 'lucide-react'
 import { Dropdown } from '../components/common/Dropdown'
+import { EmptyState } from '../components/common/EmptyState'
+import { Spinner } from '../components/common/Spinner'
+import { VAR } from '../styles/appTheme'
 import { ProbeMonitor } from '../components/probes/ProbeMonitor'
-import { useTheme } from '../hooks/useTheme'
 import { useAssistantPage } from '../hooks/useAssistantPage'
 import { visualizationBridge } from '../components/assistant/pages/generate'
 
@@ -59,7 +61,6 @@ const STREAM_PHASE_LABELS: Record<GenerationStreamState['phase'], string> = {
 export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPageProps) {
   const [searchParams] = useSearchParams()
   const urlActivationId = searchParams.get('id')
-  const { isLight } = useTheme()
 
   const [currentActivationId, setCurrentActivationId] = useState<string | null>(urlActivationId)
   const [selectedVisualization, setSelectedVisualization] = useState<VisualizationType>('network')
@@ -183,33 +184,25 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
   ]
 
   // Color tokens for dark/light
+  // The page's colors, by the app's custom properties (styles/app.css)
   const c = {
-    bg: isLight ? '#f5f5f7' : '#0a0a0a',
-    panelBg: isLight ? '#ffffff' : '#111111',
-    panelBorder: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.06)',
-    divider: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
-    text: isLight ? '#1d1d1f' : '#ffffff',
-    textMid: isLight ? '#1d1d1f' : '#ffffff',
-    textSub: isLight ? '#1d1d1f' : '#ffffff',
-    controlBg: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)',
-    controlBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
-    controlHover: isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.08)',
-    metaBg: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)',
-    metaBorder: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)',
-    chipBg: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)',
-    chipBorder: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.05)',
-    spinnerTrack: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
-    spinnerHead: isLight ? '#1d1d1f' : '#ffffff',
+    bg: VAR.bg,
+    panelBg: VAR.bg,
+    panelBorder: VAR.rule,
+    divider: VAR.rule,
+    text: VAR.fg,
+    textMid: VAR.fg,
+    textSub: VAR.fgDim,
   }
 
-  const settingLabelStyle = { fontSize: '0.6rem', color: c.textSub, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 } as const
-  const settingValueStyle = { fontSize: '0.75rem', color: c.textMid, fontFamily: 'monospace' } as const
+  const settingLabelStyle = { fontSize: '0.78rem', color: c.textSub, fontWeight: 500 } as const
+  const settingValueStyle = { fontSize: '0.85rem', color: c.text, fontFamily: 'var(--oz-mono)' } as const
 
   const renderLayerLoading = (message: string) => (
     <div className="df-placeholder">
       <div className="df-placeholder-inner">
-        <div className="df-spinner" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
-        <p style={{ color: c.textSub }}>{message}</p>
+        <Spinner large />
+        <p>{message}</p>
       </div>
     </div>
   )
@@ -219,20 +212,19 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
       return (
         <div className="df-placeholder">
           <div className="df-placeholder-inner df-generating">
-            <div className="df-spinner" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
-            <p style={{ color: c.textSub }}>{STREAM_PHASE_MESSAGES[stream.phase]}</p>
+            <Spinner large />
+            <p>{STREAM_PHASE_MESSAGES[stream.phase]}</p>
             {stream.text && (
               <div
                 ref={streamBoxRef}
                 className="df-stream-box"
-                style={{ background: c.panelBg, borderColor: c.panelBorder, color: c.text }}
               >
                 {stream.text}
                 {stream.phase === 'streaming' && <span className="df-cursor" style={{ color: c.textMid }}>|</span>}
               </div>
             )}
             {stream.monitor && stream.monitorProbe && (
-              <div className="df-stream-monitor" style={{ background: c.panelBg }}>
+              <div className="df-stream-monitor">
                 <ProbeMonitor trace={stream.monitor} probe={stream.monitorProbe} live />
               </div>
             )}
@@ -244,27 +236,24 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
       return (
         <div className="df-placeholder">
           <div className="df-placeholder-inner">
-            <div className="df-spinner" style={{ borderColor: c.spinnerTrack, borderTopColor: c.spinnerHead }} />
-            <p style={{ color: c.textSub }}>Loading activations...</p>
+            <Spinner large />
+            <p>Loading activations...</p>
           </div>
         </div>
       )
     }
     if (!activationData) {
       return (
-        <div className="df-placeholder">
-          <div className="df-placeholder-inner">
-            <Network style={{ width: 40, height: 40, color: c.textSub, opacity: 0.4, marginBottom: 12 }} />
-            <p style={{ color: c.textSub }}>Generate text with visualizations to see activations here</p>
-          </div>
-        </div>
+        <EmptyState glyph="generate" fill>
+          Generate text with visualizations to see activations here
+        </EmptyState>
       )
     }
     if (error) {
       return (
         <div className="df-placeholder">
           <div className="df-placeholder-inner">
-            <p style={{ color: c.textMid }}>{error}</p>
+            <p>{error}</p>
           </div>
         </div>
       )
@@ -307,13 +296,13 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
   }
 
   return (
-    <div className="df-page">
+    <div className="df-page oz-page">
       <NavBar />
 
-      <div className="df-layout" style={{ borderColor: c.divider }}>
+      <div className="df-layout oz-page__body">
         {/* Left Panel — Generator + Model Info */}
-        <div className="df-left" style={{ background: c.panelBg, borderRight: `1px solid ${c.divider}` }}>
-          <div className="df-left-scroll">
+        <div className="df-left oz-side">
+          <div className="df-left-scroll oz-scroll oz-steps">
             <div className="df-generator-wrap">
               <TextGenerator
                 defaultModel="nano"
@@ -331,33 +320,22 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
         </div>
 
         {/* Right Panel */}
-        <div className="df-right" style={{ background: c.bg }}>
+        <div className="df-right oz-main">
           {rightPanelMode === 'visualizations' ? (
             <div className="df-panel" data-assist="generate.activation" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               {/* Unified toolbar */}
-              <div className="df-toolbar" style={{ background: c.panelBg, borderBottom: `1px solid ${c.divider}` }}>
-                <div className="df-toolbar-left">
-                  <div className="df-switch-group" style={{ background: c.controlBg, borderColor: c.controlBorder }}>
-                    <button
-                      className="df-switch-btn active"
-                      style={{ color: c.text, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)' }}
-                    >
-                      <BarChart3 style={{ width: 13, height: 13 }} />
-                      Visualizations
-                    </button>
-                    <button
-                      className="df-switch-btn"
-                      onClick={() => setRightPanelMode('outputs')}
-                      style={{ color: c.textSub }}
-                    >
-                      <FileText style={{ width: 13, height: 13 }} />
-                      Outputs
-                    </button>
-                  </div>
+              <div className="df-toolbar">
+                <div className="df-tabs" role="tablist">
+                  <button className="oz-tab active" role="tab" aria-selected="true">
+                    Visualizations
+                  </button>
+                  <button className="oz-tab" role="tab" aria-selected="false" onClick={() => setRightPanelMode('outputs')}>
+                    Outputs
+                  </button>
                 </div>
                 <div className="df-toolbar-right">
                   <div className="df-toolbar-group" data-assist="generate.visualization">
-                    <span className="df-toolbar-label" style={{ color: c.textSub }}>Visualization:</span>
+                    <span className="df-toolbar-label">Visualization</span>
                     <Dropdown
                       id="df-vis-select"
                       value={selectedVisualization}
@@ -368,7 +346,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
                   {selectedVisualization === 'attention' && activationData && (
                     <div className="df-toolbar-group">
-                      <span className="df-toolbar-label" style={{ color: c.textSub }}>Labels</span>
+                      <span className="df-toolbar-label">Labels</span>
                       <Dropdown
                         id="df-labels-select"
                         value={showTextLabels ? 'text' : 'number'}
@@ -385,54 +363,49 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                     <div className="df-controls">
                       {(selectedVisualization === 'attention' || selectedVisualization === 'activations') && (
                         <div className="df-control-item">
-                          <Layers style={{ width: 14, height: 14, color: c.textSub }} />
-                          <span style={{ color: c.textSub, fontSize: '0.75rem' }}>Layer</span>
+                          <span className="df-ctrl-label">Layer</span>
                           <button
                             onClick={() => setSelectedLayer(Math.max(0, selectedLayer - 1))}
                             disabled={selectedLayer === 0}
                             className="df-ctrl-btn"
-                            style={{ background: c.controlBg, borderColor: c.controlBorder, color: c.textMid }}
                           >
-                            <ChevronLeft style={{ width: 12, height: 12 }} />
+                            <ChevronLeft />
                           </button>
-                          <span className="df-ctrl-val" style={{ background: c.controlBg, borderColor: c.controlBorder, color: c.text }}>{selectedLayer}</span>
+                          <span className="df-ctrl-val">{selectedLayer}</span>
                           <button
                             onClick={() => setSelectedLayer(Math.min(numLayers - 1, selectedLayer + 1))}
                             disabled={selectedLayer === numLayers - 1}
                             className="df-ctrl-btn"
-                            style={{ background: c.controlBg, borderColor: c.controlBorder, color: c.textMid }}
                           >
-                            <ChevronRight style={{ width: 12, height: 12 }} />
+                            <ChevronRight />
                           </button>
                         </div>
                       )}
 
                       {selectedVisualization === 'attention' && (
                         <div className="df-control-item">
-                          <span style={{ color: c.textSub, fontSize: '0.75rem' }}>Head</span>
+                          <span className="df-ctrl-label">Head</span>
                           <button
                             onClick={() => setSelectedHead(Math.max(0, selectedHead - 1))}
                             disabled={selectedHead === 0}
                             className="df-ctrl-btn"
-                            style={{ background: c.controlBg, borderColor: c.controlBorder, color: c.textMid }}
                           >
-                            <ChevronLeft style={{ width: 12, height: 12 }} />
+                            <ChevronLeft />
                           </button>
-                          <span className="df-ctrl-val" style={{ background: c.controlBg, borderColor: c.controlBorder, color: c.text }}>{selectedHead}</span>
+                          <span className="df-ctrl-val">{selectedHead}</span>
                           <button
                             onClick={() => setSelectedHead(Math.min(numHeads - 1, selectedHead + 1))}
                             disabled={selectedHead === numHeads - 1}
                             className="df-ctrl-btn"
-                            style={{ background: c.controlBg, borderColor: c.controlBorder, color: c.textMid }}
                           >
-                            <ChevronRight style={{ width: 12, height: 12 }} />
+                            <ChevronRight />
                           </button>
                         </div>
                       )}
 
                       {(selectedVisualization === 'journey' || selectedVisualization === 'flow') && (
                         <div className="df-control-item">
-                          <span style={{ color: c.textSub, fontSize: '0.75rem' }}>Token</span>
+                          <span className="df-ctrl-label">Token</span>
                           <button
                             onClick={() => {
                               const v = Math.max(0, selectedTokenIndex - 1)
@@ -441,9 +414,8 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                             }}
                             disabled={selectedTokenIndex === 0}
                             className="df-ctrl-btn"
-                            style={{ background: c.controlBg, borderColor: c.controlBorder, color: c.textMid }}
                           >
-                            <ChevronLeft style={{ width: 12, height: 12 }} />
+                            <ChevronLeft />
                           </button>
                           <input
                             type="text"
@@ -470,12 +442,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                                 setTokenInputValue(String(v))
                               }
                             }}
-                            style={{
-                              background: c.controlBg,
-                              borderColor: c.controlBorder,
-                              color: c.text,
-                              width: `${Math.max(8, tokenInputValue.length + 2)}ch`,
-                            }}
+                            style={{ width: `${Math.max(8, tokenInputValue.length + 2)}ch` }}
                           />
                           <button
                             onClick={() => {
@@ -485,9 +452,8 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                             }}
                             disabled={selectedTokenIndex === activationData.tokens.length - 1}
                             className="df-ctrl-btn"
-                            style={{ background: c.controlBg, borderColor: c.controlBorder, color: c.textMid }}
                           >
-                            <ChevronRight style={{ width: 12, height: 12 }} />
+                            <ChevronRight />
                           </button>
                         </div>
                       )}
@@ -503,36 +469,35 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
               {/* Bottom bar: token reference + metadata */}
               {activationData && (
-                <div className="df-bottom" style={{ borderTop: `1px solid ${c.divider}` }}>
+                <div className="df-bottom">
                   {(selectedVisualization === 'attention' || selectedVisualization === 'journey' || selectedVisualization === 'flow') && activationData.metadata.decoded_tokens && (
-                    <div className="df-token-ref" style={{ borderBottom: `1px solid ${c.divider}` }}>
-                      <span className="df-token-ref-label" style={{ color: c.textSub }}>Token Reference</span>
+                    <div className="df-token-ref">
+                      <span className="df-token-ref-label">Token reference</span>
                       <div className="df-token-ref-list">
                         {activationData.metadata.decoded_tokens.map((token, idx) => (
                           <span
                             key={idx}
                             className="df-chip"
                             title={`Token ${idx}: "${token}"`}
-                            style={{ background: c.chipBg, borderColor: c.chipBorder }}
                           >
-                            <span style={{ fontSize: 10, color: c.textSub, fontFamily: 'monospace' }}>{idx}</span>
-                            <span style={{ fontSize: 11, color: c.textMid, fontFamily: 'monospace' }}>{token.replace(/ /g, '\u00B7') || '\u25AF'}</span>
+                            <span className="df-chip-index">{idx}</span>
+                            <span>{token.replace(/ /g, '\u00B7') || '\u25AF'}</span>
                           </span>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  <div className="df-meta" style={{ background: c.panelBg }}>
+                  <div className="df-meta">
                     {[
                       { label: 'Model', value: activationData.model },
                       { label: 'Tokens', value: activationData.tokens.length },
                       { label: 'Temperature', value: activationData.metadata.temperature?.toFixed(2) || 'N/A' },
                       { label: 'Top-K', value: activationData.metadata.top_k?.toString() || 'N/A' },
                     ].map((m) => (
-                      <div key={m.label} className="df-meta-item" style={{ borderColor: c.metaBorder }}>
-                        <span style={{ fontSize: '0.65rem', color: c.textSub, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>{m.label}</span>
-                        <span style={{ fontSize: '0.8rem', color: c.text, fontFamily: 'monospace', fontWeight: 500 }}>{m.value}</span>
+                      <div key={m.label} className="df-meta-item">
+                        <span className="df-meta-label">{m.label}</span>
+                        <span className="df-meta-value">{m.value}</span>
                       </div>
                     ))}
                   </div>
@@ -542,35 +507,22 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           ) : (
             <div className="df-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               {/* Unified toolbar */}
-              <div className="df-toolbar" style={{ background: c.panelBg, borderBottom: `1px solid ${c.divider}` }}>
-                <div className="df-toolbar-left">
-                  <div className="df-switch-group" style={{ background: c.controlBg, borderColor: c.controlBorder }}>
-                    <button
-                      className="df-switch-btn"
-                      onClick={() => setRightPanelMode('visualizations')}
-                      style={{ color: c.textSub }}
-                    >
-                      <BarChart3 style={{ width: 13, height: 13 }} />
-                      Visualizations
-                    </button>
-                    <button
-                      className="df-switch-btn active"
-                      style={{ color: c.text, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)' }}
-                    >
-                      <FileText style={{ width: 13, height: 13 }} />
-                      Outputs
-                    </button>
-                  </div>
+              <div className="df-toolbar">
+                <div className="df-tabs" role="tablist">
+                  <button className="oz-tab" role="tab" aria-selected="false" onClick={() => setRightPanelMode('visualizations')}>
+                    Visualizations
+                  </button>
+                  <button className="oz-tab active" role="tab" aria-selected="true">
+                    Outputs
+                  </button>
                 </div>
                 <div className="df-toolbar-right">
                   {generatedOutputs.length > 0 && (
                     <button
-                      className="df-clear-btn"
+                      className="oz-btn oz-btn--ghost oz-btn--small"
                       onClick={() => setShowClearConfirm(true)}
                       title="Clear all outputs"
-                      style={{ color: c.textSub, background: c.controlBg, borderColor: c.controlBorder }}
                     >
-                      <Trash2 style={{ width: 13, height: 13 }} />
                       Clear
                     </button>
                   )}
@@ -580,18 +532,16 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
               {/* Outputs list */}
               <div className="df-canvas df-outputs-scroll">
                 {generatedOutputs.length === 0 && !stream ? (
-                  <div className="df-placeholder">
-                    <div className="df-placeholder-inner">
-                      <p style={{ color: c.textSub }}>Generate text to see outputs here</p>
-                    </div>
-                  </div>
+                  <EmptyState glyph="generate" fill>
+                    Generate text to see outputs here
+                  </EmptyState>
                 ) : (
                   <div className="df-outputs-list">
                     {stream && (
                       <div className="df-output-card" style={{ background: c.panelBg, borderColor: c.panelBorder }}>
                         <div className="df-output-text" style={{ color: c.text }}>
                           {stream.text || (
-                            <span style={{ color: c.textSub, opacity: 0.5 }}>Waiting for the first token...</span>
+                            <span style={{ color: VAR.fgFaint }}>Waiting for the first token...</span>
                           )}
                           {stream.phase === 'streaming' && <span className="df-cursor" style={{ color: c.textMid }}>|</span>}
                         </div>
@@ -620,22 +570,20 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                           <div className="df-output-actions">
                             {output.activationId && (
                               <button
-                                className="df-visualize-btn"
+                                className="oz-btn oz-btn--ghost oz-btn--small"
                                 onClick={() => handleVisualizeOutput(output.activationId!)}
                                 title="View visualizations"
-                                style={{ color: c.textSub, background: c.controlBg, borderColor: c.controlBorder }}
                               >
-                                <BarChart3 style={{ width: 13, height: 13 }} />
                                 Visualize
                               </button>
                             )}
                             <button
-                              className="df-copy-btn"
+                              className="oz-icon-btn oz-icon-btn--outlined"
                               onClick={() => handleCopy(`text-${output.id}`, output.text)}
                               title="Copy to clipboard"
-                              style={{ color: copiedKey === `text-${output.id}` ? c.text : c.textSub, background: c.controlBg, borderColor: c.controlBorder }}
+                              aria-label="Copy to clipboard"
                             >
-                              {copiedKey === `text-${output.id}` ? <Check style={{ width: 14, height: 14 }} /> : <Copy style={{ width: 14, height: 14 }} />}
+                              {copiedKey === `text-${output.id}` ? <Check /> : <Copy />}
                             </button>
                           </div>
                         </div>
@@ -653,7 +601,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                           >
                             <span className="df-output-detail-label" style={settingLabelStyle}>
                               Model
-                              <Info className="df-output-detail-icon" style={{ width: 10, height: 10 }} />
+                              <Info className="df-output-detail-icon" />
                             </span>
                             <span className="df-output-detail-value" style={settingValueStyle}>{output.model}</span>
                           </button>
@@ -678,7 +626,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                           >
                             <span className="df-output-detail-label" style={settingLabelStyle}>
                               Prompt
-                              <Maximize2 className="df-output-detail-icon" style={{ width: 10, height: 10 }} />
+                              <Maximize2 className="df-output-detail-icon" />
                             </span>
                             <span className="df-output-detail-value" style={settingValueStyle}>{output.prompt}</span>
                           </button>
@@ -693,53 +641,42 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
           {/* Output prompt / model card popup */}
           {outputDetail && (
-            <div className="df-modal-overlay" onClick={() => setOutputDetail(null)}>
+            <div className="oz-overlay" onClick={() => setOutputDetail(null)}>
               <div
-                className={`df-modal df-detail-modal ${outputDetail.kind === 'model' ? 'df-detail-modal-model' : ''}`}
+                className={`oz-modal df-detail-modal ${outputDetail.kind === 'model' ? 'df-detail-modal-model' : ''}`}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="df-detail-title"
-                style={{ background: c.panelBg, borderColor: c.panelBorder }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="df-detail-header" style={{ borderBottom: `1px solid ${c.divider}` }}>
-                  {outputDetail.kind === 'prompt'
-                    ? <MessageSquare style={{ width: 18, height: 18, color: c.text, flexShrink: 0 }} />
-                    : <Info style={{ width: 18, height: 18, color: c.text, flexShrink: 0 }} />}
-                  <h3 id="df-detail-title" style={{ color: c.text }}>
+                <div className="df-detail-header">
+                  <h3 id="df-detail-title">
                     {outputDetail.kind === 'prompt' ? 'Prompt' : outputDetail.output.modelName}
                   </h3>
                   <div className="df-detail-actions">
                     {outputDetail.kind === 'prompt' && (
                       <button
-                        className="df-copy-btn"
+                        className="oz-icon-btn"
                         onClick={() => handleCopy(`prompt-${outputDetail.output.id}`, outputDetail.output.prompt)}
                         title="Copy prompt"
-                        style={{
-                          color: copiedKey === `prompt-${outputDetail.output.id}` ? c.text : c.textSub,
-                          background: c.controlBg,
-                          borderColor: c.controlBorder,
-                        }}
+                        aria-label="Copy prompt"
                       >
-                        {copiedKey === `prompt-${outputDetail.output.id}`
-                          ? <Check style={{ width: 14, height: 14 }} />
-                          : <Copy style={{ width: 14, height: 14 }} />}
+                        {copiedKey === `prompt-${outputDetail.output.id}` ? <Check /> : <Copy />}
                       </button>
                     )}
                     <button
-                      className="df-copy-btn"
+                      className="oz-icon-btn"
                       onClick={() => setOutputDetail(null)}
                       title="Close"
                       aria-label="Close"
-                      style={{ color: c.textSub, background: c.controlBg, borderColor: c.controlBorder }}
                     >
-                      <X style={{ width: 14, height: 14 }} />
+                      <X />
                     </button>
                   </div>
                 </div>
                 <div className="df-detail-body">
                   {outputDetail.kind === 'prompt' ? (
-                    <div className="df-detail-prompt" style={{ color: c.text, background: c.metaBg, borderColor: c.metaBorder }}>
+                    <div className="df-detail-prompt">
                       {outputDetail.output.prompt}
                     </div>
                   ) : (
@@ -752,21 +689,14 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
           {/* Clear confirmation modal */}
           {showClearConfirm && (
-            <div className="df-modal-overlay" onClick={() => setShowClearConfirm(false)}>
-              <div className="df-modal" style={{ background: c.panelBg, borderColor: c.panelBorder }} onClick={(e) => e.stopPropagation()}>
-                <p style={{ color: c.text, fontSize: '0.9rem', margin: '0 0 1rem' }}>Clear all generated outputs?</p>
-                <div className="df-modal-actions">
-                  <button
-                    className="df-modal-btn"
-                    onClick={() => setShowClearConfirm(false)}
-                    style={{ color: c.textMid, background: c.controlBg, borderColor: c.controlBorder }}
-                  >
+            <div className="oz-overlay" onClick={() => setShowClearConfirm(false)}>
+              <div className="oz-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+                <h3 className="oz-modal__title">Clear all generated outputs?</h3>
+                <div className="oz-modal__actions">
+                  <button className="oz-btn oz-btn--ghost" onClick={() => setShowClearConfirm(false)}>
                     Cancel
                   </button>
-                  <button
-                    className="df-modal-btn df-modal-btn-danger"
-                    onClick={handleClearOutputs}
-                  >
+                  <button className="oz-btn oz-btn--danger" onClick={handleClearOutputs}>
                     Clear
                   </button>
                 </div>
@@ -777,57 +707,10 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
       </div>
 
       <style>{`
-        .df-page {
-          height: 125vh;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-
-        .df-layout {
-          display: flex;
-          flex: 1;
-          margin-top: 76px;
-          overflow: hidden;
-        }
-
-        .df-left {
-          width: 380px;
-          min-width: 340px;
-          max-width: 480px;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-
-        .df-left-scroll {
-          flex: 1;
-          overflow-y: auto;
-        }
-
-        .df-generator-wrap {
-          padding: 0;
-        }
-
-        .df-generator-wrap > * {
-          border: none !important;
-          background: transparent !important;
-        }
-
-        .df-model-info-wrap {
-          padding: 0;
-        }
-
+        .df-generator-wrap > *,
         .df-model-info-wrap > * {
           border: none !important;
           background: transparent !important;
-        }
-
-        .df-right {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
         }
 
         .df-panel {
@@ -836,96 +719,125 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           overflow: hidden;
         }
 
+        /* The bar over the results: what's shown, and how */
         .df-toolbar {
           display: flex;
-          align-items: center;
+          align-items: stretch;
           justify-content: space-between;
-          gap: 1rem;
-          padding: 0 1.25rem;
-          height: 60px;
-          box-sizing: border-box;
+          gap: 1.5rem;
           flex-shrink: 0;
           flex-wrap: wrap;
+          min-height: 3.75rem;
+          padding: 0 var(--oz-gutter);
+          border-bottom: 1px solid var(--oz-rule);
         }
 
-        .df-toolbar-left {
+        .df-tabs {
           display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          min-width: 220px;
+          align-items: stretch;
+          gap: 1.75rem;
+        }
+
+        .df-tabs .oz-tab {
+          padding: 0;
         }
 
         .df-toolbar-right {
           display: flex;
           align-items: center;
-          gap: 1rem;
+          gap: 1.5rem;
           flex-wrap: wrap;
+          padding: 0.6rem 0;
         }
 
         .df-toolbar-group {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
+          gap: 0.75rem;
         }
 
-        .df-toolbar-label {
-          font-size: 0.7rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          white-space: nowrap;
+        .df-toolbar-group .ozera-dropdown {
+          min-width: 15rem;
         }
 
-        .df-toolbar-title {
-          font-size: 0.875rem;
-          font-weight: 600;
-          letter-spacing: -0.01em;
+        #df-labels-select {
+          min-width: 10rem;
+        }
+
+        .df-toolbar-label,
+        .df-ctrl-label {
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
+          font-weight: 500;
           white-space: nowrap;
         }
 
         .df-controls {
           display: flex;
           align-items: center;
-          gap: 0.75rem;
+          gap: 1.25rem;
         }
 
         .df-control-item {
           display: flex;
           align-items: center;
-          gap: 0.375rem;
+          gap: 0.4rem;
         }
 
+        .df-ctrl-label {
+          margin-right: 0.2rem;
+        }
+
+        /* A stepper: a value between two arrows */
         .df-ctrl-btn {
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 0.25rem;
-          border: 1px solid;
+          width: 2rem;
+          height: 2rem;
+          border: 1px solid var(--oz-rule-strong);
+          color: var(--oz-fg);
           cursor: pointer;
-          transition: background 0.15s;
+          transition: border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .df-ctrl-btn svg {
+          width: 15px;
+          height: 15px;
+          stroke-width: 2.25;
         }
 
         .df-ctrl-btn:hover:not(:disabled) {
-          opacity: 0.8;
+          border-color: var(--oz-mark);
+          color: var(--oz-mark);
         }
 
         .df-ctrl-btn:disabled {
-          opacity: 0.25;
+          border-color: var(--oz-rule);
+          color: var(--oz-fg-faint);
           cursor: not-allowed;
         }
 
         .df-ctrl-val {
-          padding: 0.25rem 0.5rem;
-          border: 1px solid;
-          font-family: monospace;
-          font-size: 0.75rem;
-          min-width: 32px;
+          min-width: 2.4rem;
+          height: 2rem;
+          padding: 0 0.5rem;
+          background: transparent;
+          border: 1px solid var(--oz-rule-strong);
+          color: var(--oz-fg);
+          font-family: var(--oz-mono);
+          font-size: 0.85rem;
+          line-height: calc(2rem - 2px);
           text-align: center;
         }
 
         .df-ctrl-input {
           outline: none;
           cursor: text;
+        }
+
+        .df-ctrl-input:focus {
+          border-color: var(--oz-fg);
         }
 
         .df-canvas {
@@ -947,13 +859,15 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           display: flex;
           flex-direction: column;
           align-items: center;
+          gap: 1.25rem;
+          max-width: 380px;
+          color: var(--oz-fg-dim);
           text-align: center;
-          max-width: 360px;
         }
 
         .df-placeholder-inner p {
-          font-size: 0.8rem;
           margin: 0;
+          font-size: 0.9375rem;
         }
 
         .df-generating {
@@ -961,67 +875,61 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           max-width: 720px;
         }
 
+        /* The text as it arrives */
         .df-stream-box {
           width: 100%;
           max-height: 45vh;
           overflow-y: auto;
-          margin-top: 1.25rem;
-          padding: 1rem 1.25rem;
-          border: 1px solid;
+          padding: 1.1rem 1.25rem;
+          border: 1px solid var(--oz-rule);
+          color: var(--oz-fg);
           text-align: left;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.8rem;
+          font-family: var(--oz-mono);
+          font-size: 0.875rem;
           line-height: 1.7;
           white-space: pre-wrap;
           word-wrap: break-word;
         }
 
+        .df-stream-monitor {
+          width: 100%;
+        }
+
         .df-output-live {
           flex-direction: row !important;
           align-items: center;
-          gap: 0.5rem !important;
+          gap: 0.55rem !important;
         }
 
+        /* A lit cell that pulses while a generation runs */
         .df-live-dot {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
+          width: 7px;
+          height: 7px;
+          background: var(--oz-accent) !important;
           animation: df-pulse 1.2s ease-in-out infinite;
         }
 
         @keyframes df-pulse {
           0%, 100% { opacity: 1; }
-          50% { opacity: 0.25; }
-        }
-
-        .df-spinner {
-          width: 32px;
-          height: 32px;
-          border: 2px solid;
-          border-radius: 50%;
-          animation: df-spin 1s linear infinite;
-          margin: 0 auto 0.75rem;
-        }
-
-        @keyframes df-spin {
-          to { transform: rotate(360deg); }
+          50% { opacity: 0.2; }
         }
 
         .df-bottom {
           flex-shrink: 0;
+          border-top: 1px solid var(--oz-rule);
         }
 
         .df-token-ref {
-          padding: 0.625rem 1rem;
+          padding: 0.85rem var(--oz-gutter) 0.95rem;
+          border-bottom: 1px solid var(--oz-rule);
         }
 
         .df-token-ref-label {
           display: block;
-          font-size: 0.6rem;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-          font-weight: 600;
-          margin-bottom: 0.5rem;
+          margin-bottom: 0.55rem;
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
+          font-weight: 500;
         }
 
         .df-token-ref-list {
@@ -1030,60 +938,77 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           gap: 3px;
         }
 
+        /* A token and its position, as a cell */
         .df-chip {
           display: inline-flex;
           align-items: baseline;
-          gap: 3px;
-          padding: 1px 5px;
-          border: 1px solid;
+          gap: 5px;
+          padding: 2px 6px;
+          border: 1px solid var(--oz-rule);
+          font-family: var(--oz-mono);
+          font-size: 0.78rem;
           cursor: default;
+          transition: border-color 0.15s ease;
+        }
+
+        .df-chip:hover {
+          border-color: var(--oz-fg);
+        }
+
+        .df-chip-index {
+          color: var(--oz-fg-faint);
+          font-size: 0.7rem;
         }
 
         .df-meta {
           display: flex;
-          gap: 0;
-          padding: 0;
         }
 
         .df-meta-item {
           flex: 1;
           display: flex;
           flex-direction: column;
-          gap: 0.25rem;
-          padding: 0.625rem 1rem;
-          border-right: 1px solid;
+          gap: 0.2rem;
+          padding: 0.75rem var(--oz-gutter) 0.85rem;
+          border-right: 1px solid var(--oz-rule);
         }
 
         .df-meta-item:last-child {
           border-right: none;
         }
 
+        .df-meta-label {
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+
+        .df-meta-value {
+          font-family: var(--oz-mono);
+          font-size: 0.9rem;
+        }
+
+        /* Outputs: one under another, each ruled off with its settings */
         .df-outputs-scroll {
-          padding: 1.25rem;
           overflow-y: auto;
         }
 
         .df-outputs-list {
           display: flex;
           flex-direction: column;
-          gap: 1rem;
         }
 
         .df-output-card {
-          border: 1px solid;
-          overflow: hidden;
+          border: none !important;
+          border-bottom: 1px solid var(--oz-rule) !important;
         }
 
         .df-output-text-wrap {
           position: relative;
         }
 
-        .df-stream-monitor {
-          width: 100%;
-        }
-
         .df-output-monitor {
-          padding: 0 1.5rem 1.25rem;
+          padding: 0 var(--oz-gutter) 1.25rem;
         }
 
         .df-output-monitor .probe-monitor {
@@ -1091,31 +1016,18 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
         }
 
         .df-output-text {
-          padding: 1.25rem 1.5rem;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.875rem;
+          padding: 1.5rem var(--oz-gutter);
+          font-family: var(--oz-mono);
+          font-size: 0.9rem;
           line-height: 1.7;
           white-space: pre-wrap;
           word-wrap: break-word;
         }
 
-        .df-copy-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 0.375rem;
-          border: 1px solid;
-          cursor: pointer;
-          transition: all 0.15s;
-        }
-
-        .df-copy-btn:hover {
-          filter: brightness(1.2);
-        }
-
         .df-output-settings {
           display: flex;
           align-items: stretch;
+          padding: 0 calc(var(--oz-gutter) - 0.875rem);
         }
 
         .df-output-stats {
@@ -1132,26 +1044,17 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           justify-content: center;
           gap: 0.2rem;
           min-width: 0;
-          padding: 0.5rem 0.875rem;
+          padding: 0.6rem 0.875rem 0.7rem;
           background: none;
           border: none;
           font: inherit;
           text-align: left;
           cursor: pointer;
-          transition: background 0.15s;
+          transition: background 0.15s ease;
         }
 
         .df-output-detail:hover {
-          background: rgba(255, 255, 255, 0.05);
-        }
-
-        [data-bg="light"] .df-output-detail:hover {
-          background: rgba(0, 0, 0, 0.04);
-        }
-
-        .df-output-detail:focus-visible {
-          outline: 1px solid currentColor;
-          outline-offset: -2px;
+          background: var(--oz-fill);
         }
 
         .df-output-detail-model {
@@ -1167,16 +1070,18 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
         .df-output-detail-label {
           display: flex;
           align-items: center;
-          gap: 0.3rem;
+          gap: 0.35rem;
         }
 
         .df-output-detail-icon {
-          opacity: 0.45;
-          transition: opacity 0.15s;
+          width: 12px;
+          height: 12px;
+          color: var(--oz-fg-faint);
+          transition: color 0.15s ease;
         }
 
         .df-output-detail:hover .df-output-detail-icon {
-          opacity: 1;
+          color: var(--oz-mark);
         }
 
         .df-output-detail-value {
@@ -1190,12 +1095,13 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           display: flex;
           flex-direction: column;
           gap: 0.2rem;
-          padding: 0.5rem 0.875rem;
+          padding: 0.6rem 0.875rem 0.7rem;
         }
 
         .df-cursor {
           animation: df-blink 0.8s infinite;
           margin-left: 2px;
+          color: var(--oz-mark) !important;
           font-weight: normal;
         }
 
@@ -1204,107 +1110,31 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           51%, 100% { opacity: 0; }
         }
 
-        .df-switch-group {
-          display: flex;
-          align-items: center;
-          gap: 0.125rem;
-          padding: 0.1875rem;
-          border: 1px solid;
-          line-height: 1;
-        }
-
-        .df-switch-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
-          padding: 0.4375rem 0.75rem;
-          background: none;
-          border: none;
-          font-size: 0.775rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s;
-          letter-spacing: 0.01em;
-          white-space: nowrap;
-          line-height: 1;
-        }
-
-        .df-switch-btn:hover:not(.active) {
-          opacity: 0.7;
-        }
-
-        .df-switch-badge {
-          font-size: 0.675rem;
-          font-family: monospace;
-        }
-
         .df-output-actions {
           position: absolute;
-          top: 0.75rem;
-          right: 0.75rem;
+          top: 1rem;
+          right: var(--oz-gutter);
           display: flex;
-          gap: 0.375rem;
+          gap: 6px;
           opacity: 0;
-          transition: opacity 0.15s;
+          transition: opacity 0.15s ease;
         }
 
-        .df-output-card:hover .df-output-actions {
+        .df-output-actions > * {
+          background: var(--oz-bg) !important;
+        }
+
+        .df-output-card:hover .df-output-actions,
+        .df-output-actions:focus-within {
           opacity: 1;
         }
 
-        .df-visualize-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
-          padding: 0.35rem 0.625rem;
-          border: 1px solid;
-          cursor: pointer;
-          font-size: 0.7rem;
-          font-weight: 500;
-          transition: all 0.15s;
-        }
-
-        .df-visualize-btn:hover {
-          filter: brightness(1.2);
-        }
-
-        .df-clear-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
-          padding: 0.35rem 0.75rem;
-          border: 1px solid;
-          cursor: pointer;
-          font-size: 0.75rem;
-          font-weight: 500;
-          transition: all 0.15s;
-        }
-
-        .df-clear-btn:hover {
-          filter: brightness(1.2);
-        }
-
-        .df-modal-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 200;
-        }
-
-        .df-modal {
-          padding: 1.5rem;
-          border: 1px solid;
-          min-width: 300px;
-          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
-        }
-
+        /* An output's prompt or model card */
         .df-detail-modal {
           display: flex;
           flex-direction: column;
           width: min(640px, calc(100vw - 2rem));
+          max-width: none;
           max-height: 100vh;
           padding: 0;
         }
@@ -1319,6 +1149,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           align-items: center;
           gap: 0.75rem;
           padding: 1rem 1rem 1rem 1.5rem;
+          border-bottom: 1px solid var(--oz-rule);
           flex-shrink: 0;
         }
 
@@ -1326,9 +1157,9 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
           flex: 1;
           min-width: 0;
           margin: 0;
-          font-size: 1rem;
-          font-weight: 600;
-          letter-spacing: -0.01em;
+          font-size: 1.25rem;
+          font-weight: 500;
+          letter-spacing: -0.025em;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
@@ -1336,7 +1167,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
         .df-detail-actions {
           display: flex;
-          gap: 0.375rem;
+          gap: 0.25rem;
           flex-shrink: 0;
         }
 
@@ -1347,54 +1178,21 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
         }
 
         .df-detail-prompt {
-          padding: 1rem 1.25rem;
-          border: 1px solid;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.85rem;
+          font-family: var(--oz-mono);
+          font-size: 0.9rem;
           line-height: 1.7;
           white-space: pre-wrap;
           word-wrap: break-word;
         }
 
-        .df-modal-actions {
-          display: flex;
-          gap: 0.5rem;
-          justify-content: flex-end;
-        }
-
-        .df-modal-btn {
-          padding: 0.5rem 1rem;
-          border: 1px solid;
-          font-size: 0.8rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s;
-        }
-
-        .df-modal-btn:hover {
-          filter: brightness(1.1);
-        }
-
-        .df-modal-btn-danger {
-          background: rgba(239, 68, 68, 0.15);
-          border-color: rgba(239, 68, 68, 0.3);
-          color: #ef4444;
-        }
-
-        .df-modal-btn-danger:hover {
-          background: rgba(239, 68, 68, 0.25);
-        }
-
         @media (max-width: 900px) {
-          .df-layout {
-            flex-direction: column;
-          }
-          .df-left {
+          .df-page.oz-page { height: auto; overflow: visible; }
+          .df-layout.oz-page__body { flex-direction: column; }
+          .df-left.oz-side {
             width: 100%;
             max-width: 100%;
-            max-height: 40vh;
-            border-right: none !important;
-            border-bottom: 1px solid;
+            border-right: none;
+            border-bottom: 1px solid var(--oz-rule);
           }
         }
       `}</style>

@@ -4,7 +4,6 @@
  * it everywhere, then see what changes), and SAE features, each in its own view.
  */
 
-import { Eraser, Layers, Navigation } from 'lucide-react'
 import type { ProbeLab } from '../../hooks/useProbeLab'
 import type { InlineProbe, Pooling, ProbeMethod, ReadSpan } from '../../types/probes'
 import { Dropdown } from '../common/Dropdown'
@@ -89,8 +88,6 @@ function chosenProbe(lab: ProbeLab): CausalProbe | null {
 
 export type CausalTool = 'steer' | 'ablate' | 'sae'
 
-const TOOL_ICONS = { steer: Navigation, ablate: Eraser, sae: Layers } as const
-
 /** One of the tools that test a probe's direction, under a picker for the probe (shared by all three). */
 export function ProbeCausal({
   lab,
@@ -122,7 +119,7 @@ export function ProbeCausal({
   if (options.length === 0) {
     return (
       <section className="pl-panel">
-        <Placeholder icon={TOOL_ICONS[tool]}>Train or save a probe to test its direction.</Placeholder>
+        <Placeholder glyph="probes">Train or save a probe to test its direction.</Placeholder>
       </section>
     )
   }
@@ -176,7 +173,7 @@ export function ProbeCausal({
       )}
 
       <style>{`
-        .probe-lab .pl-causal-pick { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: flex-end; }
+        .probe-lab .pl-causal-pick { display: flex; flex-wrap: wrap; gap: 0.9rem 1.5rem; align-items: flex-end; }
       `}</style>
     </div>
   )

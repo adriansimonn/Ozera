@@ -3,9 +3,10 @@
  */
 
 import { useState } from 'react'
-import { Download, Loader2 } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { ExportModal } from './ExportModal'
 import type { ExportFormat } from '../../types/export'
+import { Spinner } from '../common/Spinner'
 
 export type ExportType = 'attention-heatmap' | 'activation-histogram' | 'multi-head-heatmap'
 
@@ -43,8 +44,8 @@ export function ExportButton({
         <button
           onClick={handleClick}
           disabled={disabled}
-          className={`p-1.5 text-white hover:text-white hover:bg-white/10
-            transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+          className={`p-1.5 text-fg hover:text-mark hover:bg-fill-strong
+ transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
           title="Export figure"
         >
           <Download className="w-4 h-4" />
@@ -68,12 +69,8 @@ export function ExportButton({
       <button
         onClick={handleClick}
         disabled={disabled}
-        className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium
-          bg-white/5 text-white hover:bg-white/10 hover:text-white
-          border border-gray-700 hover:border-gray-600 transition-all
-          disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+        className={`oz-btn oz-btn--ghost oz-btn--small ${className}`}
       >
-        <Download className="w-4 h-4" />
         Export
       </button>
 
@@ -106,16 +103,9 @@ export function QuickExportButton({
     <button
       onClick={onClick}
       disabled={isExporting}
-      className={`flex items-center gap-1.5 px-2 py-1 text-xs font-medium
-        bg-white/5 text-white hover:text-white hover:bg-white/10
-        border border-gray-700 hover:border-gray-600 transition-all
-        disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+      className={`oz-btn oz-btn--ghost oz-btn--small ${className}`}
     >
-      {isExporting ? (
-        <Loader2 className="w-3 h-3 animate-spin" />
-      ) : (
-        <Download className="w-3 h-3" />
-      )}
+      {isExporting && <Spinner />}
       {format.toUpperCase()}
     </button>
   )

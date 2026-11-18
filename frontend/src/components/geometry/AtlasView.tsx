@@ -8,7 +8,7 @@
  */
 
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
-import { Download, Map as MapIcon, X } from 'lucide-react'
+import { Download,  X } from 'lucide-react'
 import { apiClient } from '../../api/client'
 import { useCommunityNames } from '../../hooks/useAutointerp'
 import type { GeometryLab } from '../../hooks/useGeometryLab'
@@ -109,14 +109,14 @@ export function AtlasView({ lab }: { lab: GeometryLab }) {
   if (!lab.isAuthenticated) {
     return (
       <section className="pl-panel">
-        <Placeholder icon={MapIcon}>Sign in to read atlases.</Placeholder>
+        <Placeholder glyph="atlas">Sign in to read atlases.</Placeholder>
       </section>
     )
   }
   if (!lab.modelId) {
     return (
       <section className="pl-panel">
-        <Placeholder icon={MapIcon}>Choose a model.</Placeholder>
+        <Placeholder glyph="atlas">Choose a model.</Placeholder>
       </section>
     )
   }
@@ -275,9 +275,9 @@ function AtlasBody({ lab, model }: { lab: GeometryLab; model: string }) {
         {saes == null ? (
           <div className="pl-note">Looking for SAEs…</div>
         ) : usable.length === 0 ? (
-          <div className="pl-empty" style={{ borderColor: colors.border }}>
+          <div className="pl-empty">
             No SAE reads {lab.modelName(model)}&apos;s residual stream. Load one on the{' '}
-            <a href="/sae" target="_blank" rel="noopener noreferrer" style={{ color: colors.accent }}>
+            <a href="/sae" target="_blank" rel="noopener noreferrer" className="pl-inline-link">
               SAE page
             </a>
             .
@@ -366,17 +366,20 @@ function AtlasBody({ lab, model }: { lab: GeometryLab; model: string }) {
       {summary && <AtlasResults key={atlasKey} lab={lab} summary={summary} />}
 
       <style>{`
-        .geometry-lab .gl-atlas-head { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: flex-end; margin-bottom: 0.75rem; }
+        .geometry-lab .gl-atlas-head { display: flex; flex-wrap: wrap; gap: 0.9rem 1.5rem; align-items: flex-end; margin-bottom: 0.9rem; }
         .geometry-lab .gl-atlas-sae { min-width: 260px; max-width: 520px; flex: 1; }
-        .geometry-lab .gl-atlas-state { min-height: 1.1rem; }
-        .geometry-lab .gl-progress { height: 6px; border: 1px solid; margin-top: 0.4rem; }
+        .geometry-lab .gl-atlas-state { min-height: 1.2rem; }
+        .geometry-lab .gl-progress { height: 3px; background: var(--oz-rule); margin-top: 0.5rem; }
         .geometry-lab .gl-progress > div { height: 100%; transition: width 0.4s; }
-        .geometry-lab .gl-context { font-size: 0.75rem; line-height: 1.7; white-space: pre-wrap; word-break: break-word; padding: 0.3rem 0; }
-        .geometry-lab .gl-context span { border-radius: 2px; }
-        .geometry-lab .gl-context-meta { font-size: 0.68rem; opacity: 0.7; margin-right: 0.5rem; font-variant-numeric: tabular-nums; }
-        .geometry-lab .gl-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
-        .geometry-lab .gl-chip { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.1rem 0.4rem; border: 1px solid; font-size: 0.7rem; white-space: nowrap; background: none; color: inherit; }
+        .geometry-lab .gl-context { font-size: 0.85rem; line-height: 1.7; white-space: pre-wrap; word-break: break-word; padding: 0.35rem 0; }
+        .geometry-lab .gl-context-meta { color: var(--oz-fg-dim); font-size: 0.78rem; margin-right: 0.5rem; font-variant-numeric: tabular-nums; }
+        .geometry-lab .gl-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+        .geometry-lab .gl-chip {
+          display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.15rem 0.45rem; border: 1px solid var(--oz-rule-strong);
+          font-size: 0.78rem; white-space: nowrap; background: none; color: inherit; transition: border-color 0.2s ease, color 0.2s ease;
+        }
         .geometry-lab button.gl-chip { cursor: pointer; }
+        .geometry-lab button.gl-chip:hover { border-color: var(--oz-mark); color: var(--oz-mark); }
         .geometry-lab .gl-atlas-table td { white-space: nowrap; }
         .geometry-lab .gl-atlas-table .gl-words { text-align: left; max-width: 16rem; overflow: hidden; text-overflow: ellipsis; }
         .geometry-lab .gl-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
@@ -395,7 +398,7 @@ function JobProgress({ job, colors }: { job: AtlasJob; colors: LabColors }) {
         {job.progress ? ` · ${Math.round(fraction * 100)}%` : ''} · {formatTokens(job.tokens)} tokens · about {minutes} min
         {job.mine ? '' : ' · started by another user'}
       </div>
-      <div className="gl-progress" style={{ borderColor: colors.border }}>
+      <div className="gl-progress">
         <div style={{ width: `${Math.max(2, fraction * 100)}%`, background: colors.accent }} />
       </div>
     </div>
@@ -622,7 +625,6 @@ function AtlasMap({
           title="Download SVG"
           aria-label="Download SVG"
           onClick={() => svgRef.current && downloadSvg(svgRef.current, `atlas-map-${summary.model}-L${summary.layer}.svg`, colors.surface)}
-          style={{ color: colors.text }}
         >
           <Download className="pl-icon" />
         </button>
@@ -723,7 +725,7 @@ function CommunityTable({
       <div style={{ maxHeight: 460, overflowY: 'auto', border: `1px solid ${colors.border}` }}>
         <table className="pl-table gl-atlas-table" aria-label="Communities">
           <thead>
-            <tr style={{ background: colors.isLight ? '#f5f5f7' : '#151515' }}>
+            <tr>
               <th>#</th>
               <th
                 style={{ textAlign: 'left' }}
@@ -747,7 +749,7 @@ function CommunityTable({
                 <tr
                   key={c.id}
                   onClick={() => onSelect(c.id)}
-                  style={{ borderTop: `1px solid ${colors.grid}`, background: active ? colors.hover : undefined, fontWeight: active ? 600 : undefined }}
+                  style={{ borderTop: `1px solid ${colors.grid}`, background: active ? colors.hover : undefined, fontWeight: active ? 500 : undefined }}
                 >
                   <td>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -852,7 +854,7 @@ function CommunityDetail({
           {name ? <strong title={`${nameTitle(name)}\nCommunity #${community.id}`}>{name.name}</strong> : <strong>Community #{community.id}</strong>}
           {community.rank != null ? ` · rank ${community.rank + 1}` : ''} · fires on {words(community, 6)}
         </div>
-        <button type="button" className="pl-icon-button" aria-label="Close" title="Close" onClick={onClose} style={{ color: colors.text }}>
+        <button type="button" className="pl-icon-button" aria-label="Close" title="Close" onClick={onClose}>
           <X className="pl-icon" />
         </button>
       </div>
@@ -886,7 +888,7 @@ function CommunityDetail({
               <div style={{ maxHeight: 320, overflowY: 'auto', border: `1px solid ${colors.border}` }}>
                 <table className="pl-table gl-atlas-table" aria-label="The community's features">
                   <thead>
-                    <tr style={{ background: colors.isLight ? '#f5f5f7' : '#151515' }}>
+                    <tr>
                       <th>Feature</th>
                       <th style={{ textAlign: 'left' }} title="The token it's most active on">
                         Top
@@ -1003,7 +1005,6 @@ function ExplainedBars({ geometry, filename }: { geometry: NonNullable<AtlasComm
           title="Download SVG"
           aria-label="Download SVG"
           onClick={() => svgRef.current && downloadSvg(svgRef.current, `${filename}.svg`, colors.surface)}
-          style={{ color: colors.text }}
         >
           <Download className="pl-icon" />
         </button>
@@ -1074,7 +1075,6 @@ function PcPlane({ detail, filename }: { detail: AtlasCommunity; filename: strin
           title="Download SVG"
           aria-label="Download SVG"
           onClick={() => svgRef.current && downloadSvg(svgRef.current, `${filename}.svg`, colors.surface)}
-          style={{ color: colors.text }}
         >
           <Download className="pl-icon" />
         </button>
@@ -1115,7 +1115,6 @@ function ConceptPanel({
   position: number
   estimate: GeometryEstimate | null
 }) {
-  const colors = useLabColors()
   const concept = detail.concept
   return (
     <div>
@@ -1125,14 +1124,14 @@ function ConceptPanel({
         </h3>
       </div>
       {!concept ? (
-        <div className="pl-empty" style={{ borderColor: colors.border }}>
+        <div className="pl-empty">
           {detail.concept_note ?? 'No concept for this community.'}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <div className="gl-chips">
             {concept.values.map((v) => (
-              <span key={v} className="gl-chip" style={{ borderColor: colors.border }}>
+              <span key={v} className="gl-chip">
                 {v}
               </span>
             ))}
@@ -1167,7 +1166,7 @@ function ContextLine({ context, colors, label, onLabel }: { context: AtlasContex
   return (
     <div className="gl-context" style={{ borderTop: `1px solid ${colors.grid}` }}>
       {label && (
-        <button type="button" className="pl-link gl-context-meta" onClick={onLabel} style={{ color: colors.accent }}>
+        <button type="button" className="pl-link gl-context-meta" onClick={onLabel}>
           {label}
         </button>
       )}
@@ -1182,7 +1181,7 @@ function ContextLine({ context, colors, label, onLabel }: { context: AtlasContex
             style={{
               background: level > 0 ? tint(highlight, 0.15 + 0.6 * level) : undefined,
               outline: i === context.at ? `1px solid ${highlight}` : undefined,
-              fontWeight: i === context.at ? 600 : undefined,
+              fontWeight: i === context.at ? 500 : undefined,
             }}
           >
             {text}
@@ -1234,13 +1233,13 @@ function FeatureDetail({
           {community && (
             <>
               {' · '}
-              <button type="button" className="pl-link" style={{ color: colors.accent, fontSize: '0.75rem' }} onClick={() => onCommunity(community.id)}>
+              <button type="button" className="pl-link" onClick={() => onCommunity(community.id)}>
                 {names.has(community.id) ? communityLabel(names, community.id) : `community #${community.id}`}
               </button>
             </>
           )}
         </div>
-        <button type="button" className="pl-icon-button" aria-label="Close" title="Close" onClick={onClose} style={{ color: colors.text }}>
+        <button type="button" className="pl-icon-button" aria-label="Close" title="Close" onClick={onClose}>
           <X className="pl-icon" />
         </button>
       </div>
@@ -1262,7 +1261,7 @@ function FeatureDetail({
               </div>
               <div className="gl-chips">
                 {data.neighbors.map((n) => (
-                  <button key={n.id} type="button" className="gl-chip" onClick={() => onFeature(n.id)} style={{ borderColor: colors.border }} title={`P(#${n.id} | #${feature}) = ${formatPercent(n.conditional)}`}>
+                  <button key={n.id} type="button" className="gl-chip" onClick={() => onFeature(n.id)} title={`P(#${n.id} | #${feature}) = ${formatPercent(n.conditional)}`}>
                     #{n.id} · {formatPercent(n.conditional)}
                   </button>
                 ))}

@@ -186,7 +186,7 @@ function AblationChart({ result }: { result: AblateProbeResponse }) {
         </text>
 
         <rect x={x(probePosition) - Math.max(step, 8) / 2} y={MARGIN.top} width={Math.max(step, 8)} height={innerH} fill={colors.hover} />
-        <text x={x(probePosition)} y={MARGIN.top - 10} textAnchor="middle" fontSize={11} fontWeight={600} fill={colors.text} {...halo}>
+        <text x={x(probePosition)} y={MARGIN.top - 10} textAnchor="middle" fontSize={11} fontWeight={500} fill={colors.text} {...halo}>
           probe&apos;s layer {result.layer}
         </text>
         {yMin < 0.5 && (
@@ -252,7 +252,7 @@ function AblationTable({ result }: { result: AblateProbeResponse }) {
     <div style={{ maxHeight: 320, overflowY: 'auto', border: `1px solid ${colors.border}` }}>
       <table className="pl-table" aria-label="Test AUROC per layer, clean and ablated">
         <thead>
-          <tr style={{ background: colors.isLight ? '#f5f5f7' : '#151515' }}>
+          <tr>
             <th>Layer</th>
             {keys.map((k) => (
               <th key={k}>{CURVE_LABELS[k]}</th>
@@ -262,7 +262,7 @@ function AblationTable({ result }: { result: AblateProbeResponse }) {
         <tbody>
           {Array.from({ length: result.num_layers + 1 }, (_, i) => (
             <tr key={i} style={{ borderTop: `1px solid ${colors.grid}`, background: i === result.layer + 1 ? colors.hover : undefined, cursor: 'default' }}>
-              <td style={{ fontWeight: i === result.layer + 1 ? 600 : 400 }}>{positionLabel(i)}</td>
+              <td style={{ fontWeight: i === result.layer + 1 ? 500 : 400 }}>{positionLabel(i)}</td>
               {keys.map((k) => (
                 <td key={k}>{formatMetric(result.curves[k][i])}</td>
               ))}
@@ -375,7 +375,7 @@ export function AblationPanel({
       {error && <div className="pl-error-note">{error}</div>}
 
       {response && styles && (
-        <div className="pl-result" style={{ borderColor: colors.border, opacity: running ? 0.55 : 1 }}>
+        <div className="pl-result" style={{ opacity: running ? 0.55 : 1 }}>
           <div className="pl-run-meta">
             {stale && <strong style={{ color: colors.warning }}>From a different probe · </strong>}
             <strong>{response.dataset.name}</strong> · {response.model} · {response.dataset.n_train} train / {response.dataset.n_test}{' '}

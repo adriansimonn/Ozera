@@ -5,9 +5,9 @@
  */
 
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { Network, Plus, Eye, Zap, CircleOff } from 'lucide-react'
 import type { PatchSpec, PatchType, InterventionType, ModelLayerInfo } from '../../types/patching'
-import { useTheme } from '../../hooks/useTheme'
+import { useAppPalette } from '../../hooks/useTheme'
+import { MONO } from '../home/homeKit'
 
 interface PatchSelectorProps {
   modelInfo: ModelLayerInfo | null
@@ -75,7 +75,7 @@ export function PatchSelector({
   onAddPatch,
   disabled = false,
 }: PatchSelectorProps) {
-  const { isLight } = useTheme()
+  const palette = useAppPalette()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 300 })
@@ -134,16 +134,10 @@ export function PatchSelector({
     canvas.width = width
     canvas.height = height
 
-    // Theme-aware canvas colors
-    const bgColor = isLight ? '#f5f5f7' : 'rgba(10, 10, 10, 1)'
-    const lineColor = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.06)'
-    const defaultNodeColor = isLight ? '160, 160, 170' : '100, 100, 100'
-    const inactiveNodeColor = isLight ? '190, 190, 200' : '60, 60, 60'
-    const borderDefault = (hovered: boolean) => isLight
-      ? `rgba(0, 0, 0, ${hovered ? 0.35 : 0.15})`
-      : `rgba(255, 255, 255, ${hovered ? 0.5 : 0.2})`
-    const borderInactive = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.1)'
-    const textPrimary = isLight ? '#1d1d1f' : '#ffffff'
+    // The canvas is drawn in the app's colors (styles/appTheme.ts)
+    const bgColor = palette.bg
+    const lineColor = palette.rule
+    const textPrimary = palette.fg
 
     // Clear canvas
     ctx.fillStyle = bgColor
@@ -229,83 +223,57 @@ export function PatchSelector({
       const isClickable = layer.isTransformerLayer && !disabled
       const firstPatchColors = hasPatch ? getPatchColors(layerPatchInfo[0]) : null
 
-      // Draw outer glow for patched layers
-      if (hasPatch && firstPatchColors) {
-        const primaryColor = firstPatchColors.primary
-        const gradient = ctx.createRadialGradient(
-          layer.x, layer.y, nodeRadius * 0.5,
-          layer.x, layer.y, nodeRadius * 2.5
-        )
-        gradient.addColorStop(0, `rgba(${primaryColor}, ${isLight ? 0.25 : 0.4})`)
-        gradient.addColorStop(1, `rgba(${primaryColor}, 0)`)
+      // A layer is a square cell: outlined where a patch can go, filled in its patch's color
+      // once it has one, and a small solid cell where nothing can be patched
+      const side = isClickable || hasPatch ? nodeRadius * 2 : nodeRadius
+      const grown = isHovered && isClickable ? side + 4 : side
+      const left = Math.round(layer.x - grown / 2)
+      const top = Math.round(layer.y - grown / 2)
 
-        ctx.beginPath()
-        ctx.arc(layer.x, layer.y, nodeRadius * 2.5, 0, Math.PI * 2)
-        ctx.fillStyle = gradient
-        ctx.fill()
+      ctx.fillStyle = hasPatch && firstPatchColors
+        ? `rgb(${firstPatchColors.primary})`
+        : isClickable
+          ? (isHovered ? palette.fillStrong : bgColor)
+          : palette.fgFaint
+      if (isClickable && !hasPatch) {
+        // Cover the lines running behind an empty cell
+        ctx.fillStyle = bgColor
+        ctx.fillRect(left, top, grown, grown)
+        ctx.fillStyle = isHovered ? palette.fillStrong : bgColor
+      }
+      ctx.fillRect(left, top, grown, grown)
+
+      if (isClickable || hasPatch) {
+        ctx.strokeStyle = isHovered ? palette.fg : hasPatch ? 'transparent' : palette.ruleStrong
+        ctx.lineWidth = 1
+        ctx.strokeRect(left + 0.5, top + 0.5, grown - 1, grown - 1)
       }
 
-      // Draw main node
-      const baseColor = hasPatch && firstPatchColors
-        ? firstPatchColors.primary
-        : isClickable
-          ? defaultNodeColor
-          : inactiveNodeColor
-
-      const nodeGradient = ctx.createRadialGradient(
-        layer.x - nodeRadius * 0.3, layer.y - nodeRadius * 0.3, 0,
-        layer.x, layer.y, nodeRadius
-      )
-      nodeGradient.addColorStop(0, `rgba(${baseColor}, ${isHovered ? 1 : 0.9})`)
-      nodeGradient.addColorStop(1, `rgba(${baseColor}, ${isHovered ? 0.8 : 0.6})`)
-
-      ctx.beginPath()
-      ctx.arc(layer.x, layer.y, isHovered ? nodeRadius * 1.15 : nodeRadius, 0, Math.PI * 2)
-      ctx.fillStyle = nodeGradient
-      ctx.fill()
-
-      // Draw border
-      ctx.strokeStyle = hasPatch && firstPatchColors
-        ? `rgba(${firstPatchColors.secondary}, ${isHovered ? 1 : 0.8})`
-        : isClickable
-          ? borderDefault(isHovered)
-          : borderInactive
-      ctx.lineWidth = isHovered ? 2.5 : 1.5
-      ctx.stroke()
-
-      // Draw patch count badge if multiple patches
+      // How many patches, when a layer has more than one
       if (layerPatchInfo.length > 1) {
-        const badgeX = layer.x + nodeRadius * 0.7
-        const badgeY = layer.y - nodeRadius * 0.7
-        const badgeRadius = 8
-
-        ctx.beginPath()
-        ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'
-        ctx.fill()
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 1)'
-        ctx.font = 'bold 10px Inter, system-ui, sans-serif'
+        const badge = 16
+        const badgeX = left + grown - badge / 2
+        const badgeY = top - badge / 2
+        ctx.fillStyle = palette.fg
+        ctx.fillRect(badgeX, badgeY, badge, badge)
+        ctx.fillStyle = palette.bg
+        ctx.font = `500 11px ${MONO}`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(layerPatchInfo.length.toString(), badgeX, badgeY)
+        ctx.fillText(layerPatchInfo.length.toString(), badgeX + badge / 2, badgeY + badge / 2 + 0.5)
       }
 
       // Draw label below node
-      ctx.fillStyle = isHovered
-        ? textPrimary
-        : hasPatch && firstPatchColors
-          ? `rgba(${firstPatchColors.secondary}, 0.9)`
-          : textPrimary
-      ctx.font = `${isHovered ? '600' : '500'} 11px Inter, system-ui, sans-serif`
+      ctx.fillStyle = isHovered || hasPatch ? textPrimary : palette.fgDim
+      ctx.font = `500 12px ${MONO}`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'top'
-      ctx.fillText(layer.label, layer.x, layer.y + nodeRadius + 8)
+      ctx.fillText(layer.label, layer.x, layer.y + nodeRadius + 10)
 
       // Draw clickable indicator for transformer layers
       if (isClickable && isHovered && !hasPatch) {
         ctx.fillStyle = textPrimary
-        ctx.font = 'bold 16px Inter, system-ui, sans-serif'
+        ctx.font = '400 18px Inter, system-ui, sans-serif'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText('+', layer.x, layer.y)
@@ -313,8 +281,8 @@ export function PatchSelector({
     })
 
     // Draw title
-    ctx.fillStyle = textPrimary
-    ctx.font = '500 12px Inter, system-ui, sans-serif'
+    ctx.fillStyle = palette.fgDim
+    ctx.font = '400 13.5px Inter, system-ui, sans-serif'
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
     ctx.fillText('Click a layer to add a patch', padding.left, 15)
@@ -323,11 +291,11 @@ export function PatchSelector({
     const legendX = width - padding.right
     const legendY = 12
     ctx.textAlign = 'right'
-    ctx.fillStyle = textPrimary
-    ctx.font = '400 10px Inter, system-ui, sans-serif'
+    ctx.fillStyle = palette.fgDim
+    ctx.font = '400 13.5px Inter, system-ui, sans-serif'
     ctx.fillText('Hover for details', legendX, legendY)
 
-  }, [dimensions, numLayers, hoveredLayer, patches, getLayerPatchInfo, disabled, isLight])
+  }, [dimensions, numLayers, hoveredLayer, patches, getLayerPatchInfo, disabled, palette])
 
   // Handle mouse movement for hover detection
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -419,10 +387,7 @@ export function PatchSelector({
 
   return (
     <div className="patch-selector" ref={containerRef}>
-      <div className="selector-header">
-        <Network className="header-icon" />
-        <h3>Visual Layer Selector</h3>
-      </div>
+      <h2 className="oz-title">Visual layer selector</h2>
 
       <div className="canvas-container">
         <canvas
@@ -450,15 +415,8 @@ export function PatchSelector({
                 {hoveredLayer.activePatches.map((patchInfo, idx) => {
                   const colors = getPatchColors(patchInfo)
                   return (
-                    <span
-                      key={`${patchInfo.patchType}-${patchInfo.interventionType}-${idx}`}
-                      className="patch-badge"
-                      style={{
-                        backgroundColor: `rgba(${colors.primary}, 0.2)`,
-                        borderColor: `rgba(${colors.primary}, 0.5)`,
-                        color: `rgba(${colors.secondary}, 1)`,
-                      }}
-                    >
+                    <span key={`${patchInfo.patchType}-${patchInfo.interventionType}-${idx}`} className="oz-tag">
+                      <i className="patch-key" style={{ background: `rgb(${colors.primary})` }} />
                       {colors.label}
                     </span>
                   )
@@ -475,35 +433,25 @@ export function PatchSelector({
           <>
             <div className="menu-backdrop" onClick={() => setShowPatchMenu(null)} />
             <div
-              className="patch-menu"
+              className="patch-menu oz-menu"
               style={{
                 left: Math.min(showPatchMenu.x, dimensions.width - 200),
                 top: showPatchMenu.y + 10,
               }}
             >
-              <div className="menu-header">
-                <Plus className="menu-icon" />
-                <span>Add Intervention to L{showPatchMenu.layerIdx}</span>
-              </div>
+              <div className="menu-header">Add intervention to L{showPatchMenu.layerIdx}</div>
 
               {/* Patch section */}
               <div className="menu-section">
-                <div className="section-label">
-                  <Zap className="section-icon" />
-                  <span>Patch from Source</span>
-                </div>
+                <div className="section-label">Patch from source</div>
                 <div className="menu-items">
                   {Object.entries(PATCH_TYPE_COLORS).map(([type, colors]) => (
                     <button
                       key={type}
-                      className="menu-item"
+                      className="oz-menu__item"
                       onClick={() => handleAddPatchType(type as PatchType, 'patch')}
-                      style={{
-                        '--patch-color': `rgb(${colors.primary})`,
-                        '--patch-color-light': `rgb(${colors.secondary})`,
-                      } as React.CSSProperties}
                     >
-                      <span className="item-dot" />
+                      <i className="patch-key" style={{ background: `rgb(${colors.primary})` }} />
                       <span className="item-label">{colors.label}</span>
                     </button>
                   ))}
@@ -512,22 +460,15 @@ export function PatchSelector({
 
               {/* Ablation section */}
               <div className="menu-section">
-                <div className="section-label">
-                  <CircleOff className="section-icon" />
-                  <span>Ablate</span>
-                </div>
+                <div className="section-label">Ablate</div>
                 <div className="menu-items">
                   {Object.entries(ABLATION_TYPE_COLORS).map(([ablationType, colors]) => (
                     <button
                       key={ablationType}
-                      className="menu-item"
+                      className="oz-menu__item"
                       onClick={() => handleAddPatchType('residual' as PatchType, ablationType as InterventionType)}
-                      style={{
-                        '--patch-color': `rgb(${colors.primary})`,
-                        '--patch-color-light': `rgb(${colors.secondary})`,
-                      } as React.CSSProperties}
                     >
-                      <span className="item-dot" />
+                      <i className="patch-key" style={{ background: `rgb(${colors.primary})` }} />
                       <span className="item-label">{colors.label}</span>
                     </button>
                   ))}
@@ -541,8 +482,7 @@ export function PatchSelector({
       {/* Active patches legend */}
       {patches.length > 0 && (
         <div className="patches-legend">
-          <Eye className="legend-icon" />
-          <span className="legend-label">Active:</span>
+          <span className="legend-label">Active</span>
           <div className="legend-badges">
             {patches.map((patch, idx) => {
               const isAblation = patch.intervention_type !== 'patch'
@@ -554,15 +494,8 @@ export function PatchSelector({
                 : PATCH_TYPE_COLORS[patch.patch_type].label
 
               return (
-                <span
-                  key={idx}
-                  className="legend-badge"
-                  style={{
-                    backgroundColor: `rgba(${colors.primary}, 0.15)`,
-                    borderColor: `rgba(${colors.primary}, 0.4)`,
-                    color: `rgba(${colors.secondary}, 1)`,
-                  }}
-                >
+                <span key={idx} className="oz-tag">
+                  <i className="patch-key" style={{ background: `rgb(${colors.primary})` }} />
                   L{patch.layer} {label}
                 </span>
               )
@@ -572,248 +505,112 @@ export function PatchSelector({
       )}
 
       <style>{`
-        .patch-selector {
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          margin-bottom: 1rem;
-        }
-
-        .selector-header {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.875rem 1rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .selector-header h3 {
-          margin: 0;
-          font-size: 0.85rem;
-          font-weight: 600;
-          color: #ffffff;
-          letter-spacing: 0.025em;
-        }
-
-        .header-icon {
-          width: 16px;
-          height: 16px;
-          color: #ffffff;
-        }
-
-        .canvas-container {
+        .patch-selector .canvas-container {
           position: relative;
-          width: 100%;
         }
 
-        .canvas-container canvas {
+        .patch-selector canvas {
           display: block;
           width: 100%;
-        }
-
-        .layer-tooltip {
-          position: absolute;
-          transform: translateX(-50%);
-          background: rgba(20, 20, 20, 0.98);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          padding: 0.625rem 0.875rem;
-          pointer-events: none;
-          z-index: 10;
-          min-width: 120px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-        }
-
-        .tooltip-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 1rem;
-          margin-bottom: 0.375rem;
-        }
-
-        .tooltip-layer {
-          font-weight: 600;
-          font-size: 0.9rem;
-          color: #ffffff;
-        }
-
-        .tooltip-heads {
-          font-size: 0.7rem;
-          color: #ffffff;
-        }
-
-        .tooltip-patches {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.375rem;
-        }
-
-        .patch-badge {
-          font-size: 0.7rem;
-          padding: 0.125rem 0.375rem;
-          border: 1px solid;
-          font-weight: 500;
-        }
-
-        .tooltip-hint {
-          font-size: 0.75rem;
-          color: #ffffff;
-        }
-
-        .menu-backdrop {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          z-index: 15;
-        }
-
-        .patch-menu {
-          position: absolute;
-          background: rgba(20, 20, 20, 0.98);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          z-index: 20;
-          min-width: 160px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-        }
-
-        .menu-header {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.625rem 0.75rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-          font-size: 0.8rem;
-          font-weight: 600;
-          color: #ffffff;
-        }
-
-        .menu-icon {
-          width: 14px;
-          height: 14px;
-          color: rgba(59, 130, 246, 0.8);
-        }
-
-        .menu-section {
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .menu-section:first-of-type {
-          border-top: none;
-        }
-
-        .section-label {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
-          padding: 0.5rem 0.75rem 0.25rem;
-          font-size: 0.65rem;
-          font-weight: 600;
-          color: #ffffff;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .section-icon {
-          width: 10px;
-          height: 10px;
-        }
-
-        .menu-items {
-          padding: 0.25rem 0;
-        }
-
-        .menu-item {
-          display: flex;
-          align-items: center;
-          gap: 0.625rem;
-          width: 100%;
-          padding: 0.5rem 0.75rem;
-          background: transparent;
-          border: none;
           cursor: pointer;
-          font-size: 0.8rem;
-          color: #ffffff;
-          text-align: left;
-          transition: all 0.15s;
         }
 
-        .menu-item:hover {
-          background: rgba(255, 255, 255, 0.05);
-          color: #ffffff;
-        }
-
-        .item-dot {
+        /* A patch's kind, keyed by a cell of its color */
+        .patch-selector .patch-key {
+          flex: none;
           width: 8px;
           height: 8px;
-          border-radius: 50%;
-          background: var(--patch-color);
-          box-shadow: 0 0 6px var(--patch-color);
         }
 
-        .item-label {
-          flex: 1;
+        .patch-selector .layer-tooltip {
+          position: absolute;
+          z-index: 10;
+          transform: translateX(-50%);
+          padding: 0.5rem 0.7rem;
+          background: var(--oz-bg);
+          border: 1px solid var(--oz-rule-strong);
+          font-size: 0.8rem;
+          white-space: nowrap;
+          pointer-events: none;
         }
 
-        .item-hint {
-          font-size: 0.65rem;
-          color: #ffffff;
-          margin-left: auto;
-        }
-
-        .patches-legend {
+        .patch-selector .tooltip-header {
           display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.625rem 1rem;
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
-          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 0.75rem;
         }
 
-        .legend-icon {
-          width: 14px;
-          height: 14px;
-          color: #ffffff;
-        }
-
-        .legend-label {
-          font-size: 0.75rem;
-          color: #ffffff;
-          margin-right: 0.25rem;
-        }
-
-        .legend-badges {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.375rem;
-        }
-
-        .legend-badge {
-          font-size: 0.7rem;
-          padding: 0.125rem 0.5rem;
-          border: 1px solid;
+        .patch-selector .tooltip-layer {
           font-weight: 500;
         }
 
-        /* Light mode */
-        [data-bg="light"] .patch-selector { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .selector-header { border-bottom-color: rgba(0,0,0,0.08); }
-        [data-bg="light"] .selector-header h3 { color: #1d1d1f; }
-        [data-bg="light"] .header-icon { color: #1d1d1f; }
-        [data-bg="light"] .layer-tooltip { background: rgba(255,255,255,0.97); border-color: rgba(0,0,0,0.12); box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-        [data-bg="light"] .tooltip-layer { color: #1d1d1f; }
-        [data-bg="light"] .tooltip-heads { color: #1d1d1f; }
-        [data-bg="light"] .tooltip-hint { color: #1d1d1f; }
-        [data-bg="light"] .patch-menu { background: rgba(255,255,255,0.98); border-color: rgba(0,0,0,0.12); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
-        [data-bg="light"] .menu-header { color: #1d1d1f; border-bottom-color: rgba(0,0,0,0.08); }
-        [data-bg="light"] .menu-section { border-top-color: rgba(0,0,0,0.06); }
-        [data-bg="light"] .section-label { color: #1d1d1f; }
-        [data-bg="light"] .menu-item { color: #1d1d1f; }
-        [data-bg="light"] .menu-item:hover { background: rgba(0,0,0,0.04); color: #1d1d1f; }
-        [data-bg="light"] .item-hint { color: #1d1d1f; }
-        [data-bg="light"] .legend-icon { color: #1d1d1f; }
-        [data-bg="light"] .legend-label { color: #1d1d1f; }
-        [data-bg="light"] .patches-legend { border-top-color: rgba(0,0,0,0.08); }
+        .patch-selector .tooltip-heads,
+        .patch-selector .tooltip-hint {
+          color: var(--oz-fg-dim);
+        }
+
+        .patch-selector .tooltip-patches {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          margin-top: 0.4rem;
+        }
+
+        .patch-selector .menu-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 40;
+        }
+
+        /* What to add at the layer that was clicked */
+        .patch-selector .patch-menu {
+          position: absolute;
+          z-index: 50;
+          min-width: 210px;
+        }
+
+        .patch-selector .menu-header {
+          padding: 0.45rem 0.75rem 0.6rem;
+          font-size: 0.9375rem;
+          font-weight: 500;
+          letter-spacing: -0.015em;
+        }
+
+        .patch-selector .menu-section {
+          padding-top: 6px;
+          margin-top: 6px;
+          border-top: 1px solid var(--oz-rule);
+        }
+
+        .patch-selector .section-label {
+          padding: 0.3rem 0.75rem 0.25rem;
+          color: var(--oz-fg-dim);
+          font-size: 0.78rem;
+          font-weight: 500;
+        }
+
+        .patch-selector .oz-menu__item {
+          padding: 0.4rem 0.75rem;
+        }
+
+        .patch-selector .patches-legend {
+          display: flex;
+          align-items: baseline;
+          gap: 0.75rem;
+          margin-top: 0.9rem;
+        }
+
+        .patch-selector .legend-label {
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
+          font-weight: 500;
+        }
+
+        .patch-selector .legend-badges {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+        }
       `}</style>
     </div>
   )

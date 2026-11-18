@@ -33,7 +33,7 @@ function FeatureTable({ result, order, labelNames }: { result: SaeProbeResponse;
     <div style={{ maxHeight: 360, overflowY: 'auto', border: `1px solid ${colors.border}` }}>
       <table className="pl-table pl-feature-table" aria-label="SAE features">
         <thead>
-          <tr style={{ background: colors.isLight ? '#f5f5f7' : '#151515' }}>
+          <tr>
             <th>Feature</th>
             <th title="(probe weights · decoder row) × class mean difference, over the probe's class gap">Share of gap</th>
             <th title="Cosine between the feature's decoder direction and the probe's direction">Cosine</th>
@@ -237,7 +237,7 @@ function SparseTable({ result }: { result: SaeProbeResponse }) {
     <div style={{ border: `1px solid ${colors.border}` }}>
       <table className="pl-table" aria-label="Sparse and dense probes">
         <thead>
-          <tr style={{ background: colors.isLight ? '#f5f5f7' : '#151515' }}>
+          <tr>
             <th>Probe</th>
             <th>Test AUROC</th>
             {hasOod && <th>OOD AUROC</th>}
@@ -408,11 +408,11 @@ export function SaePanel({ probe, lab, onShowPurchaseCredits }: { probe: CausalP
       ) : saes == null ? (
         <div className="pl-note">Looking for SAEs…</div>
       ) : atLayer.length === 0 ? (
-        <div className="pl-empty" style={{ borderColor: colors.border }}>
+        <div className="pl-empty">
           No SAE at layer {probe.layer}
           {otherLayers.length > 0 && ` (available at layer${otherLayers.length > 1 ? 's' : ''} ${otherLayers.join(', ')})`}.{' '}
           {isGemma ? `Load Gemma Scope 2 resid_post layer ${probe.layer} on the ` : 'Load one on the '}
-          <a href="/sae" target="_blank" rel="noopener noreferrer" style={{ color: colors.accent }}>
+          <a href="/sae" target="_blank" rel="noopener noreferrer" className="pl-inline-link">
             SAE page
           </a>
           .
@@ -442,7 +442,7 @@ export function SaePanel({ probe, lab, onShowPurchaseCredits }: { probe: CausalP
       {error && <div className="pl-error-note">{error}</div>}
 
       {response && (
-        <div className="pl-result" style={{ borderColor: colors.border, opacity: running ? 0.55 : 1 }}>
+        <div className="pl-result" style={{ opacity: running ? 0.55 : 1 }}>
           <div className="pl-run-meta">
             {stale && <strong style={{ color: colors.warning }}>From a different probe or SAE · </strong>}
             <strong>{response.sae.info.name}</strong> · {response.dataset.name} · {response.dataset.n_train} train / {response.dataset.n_test} test
@@ -537,10 +537,10 @@ export function SaePanel({ probe, lab, onShowPurchaseCredits }: { probe: CausalP
 
       <style>{`
         .probe-lab .pl-feature-table td { white-space: nowrap; }
-        .probe-lab .pl-feature-table .pl-feature-example { text-align: left; max-width: 22rem; overflow: hidden; text-overflow: ellipsis; font-size: 0.72rem; }
-        .probe-lab .pl-share { display: inline-flex; align-items: center; gap: 0.4rem; justify-content: flex-end; }
-        .probe-lab .pl-share-track { position: relative; display: inline-block; width: 56px; height: 6px; border-radius: 3px; }
-        .probe-lab .pl-share-bar { position: absolute; top: 0; height: 6px; border-radius: 3px; }
+        .probe-lab .pl-feature-table .pl-feature-example { text-align: left; max-width: 22rem; overflow: hidden; text-overflow: ellipsis; font-size: 0.8rem; }
+        .probe-lab .pl-share { display: inline-flex; align-items: center; gap: 0.45rem; justify-content: flex-end; }
+        .probe-lab .pl-share-track { position: relative; display: inline-block; width: 56px; height: 6px; }
+        .probe-lab .pl-share-bar { position: absolute; top: 0; height: 6px; }
       `}</style>
     </div>
   )

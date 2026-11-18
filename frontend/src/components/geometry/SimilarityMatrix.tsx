@@ -5,7 +5,7 @@
  */
 
 import { useMemo, useRef, useState, type PointerEvent } from 'react'
-import { Download, Grid3x3 } from 'lucide-react'
+import { Download } from 'lucide-react'
 import type { GeometryLab } from '../../hooks/useGeometryLab'
 import type { GeometryRun } from '../../types/geometry'
 import { ChartTooltip, Placeholder } from '../lab/chartKit'
@@ -36,7 +36,7 @@ export function SimilarityMatrix({ lab }: { lab: GeometryLab }) {
   if (!lab.run) {
     return (
       <section className="pl-panel">
-        <Placeholder icon={Grid3x3}>{lab.running ? 'Reading every layer…' : 'Run a concept to compare its class means.'}</Placeholder>
+        <Placeholder glyph="geometry">{lab.running ? 'Reading every layer…' : 'Run a concept to compare its class means.'}</Placeholder>
       </section>
     )
   }
@@ -98,7 +98,6 @@ function SimilarityBody({ lab, run }: { lab: GeometryLab; run: GeometryRun }) {
               title="Download SVG"
               aria-label="Download SVG"
               onClick={() => svgRef.current && downloadSvg(svgRef.current, `${filename}.svg`, colors.surface)}
-              style={{ color: colors.text }}
             >
               <Download className="pl-icon" />
             </button>

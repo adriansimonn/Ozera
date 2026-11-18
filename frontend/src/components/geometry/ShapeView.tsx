@@ -5,7 +5,7 @@
  */
 
 import { Component, Suspense, lazy, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
-import { Download, Orbit } from 'lucide-react'
+import { Download } from 'lucide-react'
 import type { GeometryLab } from '../../hooks/useGeometryLab'
 import type { GeometryRun } from '../../types/geometry'
 import { ChartTooltip, Findings, Placeholder, Segmented, StatTiles, type Finding, type Tile } from '../lab/chartKit'
@@ -230,7 +230,6 @@ function PcPlane({ run, position, pair, showPoints, fills }: { run: GeometryRun;
           title="Download SVG"
           aria-label="Download SVG"
           onClick={() => svgRef.current && downloadSvg(svgRef.current, `${filename}.svg`, colors.surface)}
-          style={{ color: colors.text }}
         >
           <Download className="pl-icon" />
         </button>
@@ -253,7 +252,7 @@ function PcPlane({ run, position, pair, showPoints, fills }: { run: GeometryRun;
               x={px(m[a]) + 7}
               y={py(m[b]) - 7}
               fontSize={10}
-              fontWeight={600}
+              fontWeight={500}
               fill={colors.text}
               stroke={colors.surface}
               strokeWidth={3}
@@ -320,7 +319,7 @@ export function ShapeView({ lab }: { lab: GeometryLab }) {
   if (!run) {
     return (
       <section className="pl-panel">
-        <Placeholder icon={Orbit}>{lab.running ? 'Reading every layer…' : 'Choose a model and a concept, then run.'}</Placeholder>
+        <Placeholder glyph="geometry">{lab.running ? 'Reading every layer…' : 'Choose a model and a concept, then run.'}</Placeholder>
       </section>
     )
   }
@@ -419,7 +418,7 @@ export function ShapeView({ lab }: { lab: GeometryLab }) {
           <div className="pl-card-title">
             <h3>3D · {layerName(position)}</h3>
           </div>
-          <SceneBoundary fallback={<Placeholder icon={Orbit}>3D needs WebGL; the plane view shows the same data.</Placeholder>}>
+          <SceneBoundary fallback={<Placeholder glyph="geometry">3D needs WebGL; the plane view shows the same data.</Placeholder>}>
             <Suspense fallback={<div className="gl-scene-loading pl-hint">Loading 3D…</div>}>
               <ShapeScene
                 points={run.points.values[position]}
@@ -432,7 +431,7 @@ export function ShapeView({ lab }: { lab: GeometryLab }) {
                 exampleText={(i) => exampleText(run.concept, i)}
                 ink={colors.text}
                 muted={colors.baseline}
-                surface={colors.isLight ? '#ffffff' : '#141414'}
+                surface={colors.surface}
               />
             </Suspense>
           </SceneBoundary>

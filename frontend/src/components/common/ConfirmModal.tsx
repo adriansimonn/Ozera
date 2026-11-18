@@ -25,43 +25,20 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   if (!isOpen) return null
 
   return (
-    <div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-      onClick={onCancel}
-    >
-      <div
-        className="bg-black/60 border border-gray-800 max-w-sm w-full p-6 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={onCancel}
-          className="absolute top-4 right-4 text-white hover:text-white transition-colors"
-          aria-label="Close"
-        >
-          <X size={18} />
+    <div className="oz-overlay" onClick={onCancel}>
+      <div className="oz-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onCancel} className="oz-icon-btn oz-modal__close" aria-label="Close">
+          <X />
         </button>
 
-        <h2 className="text-lg font-semibold text-white mb-3 tracking-tight">
-          {title}
-        </h2>
+        <h2 className="oz-modal__title">{title}</h2>
+        <p className="oz-modal__text">{message}</p>
 
-        <p className="text-sm text-white mb-6 leading-relaxed">
-          {message}
-        </p>
-
-        <div className="flex gap-3 justify-end">
-          <button
-            onClick={onCancel}
-            disabled={isLoading}
-            className="px-4 py-2 bg-white/5 hover:bg-white/10 disabled:bg-gray-800 disabled:cursor-not-allowed text-white text-sm font-medium border border-gray-700 hover:border-gray-600 transition-all"
-          >
+        <div className="oz-modal__actions">
+          <button onClick={onCancel} disabled={isLoading} className="oz-btn oz-btn--ghost">
             {cancelLabel}
           </button>
-          <button
-            onClick={onConfirm}
-            disabled={isLoading}
-            className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 disabled:bg-red-500/10 disabled:cursor-not-allowed text-red-400 text-sm font-medium border border-red-500/30 hover:border-red-500/50 transition-all"
-          >
+          <button onClick={onConfirm} disabled={isLoading} className="oz-btn oz-btn--danger">
             {isLoading ? 'Deleting...' : confirmLabel}
           </button>
         </div>

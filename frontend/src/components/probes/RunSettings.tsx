@@ -2,8 +2,8 @@
  * Run settings for a probe training run, with its cost estimate and the button that starts it.
  */
 
-import { FlaskConical } from 'lucide-react'
 import type { ProbeLab } from '../../hooks/useProbeLab'
+import { Spinner } from '../common/Spinner'
 import { Segmented } from '../lab/chartKit'
 import { useLabColors } from '../lab/labTheme'
 import { estimateText } from './probeUtils'
@@ -65,7 +65,7 @@ export function RunSettings({ lab }: { lab: ProbeLab }) {
             value={lab.seed}
             disabled={disabled}
             onChange={(e) => lab.setSeed(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
-            style={{ width: '5.5rem', borderColor: colors.border, background: colors.panel, color: colors.text }}
+            style={{ width: '5.5rem' }}
           />
         </div>
       </div>
@@ -79,29 +79,29 @@ export function RunSettings({ lab }: { lab: ProbeLab }) {
 
       <button
         type="button"
-        className="pl-train-button"
+        className={`oz-btn oz-btn--block${lab.training ? '' : ' oz-btn--arrow'}`}
         data-assist="probes.train_button"
         onClick={lab.train}
         disabled={lab.training || !lab.modelId || !lab.stats || (estimate != null && !estimate.within_limit)}
       >
         {lab.training ? (
           <>
-            <span className="pl-spinner" />
+            <Spinner />
             Training probes…
           </>
         ) : (
-          <>
-            <FlaskConical className="pl-icon" aria-hidden="true" />
-            Train probes
-          </>
+          'Train probes'
         )}
       </button>
 
       <style>{`
-        .probe-lab .pl-setting { margin-bottom: 0.875rem; }
-        .probe-lab .pl-setting-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
-        .probe-lab .pl-estimate { display: flex; justify-content: space-between; gap: 0.75rem; margin: 0.875rem 0 0.75rem; font-size: 0.75rem; }
-        .probe-lab .pl-estimate span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+        .probe-lab .pl-setting { margin-bottom: 1rem; }
+        .probe-lab .pl-setting-row { display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: flex-end; }
+        .probe-lab .pl-estimate {
+          display: flex; justify-content: space-between; gap: 0.75rem; margin: 1.25rem 0 0.9rem; padding-top: 0.8rem;
+          border-top: 1px solid var(--oz-rule); color: var(--oz-fg-dim); font-size: 0.85rem;
+        }
+        .probe-lab .pl-estimate span:last-child { color: var(--oz-fg); text-align: right; font-variant-numeric: tabular-nums; }
       `}</style>
     </div>
   )

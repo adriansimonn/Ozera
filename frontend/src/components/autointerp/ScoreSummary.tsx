@@ -6,7 +6,6 @@
  */
 
 import { useMemo, useState, type PointerEvent } from 'react'
-import { BarChart3 } from 'lucide-react'
 import { useAutointerpSummary, type AutointerpAtlasRef } from '../../hooks/useAutointerp'
 import type { SummaryResponse } from '../../types/autointerp'
 import { Dropdown } from '../common/Dropdown'
@@ -164,7 +163,7 @@ export function ScoreSummary({ atlasRef }: { atlasRef: AutointerpAtlasRef }) {
     return <div className="pl-note">{query.isLoading ? 'Loading…' : (query.error as Error | null)?.message ?? ''}</div>
   }
   if (!summary.features) {
-    return <Placeholder icon={BarChart3}>No scored explanations on this atlas yet.</Placeholder>
+    return <Placeholder glyph="chart">No scored explanations on this atlas yet.</Placeholder>
   }
 
   const tiles: Tile[] = [

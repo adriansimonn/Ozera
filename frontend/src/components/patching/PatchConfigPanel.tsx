@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react'
-import { Plus, X, Layers, Settings2 } from 'lucide-react'
+import {  X } from 'lucide-react'
 import type { PatchSpec, PatchType, InterventionType } from '../../types/patching'
 import { Dropdown } from '../common/Dropdown'
 
@@ -85,15 +85,12 @@ export function PatchConfigPanel({
 
   return (
     <div className="patch-config-panel">
-      <div className="panel-header">
-        <Settings2 className="header-icon" />
-        <h3>Intervention Configuration</h3>
-      </div>
+      <h2 className="oz-title">Intervention configuration</h2>
 
       <div className="config-form">
         <div className="form-row">
           <div className="form-group">
-            <label>Intervention Type</label>
+            <label>Intervention type</label>
             <Dropdown
               value={interventionType}
               onChange={v => setInterventionType(v as InterventionType)}
@@ -118,7 +115,7 @@ export function PatchConfigPanel({
           </div>
 
           <div className="form-group">
-            <label>Activation Type</label>
+            <label>Activation type</label>
             <Dropdown
               value={patchType}
               onChange={v => setPatchType(v as PatchType)}
@@ -133,6 +130,7 @@ export function PatchConfigPanel({
             <label>Positions (comma-separated, empty = all)</label>
             <input
               type="text"
+              className="oz-input"
               value={positions}
               onChange={e => setPositions(e.target.value)}
               placeholder="e.g., 0,1,2 or leave empty"
@@ -145,6 +143,7 @@ export function PatchConfigPanel({
               <label>Heads (0-{numHeads - 1}, empty = all)</label>
               <input
                 type="text"
+                className="oz-input"
                 value={heads}
                 onChange={e => setHeads(e.target.value)}
                 placeholder="e.g., 0,1 or leave empty"
@@ -158,6 +157,7 @@ export function PatchConfigPanel({
               <label>Neurons ({mlpNeurons !== null ? `0-${mlpNeurons - 1}, ` : ''}empty = all)</label>
               <input
                 type="text"
+                className="oz-input"
                 value={neurons}
                 onChange={e => setNeurons(e.target.value)}
                 placeholder="e.g., 12,305 or leave empty"
@@ -169,7 +169,9 @@ export function PatchConfigPanel({
 
         <div className="form-row">
           <div className="form-group blend-group">
-            <label>Blend Factor: {blendFactor.toFixed(2)}</label>
+            <label>
+              Blend factor <span className="blend-value">{blendFactor.toFixed(2)}</span>
+            </label>
             <input
               type="range"
               min="0"
@@ -181,17 +183,16 @@ export function PatchConfigPanel({
             />
             <div className="blend-labels">
               <span>Original</span>
-              <span>{isAblationType ? 'Full Ablation' : 'Full Replace'}</span>
+              <span>{isAblationType ? 'Full ablation' : 'Full replace'}</span>
             </div>
           </div>
         </div>
 
         <button
-          className="add-patch-btn"
+          className="oz-btn oz-btn--ghost oz-btn--block add-patch-btn"
           onClick={handleAddPatch}
           disabled={disabled}
         >
-          <Plus className="btn-icon" />
           Add Intervention
         </button>
       </div>
@@ -199,24 +200,24 @@ export function PatchConfigPanel({
       {patches.length > 0 && (
         <div className="patches-list">
           <div className="list-header">
-            <Layers className="header-icon" />
-            <span>Active Patches ({patches.length})</span>
+            <span>Active patches</span>
+            <span className="list-count">{patches.length}</span>
             <button
-              className="clear-btn"
+              className="oz-link clear-btn"
               onClick={onClearPatches}
               disabled={disabled}
             >
-              Clear All
+              Clear all
             </button>
           </div>
 
           {patches.map((patch, index) => (
             <div key={index} className={`patch-item ${patch.intervention_type !== 'patch' ? 'ablation-item' : ''}`}>
               <div className="patch-info">
-                <span className={`patch-intervention ${patch.intervention_type !== 'patch' ? 'ablation' : ''}`}>
-                  {patch.intervention_type === 'patch' ? 'PATCH' :
-                   patch.intervention_type === 'zero_ablate' ? 'ZERO' :
-                   patch.intervention_type === 'mean_ablate' ? 'MEAN' : 'NOISE'}
+                <span className={`oz-tag ${patch.intervention_type === 'patch' ? 'oz-tag--solid' : ''}`}>
+                  {patch.intervention_type === 'patch' ? 'Patch' :
+                   patch.intervention_type === 'zero_ablate' ? 'Zero' :
+                   patch.intervention_type === 'mean_ablate' ? 'Mean' : 'Noise'}
                 </span>
                 <span className="patch-layer">L{patch.layer}</span>
                 <span className="patch-type">{patch.patch_type}</span>
@@ -232,11 +233,13 @@ export function PatchConfigPanel({
                 <span className="patch-blend">{(patch.blend_factor * 100).toFixed(0)}%</span>
               </div>
               <button
-                className="remove-patch-btn"
+                className="oz-icon-btn"
                 onClick={() => onRemovePatch(index)}
                 disabled={disabled}
+                aria-label="Remove intervention"
+                title="Remove"
               >
-                <X className="remove-icon" />
+                <X />
               </button>
             </div>
           ))}
@@ -244,284 +247,120 @@ export function PatchConfigPanel({
       )}
 
       <style>{`
-        .patch-config-panel {
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 1.25rem;
-        }
-
-        .panel-header {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          margin-bottom: 1rem;
-          padding-bottom: 0.75rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .panel-header h3 {
-          margin: 0;
-          font-size: 0.9rem;
-          font-weight: 600;
-          color: #ffffff;
-          letter-spacing: 0.025em;
-        }
-
-        .header-icon {
-          width: 16px;
-          height: 16px;
-          color: #ffffff;
-        }
-
-        .config-form {
+        .patch-config-panel .config-form {
           display: flex;
           flex-direction: column;
-          gap: 1rem;
+          gap: 1.1rem;
         }
 
-        .form-row {
+        .patch-config-panel .form-row {
           display: flex;
-          gap: 1rem;
+          gap: 0.9rem;
         }
 
-        .form-group {
+        .patch-config-panel .form-group {
+          display: flex;
+          flex-direction: column;
           flex: 1;
-          display: flex;
-          flex-direction: column;
-          gap: 0.375rem;
+          min-width: 0;
         }
 
-        .form-group label {
-          font-size: 0.75rem;
-          color: #ffffff;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-        }
-
-        .form-group select,
-        .form-group input[type="text"] {
-          background: rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: #ffffff;
-          padding: 0.625rem 0.75rem;
-          font-size: 0.875rem;
-          transition: border-color 0.2s;
-        }
-
-        .form-group select:focus,
-        .form-group input[type="text"]:focus {
-          outline: none;
-          border-color: rgba(59, 130, 246, 0.5);
-        }
-
-        .form-group select:disabled,
-        .form-group input:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .blend-group {
-          flex: 2;
-        }
-
-        .blend-group input[type="range"] {
-          width: 100%;
-          height: 6px;
-          -webkit-appearance: none;
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 3px;
-          cursor: pointer;
-        }
-
-        .blend-group input[type="range"]::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          width: 16px;
-          height: 16px;
-          background: #1d1d1f;
-          border-radius: 50%;
-          cursor: pointer;
-        }
-
-        .blend-labels {
-          display: flex;
-          justify-content: space-between;
-          font-size: 0.7rem;
-          color: #ffffff;
-          margin-top: 0.25rem;
-        }
-
-        .add-patch-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-          padding: 0.75rem 1rem;
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          color: #ffffff;
-          font-size: 0.875rem;
+        .patch-config-panel .form-group label {
+          margin-bottom: 0.45rem;
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
           font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
         }
 
-        .add-patch-btn:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.12);
-          border-color: rgba(255, 255, 255, 0.35);
+        .patch-config-panel .blend-value {
+          margin-left: 0.3rem;
+          color: var(--oz-fg);
+          font-family: var(--oz-mono);
+          font-size: 0.82rem;
         }
 
-        .add-patch-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .btn-icon {
-          width: 16px;
-          height: 16px;
-        }
-
-        .patches-list {
-          margin-top: 1.25rem;
-          padding-top: 1rem;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .list-header {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          margin-bottom: 0.75rem;
-          font-size: 0.8rem;
-          color: #ffffff;
-        }
-
-        .clear-btn {
-          margin-left: auto;
-          padding: 0.25rem 0.5rem;
-          background: transparent;
-          border: 1px solid rgba(239, 68, 68, 0.3);
-          color: rgba(239, 68, 68, 0.8);
-          font-size: 0.7rem;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .clear-btn:hover:not(:disabled) {
-          background: rgba(239, 68, 68, 0.1);
-          border-color: rgba(239, 68, 68, 0.5);
-        }
-
-        .patch-item {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0.625rem 0.75rem;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          margin-bottom: 0.5rem;
-        }
-
-        .patch-info {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          flex-wrap: wrap;
-        }
-
-        .intervention-hint {
-          font-size: 0.7rem;
-          color: #ffffff;
-          margin-top: 0.25rem;
-        }
-
-        .ablation-select {
-          border-color: rgba(168, 85, 247, 0.4) !important;
-        }
-
-        .patch-intervention {
-          font-size: 0.65rem;
-          font-weight: 600;
-          padding: 0.125rem 0.375rem;
-          background: rgba(59, 130, 246, 0.2);
-          border: 1px solid rgba(59, 130, 246, 0.3);
-          color: rgba(59, 130, 246, 0.9);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .patch-intervention.ablation {
-          background: rgba(168, 85, 247, 0.2);
-          border-color: rgba(168, 85, 247, 0.3);
-          color: rgba(168, 85, 247, 0.9);
-        }
-
-        .patch-item.ablation-item {
-          border-color: rgba(168, 85, 247, 0.2);
-        }
-
-        .patch-layer {
-          font-weight: 600;
-          color: rgba(59, 130, 246, 0.9);
+        .patch-config-panel .intervention-hint {
+          margin-top: 0.45rem;
+          color: var(--oz-fg-dim);
           font-size: 0.85rem;
         }
 
-        .patch-type {
-          background: rgba(255, 255, 255, 0.1);
-          padding: 0.125rem 0.5rem;
-          font-size: 0.75rem;
-          color: #ffffff;
+        .patch-config-panel .blend-group input[type="range"] {
+          width: 100%;
         }
 
-        .patch-detail {
-          font-size: 0.75rem;
-          color: #ffffff;
-          font-family: monospace;
+        .patch-config-panel .blend-labels {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 0.15rem;
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
         }
 
-        .patch-blend {
-          font-size: 0.75rem;
-          color: rgba(34, 197, 94, 0.8);
+        /* The interventions added so far: a ruled list */
+        .patch-config-panel .patches-list {
+          margin-top: 1.5rem;
+        }
+
+        .patch-config-panel .list-header {
+          display: flex;
+          align-items: baseline;
+          gap: 0.6rem;
+          margin-bottom: 0.6rem;
+          font-size: 0.9375rem;
           font-weight: 500;
         }
 
-        .remove-patch-btn {
-          padding: 0.25rem;
-          background: transparent;
-          border: none;
-          color: #ffffff;
-          cursor: pointer;
-          transition: color 0.2s;
+        .patch-config-panel .list-count {
+          color: var(--oz-fg-dim);
+          font-weight: 400;
+          font-variant-numeric: tabular-nums;
         }
 
-        .remove-patch-btn:hover:not(:disabled) {
-          color: rgba(239, 68, 68, 0.8);
+        .patch-config-panel .clear-btn {
+          margin-left: auto;
+          font-size: 0.85rem;
         }
 
-        .remove-icon {
-          width: 14px;
-          height: 14px;
+        .patch-config-panel .patch-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          padding: 0.45rem 0;
+          border-top: 1px solid var(--oz-rule);
         }
 
-        /* Light mode */
-        [data-bg="light"] .patch-config-panel { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .panel-header { border-bottom-color: rgba(0,0,0,0.08); }
-        [data-bg="light"] .panel-header h3 { color: #1d1d1f; }
-        [data-bg="light"] .header-icon { color: #1d1d1f; }
-        [data-bg="light"] .form-group label { color: #1d1d1f; }
-        [data-bg="light"] .form-group select,
-        [data-bg="light"] .form-group input[type="text"] { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #1d1d1f; }
-        [data-bg="light"] .intervention-hint { color: #1d1d1f; }
-        [data-bg="light"] .blend-labels { color: #1d1d1f; }
-        [data-bg="light"] .blend-group input[type="range"] { background: rgba(0,0,0,0.1); }
-        [data-bg="light"] .add-patch-btn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); color: #1d1d1f; }
-        [data-bg="light"] .add-patch-btn:hover:not(:disabled) { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
-        [data-bg="light"] .patches-list { border-top-color: rgba(0,0,0,0.08); }
-        [data-bg="light"] .list-header { color: #1d1d1f; }
-        [data-bg="light"] .patch-item { background: rgba(0,0,0,0.02); border-color: rgba(0,0,0,0.08); }
-        [data-bg="light"] .patch-type { background: rgba(0,0,0,0.06); color: #1d1d1f; }
-        [data-bg="light"] .patch-detail { color: #1d1d1f; }
-        [data-bg="light"] .remove-patch-btn { color: #1d1d1f; }
-        [data-bg="light"] .menu-item { color: #1d1d1f; }
+        .patch-config-panel .patch-item:last-child {
+          border-bottom: 1px solid var(--oz-rule);
+        }
+
+        .patch-config-panel .patch-info {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 0.35rem 0.75rem;
+          min-width: 0;
+          font-family: var(--oz-mono);
+          font-size: 0.82rem;
+        }
+
+        .patch-config-panel .patch-info .oz-tag {
+          font-family: Inter, sans-serif;
+        }
+
+        .patch-config-panel .patch-layer {
+          font-weight: 500;
+        }
+
+        .patch-config-panel .patch-detail,
+        .patch-config-panel .patch-blend {
+          color: var(--oz-fg-dim);
+        }
+
+        @media (max-width: 640px) {
+          .patch-config-panel .form-row { flex-direction: column; }
+        }
       `}</style>
     </div>
   )

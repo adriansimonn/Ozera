@@ -9,7 +9,7 @@
  */
 
 import { useState } from 'react'
-import { Loader2, Sparkles } from 'lucide-react'
+import {  Sparkles } from 'lucide-react'
 import { useThemeColors } from '../../hooks/useTheme'
 import { useAutointerpStatus, useExplainFeature, useFeatureAutointerp, useFeatureExamples, type AutointerpAtlasRef } from '../../hooks/useAutointerp'
 import type { ExampleContext, ExplanationSource, TokenWeight } from '../../types/autointerp'
@@ -18,6 +18,7 @@ import { ContextLine } from './ContextLine'
 import { GenerationTestPanel, HypothesisPanel, Versions } from './ExplanationTests'
 import { formatScore, modelName } from './labels'
 import { Scores } from './ScoreLine'
+import { Spinner } from '../common/Spinner'
 
 function price(value: number): string {
   return `$${value.toFixed(2)}`
@@ -27,14 +28,14 @@ function Tokens({ label, tokens, title, color, border }: { label: string; tokens
   if (!tokens.length) return null
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'baseline' }}>
-      <span title={title} style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em', opacity: 0.7, minWidth: 74 }}>
+      <span title={title} style={{ fontSize: '0.82rem', opacity: 0.7, minWidth: 74 }}>
         {label}
       </span>
       {tokens.map((t, i) => (
         <span
           key={i}
           title={t.value.toFixed(3)}
-          style={{ fontFamily: 'monospace', fontSize: '0.75rem', padding: '0 4px', border: `1px solid ${border}`, color, whiteSpace: 'pre' }}
+          style={{ fontFamily: 'var(--oz-mono)', fontSize: '0.85rem', padding: '0 4px', border: `1px solid ${border}`, color, whiteSpace: 'pre' }}
         >
           {JSON.stringify(t.token).slice(1, -1)}
         </span>
@@ -64,8 +65,8 @@ export function FeatureExplanation({
   // Detail: the earlier explanation in view (null: the one shown), and the hypothesis opened
   const [viewing, setViewing] = useState<number | null>(null)
   const [hypothesisId, setHypothesisId] = useState<number | null>(null)
-  const accent = tc.isLight ? '#1d1d1f' : '#ffffff'
-  const faint = tc.isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)'
+  const accent = tc.text
+  const faint = tc.border
 
   const versions = detail.data?.versions ?? []
   const earlier = detailed && viewing != null ? versions.find((v) => v.id === viewing) ?? null : null
@@ -82,7 +83,7 @@ export function FeatureExplanation({
 
   const button = {
     padding: '0.35rem 0.75rem',
-    fontSize: '0.8rem',
+    fontSize: '0.875rem',
     border: `1px solid ${tc.borderStrong}`,
     background: tc.surfaceActive,
     color: tc.text,
@@ -94,9 +95,9 @@ export function FeatureExplanation({
 
   let body
   if (status.isLoading || detail.isLoading) {
-    body = <Loader2 size={14} className="animate-spin" style={{ opacity: 0.6 }} />
+    body = <Spinner />
   } else if (!status.data) {
-    body = <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{(status.error as Error | null)?.message ?? 'Unavailable'}</span>
+    body = <span style={{ fontSize: '0.875rem', opacity: 0.7 }}>{(status.error as Error | null)?.message ?? 'Unavailable'}</span>
   } else if (e?.explanation) {
     body = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -104,9 +105,9 @@ export function FeatureExplanation({
         {e.status === 'scored' ? (
           <Scores e={e} accent={accent} faint={faint} />
         ) : (
-          <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>{e.note ?? 'Not scored'}</div>
+          <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>{e.note ?? 'Not scored'}</div>
         )}
-        <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>
+        <div style={{ fontSize: '0.82rem', opacity: 0.6 }}>
           {modelName(e.explainer)}
           {e.status === 'scored' ? ` · scored by ${modelName(e.scorer)}` : ''}
           {earlier && (
@@ -121,19 +122,19 @@ export function FeatureExplanation({
       </div>
     )
   } else if (e?.status === 'refused') {
-    body = <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{e.note ?? 'Refused'}</span>
+    body = <span style={{ fontSize: '0.875rem', opacity: 0.7 }}>{e.note ?? 'Refused'}</span>
   } else if (status.data.state === 'recompute') {
     body = (
-      <span style={{ fontSize: '0.8rem', opacity: 0.7 }} title={status.data.reason ?? undefined}>
+      <span style={{ fontSize: '0.875rem', opacity: 0.7 }} title={status.data.reason ?? undefined}>
         Atlas v{status.data.atlas?.version ?? 1} · recompute it under Autointerp
       </span>
     )
   } else if (!ready) {
-    body = <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{status.data.reason}</span>
+    body = <span style={{ fontSize: '0.875rem', opacity: 0.7 }}>{status.data.reason}</span>
   } else if (detail.data && !detail.data.has_sets) {
-    body = <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>Never active over the corpus</span>
+    body = <span style={{ fontSize: '0.875rem', opacity: 0.7 }}>Never active over the corpus</span>
   } else if (!status.data.available) {
-    body = <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>Autointerp isn’t configured</span>
+    body = <span style={{ fontSize: '0.875rem', opacity: 0.7 }}>Autointerp isn’t configured</span>
   } else {
     body = (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -144,12 +145,12 @@ export function FeatureExplanation({
           onClick={runExplain}
           title={`${modelName(status.data.explainer)} explains it from its top and decile contexts; ${modelName(status.data.scorer)} scores it on held-out ones. Charged its usage.`}
         >
-          {explaining ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+          {explaining ? <Spinner /> : <Sparkles size={13} />}
           {explaining ? 'Explaining' : `Explain · ${price(status.data.explain_price)}`}
         </button>
-        {detail.data && !detail.data.scorable && <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{detail.data.unscored_note}</span>}
+        {detail.data && !detail.data.scorable && <span style={{ fontSize: '0.85rem', opacity: 0.7 }}>{detail.data.unscored_note}</span>}
         {explainError && (
-          <span style={{ fontSize: '0.75rem', color: 'rgba(239,68,68,0.9)' }}>
+          <span style={{ fontSize: '0.85rem', color: tc.danger }}>
             {explainError === 'INSUFFICIENT_CREDITS' ? 'Not enough credits' : explainError}
           </span>
         )}
@@ -162,21 +163,21 @@ export function FeatureExplanation({
   return (
     <div className="ai-explanation" style={{ border: `1px solid ${tc.border}`, background: tc.surface, padding: '0.75rem 1rem', marginBottom: '0.75rem', color: tc.text }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-        <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 }}>Explanation</span>
+        <span style={{ fontSize: '0.82rem', opacity: 0.7 }}>Explanation</span>
         {e?.status === 'scored' && (
           <span style={{ display: 'inline-flex', gap: 8, alignItems: 'baseline' }}>
             {e.token_feature && (
               <span
                 title="The explanation doesn’t beat its top tokens by much: what it fires on is mostly which token it is"
-                style={{ fontSize: '0.7rem', padding: '0 5px', border: `1px solid ${tc.borderStrong}` }}
+                style={{ fontSize: '0.82rem', padding: '0 5px', border: `1px solid ${tc.borderStrong}` }}
               >
                 Token feature
               </span>
             )}
-            <span title="Mean of detection and fuzzing (0.5 is chance); ± is how much it moves when explained and scored again (95%)" style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}>
+            <span title="Mean of detection and fuzzing (0.5 is chance); ± is how much it moves when explained and scored again (95%)" style={{ fontFamily: 'var(--oz-mono)', fontSize: '0.9rem' }}>
               {formatScore(e.score)}
               {e.score_pm != null && (
-                <span style={{ opacity: 0.6, fontSize: '0.75rem' }}> ±{e.score_pm.toFixed(2)}</span>
+                <span style={{ opacity: 0.6, fontSize: '0.85rem' }}> ±{e.score_pm.toFixed(2)}</span>
               )}
             </span>
           </span>
@@ -238,9 +239,9 @@ export function FeatureExplanation({
               {hypothesis.status === 'scored' ? (
                 <Scores e={hypothesis} accent={accent} faint={faint} />
               ) : (
-                <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>{hypothesis.note ?? 'Not scored'}</div>
+                <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>{hypothesis.note ?? 'Not scored'}</div>
               )}
-              <div style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: 4 }}>Your hypothesis · scored by {modelName(hypothesis.scorer)}</div>
+              <div style={{ fontSize: '0.82rem', opacity: 0.6, marginTop: 4 }}>Your hypothesis · scored by {modelName(hypothesis.scorer)}</div>
               <GenerationTestPanel
                 key={`h${hypothesis.id}`}
                 atlasRef={atlasRef}

@@ -4,11 +4,10 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Save } from 'lucide-react'
 import type { Pooling, ProbeMethod, ProbeRunResult, SavedProbe } from '../../types/probes'
 import { apiClient } from '../../api/client'
+import { Spinner } from '../common/Spinner'
 import { Findings, StatTiles, type Finding, type Tile } from '../lab/chartKit'
-import { useLabColors } from '../lab/labTheme'
 import {
   METHOD_LABELS,
   METHOD_SHORT,
@@ -78,7 +77,6 @@ function trustChecks(run: ProbeRunResult, pooling: Pooling, method: ProbeMethod,
 }
 
 export function LayerSummary({ run, pooling, method, position, testFraction, onSaved }: LayerSummaryProps) {
-  const colors = useLabColors()
   const result = run.poolings[pooling].methods[method]
   const m = result.metrics
   const at = (values: (number | null)[] | undefined) => values?.[position] ?? null
@@ -147,35 +145,30 @@ export function LayerSummary({ run, pooling, method, position, testFraction, onS
             maxLength={255}
             onChange={(e) => setName(e.target.value)}
             aria-label="Probe name"
-            style={{ borderColor: colors.border, background: colors.panel, color: colors.text }}
+           
           />
           <button
             type="button"
             className="pl-button"
             onClick={handleSave}
             disabled={saving}
-            style={{ borderColor: colors.border, color: colors.text }}
           >
-            {saving ? (
-              <span className="pl-spinner" style={{ borderColor: colors.border, borderTopColor: colors.text }} />
-            ) : (
-              <Save className="pl-icon" aria-hidden="true" />
-            )}
+            {saving && <Spinner />}
             Save probe
           </button>
         </div>
       )}
       {savedAs && <div className="pl-save-note">Saved as “{savedAs}”.</div>}
       {saveError && (
-        <div className="pl-save-note" style={{ color: '#ef4444' }}>
+        <div className="pl-save-note pl-error-note">
           {saveError}
         </div>
       )}
 
       <style>{`
-        .probe-lab .pl-save { display: flex; gap: 0.5rem; }
+        .probe-lab .pl-save { display: flex; gap: 6px; }
         .probe-lab .pl-save .pl-input { flex: 1; min-width: 0; }
-        .probe-lab .pl-save-note { font-size: 0.75rem; margin-top: 0.4rem; }
+        .probe-lab .pl-save-note { color: var(--oz-fg-dim); font-size: 0.85rem; margin-top: 0.5rem; }
       `}</style>
     </div>
   )

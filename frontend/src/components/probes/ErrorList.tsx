@@ -28,12 +28,12 @@ export function ErrorList({ scores, labels, texts, labelNames, limit = 6 }: Erro
       </div>
       <div className="pl-errors-hint">{hint}</div>
       {items.length === 0 ? (
-        <div className="pl-errors-empty" style={{ borderColor: colors.border }}>
+        <div className="pl-errors-empty">
           None
         </div>
       ) : (
         items.slice(0, limit).map((i) => (
-          <div key={i} className="pl-errors-item" style={{ borderColor: colors.border }} title={texts[i]}>
+          <div key={i} className="pl-errors-item" title={texts[i]}>
             <span className="pl-errors-score" style={{ borderColor: colors.classes[predicted] }}>
               {formatScore(scores[i])}
             </span>
@@ -49,29 +49,29 @@ export function ErrorList({ scores, labels, texts, labelNames, limit = 6 }: Erro
       {column('False positives', `${labelNames[0]}, scored as ${labelNames[1]}`, falsePositives, 1)}
       {column('False negatives', `${labelNames[1]}, scored as ${labelNames[0]}`, falseNegatives, 0)}
       <style>{`
-        .probe-lab .pl-errors { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-        .probe-lab .pl-errors-head { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; }
-        .probe-lab .pl-errors-count { font-variant-numeric: tabular-nums; }
-        .probe-lab .pl-errors-hint { font-size: 0.7rem; margin-bottom: 0.5rem; }
-        .probe-lab .pl-errors-empty { font-size: 0.75rem; padding: 0.75rem; border: 1px dashed; text-align: center; }
+        .probe-lab .pl-errors { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        .probe-lab .pl-errors-head { display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 500; }
+        .probe-lab .pl-errors-count { color: var(--oz-fg-dim); font-variant-numeric: tabular-nums; }
+        .probe-lab .pl-errors-hint { color: var(--oz-fg-dim); font-size: 0.8rem; margin-bottom: 0.6rem; }
+        .probe-lab .pl-errors-empty { color: var(--oz-fg-dim); font-size: 0.85rem; padding: 0.9rem; border: 1px dashed var(--oz-rule-strong); text-align: center; }
         .probe-lab .pl-errors-item {
           display: flex;
-          gap: 0.5rem;
+          gap: 0.6rem;
           align-items: flex-start;
-          padding: 0.4rem 0;
-          border-top: 1px solid;
-          font-size: 0.78rem;
-          line-height: 1.35;
+          padding: 0.5rem 0;
+          border-top: 1px solid var(--oz-rule);
+          font-size: 0.85rem;
+          line-height: 1.4;
         }
         .probe-lab .pl-errors-score {
           flex-shrink: 0;
-          min-width: 3.2rem;
+          min-width: 3.4rem;
           text-align: center;
           padding: 0.05rem 0.3rem;
-          border-left: 3px solid;
+          border-left: 2px solid;
           font-variant-numeric: tabular-nums;
-          font-weight: 600;
-          font-size: 0.72rem;
+          font-weight: 500;
+          font-size: 0.8rem;
         }
         .probe-lab .pl-errors-text {
           display: -webkit-box;

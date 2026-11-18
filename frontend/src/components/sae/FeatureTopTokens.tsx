@@ -5,8 +5,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
-import { Tag, TrendingUp, Hash } from 'lucide-react'
 import { useThemeColors } from '../../hooks/useTheme'
+import { MONO } from '../home/homeKit'
 
 interface TokenActivationExample {
   token: string
@@ -88,8 +88,7 @@ export function FeatureTopTokens({
       .attr('y', ([t]) => yScale(t) || 0)
       .attr('width', ([, f]) => xScale(f))
       .attr('height', yScale.bandwidth())
-      .attr('fill', '#e5e7eb')
-      .attr('opacity', 0.7)
+      .attr('fill', tc.text)
 
     // Token labels
     g.selectAll('.token-label')
@@ -102,8 +101,8 @@ export function FeatureTopTokens({
       .attr('text-anchor', 'end')
       .attr('dominant-baseline', 'middle')
       .attr('fill', tc.text)
-      .attr('font-size', '11px')
-      .attr('font-family', 'monospace')
+      .attr('font-size', '12px')
+      .attr('font-family', MONO)
       .text(([t]) => t.length > 10 ? t.slice(0, 10) + '...' : t)
 
     // Frequency labels
@@ -115,102 +114,82 @@ export function FeatureTopTokens({
       .attr('x', ([, f]) => xScale(f) + 5)
       .attr('y', ([t]) => (yScale(t) || 0) + yScale.bandwidth() / 2)
       .attr('dominant-baseline', 'middle')
-      .attr('fill', tc.text)
-      .attr('font-size', '10px')
+      .attr('fill', tc.textMuted)
+      .attr('font-size', '11.5px')
+      .attr('font-family', MONO)
       .text(([, f]) => `${(f * 100).toFixed(1)}%`)
 
-  }, [topTokens, tc.text])
+  }, [topTokens, tc.text, tc.textMuted])
 
   const { activation_statistics: stats } = interpretation
 
   return (
-    <div className={`feature-top-tokens ${className}`} style={{ background: tc.surface, border: `1px solid ${tc.border}` }}>
+    <div className={`feature-top-tokens ${className}`}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-800">
-        <div className="flex items-center gap-2 mb-2">
-          <Hash className="w-4 h-4 text-purple-400" />
-          <span className="text-lg font-semibold text-white">
-            Feature {interpretation.feature_idx}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Tag className="w-3 h-3 text-white" />
-          <span className="text-sm text-white">
-            {interpretation.suggested_label}
-          </span>
-          <span className="text-xs text-white">
-            ({(interpretation.confidence * 100).toFixed(0)}% confidence)
-          </span>
-        </div>
+      <div className="ftt-head">
+        <h3>Feature {interpretation.feature_idx}</h3>
+        <p>
+          {interpretation.suggested_label}
+          <span> · {(interpretation.confidence * 100).toFixed(0)}% confidence</span>
+        </p>
       </div>
 
       {/* Statistics */}
-      <div className="grid grid-cols-4 gap-px bg-gray-800">
-        <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-white uppercase tracking-wide">Activations</div>
-          <div className="text-lg font-mono text-white">{stats.total_activations.toLocaleString()}</div>
+      <div className="ftt-stats">
+        <div className="ftt-stat">
+          <div className="ftt-stat-label">Activations</div>
+          <div className="ftt-stat-value">{stats.total_activations.toLocaleString()}</div>
         </div>
-        <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-white uppercase tracking-wide">Mean</div>
-          <div className="text-lg font-mono text-purple-300">{stats.mean_activation.toFixed(3)}</div>
+        <div className="ftt-stat">
+          <div className="ftt-stat-label">Mean</div>
+          <div className="ftt-stat-value">{stats.mean_activation.toFixed(3)}</div>
         </div>
-        <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-white uppercase tracking-wide">Max</div>
-          <div className="text-lg font-mono text-purple-200">{stats.max_activation.toFixed(3)}</div>
+        <div className="ftt-stat">
+          <div className="ftt-stat-label">Max</div>
+          <div className="ftt-stat-value">{stats.max_activation.toFixed(3)}</div>
         </div>
-        <div className="bg-black/40 p-3 text-center">
-          <div className="text-xs text-white uppercase tracking-wide">Unique Tokens</div>
-          <div className="text-lg font-mono text-white">{stats.unique_tokens}</div>
+        <div className="ftt-stat">
+          <div className="ftt-stat-label">Unique tokens</div>
+          <div className="ftt-stat-value">{stats.unique_tokens}</div>
+        </div>
+        <div className="ftt-stat">
+          <div className="ftt-stat-label">Polysemanticity</div>
+          <div className="ftt-stat-value">{stats.polysemanticity.toFixed(2)}</div>
+          <div className="ftt-track" title="From monosemantic (0) to polysemantic (1)">
+            <div style={{ width: `${stats.polysemanticity * 100}%` }} />
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-px bg-gray-800">
+      <div className="ftt-grid">
         {/* Token frequency chart */}
-        <div className="bg-black/40 p-4">
-          <div className="text-xs text-white uppercase tracking-wide mb-3">
-            Token Distribution
-          </div>
+        <div>
+          <div className="ftt-label">Token distribution</div>
           <svg ref={chartRef} width="100%" height={Math.min(300, topTokens.length * 24 + 20)} />
         </div>
 
         {/* Top activating examples */}
-        <div className="bg-black/40 p-4">
-          <div className="text-xs text-white uppercase tracking-wide mb-3 flex items-center gap-2">
-            <TrendingUp className="w-3 h-3" />
-            Top Activating Examples
-          </div>
-          <div className="space-y-2 max-h-[280px] overflow-y-auto">
+        <div>
+          <div className="ftt-label">Top activating examples</div>
+          <div className="ftt-examples">
             {interpretation.top_activating_tokens.slice(0, maxExamples).map((example, idx) => (
               <button
                 key={idx}
                 onClick={() => setSelectedExample(selectedExample === example ? null : example)}
-                className={`w-full text-left p-2 border transition-colors ${
-                  selectedExample === example
-                    ? 'border-purple-500 bg-purple-500/10'
-                    : 'border-gray-800 hover:border-gray-700'
-                }`}
+                className={`ftt-example${selectedExample === example ? ' is-open' : ''}`}
+                aria-expanded={selectedExample === example}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-sm text-white">
-                    "{example.token}"
-                  </span>
-                  <span className="text-xs text-purple-300 font-mono">
-                    {example.activation_value.toFixed(3)}
-                  </span>
+                <div className="ftt-example-head">
+                  <span>"{example.token}"</span>
+                  <span className="ftt-example-value">{example.activation_value.toFixed(3)}</span>
                 </div>
                 {selectedExample === example && (
-                  <div className="mt-2 text-xs text-white">
-                    <div className="mb-1">Context:</div>
-                    <div className="font-mono text-white bg-black/40 p-2 rounded">
-                      {example.context.map((t, i) => (
-                        <span
-                          key={i}
-                          className={i === Math.floor(example.context.length / 2) ? 'text-purple-300 font-bold' : ''}
-                        >
-                          {t}{' '}
-                        </span>
-                      ))}
-                    </div>
+                  <div className="ftt-context">
+                    {example.context.map((t, i) => (
+                      <span key={i} className={i === Math.floor(example.context.length / 2) ? 'ftt-context-token' : ''}>
+                        {t}{' '}
+                      </span>
+                    ))}
                   </div>
                 )}
               </button>
@@ -219,71 +198,115 @@ export function FeatureTopTokens({
         </div>
       </div>
 
-      {/* Polysemanticity indicator */}
-      <div className="p-4 border-t border-gray-800">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-white uppercase tracking-wide">
-            Polysemanticity Score
-          </span>
-          <span className={`text-sm font-mono ${
-            stats.polysemanticity < 0.3 ? 'text-green-400' :
-            stats.polysemanticity < 0.7 ? 'text-yellow-400' : 'text-red-400'
-          }`}>
-            {stats.polysemanticity.toFixed(2)}
-          </span>
-        </div>
-        <div className="mt-2 h-2 bg-gray-800 rounded overflow-hidden">
-          <div
-            className={`h-full transition-all ${
-              stats.polysemanticity < 0.3 ? 'bg-green-500' :
-              stats.polysemanticity < 0.7 ? 'bg-yellow-500' : 'bg-red-500'
-            }`}
-            style={{ width: `${stats.polysemanticity * 100}%` }}
-          />
-        </div>
-        <div className="flex justify-between mt-1 text-xs text-white">
-          <span>Monosemantic</span>
-          <span>Polysemantic</span>
-        </div>
-      </div>
-
       <style>{`
-        .feature-top-tokens .p-2 { padding: 0.5rem; }
-        .feature-top-tokens .p-3 { padding: 0.75rem; }
-        .feature-top-tokens .p-4 { padding: 1rem; }
-        .feature-top-tokens .border-b { border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .feature-top-tokens .border-t { border-top: 1px solid rgba(255,255,255,0.1); }
-        .feature-top-tokens .border-gray-800 { border-color: rgba(255,255,255,0.1); }
-        .feature-top-tokens .border-gray-700 { border-color: rgba(255,255,255,0.1); }
-        .feature-top-tokens .border-purple-500 { border-color: rgba(255,255,255,0.4); }
-        .feature-top-tokens .bg-black\\/40 { background: rgba(0,0,0,0.2); }
-        .feature-top-tokens .bg-gray-800 { background: rgba(255,255,255,0.1); }
-        .feature-top-tokens .bg-purple-500\\/10 { background: rgba(255,255,255,0.08); }
-        .feature-top-tokens .bg-green-500 { background: rgba(34,197,94,0.9); }
-        .feature-top-tokens .bg-yellow-500 { background: rgba(234,179,8,0.9); }
-        .feature-top-tokens .bg-red-500 { background: rgba(239,68,68,0.9); }
-        .feature-top-tokens .text-white { color: #fff; }
-        .feature-top-tokens .text-purple-200 { color: #ffffff; }
-        .feature-top-tokens .text-purple-300 { color: #ffffff; }
-        .feature-top-tokens .text-purple-400 { color: #ffffff; }
-        .feature-top-tokens .text-green-400 { color: rgba(34,197,94,0.9); }
-        .feature-top-tokens .text-yellow-400 { color: rgba(234,179,8,0.9); }
-        .feature-top-tokens .text-red-400 { color: rgba(239,68,68,0.9); }
-        .feature-top-tokens button:hover .border-gray-700 { border-color: rgba(255,255,255,0.2); }
-
-        [data-bg="light"] .feature-top-tokens .border-b { border-bottom: 1px solid rgba(0,0,0,0.1); }
-        [data-bg="light"] .feature-top-tokens .border-t { border-top: 1px solid rgba(0,0,0,0.1); }
-        [data-bg="light"] .feature-top-tokens .border-gray-800 { border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .feature-top-tokens .border-gray-700 { border-color: rgba(0,0,0,0.1); }
-        [data-bg="light"] .feature-top-tokens .border-purple-500 { border-color: rgba(0,0,0,0.3); }
-        [data-bg="light"] .feature-top-tokens .bg-black\\/40 { background: rgba(0,0,0,0.04); }
-        [data-bg="light"] .feature-top-tokens .bg-gray-800 { background: rgba(0,0,0,0.08); }
-        [data-bg="light"] .feature-top-tokens .bg-purple-500\\/10 { background: rgba(0,0,0,0.06); }
-        [data-bg="light"] .feature-top-tokens .text-white { color: #1d1d1f; }
-        [data-bg="light"] .feature-top-tokens .text-purple-200 { color: #1d1d1f; }
-        [data-bg="light"] .feature-top-tokens .text-purple-300 { color: #1d1d1f; }
-        [data-bg="light"] .feature-top-tokens .text-purple-400 { color: #1d1d1f; }
-        [data-bg="light"] .feature-top-tokens button:hover .border-gray-700 { border-color: rgba(0,0,0,0.2); }
+        .feature-top-tokens .ftt-head {
+          margin-bottom: 1.25rem;
+        }
+        .feature-top-tokens .ftt-head h3 {
+          margin: 0;
+          font-size: 1.5rem;
+          font-weight: 500;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
+        }
+        .feature-top-tokens .ftt-head p {
+          margin: 0.35rem 0 0;
+          font-size: 0.9375rem;
+        }
+        .feature-top-tokens .ftt-head p span {
+          color: var(--oz-fg-dim);
+        }
+        /* Headline numbers, each under a rule */
+        .feature-top-tokens .ftt-stats {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+          gap: 1.25rem 1.5rem;
+          margin-bottom: 1.75rem;
+        }
+        .feature-top-tokens .ftt-stat {
+          padding-top: 0.6rem;
+          border-top: 1px solid var(--oz-rule-strong);
+        }
+        .feature-top-tokens .ftt-stat-label,
+        .feature-top-tokens .ftt-label {
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+        .feature-top-tokens .ftt-label {
+          margin-bottom: 0.6rem;
+          font-size: 0.85rem;
+        }
+        .feature-top-tokens .ftt-stat-value {
+          margin-top: 0.2rem;
+          font-size: 1.6rem;
+          font-weight: 500;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
+          font-variant-numeric: tabular-nums;
+        }
+        .feature-top-tokens .ftt-track {
+          height: 3px;
+          margin-top: 0.5rem;
+          background: var(--oz-rule);
+        }
+        .feature-top-tokens .ftt-track > div {
+          height: 100%;
+          background: var(--oz-fg);
+        }
+        .feature-top-tokens .ftt-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 2rem;
+        }
+        .feature-top-tokens .ftt-examples {
+          max-height: 300px;
+          overflow-y: auto;
+          border-bottom: 1px solid var(--oz-rule);
+        }
+        /* An example: its token and how strongly the feature fired; open, its context */
+        .feature-top-tokens .ftt-example {
+          position: relative;
+          width: 100%;
+          padding: 0.5rem 0;
+          border-top: 1px solid var(--oz-rule);
+          font-family: var(--oz-mono);
+          font-size: 0.85rem;
+          text-align: left;
+          cursor: pointer;
+          transition: color 0.2s ease;
+        }
+        .feature-top-tokens .ftt-example:hover {
+          color: var(--oz-mark);
+        }
+        .feature-top-tokens .ftt-example.is-open:hover {
+          color: inherit;
+        }
+        .feature-top-tokens .ftt-example-head {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 1rem;
+        }
+        .feature-top-tokens .ftt-example-value {
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
+        }
+        .feature-top-tokens .ftt-context {
+          margin-top: 0.45rem;
+          color: var(--oz-fg-dim);
+          font-size: 0.8rem;
+          line-height: 1.6;
+        }
+        /* The token the feature fired on, lit */
+        .feature-top-tokens .ftt-context-token {
+          padding: 0 0.2em;
+          background: var(--oz-accent);
+          color: var(--oz-on-accent);
+        }
+        @media (max-width: 900px) {
+          .feature-top-tokens .ftt-grid { grid-template-columns: 1fr; }
+        }
       `}</style>
     </div>
   )

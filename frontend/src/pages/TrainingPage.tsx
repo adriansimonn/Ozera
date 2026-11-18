@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trash2, Clock, Download, Loader2, Play, Upload, Cpu, UploadCloud } from 'lucide-react'
+import { Trash2, Download } from 'lucide-react'
 import { TrainingPanel } from '../components/training/TrainingPanel'
 import { TrainingProgress } from '../components/training/TrainingProgress'
 import { ModelUploadPanel } from '../components/training/ModelUploadPanel'
@@ -14,14 +14,14 @@ import {
 import { NavBar } from '../components/common/NavBar'
 import { apiClient, GpuType } from '../api/client'
 import { useAuthStore } from '../stores/authStore'
-import { useTheme } from '../hooks/useTheme'
+import { VAR } from '../styles/appTheme'
+import { Spinner } from '../components/common/Spinner'
 
 type LeftMode = 'training' | 'upload'
 
 export default function DefaultTrainingPage() {
   const { isAuthenticated } = useAuthStore()
   const navigate = useNavigate()
-  const { isLight } = useTheme()
   const [mode, setMode] = useState<LeftMode>('training')
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [autoDownloadEnabled, setAutoDownloadEnabled] = useState(false)
@@ -134,11 +134,11 @@ export default function DefaultTrainingPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return '#22c55e'
-      case 'running': return '#3b82f6'
-      case 'failed': return '#ef4444'
-      case 'cancelled': return '#f59e0b'
-      default: return c.textSub
+      case 'completed': return VAR.ok
+      case 'running': return VAR.accent
+      case 'failed': return VAR.danger
+      case 'cancelled': return VAR.warn
+      default: return VAR.fgFaint
     }
   }
 
@@ -155,58 +155,23 @@ export default function DefaultTrainingPage() {
     return `${(params / 1000000000).toFixed(2)}B params`
   }
 
-  const c = {
-    bg: isLight ? '#f5f5f7' : '#0a0a0a',
-    panelBg: isLight ? '#ffffff' : '#111111',
-    panelBorder: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.06)',
-    divider: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
-    text: isLight ? '#1d1d1f' : '#ffffff',
-    textMid: isLight ? '#1d1d1f' : '#ffffff',
-    textSub: isLight ? '#1d1d1f' : '#ffffff',
-    controlBg: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)',
-    controlBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
-    controlHover: isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.08)',
-    cardBg: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)',
-    cardBorder: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)',
-    spinnerTrack: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
-    spinnerHead: isLight ? '#1d1d1f' : '#ffffff',
-  }
-
   return (
-    <div className="dt-page">
+    <div className="dt-page oz-page">
       <NavBar />
 
-      <div className="dt-layout" style={{ borderColor: c.divider }}>
+      <div className="dt-layout oz-page__body">
         {/* Left Panel — Training / Upload (60%) */}
-        <div className="dt-left" style={{ background: c.panelBg, borderRight: `1px solid ${c.divider}` }}>
-          <div className="dt-left-header" style={{ borderBottom: `1px solid ${c.divider}` }}>
-            <div className="dt-mode-switch" style={{ background: c.controlBg, borderColor: c.controlBorder }}>
-              <button
-                className={`dt-mode-btn ${mode === 'training' ? 'active' : ''}`}
-                onClick={() => setMode('training')}
-                style={{
-                  color: mode === 'training' ? c.text : c.textSub,
-                  background: mode === 'training' ? (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)') : 'transparent',
-                }}
-              >
-                <Cpu style={{ width: 13, height: 13 }} />
-                Train Model
-              </button>
-              <button
-                className={`dt-mode-btn ${mode === 'upload' ? 'active' : ''}`}
-                onClick={() => setMode('upload')}
-                style={{
-                  color: mode === 'upload' ? c.text : c.textSub,
-                  background: mode === 'upload' ? (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)') : 'transparent',
-                }}
-              >
-                <UploadCloud style={{ width: 13, height: 13 }} />
-                Upload Model
-              </button>
-            </div>
+        <div className="dt-left">
+          <div className="dt-tabs" role="tablist">
+            <button role="tab" aria-selected={mode === 'training'} className={`oz-tab ${mode === 'training' ? 'active' : ''}`} onClick={() => setMode('training')}>
+              Train Model
+            </button>
+            <button role="tab" aria-selected={mode === 'upload'} className={`oz-tab ${mode === 'upload' ? 'active' : ''}`} onClick={() => setMode('upload')}>
+              Upload Model
+            </button>
           </div>
 
-          <div className="dt-left-scroll">
+          <div className="oz-scroll">
             <div className="dt-panel-wrap">
               {mode === 'training' ? (
                 <TrainingPanel
@@ -226,11 +191,11 @@ export default function DefaultTrainingPage() {
         </div>
 
         {/* Right Panel — Jobs & Models (40%) */}
-        <div className="dt-right" style={{ background: c.bg }}>
-          <div className="dt-right-scroll">
+        <div className="dt-right oz-main">
+          <div className="oz-scroll">
             {/* Active Training Progress */}
             {(mode === 'training' || progress) && (
-              <div className="dt-section">
+              <div className="oz-section">
                 <TrainingProgress
                   progress={progress}
                   completed={completed}
@@ -245,125 +210,86 @@ export default function DefaultTrainingPage() {
             )}
 
             {/* Custom Models */}
-            <div className="dt-section">
-              <div className="dt-section-card" style={{ background: c.panelBg, borderColor: c.panelBorder }}>
-                <div className="dt-section-header">
-                  <h3 style={{ color: c.text }}>Custom Models</h3>
-                </div>
+            <div className="oz-section">
+              <h2 className="dt-heading">Custom models</h2>
 
-                {allCustomModels.length === 0 ? (
-                  <div className="dt-empty" style={{ color: c.textSub }}>
-                    No custom models yet
-                  </div>
-                ) : (
-                  <div className="dt-model-list">
-                    {allCustomModels.map((model) => (
-                      <div key={model.model_id} className="dt-model-row" style={{ background: c.cardBg, borderColor: c.cardBorder }}>
-                        <div className="dt-model-icon" style={{
-                          background: model.type === 'trained' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                        }}>
+              {allCustomModels.length === 0 ? (
+                <p className="oz-hint">No custom models yet</p>
+              ) : (
+                <div className="dt-list">
+                  {allCustomModels.map((model) => (
+                    <div key={model.model_id} className="dt-row">
+                      <div className="dt-row-info">
+                        <div className="dt-row-name">
+                          <span>{model.name}</span>
+                          <span className="oz-tag">{model.type === 'trained' ? 'Trained' : 'Uploaded'}</span>
+                        </div>
+                        <div className="dt-row-meta">
                           {model.type === 'trained' ? (
-                            <Play size={11} color="#22c55e" />
+                            <>{model.base_config} · Val loss: {model.val_loss.toFixed(4)}</>
                           ) : (
-                            <Upload size={11} color="#3b82f6" />
+                            <>{formatBytes(model.file_size_bytes)}{formatParams(model.num_parameters) && ` · ${formatParams(model.num_parameters)}`}</>
                           )}
-                        </div>
-                        <div className="dt-model-info">
-                          <div className="dt-model-name" style={{ color: c.text }}>
-                            {model.name}
-                            <span className="dt-model-badge" style={{
-                              background: model.type === 'trained' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                              color: model.type === 'trained' ? '#22c55e' : '#3b82f6',
-                            }}>
-                              {model.type}
-                            </span>
-                          </div>
-                          <div className="dt-model-meta" style={{ color: c.textSub }}>
-                            {model.type === 'trained' ? (
-                              <>{model.base_config} · Val loss: {model.val_loss.toFixed(4)}</>
-                            ) : (
-                              <>{formatBytes(model.file_size_bytes)}{formatParams(model.num_parameters) && ` · ${formatParams(model.num_parameters)}`}</>
-                            )}
-                          </div>
-                        </div>
-                        <div className="dt-model-actions">
-                          <button
-                            onClick={() => navigate('/generate')}
-                            title="Use model for generation"
-                            className="dt-use-btn"
-                            style={{ color: '#22c55e', background: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.25)' }}
-                          >
-                            <Play size={11} />
-                            Use
-                          </button>
-                          {model.type === 'trained' && (
-                            <button
-                              onClick={() => handleDownloadModel(model.model_id)}
-                              disabled={downloadingModelId === model.model_id}
-                              title="Download model"
-                              className="dt-icon-btn"
-                              style={{ color: c.textSub }}
-                            >
-                              {downloadingModelId === model.model_id ? (
-                                <Loader2 size={13} className="dt-spin" />
-                              ) : (
-                                <Download size={13} />
-                              )}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setDeleteConfirm({ modelId: model.model_id, modelName: model.name, type: model.type })}
-                            disabled={deletingModelId === model.model_id}
-                            title="Delete model"
-                            className="dt-icon-btn"
-                            style={{ color: c.textSub }}
-                          >
-                            {deletingModelId === model.model_id ? (
-                              <Loader2 size={13} className="dt-spin" />
-                            ) : (
-                              <Trash2 size={13} />
-                            )}
-                          </button>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      <div className="dt-row-actions">
+                        <button
+                          onClick={() => navigate('/generate')}
+                          title="Use model for generation"
+                          className="oz-btn oz-btn--ghost oz-btn--small"
+                        >
+                          Use
+                        </button>
+                        {model.type === 'trained' && (
+                          <button
+                            onClick={() => handleDownloadModel(model.model_id)}
+                            disabled={downloadingModelId === model.model_id}
+                            title="Download model"
+                            aria-label="Download model"
+                            className="oz-icon-btn"
+                          >
+                            {downloadingModelId === model.model_id ? <Spinner /> : <Download />}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setDeleteConfirm({ modelId: model.model_id, modelName: model.name, type: model.type })}
+                          disabled={deletingModelId === model.model_id}
+                          title="Delete model"
+                          aria-label="Delete model"
+                          className="oz-icon-btn"
+                        >
+                          {deletingModelId === model.model_id ? <Spinner /> : <Trash2 />}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Recent Jobs */}
             {mode === 'training' && (
-              <div className="dt-section">
-                <div className="dt-section-card" style={{ background: c.panelBg, borderColor: c.panelBorder }}>
-                  <div className="dt-section-header">
-                    <h3 style={{ color: c.text }}>Recent Jobs</h3>
-                  </div>
+              <div className="oz-section">
+                <h2 className="dt-heading">Recent jobs</h2>
 
-                  {jobs.length === 0 ? (
-                    <div className="dt-empty" style={{ color: c.textSub }}>
-                      No training jobs yet
-                    </div>
-                  ) : (
-                    <div className="dt-job-list">
-                      {jobs.slice(0, 5).map((job) => (
-                        <div key={job.job_id} className="dt-job-row" style={{ background: c.cardBg, borderColor: c.cardBorder }}>
-                          <div className="dt-job-dot" style={{ background: getStatusColor(job.status) }} />
-                          <div className="dt-job-info">
-                            <div className="dt-job-name" style={{ color: c.text }}>{job.model_name}</div>
-                            <div className="dt-job-meta" style={{ color: c.textSub }}>
-                              {job.dataset_name} · {job.current_epoch}/{job.total_epochs} epochs
-                            </div>
-                          </div>
-                          <div className="dt-job-time" style={{ color: c.textSub }}>
-                            <Clock size={10} />
-                            {formatDate(job.created_at)}
+                {jobs.length === 0 ? (
+                  <p className="oz-hint">No training jobs yet</p>
+                ) : (
+                  <div className="dt-list">
+                    {jobs.slice(0, 5).map((job) => (
+                      <div key={job.job_id} className="dt-row">
+                        <div className="dt-job-dot" style={{ background: getStatusColor(job.status) }} title={job.status} />
+                        <div className="dt-row-info">
+                          <div className="dt-row-name">{job.model_name}</div>
+                          <div className="dt-row-meta">
+                            {job.dataset_name} · {job.current_epoch}/{job.total_epochs} epochs
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        <div className="dt-row-meta">{formatDate(job.created_at)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -381,282 +307,99 @@ export default function DefaultTrainingPage() {
       />
 
       <style>{`
-        .dt-page {
-          height: 125vh;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-
-        .dt-layout {
-          display: flex;
-          flex: 1;
-          margin-top: 70px;
-          overflow: hidden;
-        }
-
-        /* Left panel — 60% */
+        /* Two columns: what to train or upload, and what's running and done */
         .dt-left {
-          width: 60%;
-          min-width: 400px;
           display: flex;
           flex-direction: column;
+          flex: none;
+          width: 58%;
+          min-width: 400px;
           overflow: hidden;
+          border-right: 1px solid var(--oz-rule);
         }
 
-        .dt-left-header {
-          padding: 0.875rem 1.25rem;
-          flex-shrink: 0;
-        }
-
-        .dt-mode-switch {
+        .dt-tabs {
           display: flex;
-          align-items: center;
-          gap: 0.125rem;
-          padding: 0.1875rem;
-          border: 1px solid;
-          width: fit-content;
+          align-items: stretch;
+          gap: 1.75rem;
+          flex: none;
+          min-height: 3.75rem;
+          padding: 0 var(--oz-gutter);
+          border-bottom: 1px solid var(--oz-rule);
         }
 
-        .dt-mode-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
-          padding: 0.4375rem 0.75rem;
-          background: none;
-          border: none;
-          font-size: 0.775rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s;
-          letter-spacing: 0.01em;
-          white-space: nowrap;
-        }
-
-        .dt-mode-btn:hover:not(.active) {
-          opacity: 0.7;
-        }
-
-        .dt-left-scroll {
-          flex: 1;
-          overflow-y: auto;
-        }
-
-        .dt-panel-wrap {
+        .dt-tabs .oz-tab {
           padding: 0;
         }
 
         .dt-panel-wrap > * {
           border: none !important;
-          background: transparent !important;
         }
 
-        /* Right panel — 40% */
-        .dt-right {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
+        .dt-right .oz-section:last-child {
+          border-bottom: none;
         }
 
-        .dt-right-scroll {
-          flex: 1;
-          overflow-y: auto;
-          padding: 1.25rem;
+        .dt-heading {
+          margin: 0 0 1rem;
+          font-size: 1.5rem;
+          font-weight: 500;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
         }
 
-        .dt-section {
-          margin-bottom: 1rem;
-        }
-
-        .dt-section-card {
-          border: 1px solid;
-          padding: 1.25rem;
-        }
-
-        .dt-section-header {
+        /* Models and jobs: ruled lists */
+        .dt-row {
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          margin-bottom: 1rem;
+          gap: 0.9rem;
+          padding: 0.8rem 0;
+          border-top: 1px solid var(--oz-rule);
         }
 
-        .dt-section-header h3 {
-          font-size: 0.8rem;
-          font-weight: 600;
-          margin: 0;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
+        .dt-row:last-child {
+          border-bottom: 1px solid var(--oz-rule);
         }
 
-        .dt-count {
-          font-size: 0.7rem;
-          font-family: monospace;
-        }
-
-        .dt-empty {
-          font-size: 0.8rem;
-          text-align: center;
-          padding: 1.5rem 0;
-        }
-
-        /* Model list */
-        .dt-model-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
-
-        .dt-model-row {
-          display: flex;
-          align-items: center;
-          gap: 0.625rem;
-          padding: 0.75rem;
-          border: 1px solid;
-        }
-
-        .dt-model-icon {
-          width: 26px;
-          height: 26px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-
-        .dt-model-info {
+        .dt-row-info {
           flex: 1;
           min-width: 0;
         }
 
-        .dt-model-name {
-          font-size: 0.8rem;
-          font-weight: 500;
+        .dt-row-name {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
+          gap: 0.6rem;
+          font-size: 1.0625rem;
+          font-weight: 500;
+          letter-spacing: -0.02em;
         }
 
-        .dt-model-badge {
-          font-size: 0.55rem;
-          padding: 0.1rem 0.375rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
+        .dt-row-meta {
+          margin-top: 0.1rem;
+          color: var(--oz-fg-dim);
+          font-size: 0.85rem;
+          font-variant-numeric: tabular-nums;
         }
 
-        .dt-model-meta {
-          font-size: 0.7rem;
-          margin-top: 0.125rem;
-        }
-
-        .dt-model-actions {
+        .dt-row-actions {
           display: flex;
           align-items: center;
           gap: 0.25rem;
           flex-shrink: 0;
         }
 
-        .dt-use-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.25rem;
-          padding: 0.3rem 0.5rem;
-          border: 1px solid;
-          font-size: 0.7rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s;
-        }
-
-        .dt-use-btn:hover {
-          filter: brightness(1.2);
-        }
-
-        .dt-icon-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 0.35rem;
-          background: transparent;
-          border: none;
-          cursor: pointer;
-          transition: opacity 0.15s;
-        }
-
-        .dt-icon-btn:hover {
-          opacity: 0.7;
-        }
-
-        .dt-icon-btn:disabled {
-          opacity: 0.3;
-          cursor: not-allowed;
-        }
-
-        /* Job list */
-        .dt-job-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
-
-        .dt-job-row {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 0.75rem;
-          border: 1px solid;
-        }
-
+        /* A job's state, as a cell */
         .dt-job-dot {
-          width: 7px;
-          height: 7px;
-          border-radius: 50%;
           flex-shrink: 0;
+          width: 8px;
+          height: 8px;
         }
 
-        .dt-job-info {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .dt-job-name {
-          font-size: 0.8rem;
-          font-weight: 500;
-        }
-
-        .dt-job-meta {
-          font-size: 0.7rem;
-          margin-top: 0.125rem;
-        }
-
-        .dt-job-time {
-          display: flex;
-          align-items: center;
-          gap: 0.25rem;
-          font-size: 0.7rem;
-          flex-shrink: 0;
-        }
-
-        .dt-spin {
-          animation: dt-spin 1s linear infinite;
-        }
-
-        @keyframes dt-spin {
-          to { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 900px) {
-          .dt-layout {
-            flex-direction: column;
-          }
-          .dt-left {
-            width: 100%;
-            min-width: 100%;
-            max-height: 50vh;
-            border-right: none !important;
-            border-bottom: 1px solid;
-          }
+        @media (max-width: 1000px) {
+          .dt-page.oz-page { height: auto; overflow: visible; }
+          .dt-layout.oz-page__body { flex-direction: column; }
+          .dt-left { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid var(--oz-rule); }
         }
       `}</style>
     </div>

@@ -108,7 +108,7 @@ export function SparsityDashboard({
       .attr('text-anchor', 'middle')
       .attr('fill', tc.text)
       .attr('font-size', '12px')
-      .text('Feature Activation Frequency Distribution')
+      .text('Feature activation frequency')
 
     // Bars
     g.selectAll('rect')
@@ -119,7 +119,7 @@ export function SparsityDashboard({
       .attr('y', d => yScale(d))
       .attr('width', Math.max(1, innerWidth / numBins - 1))
       .attr('height', d => innerHeight - yScale(d))
-      .attr('fill', '#a855f7')
+      .attr('fill', tc.text)
       .attr('opacity', 0.7)
 
     // Axes
@@ -128,13 +128,13 @@ export function SparsityDashboard({
       .call(d3.axisBottom(xScale).ticks(5).tickFormat(d => `${(d as number * 100).toFixed(0)}%`))
       .selectAll('text')
       .attr('fill', tc.text)
-      .attr('font-size', '10px')
+      .attr('font-size', '11.5px')
 
     g.append('g')
       .call(d3.axisLeft(yScale).ticks(5))
       .selectAll('text')
       .attr('fill', tc.text)
-      .attr('font-size', '10px')
+      .attr('font-size', '11.5px')
 
     // Axis labels
     svg.append('text')
@@ -142,8 +142,8 @@ export function SparsityDashboard({
       .attr('y', height - 5)
       .attr('text-anchor', 'middle')
       .attr('fill', tc.text)
-      .attr('font-size', '10px')
-      .text('Activation Frequency')
+      .attr('font-size', '11.5px')
+      .text('Activation frequency')
 
     svg.append('text')
       .attr('transform', 'rotate(-90)')
@@ -151,10 +151,10 @@ export function SparsityDashboard({
       .attr('y', 15)
       .attr('text-anchor', 'middle')
       .attr('fill', tc.text)
-      .attr('font-size', '10px')
-      .text('Feature Count')
+      .attr('font-size', '11.5px')
+      .text('Feature count')
 
-  }, [metrics.feature_health.feature_frequency_distribution, tc.text])
+  }, [metrics.feature_health.feature_frequency_distribution, tc.text, tc.textMuted])
 
   // Render training loss chart
   useEffect(() => {
@@ -187,7 +187,7 @@ export function SparsityDashboard({
       .attr('text-anchor', 'middle')
       .attr('fill', tc.text)
       .attr('font-size', '12px')
-      .text('Training Loss Over Time')
+      .text('Training loss')
 
     // Total loss line
     const lossLine = d3.line<TrainingProgress>()
@@ -197,7 +197,7 @@ export function SparsityDashboard({
     g.append('path')
       .datum(trainingProgress)
       .attr('fill', 'none')
-      .attr('stroke', '#a855f7')
+      .attr('stroke', tc.text)
       .attr('stroke-width', 2)
       .attr('d', lossLine)
 
@@ -209,7 +209,7 @@ export function SparsityDashboard({
     g.append('path')
       .datum(trainingProgress)
       .attr('fill', 'none')
-      .attr('stroke', '#22d3ee')
+      .attr('stroke', tc.textMuted)
       .attr('stroke-width', 1.5)
       .attr('stroke-dasharray', '4,4')
       .attr('d', reconLine)
@@ -220,13 +220,13 @@ export function SparsityDashboard({
       .call(d3.axisBottom(xScale).ticks(5))
       .selectAll('text')
       .attr('fill', tc.text)
-      .attr('font-size', '10px')
+      .attr('font-size', '11.5px')
 
     g.append('g')
       .call(d3.axisLeft(yScale).ticks(5))
       .selectAll('text')
       .attr('fill', tc.text)
-      .attr('font-size', '10px')
+      .attr('font-size', '11.5px')
 
     // Legend
     const legend = svg.append('g')
@@ -235,25 +235,25 @@ export function SparsityDashboard({
     legend.append('line')
       .attr('x1', 0).attr('x2', 20)
       .attr('y1', 0).attr('y2', 0)
-      .attr('stroke', '#a855f7').attr('stroke-width', 2)
+      .attr('stroke', tc.text).attr('stroke-width', 2)
 
     legend.append('text')
       .attr('x', 25).attr('y', 4)
-      .attr('fill', tc.text).attr('font-size', '10px')
-      .text('Total Loss')
+      .attr('fill', tc.text).attr('font-size', '11.5px')
+      .text('Total loss')
 
     legend.append('line')
       .attr('x1', 0).attr('x2', 20)
       .attr('y1', 15).attr('y2', 15)
-      .attr('stroke', '#22d3ee').attr('stroke-width', 1.5)
+      .attr('stroke', tc.textMuted).attr('stroke-width', 1.5)
       .attr('stroke-dasharray', '4,4')
 
     legend.append('text')
       .attr('x', 25).attr('y', 19)
-      .attr('fill', tc.text).attr('font-size', '10px')
-      .text('Recon Loss')
+      .attr('fill', tc.text).attr('font-size', '11.5px')
+      .text('Reconstruction loss')
 
-  }, [trainingProgress, tc.text])
+  }, [trainingProgress, tc.text, tc.textMuted])
 
   const { sparsity, feature_health, reconstruction } = metrics
 
@@ -274,15 +274,15 @@ export function SparsityDashboard({
     <div className={className} style={{ background: tc.surface, border: `1px solid ${tc.border}` }}>
       {/* Header */}
       <div style={{ padding: '1rem', borderBottom: `1px solid ${tc.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: tc.textStrong, letterSpacing: '-0.01em', margin: 0 }}>
-          SAE Quality Metrics
+        <h3 style={{ fontSize: '1.125rem', fontWeight: 500, color: tc.textStrong, letterSpacing: '-0.01em', margin: 0 }}>
+          SAE quality metrics
         </h3>
         {isHealthy ? (
-          <div style={{ fontSize: '0.875rem', color: 'rgba(34,197,94,0.9)' }}>
+          <div style={{ fontSize: '0.875rem', color: tc.ok }}>
             Healthy
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.875rem', color: 'rgba(234,179,8,0.9)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.875rem', color: tc.warn }}>
             <AlertTriangle className="w-4 h-4" />
             {qualityIssues.length} issue{qualityIssues.length > 1 ? 's' : ''}
           </div>
@@ -291,11 +291,11 @@ export function SparsityDashboard({
 
       {/* Quality issues */}
       {qualityIssues.length > 0 && (
-        <div style={{ padding: '0.75rem 1rem', background: 'rgba(234,179,8,0.06)', borderBottom: '1px solid rgba(234,179,8,0.15)' }}>
-          <div style={{ fontSize: '0.75rem', color: 'rgba(234,179,8,0.9)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Potential Issues</div>
+        <div style={{ padding: '0.75rem 1rem', background: 'transparent', borderBottom: `1px solid ${tc.border}` }}>
+          <div style={{ fontSize: '0.85rem', color: tc.warn, marginBottom: '0.5rem' }}>Potential issues</div>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             {qualityIssues.map((issue, idx) => (
-              <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: 'rgba(234,179,8,0.8)' }}>
+              <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: tc.warn }}>
                 <AlertTriangle className="w-3 h-3" />
                 {issue}
               </li>
@@ -305,11 +305,11 @@ export function SparsityDashboard({
       )}
 
       {/* Main metrics */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: tc.surfaceActive }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: tc.border }}>
         {/* Sparsity section */}
-        <div style={{ background: tc.deepBg, padding: '1rem' }}>
+        <div style={{ background: tc.bg, padding: '1rem' }}>
           <div style={{ marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sparsity</span>
+            <span style={{ fontSize: '0.85rem', color: tc.textSub }}>Sparsity</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <MetricRow label="Avg L0" value={sparsity.avg_l0.toFixed(1)} sublabel="features/input" />
@@ -321,9 +321,9 @@ export function SparsityDashboard({
         </div>
 
         {/* Reconstruction section */}
-        <div style={{ background: tc.deepBg, padding: '1rem' }}>
+        <div style={{ background: tc.bg, padding: '1rem' }}>
           <div style={{ marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reconstruction</span>
+            <span style={{ fontSize: '0.85rem', color: tc.textSub }}>Reconstruction</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <MetricRow label="MSE" value={reconstruction.mse.toExponential(2)} />
@@ -339,9 +339,9 @@ export function SparsityDashboard({
         </div>
 
         {/* Feature health section */}
-        <div style={{ background: tc.deepBg, padding: '1rem' }}>
+        <div style={{ background: tc.bg, padding: '1rem' }}>
           <div style={{ marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', color: tc.textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Feature Health</span>
+            <span style={{ fontSize: '0.85rem', color: tc.textSub }}>Feature health</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <MetricRow label="Total" value={feature_health.num_features.toLocaleString()} />
@@ -362,11 +362,11 @@ export function SparsityDashboard({
       </div>
 
       {/* Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1px', background: tc.surfaceActive, borderTop: `1px solid ${tc.border}` }}>
-        <div style={{ background: tc.deepBg, padding: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1px', background: tc.border, borderTop: `1px solid ${tc.border}` }}>
+        <div style={{ background: tc.bg, padding: '1rem' }}>
           <svg ref={frequencyChartRef} width="100%" height={200} />
         </div>
-        <div style={{ background: tc.deepBg, padding: '1rem' }}>
+        <div style={{ background: tc.bg, padding: '1rem' }}>
           {trainingProgress.length > 0 ? (
             <svg ref={lossChartRef} width="100%" height={200} />
           ) : (
@@ -391,20 +391,20 @@ interface MetricRowProps {
 function MetricRow({ label, value, sublabel, highlight, warning }: MetricRowProps) {
   const tc = useThemeColors()
   const valueColor = warning
-    ? 'rgba(234,179,8,0.9)'
+    ? tc.warn
     : highlight
-      ? 'rgba(34,197,94,0.9)'
+      ? tc.ok
       : tc.text
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <span style={{ fontSize: '0.75rem', color: tc.textSub }}>{label}</span>
+      <span style={{ fontSize: '0.85rem', color: tc.textMuted }}>{label}</span>
       <div style={{ textAlign: 'right' }}>
-        <span style={{ fontFamily: 'monospace', fontSize: '0.875rem', color: valueColor }}>
+        <span style={{ fontFamily: 'var(--oz-mono)', fontSize: '0.875rem', color: valueColor }}>
           {value}
         </span>
         {sublabel && (
-          <span style={{ fontSize: '0.75rem', color: tc.textFaint, marginLeft: '0.25rem' }}>{sublabel}</span>
+          <span style={{ fontSize: '0.85rem', color: tc.textFaint, marginLeft: '0.25rem' }}>{sublabel}</span>
         )}
       </div>
     </div>
