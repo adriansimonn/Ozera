@@ -234,7 +234,7 @@ export const TrainingPanel: React.FC<TrainingPanelProps> = ({
       ]
 
   return (
-    <div className="training-panel oz-steps">
+    <div className="training-panel">
       {/* Dataset Section */}
       <div className="oz-section">
         <h2 className="oz-title">Dataset</h2>

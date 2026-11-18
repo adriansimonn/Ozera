@@ -530,7 +530,7 @@ export default function DefaultSAEPage({ onShowPurchaseCredits }: SAEPageProps) 
 
   const renderLeftPanel = (compareConfigContent?: React.ReactNode) => (
     <div className={`ds-left oz-side${mode === 'compare' ? ' ds-left-wide' : ''}`}>
-      <div className="oz-scroll oz-steps">
+      <div className="oz-scroll">
         {/* Analysis Mode — always first */}
         <div className="oz-section">
           <h2 className="oz-title">View</h2>

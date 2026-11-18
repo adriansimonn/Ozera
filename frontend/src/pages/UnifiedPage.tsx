@@ -303,7 +303,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
       <div className="df-layout oz-page__body">
         {/* Left Panel — Generator + Model Info */}
         <div className="df-left oz-side">
-          <div className="df-left-scroll oz-scroll oz-steps">
+          <div className="df-left-scroll oz-scroll">
             <div className="df-generator-wrap">
               <TextGenerator
                 defaultModel="nano"

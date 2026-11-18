@@ -218,7 +218,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
 
   // Color tokens
   return (
-    <div className="dp-page oz-page oz-steps">
+    <div className="dp-page oz-page">
       <NavBar />
 
       <div className="dp-layout oz-page__body">
@@ -607,7 +607,7 @@ export default function DefaultPatchingPlayground({ onShowPurchaseCredits }: Pat
           font-size: 0.85rem;
         }
 
-        /* The results column isn't a step: its titles aren't numbered */
+        /* A heading in the results column */
         .dp-heading {
           margin: 0 0 1rem;
           font-size: 1.5rem;

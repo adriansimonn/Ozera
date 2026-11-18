@@ -261,7 +261,7 @@ export default function DefaultAnalysisPage({
       <div className="da-layout oz-page__body">
         {/* Left Panel — 30% */}
         <div className="da-left oz-side">
-          <div className="oz-scroll oz-steps">
+          <div className="oz-scroll">
             {/* Error banner */}
             {error && (
               <div className="da-error oz-note oz-note--error" role="alert">

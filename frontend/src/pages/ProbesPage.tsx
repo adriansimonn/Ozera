@@ -20,7 +20,7 @@ export default function DefaultProbesPage({ onShowPurchaseCredits }: ProbesPageP
 
       <div className="oz-page__body">
         <div className="oz-side">
-          <div className="oz-scroll oz-steps">
+          <div className="oz-scroll">
             <section className="oz-section">
               <h2 className="oz-title">View</h2>
               <ProbeViewTabs lab={lab} />

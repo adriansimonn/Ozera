@@ -995,15 +995,10 @@ html.oz-app-active[data-oz-bg='light'] {
   overflow-y: auto;
 }
 
-/* A section of a column, ruled off from the next. In a .oz-steps column its title is numbered,
-   the way the homepage numbers its instruments. */
+/* A section of a column, ruled off from the next */
 .oz-app .oz-section {
   padding: 1.35rem var(--oz-gutter) 1.5rem;
   border-bottom: 1px solid var(--oz-rule);
-}
-
-.oz-app .oz-steps {
-  counter-reset: oz-step;
 }
 
 .oz-app .oz-title {
@@ -1017,18 +1012,6 @@ html.oz-app-active[data-oz-bg='light'] {
   letter-spacing: -0.02em;
   line-height: 1.25;
   text-transform: none;
-}
-
-.oz-app .oz-steps .oz-title::before {
-  counter-increment: oz-step;
-  content: counter(oz-step, decimal-leading-zero);
-  flex: none;
-  width: 1.5rem;
-  color: var(--oz-fg-faint);
-  font-size: 0.78rem;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
 }
 
 /* What follows a title on its line: a count, a control */
