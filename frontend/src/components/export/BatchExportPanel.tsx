@@ -10,7 +10,6 @@ import type {
   ExportFormat,
   PresetName,
   BatchExportItem,
-  ActivationType,
 } from '../../types/export'
 import { COLORMAP_OPTIONS, PRESET_DISPLAY_INFO } from '../../types/export'
 import { Spinner } from '../common/Spinner'
@@ -48,19 +47,6 @@ export function BatchExportPanel({
     ])
   }
 
-  const addHistogramItem = () => {
-    setItems([
-      ...items,
-      {
-        type: 'activation-histogram',
-        activation_id: activationId,
-        layer: 0,
-        activation_type: 'all',
-        config: { preset, format },
-      },
-    ])
-  }
-
   const addAllHeads = (layer: number) => {
     const newItems: BatchExportItem[] = []
     for (let h = 0; h < numHeads; h++) {
@@ -71,20 +57,6 @@ export function BatchExportPanel({
         head: h,
         config: { preset, format },
         colormap: 'inferno',
-      })
-    }
-    setItems([...items, ...newItems])
-  }
-
-  const addAllLayers = () => {
-    const newItems: BatchExportItem[] = []
-    for (let l = 0; l < numLayers; l++) {
-      newItems.push({
-        type: 'activation-histogram',
-        activation_id: activationId,
-        layer: l,
-        activation_type: 'all',
-        config: { preset, format },
       })
     }
     setItems([...items, ...newItems])
@@ -195,15 +167,6 @@ export function BatchExportPanel({
             <Plus className="w-3 h-3" />
             Add Heatmap
           </button>
-          <button
-            onClick={addHistogramItem}
-            className="flex items-center gap-1.5 px-2 py-1 text-[0.82rem]
- bg-fill text-fg hover:text-mark hover:bg-fill-strong
- border border-rule hover:border-fg transition-all"
-          >
-            <Plus className="w-3 h-3" />
-            Add Histogram
-          </button>
           <div className="h-6 w-px bg-fill-strong" />
           <select
             onChange={(e) => {
@@ -224,15 +187,6 @@ export function BatchExportPanel({
               </option>
             ))}
           </select>
-          <button
-            onClick={addAllLayers}
-            className="flex items-center gap-1.5 px-2 py-1 text-[0.82rem]
- bg-fill text-fg hover:text-mark hover:bg-fill-strong
- border border-rule hover:border-fg transition-all"
-          >
-            <Plus className="w-3 h-3" />
-            All Layer Histograms
-          </button>
         </div>
       </div>
 
@@ -248,79 +202,42 @@ export function BatchExportPanel({
               <div key={index} className="px-4 py-2 flex items-center gap-3">
                 <span className="text-[0.82rem] text-fg w-6">{index + 1}.</span>
 
-                {item.type === 'attention-heatmap' ? (
-                  <>
-                    <span className="text-[0.82rem] text-fg bg-fill-strong px-2 py-0.5 border border-rule">
-                      Heatmap
-                    </span>
-                    <select
-                      value={item.layer}
-                      onChange={(e) => updateItem(index, { layer: parseInt(e.target.value) })}
-                      className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none"
-                    >
-                      {Array.from({ length: numLayers }, (_, i) => (
-                        <option key={i} value={i}>
-                          L{i}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={item.head}
-                      onChange={(e) => updateItem(index, { head: parseInt(e.target.value) })}
-                      className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none"
-                    >
-                      {Array.from({ length: numHeads }, (_, i) => (
-                        <option key={i} value={i}>
-                          H{i}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={item.colormap || 'inferno'}
-                      onChange={(e) => updateItem(index, { colormap: e.target.value })}
-                      className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none"
-                    >
-                      {COLORMAP_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-[0.82rem] text-fg bg-fill-strong px-2 py-0.5 border border-fg">
-                      Histogram
-                    </span>
-                    <select
-                      value={item.layer ?? ''}
-                      onChange={(e) =>
-                        updateItem(index, {
-                          layer: e.target.value ? parseInt(e.target.value) : undefined,
-                        })
-                      }
-                      className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none"
-                    >
-                      <option value="">All</option>
-                      {Array.from({ length: numLayers }, (_, i) => (
-                        <option key={i} value={i}>
-                          L{i}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={item.activation_type || 'all'}
-                      onChange={(e) =>
-                        updateItem(index, { activation_type: e.target.value as ActivationType })
-                      }
-                      className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none"
-                    >
-                      <option value="all">All</option>
-                      <option value="attn_output">Attn</option>
-                      <option value="ff_output">FF</option>
-                    </select>
-                  </>
-                )}
+                <span className="text-[0.82rem] text-fg bg-fill-strong px-2 py-0.5 border border-rule">
+                  Heatmap
+                </span>
+                <select
+                  value={item.layer}
+                  onChange={(e) => updateItem(index, { layer: parseInt(e.target.value) })}
+                  className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none"
+                >
+                  {Array.from({ length: numLayers }, (_, i) => (
+                    <option key={i} value={i}>
+                      L{i}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={item.head}
+                  onChange={(e) => updateItem(index, { head: parseInt(e.target.value) })}
+                  className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none"
+                >
+                  {Array.from({ length: numHeads }, (_, i) => (
+                    <option key={i} value={i}>
+                      H{i}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={item.colormap || 'inferno'}
+                  onChange={(e) => updateItem(index, { colormap: e.target.value })}
+                  className="px-2 py-1 text-[0.82rem] bg-transparent text-fg border border-rule focus:outline-none"
+                >
+                  {COLORMAP_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
 
                 <div className="flex-1" />
 

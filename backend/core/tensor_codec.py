@@ -81,6 +81,17 @@ def to_wire(value: Any) -> Any:
     return value
 
 
+def to_wire_deep(value: Any) -> Any:
+    """to_wire for a value with encoded tensors nested in its dicts and lists (a core.lens readout)."""
+    if is_tensor_entry(value):
+        return to_wire(value)
+    if isinstance(value, dict):
+        return {key: to_wire_deep(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [to_wire_deep(item) for item in value]
+    return value
+
+
 def slice_last_dim(entry: dict, n: int) -> dict:
     """Wire-format view of the first n entries of the last dimension, keeping the full-tensor stats."""
     return _wire(to_float32(entry)[..., :n], entry)

@@ -791,6 +791,12 @@ class _InferenceWorker:
                 serialized_activations["top_k_logits"] = self._logits_to_topk_data(
                     logits_tensor, token_list, k=20
                 )
+                # The logit lens and logit attribution, from the same pass
+                from core.lens import ozera_readouts
+
+                serialized_activations.update(
+                    ozera_readouts(model, self._tokenizer, activations, logits_tensor, token_list)
+                )
 
             result["tokens"] = token_list
             result["decoded_tokens"] = [self._tokenizer.decode([t]) for t in token_list]
@@ -835,7 +841,11 @@ class _InferenceWorker:
         seq_len, vocab_size = logits.shape
         actual_k = min(k, vocab_size)
 
-        top_values, top_indices = torch.topk(logits, actual_k, dim=-1)
+        # Ties in token ID order, as the logit lens's rows are
+        from core.lens import top_tokens
+
+        top_indices = top_tokens(logits, actual_k)
+        top_values = torch.gather(logits, 1, top_indices)
         probs = torch.softmax(logits, dim=-1)
         top_probs = torch.gather(probs, 1, top_indices)
 

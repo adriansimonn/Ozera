@@ -158,6 +158,50 @@ export interface TopKLogits {
   seq_len: number
 }
 
+/**
+ * The logit lens of a generation (backend core/lens): what the model would predict if it
+ * stopped after each layer. Row 0 reads the embeddings and row i the output of layer i - 1; the
+ * last row is the model's own output. A position's target is the sequence's next token (the
+ * last position has none, so its final token stands in); its final token is the model's top
+ * prediction there.
+ */
+export interface LogitLens {
+  rows: number
+  seq_len: number
+  k: number
+  top_ids: TensorData      // [rows, seq, k]
+  top_probs: TensorData    // [rows, seq, k]
+  target_ids: number[]     // [seq]
+  final_ids: number[]      // [seq]
+  target_prob: TensorData  // [rows, seq]
+  target_rank: TensorData  // [rows, seq], 1 for the top token
+  final_prob: TensorData   // [rows, seq]
+  final_rank: TensorData   // [rows, seq]
+  tokens: Record<string, string>  // token ID -> text
+}
+
+/**
+ * Logit attribution of a generation (backend core/lens): each part's direct share of the
+ * target token's logit at every position, with the final norm's scale frozen. embed + attn +
+ * mlp + bias add up to logit; a layer's heads and attn_bias add up to its attn.
+ */
+export interface LogitAttribution {
+  seq_len: number
+  num_layers: number
+  num_heads: number
+  target_ids: number[]   // [seq]
+  embed: TensorData      // [seq]
+  attn: TensorData       // [seq, layers]
+  mlp: TensorData        // [seq, layers]
+  heads: TensorData      // [seq, layers, heads]
+  attn_bias: TensorData  // [seq, layers]
+  bias: TensorData       // [seq]
+  logit: TensorData      // [seq] the model's own logit
+  prob: TensorData       // [seq] the target's probability in the model's output
+  rank: TensorData       // [seq]
+  tokens: Record<string, string>
+}
+
 export interface LayerActivations {
   attn_input?: TensorData
   attn_output?: TensorData
@@ -178,6 +222,8 @@ export interface ActivationData {
     final_layer_norm?: TensorData
     logits?: TensorData
     top_k_logits?: TopKLogits
+    logit_lens?: LogitLens
+    logit_attribution?: LogitAttribution
   }
   tokens: number[]
   prompt: string
@@ -224,7 +270,8 @@ export interface TensorStats {
 export interface ActivationSummaryWithInfo extends ActivationSummary {
   tokens: number[]
   layer_info: Record<string, TensorStats>[]
-  tensor_info: Record<string, TensorStats & { k?: number; seq_len?: number }>
+  // Also says whether the logit lens and logit attribution were captured (logit_lens, logit_attribution)
+  tensor_info: Record<string, Partial<TensorStats> & { k?: number; seq_len?: number; rows?: number; num_layers?: number; num_heads?: number }>
 }
 
 /**

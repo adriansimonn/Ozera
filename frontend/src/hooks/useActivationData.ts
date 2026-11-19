@@ -11,11 +11,15 @@ import type {
   ActivationSummaryWithInfo,
   FlowActivations,
   LayerActivations,
+  LogitAttribution,
+  LogitLens,
   TensorData,
   TopKLogits,
 } from '../types/model'
 
-export type VisualizationType = 'network' | 'attention' | 'activations' | 'journey' | 'flow'
+export type VisualizationType = 'network' | 'attention' | 'lens' | 'attribution'
+
+type CachedTensor = TensorData | TopKLogits | LogitLens | LogitAttribution
 
 export function useActivationData(selectedVisualization: VisualizationType, selectedLayer: number) {
   const [activationData, setActivationData] = useState<ActivationData | null>(null)
@@ -25,7 +29,7 @@ export function useActivationData(selectedVisualization: VisualizationType, sele
 
   // Cache for lazily loaded layers and tensors
   const layerCacheRef = useRef<Map<number, LayerActivations>>(new Map())
-  const tensorCacheRef = useRef<Map<string, TensorData | TopKLogits>>(new Map())
+  const tensorCacheRef = useRef<Map<string, CachedTensor>>(new Map())
   // Leading dimensions of every layer for the network view (kept apart from the full layers)
   const flowRef = useRef<FlowActivations | null>(null)
   const currentActivationIdRef = useRef<string | null>(null)
@@ -73,6 +77,8 @@ export function useActivationData(selectedVisualization: VisualizationType, sele
         final_layer_norm: tensorCacheRef.current.get('final_layer_norm') as TensorData | undefined,
         logits: tensorCacheRef.current.get('logits') as TensorData | undefined,
         top_k_logits: tensorCacheRef.current.get('top_k_logits') as TopKLogits | undefined,
+        logit_lens: tensorCacheRef.current.get('logit_lens') as LogitLens | undefined,
+        logit_attribution: tensorCacheRef.current.get('logit_attribution') as LogitAttribution | undefined,
         layers,
       },
     }
@@ -144,23 +150,15 @@ export function useActivationData(selectedVisualization: VisualizationType, sele
           await Promise.all(promises)
           if (currentActivationIdRef.current === id) loadedVizRef.current.add('network')
         }
-      } else if (vizType === 'attention' || vizType === 'activations') {
+      } else if (vizType === 'attention') {
         // Only need the selected layer
         const targetLayer = layer ?? 0
         await loadLayer(targetLayer)
-      } else if (vizType === 'journey' || vizType === 'flow') {
-        if (!loadedVizRef.current.has('journey_flow')) {
-          // Need all embeddings, all layers, and final_layer_norm
-          const promises: Promise<void>[] = []
-          if (summary.tensor_info.token_embeddings) promises.push(loadTensor('token_embeddings'))
-          if (summary.tensor_info.combined_embeddings) promises.push(loadTensor('combined_embeddings'))
-          if (summary.tensor_info.final_layer_norm) promises.push(loadTensor('final_layer_norm'))
-          for (let i = 0; i < summary.num_layers; i++) {
-            promises.push(loadLayer(i))
-          }
-          await Promise.all(promises)
-          if (currentActivationIdRef.current === id) loadedVizRef.current.add('journey_flow')
-        }
+      } else if (vizType === 'lens') {
+        // Computed with the capture; a generation stored before it was has none
+        if (summary.tensor_info.logit_lens) await loadTensor('logit_lens')
+      } else if (vizType === 'attribution') {
+        if (summary.tensor_info.logit_attribution) await loadTensor('logit_attribution')
       }
 
       // Rebuild activation data from caches

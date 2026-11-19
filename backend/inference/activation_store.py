@@ -12,11 +12,18 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import uuid
 
-from core.tensor_codec import encode_tensor, is_tensor_entry, slice_last_dim, to_float32, to_wire
+from core.lens import READOUTS, top_tokens
+from core.tensor_codec import encode_tensor, is_tensor_entry, slice_last_dim, to_float32, to_wire, to_wire_deep
 
 # Memory the stored activations may take in all. A visualization of a large open-source
 # model takes up to core.activation_limits.MAX_CAPTURE_BYTES.
 DEFAULT_MAX_BYTES = int(os.getenv("ACTIVATION_STORE_MAX_MB", "2048")) * 1024 * 1024
+
+
+# What get_tensor_activation serves: top-level tensors, the top-k logits, and the logit readouts
+TENSOR_NAMES = (
+    'token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits', 'top_k_logits',
+) + READOUTS
 
 
 def _entry_bytes(value: Any) -> int:
@@ -138,7 +145,7 @@ class ActivationStore:
         self._access_times[activation_id] = datetime.now()
 
         activations = {
-            key: [{k: to_wire(v) for k, v in layer.items()} for layer in value] if key == 'layers' else to_wire(value)
+            key: [{k: to_wire(v) for k, v in layer.items()} for layer in value] if key == 'layers' else to_wire_deep(value)
             for key, value in data['activations'].items()
         }
         return {**data, 'activations': activations}
@@ -195,6 +202,14 @@ class ActivationStore:
                 'k': top_k_logits['k'],
                 'seq_len': top_k_logits['seq_len'],
             }
+
+        # The logit lens and attribution, when the capture has them (core.lens)
+        for name in READOUTS:
+            readout = activations.get(name)
+            if isinstance(readout, dict) and 'seq_len' in readout:
+                tensor_info[name] = {
+                    key: readout[key] for key in ('seq_len', 'rows', 'k', 'num_layers', 'num_heads') if key in readout
+                }
 
         return {
             'id': data['id'],
@@ -313,7 +328,7 @@ class ActivationStore:
 
         Args:
             activation_id: ID of activations
-            tensor_name: Name of tensor to retrieve
+            tensor_name: Name of tensor to retrieve (one of TENSOR_NAMES)
             user_id: Requesting user
 
         Returns:
@@ -325,8 +340,7 @@ class ActivationStore:
 
         activations = data['activations']
 
-        valid_tensors = ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits', 'top_k_logits']
-        if tensor_name not in valid_tensors:
+        if tensor_name not in TENSOR_NAMES:
             return None
 
         tensor_data = activations.get(tensor_name)
@@ -338,8 +352,33 @@ class ActivationStore:
 
         return {
             'tensor_name': tensor_name,
-            'data': to_wire(tensor_data)
+            'data': to_wire_deep(tensor_data)
         }
+
+    def get_readout(self, activation_id: str, name: str, user_id: int) -> Optional[Dict[str, Any]]:
+        """
+        A capture's logit lens or logit attribution (core.lens.readouts) with its tensors decoded
+        to float32 arrays, for work done on the backend itself (figure export, the assistant).
+
+        Args:
+            activation_id: ID of activations
+            name: "logit_lens" or "logit_attribution"
+            user_id: Requesting user
+
+        Returns:
+            The readout, or None if the activations don't exist or weren't captured with it
+        """
+        data = self._get_owned(activation_id, user_id)
+        if data is None or name not in READOUTS:
+            return None
+        readout = data['activations'].get(name)
+        if not isinstance(readout, dict):
+            return None
+
+        # Update access time
+        self._access_times[activation_id] = datetime.now()
+
+        return {key: to_float32(value) if is_tensor_entry(value) else value for key, value in readout.items()}
 
     def get_top_k(self, activation_id: str, user_id: int, k: int) -> Optional[Dict[str, Any]]:
         """
@@ -364,7 +403,8 @@ class ActivationStore:
         if values.dim() == 3:
             values = values[0]
         probs = torch.softmax(values, dim=-1)
-        top_p, top_i = torch.topk(probs, min(k, probs.shape[-1]), dim=-1)
+        top_i = top_tokens(values, k)
+        top_p = probs.gather(1, top_i)
         from core.tokenizer import get_tokenizer
 
         tokenizer = get_tokenizer()

@@ -4,8 +4,6 @@
 
 export type ExportFormat = 'png' | 'pdf' | 'svg'
 
-export type ActivationType = 'attn_output' | 'ff_output' | 'all'
-
 /**
  * Publication preset names.
  */
@@ -63,29 +61,41 @@ export interface MultiHeadHeatmapExportRequest {
 }
 
 /**
- * Request to export activation histogram.
+ * Request to export a generation's logit lens.
  */
-export interface ActivationHistogramExportRequest {
+export interface LogitLensExportRequest {
   activation_id: string
-  layer?: number
-  activation_type?: ActivationType
+  /** Color by the next token's probability (target) or the final prediction's */
+  color_by?: 'target' | 'final'
+  /** First position shown, and one past the last */
+  start?: number
+  end?: number
   config?: ExportConfig
-  color?: string
+  colormap?: string
   title?: string
-  bins?: number
-  show_stats?: boolean
-  log_scale?: boolean
+  show_colorbar?: boolean
+  show_tokens?: boolean
+  token_labels?: 'text' | 'number'
+}
+
+/**
+ * Request to export one position's logit attribution.
+ */
+export interface LogitAttributionExportRequest {
+  activation_id: string
+  position: number
+  config?: ExportConfig
+  title?: string
 }
 
 /**
  * Single export item for batch export.
  */
 export interface BatchExportItem {
-  type: 'attention-heatmap' | 'activation-histogram'
+  type: 'attention-heatmap'
   activation_id: string
   layer?: number
   head?: number
-  activation_type?: ActivationType
   config?: ExportConfig
   colormap?: string
   title?: string
@@ -103,7 +113,7 @@ export interface BatchExportRequest {
  */
 export interface ExportModalState {
   isOpen: boolean
-  exportType: 'attention-heatmap' | 'activation-histogram' | null
+  exportType: 'attention-heatmap' | 'logit-lens' | 'logit-attribution' | null
   activationId?: string
   layer?: number
   head?: number

@@ -71,7 +71,12 @@ PAGES: dict[str, Page] = {
         Control("temperature", "Temperature", "number", minimum=0, maximum=2),
         Control("top_k", "Top-k", "number", minimum=1, maximum=100, integer=True),
         Control("mode", "Generation mode", "select", "visualize captures activations; tokens is text only", ("visualize", "tokens")),
-        Control("visualization", "Visualization", "select", options=("network", "attention", "activations", "journey", "flow")),
+        Control(
+            "visualization", "Visualization", "select",
+            "network (generation flow), attention (heatmap), lens (logit lens), attribution (logit attribution)",
+            ("network", "attention", "lens", "attribution"),
+        ),
+        Control("token", "Token", "number", "the position logit attribution shows (also selected by clicking a logit lens cell)", minimum=0, integer=True),
         Control("activation", "Stored generation", "text", "an activation ID; opens that generation's visualizations (free)"),
         Control("generate_button", "Generate", "action", "reads Generate + Visualize in visualize mode"),
     )),

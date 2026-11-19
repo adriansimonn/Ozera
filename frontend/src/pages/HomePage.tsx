@@ -23,7 +23,7 @@ const TOOLS = [
   {
     name: 'Generate',
     path: '/generate',
-    blurb: 'Stream a completion, then open any layer of it: activations, attention, embeddings, logits.',
+    blurb: 'Stream a completion, then open it up: predictions, attention, logit lens, logit attribution.',
   },
   {
     name: 'Activation Patching',

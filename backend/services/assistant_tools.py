@@ -32,6 +32,8 @@ JOBS_LISTED = 8
 PROBES_LISTED = 40
 ACTIVATION_POSITIONS = 64
 TOP_PREDICTIONS = 5
+# The largest direct logit contributions listed per position
+DIRECT_PARTS = 3
 
 
 @dataclass
@@ -417,23 +419,69 @@ async def get_activation(db: Session, user: User, ctx: ToolContext, args: dict) 
         tokenizer = get_tokenizer()
         tokens = [tokenizer.decode([int(t)]) for t in summary.get("tokens", [])]
     top = store.get_top_k(activation_id, user.id, TOP_PREDICTIONS)
+    lens = store.get_readout(activation_id, "logit_lens", user.id)
+    attribution = store.get_readout(activation_id, "logit_attribution", user.id)
+    # The lens and attribution are read where the model was generating: from the last prompt
+    # token on (the result has to fit MAX_RESULT_TOKENS with every position's predictions)
+    generated_from = max((meta.get("prompt_tokens") or 1) - 1, 0)
     positions = []
     if top is not None:
         for i in range(min(len(top["tokens"]), ACTIVATION_POSITIONS)):
-            positions.append({
+            position = {
                 "pos": i,
                 "token": tokens[i] if i < len(tokens) else None,
                 "next": tokens[i + 1] if i + 1 < len(tokens) else None,
                 "top": [[t, _round(p, 3)] for t, p in zip(top["tokens"][i], top["probabilities"][i])],
-            })
+            }
+            if i >= generated_from:
+                if lens is not None and i < lens["seq_len"]:
+                    position["settles"] = _settles(lens, i)
+                if attribution is not None and i < attribution["seq_len"]:
+                    position["wrote"] = _largest_parts(attribution, i)
+            positions.append(position)
+    note = "predictions[i].top is the model's top next-token predictions after token i (the actual next token is next)"
+    if lens is not None:
+        note += (
+            ". From the last prompt token on: settles is the earliest layer from which the next token stays the "
+            "logit lens's top prediction (emb: from the embeddings; null: the model's top prediction is another "
+            "token; at the last position, which has no next token, the top prediction stands in)"
+        )
+    if attribution is not None:
+        note += (
+            "; wrote lists the largest direct contributions to that token's logit, in logits (emb, L<layer> mlp, "
+            "L<layer>H<head>): direct effects with the final norm frozen, not causal tests"
+        )
     return ToolOutcome({
         "activation_id": activation_id, "model": summary.get("model"), "prompt": summary.get("prompt"),
         "generated_text": meta.get("generated_text"), "prompt_tokens": meta.get("prompt_tokens"),
         "generated_tokens": meta.get("generated_tokens"), "layers": summary.get("num_layers"),
         "tokens": tokens[:200],
         "predictions": positions,
-        "note": "predictions[i].top is the model's top next-token predictions after token i (the actual next token is next)",
+        "note": note,
     })
+
+
+def _settles(lens: dict, position: int) -> Optional[str]:
+    """The earliest layer from which a position's next token stays the logit lens's top prediction (core.lens)."""
+    ranks = lens["target_rank"][:, position]
+    if ranks[-1] != 1:
+        return None
+    row = len(ranks) - 1
+    while row > 0 and ranks[row - 1] == 1:
+        row -= 1
+    return "emb" if row == 0 else f"L{row - 1}"
+
+
+def _largest_parts(attribution: dict, position: int) -> list:
+    """The largest direct contributions to a position's next-token logit (core.lens)."""
+    parts = [("emb", float(attribution["embed"][position]))]
+    parts += [(f"L{layer} mlp", float(value)) for layer, value in enumerate(attribution["mlp"][position])]
+    parts += [
+        (f"L{layer}H{head}", float(value))
+        for layer, heads in enumerate(attribution["heads"][position]) for head, value in enumerate(heads)
+    ]
+    parts.sort(key=lambda part: -abs(part[1]))
+    return [[name, _round(value, 2)] for name, value in parts[:DIRECT_PARTS]]
 
 
 async def get_balance(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:

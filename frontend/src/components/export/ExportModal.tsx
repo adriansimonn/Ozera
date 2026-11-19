@@ -12,9 +12,9 @@ import type {
   PresetName,
   ExportConfig,
   AttentionHeatmapExportRequest,
-  ActivationHistogramExportRequest,
+  LogitAttributionExportRequest,
+  LogitLensExportRequest,
   MultiHeadHeatmapExportRequest,
-  ActivationType,
 } from '../../types/export'
 import { COLORMAP_OPTIONS, PRESET_DISPLAY_INFO } from '../../types/export'
 import type { ExportType } from './ExportButton'
@@ -28,7 +28,15 @@ interface ExportModalProps {
   layer?: number
   head?: number
   initialTokenLabels?: 'text' | 'number'
+  /** Logit lens: what the view's cells are colored by */
+  initialColorBy?: 'target' | 'final'
+  /** Logit lens and attribution: the selected position, and how many the sequence has */
+  position?: number
+  positions?: number
 }
+
+// A lens figure wider than this many positions doesn't fit its tokens in the cells
+const LENS_WINDOW = 24
 
 export function ExportModal({
   isOpen,
@@ -38,6 +46,9 @@ export function ExportModal({
   layer = 0,
   head = 0,
   initialTokenLabels,
+  initialColorBy,
+  position = 0,
+  positions,
 }: ExportModalProps) {
   // Common config state
   const [format, setFormat] = useState<ExportFormat>('png')
@@ -54,11 +65,14 @@ export function ExportModal({
   const [tokenLabels, setTokenLabels] = useState<'text' | 'number'>('text')
   const [customTitle, setCustomTitle] = useState('')
 
-  // Histogram specific
-  const [activationType, setActivationType] = useState<ActivationType>('all')
-  const [bins, setBins] = useState(50)
-  const [showStats, setShowStats] = useState(true)
-  const [logScale, setLogScale] = useState(false)
+  // Logit lens specific: what colors the cells, and the positions shown (first to last)
+  const [colorBy, setColorBy] = useState<'target' | 'final'>('target')
+  const [showTokens, setShowTokens] = useState(true)
+  const [firstPosition, setFirstPosition] = useState('0')
+  const [lastPosition, setLastPosition] = useState('0')
+
+  // Logit attribution specific
+  const [attributionPosition, setAttributionPosition] = useState('0')
 
   // Multi-head specific
   const [cols, setCols] = useState(4)
@@ -73,8 +87,15 @@ export function ExportModal({
       if (initialTokenLabels) {
         setTokenLabels(initialTokenLabels)
       }
+      if (initialColorBy) setColorBy(initialColorBy)
+      // The window of positions ending at the selected one, or the whole sequence if it's short
+      const count = positions ?? position + 1
+      const end = count <= LENS_WINDOW ? count - 1 : Math.min(count - 1, Math.max(position, LENS_WINDOW - 1))
+      setLastPosition(String(end))
+      setFirstPosition(String(count <= LENS_WINDOW ? 0 : Math.max(0, end - LENS_WINDOW + 1)))
+      setAttributionPosition(String(position))
     }
-  }, [isOpen, initialTokenLabels])
+  }, [isOpen, initialTokenLabels, initialColorBy, position, positions])
 
   if (!isOpen) return null
 
@@ -128,20 +149,36 @@ export function ExportModal({
 
         blob = await apiClient.exportMultiHeadHeatmap(request)
         filename = `attention_L${layer}_multihead.${format}`
-      } else {
-        const request: ActivationHistogramExportRequest = {
+      } else if (exportType === 'logit-lens') {
+        const last = (positions ?? Infinity) - 1
+        const start = Math.max(0, Math.min(last, parseInt(firstPosition) || 0))
+        const end = Math.max(start, Math.min(last, parseInt(lastPosition) || 0))
+        const request: LogitLensExportRequest = {
           activation_id: activationId,
-          layer: layer,
-          activation_type: activationType,
+          color_by: colorBy,
+          start,
+          end: end + 1,
           config,
-          bins,
-          show_stats: showStats,
-          log_scale: logScale,
+          colormap,
+          show_colorbar: showColorbar,
+          show_tokens: showTokens,
+          token_labels: tokenLabels,
         }
         if (customTitle) request.title = customTitle
 
-        blob = await apiClient.exportActivationHistogram(request)
-        filename = `histogram_L${layer}_${activationType}.${format}`
+        blob = await apiClient.exportLogitLens(request)
+        filename = `logit_lens_${start}-${end}.${format}`
+      } else {
+        const at = Math.max(0, Math.min((positions ?? Infinity) - 1, parseInt(attributionPosition) || 0))
+        const request: LogitAttributionExportRequest = {
+          activation_id: activationId,
+          position: at,
+          config,
+        }
+        if (customTitle) request.title = customTitle
+
+        blob = await apiClient.exportLogitAttribution(request)
+        filename = `logit_attribution_${at}.${format}`
       }
 
       downloadBlob(blob, filename)
@@ -159,8 +196,10 @@ export function ExportModal({
         return 'Export Attention Heatmap'
       case 'multi-head-heatmap':
         return 'Export Multi-Head Heatmap'
-      case 'activation-histogram':
-        return 'Export Activation Histogram'
+      case 'logit-lens':
+        return 'Export Logit Lens'
+      case 'logit-attribution':
+        return 'Export Logit Attribution'
       default:
         return 'Export Figure'
     }
@@ -207,7 +246,7 @@ export function ExportModal({
           </div>
 
           {/* Type-specific options */}
-          {(exportType === 'attention-heatmap' || exportType === 'multi-head-heatmap') && (
+          {(exportType === 'attention-heatmap' || exportType === 'multi-head-heatmap' || exportType === 'logit-lens') && (
             <>
               {/* Colormap */}
               <div>
@@ -221,8 +260,63 @@ export function ExportModal({
                 />
               </div>
 
+              {/* Logit lens options */}
+              {exportType === 'logit-lens' && (
+                <>
+                  <div>
+                    <label className="oz-label">
+                      Color by
+                    </label>
+                    <Dropdown
+                      value={colorBy}
+                      onChange={(v) => setColorBy(v as 'target' | 'final')}
+                      options={[
+                        { value: 'target', label: 'Next token' },
+                        { value: 'final', label: 'Final prediction' },
+                      ]}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="oz-label">
+                        First token
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={positions != null ? positions - 1 : undefined}
+                        value={firstPosition}
+                        onChange={(e) => setFirstPosition(e.target.value)}
+                        className="oz-input oz-input--number"
+                      />
+                    </div>
+                    <div>
+                      <label className="oz-label">
+                        Last token
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={positions != null ? positions - 1 : undefined}
+                        value={lastPosition}
+                        onChange={(e) => setLastPosition(e.target.value)}
+                        className="oz-input oz-input--number"
+                      />
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-3 text-sm cursor-pointer" title={`Written when the figure is up to ${LENS_WINDOW} tokens wide`}>
+                    <input
+                      type="checkbox"
+                      checked={showTokens}
+                      onChange={(e) => setShowTokens(e.target.checked)}
+                    />
+                    Top tokens in cells
+                  </label>
+                </>
+              )}
+
               {/* Heatmap options */}
-              {exportType === 'attention-heatmap' && (
+              {(exportType === 'attention-heatmap' || exportType === 'logit-lens') && (
                 <>
                   <div>
                     <label className="oz-label">
@@ -267,60 +361,20 @@ export function ExportModal({
             </>
           )}
 
-          {exportType === 'activation-histogram' && (
-            <>
-              {/* Activation type */}
-              <div>
-                <label className="oz-label">
-                  Activation type
-                </label>
-                <Dropdown
-                  value={activationType}
-                  onChange={(v) => setActivationType(v as ActivationType)}
-                  options={[
-                    { value: 'all', label: 'All Activations' },
-                    { value: 'attn_output', label: 'Attention Output' },
-                    { value: 'ff_output', label: 'Feed-Forward Output' },
-                  ]}
-                />
-              </div>
-
-              {/* Bins */}
-              <div>
-                <label className="oz-label">
-                  Bins: {bins}
-                </label>
-                <input
-                  type="range"
-                  min="10"
-                  max="100"
-                  step="5"
-                  value={bins}
-                  onChange={(e) => setBins(parseInt(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Histogram options */}
-              <div className="flex gap-6">
-                <label className="flex items-center gap-3 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showStats}
-                    onChange={(e) => setShowStats(e.target.checked)}
-                  />
-                  Show statistics
-                </label>
-                <label className="flex items-center gap-3 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={logScale}
-                    onChange={(e) => setLogScale(e.target.checked)}
-                  />
-                  Log scale
-                </label>
-              </div>
-            </>
+          {exportType === 'logit-attribution' && (
+            <div>
+              <label className="oz-label">
+                Token
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={positions != null ? positions - 1 : undefined}
+                value={attributionPosition}
+                onChange={(e) => setAttributionPosition(e.target.value)}
+                className="oz-input oz-input--number"
+              />
+            </div>
           )}
 
           {/* Custom title */}
@@ -333,9 +387,11 @@ export function ExportModal({
               value={customTitle}
               onChange={(e) => setCustomTitle(e.target.value)}
               placeholder={
-                exportType === 'attention-heatmap'
-                  ? `Layer ${layer}, Head ${head}`
-                  : 'Activation Distribution'
+                exportType === 'logit-lens'
+                  ? 'Logit lens'
+                  : exportType === 'logit-attribution'
+                    ? 'Logit attribution'
+                    : `Layer ${layer}, Head ${head}`
               }
               className="oz-input"
             />

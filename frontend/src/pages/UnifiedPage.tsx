@@ -1,17 +1,17 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import TextGenerator from '../components/model/TextGenerator'
 import type { GenerationStreamState, PlainGenerationResult } from '../components/model/TextGenerator'
 import type { FinishReason } from '../api/client'
 import ModelInfoBox, { ModelDetails } from '../components/model/ModelInfoBox'
 import { AttentionHeatmap } from '../components/visualization/AttentionHeatmap'
-import { LayerActivationDisplay } from '../components/visualization/LayerActivationDisplay'
-import { EmbeddingJourney } from '../components/visualization/EmbeddingJourney'
-import { TransformationFlow } from '../components/visualization/TransformationFlow'
 import { GenerationFlow } from '../components/visualization/GenerationFlow'
+import { LogitLens } from '../components/visualization/LogitLens'
+import { LogitAttribution } from '../components/visualization/LogitAttribution'
+import { showToken } from '../components/visualization/tokenText'
 import { NavBar } from '../components/common/NavBar'
 import { useActivationData, type VisualizationType } from '../hooks/useActivationData'
-import { ChevronLeft, ChevronRight, Layers, Eye, Sparkles, TrendingUp, Network, Copy, Check,    Info, Maximize2,  X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, Check, Info, Maximize2, X } from 'lucide-react'
 import { Dropdown } from '../components/common/Dropdown'
 import { EmptyState } from '../components/common/EmptyState'
 import { Spinner } from '../components/common/Spinner'
@@ -84,6 +84,13 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
   const [showTextLabels, setShowTextLabels] = useState(false)
   const [tokenRefOpen, setTokenRefOpen] = useState(false)
 
+  // The token the logit attribution view reads (picked there, in the token reference, or by
+  // clicking a logit lens cell)
+  const selectToken = useCallback((index: number) => {
+    setSelectedTokenIndex(index)
+    setTokenInputValue(String(index))
+  }, [])
+
   const { activationData, loading, layerLoading, error, summary, loadActivation } =
     useActivationData(selectedVisualization, selectedLayer)
 
@@ -93,7 +100,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
     activationId: currentActivationId,
     openActivation: (id) => {
       setRightPanelMode('visualizations')
-      navigate(`/?id=${encodeURIComponent(id)}`)
+      navigate(`/generate?id=${encodeURIComponent(id)}`)
     },
     loaded: summary ? { model: summary.model, prompt: summary.prompt?.slice(0, 300), tokens: summary.num_tokens } : null,
     visualization: selectedVisualization,
@@ -101,6 +108,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
     layer: selectedLayer,
     head: selectedHead,
     tokenIndex: selectedTokenIndex,
+    setTokenIndex: (index) => selectToken(Math.max(0, Math.min((summary?.num_tokens ?? 1) - 1, index))),
   }))
 
   useEffect(() => {
@@ -115,6 +123,17 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
     setRightPanelMode('visualizations')
     loadActivation(newActivationId)
   }
+
+  // A new generation is read from where it starts predicting: its last prompt token (or, for a
+  // stored one opened without that count, its first token)
+  const summaryId = summary?.id
+  const summaryTokens = summary?.num_tokens ?? 0
+  const summaryPromptTokens = summary?.metadata?.prompt_tokens
+  useEffect(() => {
+    if (!summaryId) return
+    const start = typeof summaryPromptTokens === 'number' ? summaryPromptTokens - 1 : 0
+    selectToken(Math.max(0, Math.min(summaryTokens - 1, start)))
+  }, [summaryId, summaryTokens, summaryPromptTokens, selectToken])
 
   const handleStreamUpdate = (next: GenerationStreamState | null) => {
     // A generation starting: show the view its text streams into (both show it)
@@ -177,12 +196,14 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
     || 0
 
   const visualizationOptions = [
-    { value: 'network' as const, label: 'Neural Network Generation Flow', icon: Network },
-    { value: 'attention' as const, label: 'Attention Heatmap', icon: Eye },
-    { value: 'activations' as const, label: 'Layer Activations', icon: Sparkles },
-    { value: 'journey' as const, label: 'Embedding Journey', icon: TrendingUp },
-    { value: 'flow' as const, label: 'Transformation Flow', icon: Layers },
+    { value: 'network' as const, label: 'Neural Network Generation Flow' },
+    { value: 'attention' as const, label: 'Attention Heatmap' },
+    { value: 'lens' as const, label: 'Logit Lens' },
+    { value: 'attribution' as const, label: 'Logit Attribution' },
   ]
+  // Views that read the sequence token by token, and so show the token reference
+  const tokenViews: VisualizationType[] = ['attention', 'lens', 'attribution']
+  const picksToken = selectedVisualization === 'lens' || selectedVisualization === 'attribution'
 
   // Color tokens for dark/light
   // The page's colors, by the app's custom properties (styles/app.css)
@@ -207,6 +228,16 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
       </div>
     </div>
   )
+
+  // A view computed with the capture: still loading, or a generation stored before it was
+  const renderReadout = (captured: boolean, message: string) =>
+    captured ? (
+      layerLoading && renderLayerLoading(message)
+    ) : (
+      <EmptyState glyph="generate" fill>
+        Not captured for this generation. Generate again to see it.
+      </EmptyState>
+    )
 
   const renderVisualization = () => {
     if (stream?.mode === 'visualize') {
@@ -277,20 +308,27 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
             />
           ) : layerLoading && renderLayerLoading(`Loading layer ${selectedLayer} attention data...`)
         )}
-        {selectedVisualization === 'activations' && (
-          activationData.activations.layers?.[selectedLayer]?.attn_output || activationData.activations.layers?.[selectedLayer]?.ff_output ? (
-            <LayerActivationDisplay
-              layerActivations={activationData.activations.layers[selectedLayer]}
-              layerIndex={selectedLayer}
+        {selectedVisualization === 'lens' && (
+          activationData.activations.logit_lens ? (
+            <LogitLens
+              lens={activationData.activations.logit_lens}
+              tokens={activationData.metadata.decoded_tokens ?? []}
+              promptTokens={activationData.metadata.prompt_tokens ?? 0}
+              selectedPosition={selectedTokenIndex}
+              onSelectPosition={selectToken}
               activationId={currentActivationId ?? undefined}
             />
-          ) : layerLoading && renderLayerLoading(`Loading layer ${selectedLayer} activations...`)
+          ) : renderReadout(Boolean(summary?.tensor_info.logit_lens), 'Loading the logit lens...')
         )}
-        {selectedVisualization === 'journey' && (
-          <EmbeddingJourney activationData={activationData} selectedTokenIndex={selectedTokenIndex} />
-        )}
-        {selectedVisualization === 'flow' && (
-          <TransformationFlow activationData={activationData} selectedTokenIndex={selectedTokenIndex} />
+        {selectedVisualization === 'attribution' && (
+          activationData.activations.logit_attribution ? (
+            <LogitAttribution
+              attribution={activationData.activations.logit_attribution}
+              tokens={activationData.metadata.decoded_tokens ?? []}
+              position={selectedTokenIndex}
+              activationId={currentActivationId ?? undefined}
+            />
+          ) : renderReadout(Boolean(summary?.tensor_info.logit_attribution), 'Loading logit attribution...')
         )}
       </>
     )
@@ -362,7 +400,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
                   {activationData && selectedVisualization !== 'network' && (
                     <div className="df-controls">
-                      {(selectedVisualization === 'attention' || selectedVisualization === 'activations') && (
+                      {selectedVisualization === 'attention' && (
                         <div className="df-control-item">
                           <span className="df-ctrl-label">Layer</span>
                           <button
@@ -404,8 +442,8 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                         </div>
                       )}
 
-                      {(selectedVisualization === 'journey' || selectedVisualization === 'flow') && (
-                        <div className="df-control-item">
+                      {selectedVisualization === 'attribution' && (
+                        <div className="df-control-item" data-assist="generate.token">
                           <span className="df-ctrl-label">Token</span>
                           <button
                             onClick={() => {
@@ -415,6 +453,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                             }}
                             disabled={selectedTokenIndex === 0}
                             className="df-ctrl-btn"
+                            aria-label="Previous token"
                           >
                             <ChevronLeft />
                           </button>
@@ -453,6 +492,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                             }}
                             disabled={selectedTokenIndex === activationData.tokens.length - 1}
                             className="df-ctrl-btn"
+                            aria-label="Next token"
                           >
                             <ChevronRight />
                           </button>
@@ -471,7 +511,7 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
               {/* Bottom bar: token reference + metadata */}
               {activationData && (
                 <div className="df-bottom">
-                  {(selectedVisualization === 'attention' || selectedVisualization === 'journey' || selectedVisualization === 'flow') && activationData.metadata.decoded_tokens && (
+                  {tokenViews.includes(selectedVisualization) && activationData.metadata.decoded_tokens && (
                     <div className="df-token-ref">
                       <button
                         type="button"
@@ -488,16 +528,30 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
                       </button>
                       {tokenRefOpen && (
                         <div className="df-token-ref-list" id="df-token-ref-list">
-                          {activationData.metadata.decoded_tokens.map((token, idx) => (
-                            <span
-                              key={idx}
-                              className="df-chip"
-                              title={`Token ${idx}: "${token}"`}
-                            >
-                              <span className="df-chip-index">{idx}</span>
-                              <span>{token.replace(/ /g, '\u00B7') || '\u25AF'}</span>
-                            </span>
-                          ))}
+                          {activationData.metadata.decoded_tokens.map((token, idx) =>
+                            picksToken ? (
+                              <button
+                                key={idx}
+                                type="button"
+                                className="df-chip df-chip-pick"
+                                aria-pressed={idx === selectedTokenIndex}
+                                title={`Token ${idx}: "${token}"`}
+                                onClick={() => selectToken(idx)}
+                              >
+                                <span className="df-chip-index">{idx}</span>
+                                <span>{showToken(token)}</span>
+                              </button>
+                            ) : (
+                              <span
+                                key={idx}
+                                className="df-chip"
+                                title={`Token ${idx}: "${token}"`}
+                              >
+                                <span className="df-chip-index">{idx}</span>
+                                <span>{showToken(token)}</span>
+                              </span>
+                            ),
+                          )}
                         </div>
                       )}
                     </div>
@@ -990,6 +1044,21 @@ export default function DefaultUnifiedPage({ onShowPurchaseCredits }: UnifiedPag
 
         .df-chip:hover {
           border-color: var(--oz-fg);
+        }
+
+        /* In the views read one token at a time, a chip picks its token */
+        .df-chip-pick {
+          cursor: pointer;
+        }
+
+        .df-chip-pick[aria-pressed='true'] {
+          background: var(--oz-fg);
+          border-color: var(--oz-fg);
+          color: var(--oz-bg);
+        }
+
+        .df-chip-pick[aria-pressed='true'] .df-chip-index {
+          color: inherit;
         }
 
         .df-chip-index {

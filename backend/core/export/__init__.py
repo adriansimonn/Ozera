@@ -5,7 +5,8 @@ Export module for paper-ready figure generation.
 from .figure_generator import (
     FigureExporter,
     AttentionHeatmapExporter,
-    ActivationHistogramExporter,
+    LogitLensExporter,
+    LogitAttributionExporter,
     PatchingResultExporter,
     PublicationPreset,
     PUBLICATION_PRESETS,
@@ -14,7 +15,8 @@ from .figure_generator import (
 __all__ = [
     "FigureExporter",
     "AttentionHeatmapExporter",
-    "ActivationHistogramExporter",
+    "LogitLensExporter",
+    "LogitAttributionExporter",
     "PatchingResultExporter",
     "PublicationPreset",
     "PUBLICATION_PRESETS",

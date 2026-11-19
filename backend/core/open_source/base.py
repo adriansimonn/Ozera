@@ -9,8 +9,10 @@ import threading
 import torch
 
 from core.activation_limits import ActivationLimitError, max_capture_tokens
+from core.lens import open_source_readouts, top_tokens
 from core.tensor_codec import encode_tensor
 from core.transformer.sampling import FINISH_EOS, FINISH_LENGTH, FINISH_STOP
+from .hooks import create_input_capture_hook
 from .registry import OPEN_SOURCE_MODELS, OpenSourceModelConfig
 
 
@@ -356,7 +358,8 @@ class OpenSourceModelLoader(ABC):
                 generation, where max_new_tokens is only a cap)
 
         Returns:
-            Dict with generated text, token info, activations, and why generation ended
+            Dict with generated text, token info, activations (with the capture pass's logit
+            lens and logit attribution, see core.lens), and why generation ended
             ("finish_reason"). A request stopped before generating anything has no
             "activations".
 
@@ -408,7 +411,7 @@ class OpenSourceModelLoader(ABC):
             # Step 2: Forward pass on complete sequence to capture layer activations
             # (attention weights, FFN outputs, embeddings, etc.) via hooks attached
             # just for this pass, and to obtain logits for top-k token display.
-            forward_outputs = self._capture_forward(generated_ids.unsqueeze(0))
+            forward_outputs = self._capture_forward(generated_ids.unsqueeze(0), readout_inputs=True)
 
             # Use forward pass logits for top-k display. These are computed from a
             # full-sequence forward pass (no KV cache), so logits[0][i] gives the
@@ -416,13 +419,16 @@ class OpenSourceModelLoader(ABC):
             self._activations["logits"] = forward_outputs.logits.detach()
 
             try:
+                activations = self.get_activations_for_frontend()
+                # The logit lens and logit attribution, from the same pass
+                activations.update(open_source_readouts(self, self._activations, generated_ids.tolist()))
                 result = {
                     **base_result,
                     "text": generated_text,
                     "generated_tokens": total_tokens - prompt_tokens,
                     "total_tokens": total_tokens,
                     "tokens": generated_ids.tolist(),
-                    "activations": self.get_activations_for_frontend(),
+                    "activations": activations,
                     "decoded_tokens": [
                         self.tokenizer.decode([tok]) for tok in generated_ids.tolist()
                     ],
@@ -443,18 +449,24 @@ class OpenSourceModelLoader(ABC):
             bytes_per_value=next(self.model.parameters()).element_size(),
         )
 
-    def _capture_forward(self, input_ids: torch.Tensor, **model_kwargs):
+    def _capture_forward(self, input_ids: torch.Tensor, readout_inputs: bool = False, **model_kwargs):
         """
         Run one forward pass with the capture hooks attached, filling self._activations.
 
         Caller holds self.lock. Attention weights the hooks didn't capture are taken from
         the model's outputs (with GQA normalization).
 
+        Args:
+            readout_inputs: Also record what core.lens needs and the frontend doesn't get
+                (see _register_readout_hooks)
+
         Returns:
             The model's outputs
         """
         self._clear_activations()
         self._register_hooks()
+        if readout_inputs:
+            self._register_readout_hooks()
         try:
             with torch.no_grad():
                 forward_outputs = self.model(
@@ -476,6 +488,24 @@ class OpenSourceModelLoader(ABC):
                     self._activations[f"layer_{i}_attn_weights"] = attn_weights
 
         return forward_outputs
+
+    def _register_readout_hooks(self) -> None:
+        """
+        Record, for the pass's logit lens and attribution: the residual stream entering the
+        first layer ("resid_pre"), and each layer's attention output projection input, which
+        holds its heads' outputs side by side ("layer_{i}_attn_heads").
+        """
+        layers = self.model.model.layers
+
+        def record_stream(module, args, kwargs):
+            hidden = args[0] if args else kwargs["hidden_states"]
+            self._activations["resid_pre"] = hidden.detach()
+
+        self._hooks.append(layers[0].register_forward_pre_hook(record_stream, with_kwargs=True))
+        for i, layer in enumerate(layers):
+            self._hooks.append(layer.self_attn.o_proj.register_forward_pre_hook(
+                create_input_capture_hook(self._activations, f"layer_{i}_attn_heads")
+            ))
 
     def capture_prompt_activations(self, prompt: str) -> dict:
         """
@@ -609,8 +639,9 @@ class OpenSourceModelLoader(ABC):
         seq_len, vocab_size = logits.shape
         actual_k = min(k, vocab_size)
 
-        # Top-K on GPU
-        top_values, top_indices = torch.topk(logits, actual_k, dim=-1)  # [seq_len, k]
+        # Top-K on GPU (ties in token ID order, as the logit lens's rows are)
+        top_indices = top_tokens(logits, actual_k)  # [seq_len, k]
+        top_values = torch.gather(logits, 1, top_indices)
 
         # Softmax probabilities for the top-K values
         # Use full logits for accurate softmax, then gather top-K probs

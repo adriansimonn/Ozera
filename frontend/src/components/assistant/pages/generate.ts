@@ -18,11 +18,12 @@ export const GENERATE_CONTROLS: ControlSpec[] = [
   { id: 'top_k' },
   { id: 'mode' },
   { id: 'visualization' },
+  { id: 'token' },
   { id: 'activation' },
   { id: 'generate_button' },
 ]
 
-const VISUALIZATIONS: VisualizationType[] = ['network', 'attention', 'activations', 'journey', 'flow']
+const VISUALIZATIONS: VisualizationType[] = ['network', 'attention', 'lens', 'attribution']
 
 export interface GeneratorBridgeArgs {
   prompt: string
@@ -91,6 +92,7 @@ export interface VisualizationBridgeArgs {
   layer: number
   head: number
   tokenIndex: number
+  setTokenIndex: (index: number) => void
 }
 
 /** The page's visualizations: which stored generation is open, and how it's shown. */
@@ -105,6 +107,8 @@ export function visualizationBridge(a: VisualizationBridgeArgs): BridgeParts {
     apply: (fields: Fields) => {
       const visualization = asString(fields.visualization)
       if (visualization && (VISUALIZATIONS as string[]).includes(visualization)) a.setVisualization(visualization as VisualizationType)
+      const token = asNumber(fields.token)
+      if (token != null) a.setTokenIndex(Math.round(token))
       const activation = asString(fields.activation)
       if (activation) a.openActivation(activation.trim())
     },

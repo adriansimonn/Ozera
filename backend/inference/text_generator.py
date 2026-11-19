@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from core.transformer.model_torch import TransformerLM
 from core.transformer.sampling import FINISH_EOS, FINISH_STOP, TextDeltas, TokenStream
 from core.activation_limits import check_fits_context
+from core.lens import ozera_readouts
 from core.probes.monitor import ProbeMonitor
 from core.tokenizer import get_tokenizer
 from inference.activation_store import get_activation_store
@@ -339,6 +340,9 @@ class TextGenerator:
             _, _, activations = capture_model.forward(input_ids, return_attention=True, capture_activations=True)
         if monitor is not None:
             yield from monitor.take_events()
+
+        # The logit lens and logit attribution, from the same pass
+        activations.update(ozera_readouts(self.model, self.tokenizer, activations, activations['logits'], token_list))
 
         # Decode individual tokens for visualization
         decoded_tokens = [self.tokenizer.decode([token_id]) for token_id in token_list]

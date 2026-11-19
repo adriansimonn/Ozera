@@ -1,5 +1,5 @@
 """
-Paper-ready figure generation for attention heatmaps, activation histograms, and patching results.
+Paper-ready figure generation for attention heatmaps, the logit lens, logit attribution, and patching results.
 
 Supports multiple output formats (PNG, PDF, SVG) with publication-specific presets.
 """
@@ -406,146 +406,162 @@ class AttentionHeatmapExporter(FigureExporter):
         return fig
 
 
-class ActivationHistogramExporter(FigureExporter):
-    """Export activation distribution histograms."""
+def figure_text(token: str, limit: int = 8) -> str:
+    """A token as figure text: whitespace made visible, cut to limit characters, and no mathtext."""
+    text = token.replace(" ", "\u00b7").replace("\n", "\u21b5").replace("\t", "\u2192")
+    if len(text) > limit:
+        text = text[:limit - 1] + "\u2026"
+    return text.replace("$", r"\$")
 
-    def __init__(
-        self,
-        preset: str = "default",
-        color: str = "#22d3ee",
-        **kwargs,
-    ):
+
+class LogitLensExporter(FigureExporter):
+    """Export the logit lens: layers by positions, each cell colored by a token's probability."""
+
+    def __init__(self, preset: str = "default", colormap: str = "inferno", **kwargs):
         """
-        Initialize activation histogram exporter.
-
         Args:
             preset: Publication preset name
-            color: Bar color
+            colormap: Matplotlib colormap name
             **kwargs: Additional arguments passed to FigureExporter
         """
         super().__init__(preset=preset, **kwargs)
-        self.color = color
+        self.colormap = colormap
 
     def create_figure(
         self,
-        activations: np.ndarray,
-        title: str = "Activation Distribution",
-        xlabel: str = "Activation Value",
-        ylabel: str = "Frequency",
-        bins: int = 50,
-        show_stats: bool = True,
-        log_scale: bool = False,
+        probabilities: np.ndarray,
+        top_tokens: Optional[list[list[str]]] = None,
+        row_labels: Optional[list[str]] = None,
+        position_labels: Optional[list[str]] = None,
+        title: Optional[str] = None,
+        colorbar_label: str = "Probability",
+        show_colorbar: bool = True,
     ) -> Figure:
         """
-        Create activation histogram figure.
+        Create a logit lens figure.
 
         Args:
-            activations: Array of activation values (any shape, will be flattened)
+            probabilities: [rows, positions] the probability each cell is colored by
+            top_tokens: [rows][positions] each cell's top token, written in the cell when the
+                grid is small enough to read
+            row_labels: A label per row (the embeddings, then each layer)
+            position_labels: A label per position
             title: Figure title
-            xlabel: X-axis label
-            ylabel: Y-axis label
-            bins: Number of histogram bins
-            show_stats: Whether to show statistics box
-            log_scale: Whether to use log scale for y-axis
+            colorbar_label: What the color is the probability of
+            show_colorbar: Whether to show the colorbar
 
         Returns:
             Matplotlib figure
         """
+        # Before the axes exist: their tick labels take the style current when they're made
+        self._apply_style(None, None)
         fig, ax = plt.subplots(figsize=(self.width, self.height))
-        self._apply_style(fig, ax)
 
-        # Flatten activations
-        if isinstance(activations, list):
-            activations = np.array(activations)
-        flat_values = activations.flatten()
+        probabilities = np.asarray(probabilities)
+        rows, positions = probabilities.shape
+        cmap = plt.get_cmap(self.colormap)
+        im = ax.imshow(probabilities, cmap=cmap, aspect='auto', vmin=0.0, vmax=1.0, interpolation='nearest')
 
-        # Create histogram
-        n, bins_edges, patches = ax.hist(
-            flat_values,
-            bins=bins,
-            color=self.color,
-            alpha=0.7,
-            edgecolor='white',
-            linewidth=0.5,
-        )
+        if show_colorbar:
+            cbar = fig.colorbar(im, ax=ax, fraction=self.preset.colorbar_width, pad=0.02)
+            cbar.ax.tick_params(labelsize=self.preset.tick_size)
+            cbar.set_label(colorbar_label, fontsize=self.preset.label_size)
 
-        ax.set_title(title, fontsize=self.preset.title_size, pad=10)
-        ax.set_xlabel(xlabel, fontsize=self.preset.label_size)
-        ax.set_ylabel(ylabel, fontsize=self.preset.label_size)
+        if top_tokens is not None and positions <= 24 and rows <= 40:
+            size = max(self.preset.tick_size - 2, 4)
+            for i in range(rows):
+                for j in range(positions):
+                    r, g, b, _ = cmap(float(probabilities[i, j]))
+                    dark = 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.5
+                    ax.text(j, i, figure_text(top_tokens[i][j], 6), ha='center', va='center',
+                            color='white' if dark else 'black', fontsize=size)
 
-        if log_scale:
-            ax.set_yscale('log')
+        if row_labels:
+            step = max(1, rows // 20)
+            ax.set_yticks(range(0, rows, step))
+            ax.set_yticklabels([row_labels[i] for i in range(0, rows, step)], fontsize=self.preset.tick_size)
+        if position_labels:
+            step = max(1, positions // 24)
+            ticks = list(range(0, positions, step))
+            ax.set_xticks(ticks)
+            ax.set_xticklabels([figure_text(position_labels[i]) for i in ticks], rotation=45, ha='right',
+                               fontsize=self.preset.tick_size)
 
-        # Add statistics box
-        if show_stats:
-            stats_text = (
-                f'Mean: {flat_values.mean():.4f}\n'
-                f'Std: {flat_values.std():.4f}\n'
-                f'Min: {flat_values.min():.4f}\n'
-                f'Max: {flat_values.max():.4f}'
-            )
-            ax.text(
-                0.98, 0.98, stats_text,
-                transform=ax.transAxes,
-                fontsize=self.preset.tick_size,
-                verticalalignment='top',
-                horizontalalignment='right',
-                bbox=dict(boxstyle='round', facecolor='white', alpha=0.8),
-            )
-
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
+        ax.set_xlabel('Position', fontsize=self.preset.label_size)
+        ax.set_ylabel('Residual stream after', fontsize=self.preset.label_size)
+        ax.set_title(title or 'Logit lens', fontsize=self.preset.title_size, pad=10)
 
         fig.tight_layout()
         return fig
 
-    def create_comparison_figure(
+
+class LogitAttributionExporter(FigureExporter):
+    """Export one position's logit attribution: each layer's attention and MLP, and every head."""
+
+    # Attention, MLP and embeddings (the labs' light-surface series colors)
+    COLORS = {"attn": "#2a78d6", "mlp": "#eb6834", "embed": "#898781"}
+
+    def create_figure(
         self,
-        activations_list: list[np.ndarray],
-        labels: list[str],
-        title: str = "Activation Distribution Comparison",
-        bins: int = 50,
-        alpha: float = 0.6,
+        embed: float,
+        attn: np.ndarray,
+        mlp: np.ndarray,
+        heads: np.ndarray,
+        title: Optional[str] = None,
     ) -> Figure:
         """
-        Create overlaid histogram comparison.
+        Create a logit attribution figure.
 
         Args:
-            activations_list: List of activation arrays to compare
-            labels: Labels for each distribution
+            embed: The embeddings' share of the logit
+            attn, mlp: [layers] each layer's attention and MLP share
+            heads: [layers, heads] each head's share
             title: Figure title
-            bins: Number of histogram bins
-            alpha: Transparency for overlaid histograms
 
         Returns:
             Matplotlib figure
         """
-        fig, ax = plt.subplots(figsize=(self.width, self.height))
-        self._apply_style(fig, ax)
+        attn, mlp, heads = np.asarray(attn), np.asarray(mlp), np.asarray(heads)
+        layers = len(attn)
 
-        colors = plt.cm.tab10(np.linspace(0, 1, len(activations_list)))
+        self._apply_style(None, None)
+        fig, (bars, grid) = plt.subplots(
+            2, 1, figsize=(self.width, self.height * 1.5), gridspec_kw={"height_ratios": [1, 1.3]},
+        )
 
-        for i, (acts, label) in enumerate(zip(activations_list, labels)):
-            if isinstance(acts, list):
-                acts = np.array(acts)
-            flat_values = acts.flatten()
-            ax.hist(
-                flat_values,
-                bins=bins,
-                color=colors[i],
-                alpha=alpha,
-                edgecolor='white',
-                linewidth=0.5,
-                label=label,
-            )
+        x = np.arange(layers)
+        bars.bar([-1], [embed], width=0.8, color=self.COLORS["embed"], label='Embeddings')
+        bars.bar(x - 0.2, attn, width=0.4, color=self.COLORS["attn"], label='Attention')
+        bars.bar(x + 0.2, mlp, width=0.4, color=self.COLORS["mlp"], label='MLP')
+        bars.axhline(0, color='black', linewidth=self.preset.linewidth * 0.75)
+        step = max(1, layers // 16)
+        ticks = list(range(0, layers, step))
+        bars.set_xticks([-1] + ticks)
+        bars.set_xticklabels(['Emb'] + [str(i) for i in ticks], fontsize=self.preset.tick_size)
+        bars.set_xlim(-1.8, layers - 0.2)
+        bars.set_xlabel('Layer', fontsize=self.preset.label_size)
+        bars.set_ylabel('Logit contribution', fontsize=self.preset.label_size)
+        bars.legend(fontsize=self.preset.tick_size, frameon=False, ncol=3, loc='best')
+        bars.spines['top'].set_visible(False)
+        bars.spines['right'].set_visible(False)
+        bars.set_title(title or 'Logit attribution', fontsize=self.preset.title_size, pad=10)
 
-        ax.set_title(title, fontsize=self.preset.title_size, pad=10)
-        ax.set_xlabel("Activation Value", fontsize=self.preset.label_size)
-        ax.set_ylabel("Frequency", fontsize=self.preset.label_size)
-        ax.legend(fontsize=self.preset.tick_size)
-
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
+        limit = float(np.abs(heads).max()) or 1.0
+        im = grid.imshow(
+            heads, cmap='RdBu_r', aspect='auto', interpolation='nearest',
+            norm=mcolors.TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit),
+        )
+        cbar = fig.colorbar(im, ax=grid, fraction=self.preset.colorbar_width, pad=0.02)
+        cbar.ax.tick_params(labelsize=self.preset.tick_size)
+        cbar.set_label('Logit contribution', fontsize=self.preset.label_size)
+        head_count = heads.shape[1]
+        head_step = max(1, head_count // 16)
+        grid.set_xticks(range(0, head_count, head_step))
+        grid.set_xticklabels([str(i) for i in range(0, head_count, head_step)], fontsize=self.preset.tick_size)
+        grid.set_yticks(ticks)
+        grid.set_yticklabels([str(i) for i in ticks], fontsize=self.preset.tick_size)
+        grid.set_xlabel('Head', fontsize=self.preset.label_size)
+        grid.set_ylabel('Layer', fontsize=self.preset.label_size)
 
         fig.tight_layout()
         return fig

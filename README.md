@@ -12,7 +12,7 @@ Ozera lets you run interpretability experiments on a language model from the bro
 
 ### Instruments
 
-- **Generate:** Stream a completion with temperature, top-k and top-p controls, then open any layer of it: the top predictions at each position, attention heatmaps, layer activations, and how the embeddings change through the network. A saved probe can score each token as it is generated.
+- **Generate:** Stream a completion with temperature, top-k and top-p controls, then open it up: the top predictions at each position, attention heatmaps, a logit lens over every layer, and logit attribution by layer and head. A saved probe can score each token as it is generated.
 - **Activation Patching:** Copy activations from one prompt into another at any layer, head or position, or ablate them (zero, mean, noise), and compare what the model generates with and without the intervention.
 - **Attention Analysis:** Classify every attention head (induction, previous-token, positional, copying and more), compare attention across two prompts, and mine patterns across layers.
 - **SAE Analysis:** See which features fire on each token of a text, browse an SAE's features with corpus statistics and top contexts, check reconstruction quality, and compare two SAEs or layers. Load SAEs from HuggingFace or Gemma Scope, or upload your own.

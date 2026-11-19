@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 logger = logging.getLogger(__name__)
 
 from inference import ModelLoader
-from inference.activation_store import get_activation_store
+from inference.activation_store import TENSOR_NAMES, get_activation_store
 from services.inference_router import get_inference_router
 from services.custom_models import list_custom_model_names, resolve_model
 from services.model_specs import model_specs
@@ -879,15 +879,16 @@ def get_tensor_activation(
             - final_layer_norm
             - logits
             - top_k_logits
+            - logit_lens (see core.lens.readouts)
+            - logit_attribution
 
     Returns:
-        Tensor data with values, shape, and statistics
+        Tensor data with values, shape, and statistics (the logit readouts: a dict of them)
     """
-    valid_tensors = ['token_embeddings', 'positional_embeddings', 'combined_embeddings', 'final_layer_norm', 'logits', 'top_k_logits']
-    if tensor_name not in valid_tensors:
+    if tensor_name not in TENSOR_NAMES:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid tensor name: {tensor_name}. Valid options: {valid_tensors}"
+            detail=f"Invalid tensor name: {tensor_name}. Valid options: {list(TENSOR_NAMES)}"
         )
 
     result = activation_store.get_tensor_activation(activation_id, tensor_name, current_user.id)

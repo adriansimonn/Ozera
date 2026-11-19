@@ -11,6 +11,8 @@ import type {
   ActivationSummaryWithInfo,
   FlowActivations,
   GenerateWithActivationsResponse,
+  LogitAttribution,
+  LogitLens,
   OpenSourceModelInfo,
   ModelCacheStatus,
   ModelDownloadResponse,
@@ -122,7 +124,8 @@ import type {
   PresetInfo,
   AttentionHeatmapExportRequest,
   MultiHeadHeatmapExportRequest,
-  ActivationHistogramExportRequest,
+  LogitAttributionExportRequest,
+  LogitLensExportRequest,
   BatchExportRequest,
 } from '../types/export'
 
@@ -800,9 +803,13 @@ class OzeraAPIClient {
 
   /**
    * Get a specific top-level tensor (lazy loading).
-   * Valid tensor names: token_embeddings, positional_embeddings, combined_embeddings, final_layer_norm, logits, top_k_logits
+   * Valid tensor names: token_embeddings, positional_embeddings, combined_embeddings, final_layer_norm, logits,
+   * top_k_logits, logit_lens, logit_attribution
    */
-  async getTensorActivation(activationId: string, tensorName: string): Promise<{ tensor_name: string; data: TensorData | TopKLogits }> {
+  async getTensorActivation(
+    activationId: string,
+    tensorName: string,
+  ): Promise<{ tensor_name: string; data: TensorData | TopKLogits | LogitLens | LogitAttribution }> {
     const response = await fetchWithTimeout(`${this.baseUrl}/activations/${activationId}/tensor/${tensorName}`, {
       headers: getAuthHeaders(),
     })
@@ -1803,11 +1810,11 @@ class OzeraAPIClient {
   }
 
   /**
-   * Export activation histogram as publication-ready figure.
+   * Export a generation's logit lens as publication-ready figure.
    * Returns the file as a Blob for download.
    */
-  async exportActivationHistogram(request: ActivationHistogramExportRequest): Promise<Blob> {
-    const response = await fetchWithTimeout(`${this.baseUrl}/export/activation-histogram`, {
+  async exportLogitLens(request: LogitLensExportRequest): Promise<Blob> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/export/logit-lens`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1818,7 +1825,29 @@ class OzeraAPIClient {
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.detail || `Failed to export activation histogram: ${response.statusText}`)
+      throw new Error(error.detail || `Failed to export logit lens: ${response.statusText}`)
+    }
+
+    return response.blob()
+  }
+
+  /**
+   * Export one position's logit attribution as publication-ready figure.
+   * Returns the file as a Blob for download.
+   */
+  async exportLogitAttribution(request: LogitAttributionExportRequest): Promise<Blob> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/export/logit-attribution`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || `Failed to export logit attribution: ${response.statusText}`)
     }
 
     return response.blob()

@@ -229,7 +229,8 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
     Tool(
         "get_activation", READ,
         "A stored generation of the user's (the Generate page's activation ID): its model, prompt, tokens, "
-        "and the model's top predictions at each position.",
+        "and the model's top predictions at each position. Where it was generating, also the layer the next "
+        "token settles at in the logit lens and the largest direct contributions to its logit (logit attribution).",
         {"activation_id": _string("The activation ID")},
         lambda a: "Stored generation",
     ),
@@ -464,7 +465,8 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
     Tool(
         "generate", RUN,
         "Generate text from a prompt with activations captured, as the Generate page's visualize mode "
-        "does. It opens on the Generate page; get_activation then reads each position's top predictions." + RUN_NOTE,
+        "does. It opens on the Generate page; get_activation then reads each position's top predictions, "
+        "logit lens and logit attribution." + RUN_NOTE,
         {
             "model": MODEL,
             "prompt": _string("The prompt"),

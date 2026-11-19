@@ -8,7 +8,7 @@ import { ExportModal } from './ExportModal'
 import type { ExportFormat } from '../../types/export'
 import { Spinner } from '../common/Spinner'
 
-export type ExportType = 'attention-heatmap' | 'activation-histogram' | 'multi-head-heatmap'
+export type ExportType = 'attention-heatmap' | 'multi-head-heatmap' | 'logit-lens' | 'logit-attribution'
 
 interface ExportButtonProps {
   exportType: ExportType
@@ -16,6 +16,11 @@ interface ExportButtonProps {
   layer?: number
   head?: number
   tokenLabels?: 'text' | 'number'
+  /** Logit lens: what the view's cells are colored by */
+  colorBy?: 'target' | 'final'
+  /** Logit lens and attribution: the selected position, and how many the sequence has */
+  position?: number
+  positions?: number
   className?: string
   variant?: 'icon' | 'button'
   disabled?: boolean
@@ -27,6 +32,9 @@ export function ExportButton({
   layer,
   head,
   tokenLabels,
+  colorBy,
+  position,
+  positions,
   className = '',
   variant = 'icon',
   disabled = false,
@@ -59,6 +67,9 @@ export function ExportButton({
           layer={layer}
           head={head}
           initialTokenLabels={tokenLabels}
+          initialColorBy={colorBy}
+          position={position}
+          positions={positions}
         />
       </>
     )
@@ -81,6 +92,9 @@ export function ExportButton({
         activationId={activationId}
         layer={layer}
         head={head}
+        initialColorBy={colorBy}
+        position={position}
+        positions={positions}
       />
     </>
   )
