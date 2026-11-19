@@ -636,7 +636,7 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
         {models && !models.available && <p className="ast-warn ast-note">The assistant isn’t configured on this server.</p>}
         {turns.length === 0 && !sending && (
           <div className="ast-empty">
-            <img className="ast-emblem" src="/favicon.png" alt="" />
+            <img className="ast-emblem" src="/emblem.png" alt="" />
             {SUGGESTIONS[page].map((s) => (
               <button key={s} type="button" className="ast-suggestion" onClick={() => submit(s)}>
                 {s}

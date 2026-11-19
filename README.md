@@ -1,4 +1,4 @@
-![Ozera Logo](frontend/src/assets/logos/LogoWallpaperTGradientText.png)
+![Ozera Logo](frontend/src/assets/logos/LogoBannerAnimated.gif)
 
 A workbench for interpretability research on language models
 

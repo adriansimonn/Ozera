@@ -319,7 +319,7 @@ export default function HomePage() {
 
       <footer className="ozh-footer">
         <span className="ozh-footer__brand">
-          <img src="/favicon.png" alt="" />
+          <img src="/emblem.png" alt="" />
           Ozera © {new Date().getFullYear()}
         </span>
         <nav className="ozh-footer__links" aria-label="Footer">
