@@ -49,8 +49,10 @@ export function AssistantStyles() {
       .ast-panel .ast-resize:hover { background: var(--oz-mark); opacity: 0.6; }
 
       .ast-panel .ast-warn { color: var(--oz-warn); }
-      /* What something cost */
-      .ast-panel .ast-cost { flex: none; color: var(--oz-fg-faint); font-family: var(--oz-mono); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+      /* What something cost, and when a message was sent */
+      .ast-panel .ast-cost, .ast-panel .ast-time {
+        flex: none; color: var(--oz-fg-faint); font-family: var(--oz-mono); font-size: 0.72rem; font-variant-numeric: tabular-nums; white-space: nowrap;
+      }
 
       /* ---- Head: the chat's name (which opens the chats), then new chat, export and close ---- */
 
@@ -140,14 +142,19 @@ export function AssistantStyles() {
       }
       .ast-panel .ast-budget-input input::placeholder { color: var(--oz-fg-faint); }
 
-      /* ---- The chat: turns ruled off from each other, each headed by what was asked ---- */
+      /* ---- The chat: turns ruled off from each other, each opening with what the user sent ---- */
 
       .ast-panel .ast-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 0 var(--oz-gutter); }
       .ast-panel .ast-note { margin: 1.1rem 0 0; font-size: 0.85rem; }
 
       .ast-panel .ast-empty { margin: auto 0; padding: 2rem 0; display: flex; flex-direction: column; align-items: stretch; }
-      /* The homepage's pictogram of the assistant */
-      .ast-panel .ast-empty > .ozh-glyph { height: 56px; margin: 0 0 1.5rem; align-self: flex-start; }
+      /* Ozera's emblem, centred over the suggestions: solid white (black on light), as the nav
+         and the homepage draw the logo. 60px is 48 screen pixels under the page's 0.8 zoom. */
+      .ast-panel .ast-empty > .ast-emblem {
+        flex: none; display: block; width: 60px; height: 60px; margin: 0 0 1.75rem; align-self: center;
+        filter: brightness(0) invert(1);
+      }
+      .oz-app[data-bg='light'] .ast-panel .ast-empty > .ast-emblem { filter: brightness(0); }
       /* What to ask: a ruled list, as the homepage lists its instruments */
       .ast-panel .ast-suggestion {
         display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: 0.8rem 0; text-align: left;
@@ -158,9 +165,17 @@ export function AssistantStyles() {
       .ast-panel .ast-suggestion:hover { color: var(--oz-mark); }
       .ast-panel .ast-suggestion:hover::after { color: inherit; transform: translateX(4px); }
 
-      .ast-panel .ast-turn { display: flex; flex-direction: column; gap: 0.75rem; padding: 1.4rem 0 1.1rem; }
+      .ast-panel .ast-turn { display: flex; flex-direction: column; gap: 0.85rem; padding: 1.4rem 0 1.1rem; }
       .ast-panel .ast-turn + .ast-turn { border-top: 1px solid var(--oz-rule); }
-      .ast-panel .ast-user { font-size: 1.0625rem; font-weight: 500; letter-spacing: -0.02em; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; }
+      /* A reply that goes on after Allow or Skip reads as one turn with what came before it */
+      .ast-panel .ast-turn--continues { padding-bottom: 0.85rem; }
+      .ast-panel .ast-turn + .ast-turn--resumed { padding-top: 0; border-top: none; }
+      /* The user's message: a bubble on the right, so it reads as theirs at a glance */
+      .ast-panel .ast-user {
+        align-self: flex-end; max-width: 88%; padding: 0.55rem 0.85rem; background: var(--oz-fill-strong);
+        white-space: pre-wrap; overflow-wrap: anywhere;
+      }
+      /* Under the reply: when the message was sent on the left, what it cost on the right */
       .ast-panel .ast-meta { display: flex; align-items: baseline; gap: 0.85rem; min-height: 1rem; color: var(--oz-fg-dim); font-size: 0.8rem; }
       .ast-panel .ast-meta .ast-cost { margin-left: auto; }
 

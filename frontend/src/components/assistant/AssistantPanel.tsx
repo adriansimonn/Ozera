@@ -4,8 +4,9 @@
  * routes). Docked, the page gets right padding; below DOCK_MIN_VIEWPORT it overlays the page.
  *
  * Chats are private and stored on the backend; replies stream in, and ui actions the assistant
- * sends (open a page, fill inputs, point at a control) go to the page through the store. A reply's
- * tool calls show as rows between its text, in the order it made them. In manual mode a reply's
+ * sends (open a page, fill inputs, point at a control) go to the page through the store. What the
+ * user sent sits in a bubble on the right; under the reply are when it was sent and what it cost.
+ * A reply's tool calls show as rows between its text, in the order it made them. In manual mode a reply's
  * tool calls wait under it on an approval card; in auto mode they run at once (a run's row expands
  * to its quote and shows its charge). Run results open on their pages. The bar under the composer
  * holds the chat's model and its hard budget, which open upward, and the mode switch. A chat
@@ -25,7 +26,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { ChatTurn, PendingRun, ToolChipInfo, TurnPart } from '../../types/assistant'
 import { Caret } from '../common/Caret'
 import { ConfirmModal } from '../common/ConfirmModal'
-import { CellGlyph } from '../home/CellGlyph'
 import { ApprovalCard } from './ApprovalCard'
 import { AssistantMessage } from './AssistantMessage'
 import { ToolStep } from './ToolStep'
@@ -45,9 +45,6 @@ const SUGGESTIONS: Record<string, string[]> = {
   other: ['What can I do on this page?', 'What does an atlas cost?', 'Which models can I use?'],
 }
 
-// The homepage's pictogram of the assistant (see CellGlyph)
-const ASSISTANT_GLYPH = ['.#######.', '#.......#', '#.1.2.3.#', '#.......#', '.#######.', '..#......', '.#.......']
-
 const PAGE_OF_ROUTE: Record<string, string> = {
   '/generate': 'generate', '/sae': 'sae', '/probes': 'probes', '/geometry': 'geometry', '/patching': 'patching', '/analysis': 'analysis',
 }
@@ -64,6 +61,27 @@ const STATUS_TEXT: Partial<Record<ChatTurn['status'], string>> = {
 function money(value: number): string {
   if (value === 0) return '$0'
   return value < 0.01 ? `$${value.toFixed(4)}` : `$${value.toFixed(3)}`
+}
+
+/**
+ * When a message was sent, beside what it cost: the time, with the day unless that's today (and
+ * the year unless it's this one). The server's times are UTC and come without a zone.
+ */
+function Sent({ at }: { at: string | number | null | undefined }) {
+  if (at == null || at === '') return null
+  const date = new Date(typeof at === 'number' || /(Z|[+-]\d\d:?\d\d)$/.test(at) ? at : `${at}Z`)
+  if (Number.isNaN(date.getTime())) return null
+  const now = new Date()
+  const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  const day =
+    date.toDateString() === now.toDateString()
+      ? ''
+      : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) })
+  return (
+    <time className="ast-time" dateTime={date.toISOString()} title={date.toLocaleString([], { dateStyle: 'full', timeStyle: 'short' })}>
+      {day ? `${day}, ${time}` : time}
+    </time>
+  )
 }
 
 function tokens(value: number): string {
@@ -336,7 +354,7 @@ function ModeControl() {
 }
 
 function TurnView({
-  turn, last, onContinue, onBudget, busy, approval,
+  turn, last, onContinue, onBudget, busy, approval, continuing,
 }: {
   turn: ChatTurn
   last: boolean
@@ -345,6 +363,8 @@ function TurnView({
   busy: boolean
   /** The approval card, under the turn whose runs wait */
   approval: React.ReactNode
+  /** Its reply is going on under it (after Allow or Skip): its time and cost show under that */
+  continuing: boolean
 }) {
   const status =
     turn.status === 'refused'
@@ -353,24 +373,27 @@ function TurnView({
         ? turn.detail.message || 'The assistant failed.'
         : STATUS_TEXT[turn.status]
   return (
-    <div className="ast-turn">
+    <div className={`ast-turn${continuing ? ' ast-turn--continues' : ''}`}>
       <div className="ast-user">{turn.text}</div>
       <ReplyView parts={turn.parts ?? (turn.reply ? [{ type: 'text', text: turn.reply }] : [])} tools={turn.tools} />
       {approval}
-      <div className="ast-meta">
-        {status && <span className={turn.status === 'error' || turn.status === 'refused' ? 'ast-warn' : undefined}>{status}</span>}
-        {last && turn.status === 'max_tokens' && (
-          <button type="button" className="oz-link" onClick={onContinue} disabled={busy}>
-            Continue
-          </button>
-        )}
-        {last && turn.status === 'budget' && (
-          <button type="button" className="oz-link" onClick={onBudget}>
-            Raise budget
-          </button>
-        )}
-        <span className="ast-cost">{turn.free ? 'free' : money(turn.cost)}</span>
-      </div>
+      {!continuing && (
+        <div className="ast-meta">
+          <Sent at={turn.created_at} />
+          {status && <span className={turn.status === 'error' || turn.status === 'refused' ? 'ast-warn' : undefined}>{status}</span>}
+          {last && turn.status === 'max_tokens' && (
+            <button type="button" className="oz-link" onClick={onContinue} disabled={busy}>
+              Continue
+            </button>
+          )}
+          {last && turn.status === 'budget' && (
+            <button type="button" className="oz-link" onClick={onBudget}>
+              Raise budget
+            </button>
+          )}
+          <span className="ast-cost">{turn.free ? 'free' : money(turn.cost)}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -465,7 +488,7 @@ function ChatsMenu({ onClose }: { onClose: () => void }) {
 }
 
 export function AssistantPanel({ docked }: { docked: boolean }) {
-  const { models, chat, draft, sending, error, notice, width, newBudget, setOpen, setWidth, send, approve, stop, setError, load } = useAssistantStore()
+  const { models, chat, draft, sending, sentAt, error, notice, width, newBudget, setOpen, setWidth, send, approve, stop, setError, load } = useAssistantStore()
   const { showPurchaseCredits } = usePurchaseCredits()
   const location = useLocation()
   const [text, setText] = useState('')
@@ -613,7 +636,7 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
         {models && !models.available && <p className="ast-warn ast-note">The assistant isn’t configured on this server.</p>}
         {turns.length === 0 && !sending && (
           <div className="ast-empty">
-            <CellGlyph rows={ASSISTANT_GLYPH} />
+            <img className="ast-emblem" src="/favicon.png" alt="" />
             {SUGGESTIONS[page].map((s) => (
               <button key={s} type="button" className="ast-suggestion" onClick={() => submit(s)}>
                 {s}
@@ -633,14 +656,17 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
               onContinue={() => submit('Continue.')}
               onBudget={() => settings.setOpen(true)}
               approval={pending && <ApprovalCard runs={pending} busy={busy} notice={notice} onDecide={approve} onAddCredits={showPurchaseCredits} />}
+              continuing={last && !!draft?.resumed && !sending}
             />
           )
         })}
         {draft && (sending || draft.resumed) && (
-          <div className="ast-turn">
+          // A reply that goes on after Allow or Skip belongs to the turn above it: no rule between them
+          <div className={`ast-turn${sending ? '' : ' ast-turn--resumed'}`}>
             {sending && <div className="ast-user">{sending}</div>}
             <ReplyView parts={draft.parts} tools={draft.tools} />
             <div className="ast-meta">
+              <Sent at={sending ? sentAt : lastTurn?.created_at} />
               {(() => {
                 const label =
                   draft.status === 'stopping'
