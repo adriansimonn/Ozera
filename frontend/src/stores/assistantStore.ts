@@ -150,8 +150,6 @@ interface AssistantState {
   draft: Draft | null
   /** The message being sent (shown until its turn is stored) */
   sending: string | null
-  /** When it was sent (ms): its stored turn brings the server's time */
-  sentAt: number | null
   error: string | null
   bridges: PageBridge[]
   /** UI actions (or a set_inputs' fields) waiting for their page or part to mount */
@@ -205,7 +203,6 @@ export const useAssistantStore = create<AssistantState>()((set, get) => ({
   chat: null,
   draft: null,
   sending: null,
-  sentAt: null,
   error: null,
   bridges: [],
   pending: [],
@@ -351,7 +348,7 @@ export const useAssistantStore = create<AssistantState>()((set, get) => ({
   send: async (text) => {
     const message = text.trim()
     if (!message || get().draft) return
-    set({ error: null, notice: null, sending: message, sentAt: Date.now(), draft: newDraft(false) })
+    set({ error: null, notice: null, sending: message, draft: newDraft(false) })
     let chatId = get().chat?.id
     try {
       if (chatId == null) {
@@ -360,7 +357,7 @@ export const useAssistantStore = create<AssistantState>()((set, get) => ({
         set((s) => ({ chat: { ...created, turns: [] }, chats: [created, ...s.chats] }))
       }
     } catch (err) {
-      set({ draft: null, sending: null, sentAt: null, error: err instanceof Error ? err.message : 'Failed to start a chat' })
+      set({ draft: null, sending: null, error: err instanceof Error ? err.message : 'Failed to start a chat' })
       return
     }
     const id = chatId
@@ -547,5 +544,5 @@ async function streamTurn(chatId: number, start: (handlers: AssistantStreamHandl
   }
   const s = summary as Partial<TurnSummary> | null
   if (s?.status === 'error' && s.message && get().error == null) set({ error: s.message })
-  set({ draft: null, sending: null, sentAt: null, abort: null })
+  set({ draft: null, sending: null, abort: null })
 }

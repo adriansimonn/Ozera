@@ -487,7 +487,7 @@ function ChatsMenu({ onClose }: { onClose: () => void }) {
 }
 
 export function AssistantPanel({ docked }: { docked: boolean }) {
-  const { models, chat, draft, sending, sentAt, error, notice, width, newBudget, setOpen, setWidth, send, approve, stop, setError, load } = useAssistantStore()
+  const { models, chat, draft, sending, error, notice, width, newBudget, setOpen, setWidth, send, approve, stop, setError, load } = useAssistantStore()
   const { showPurchaseCredits } = usePurchaseCredits()
   const location = useLocation()
   const [text, setText] = useState('')
@@ -665,7 +665,6 @@ export function AssistantPanel({ docked }: { docked: boolean }) {
             {sending && <div className="ast-user">{sending}</div>}
             <ReplyView parts={draft.parts} tools={draft.tools} />
             <div className="ast-meta">
-              <Sent at={sending ? sentAt : lastTurn?.created_at} />
               {(() => {
                 const label =
                   draft.status === 'stopping'
