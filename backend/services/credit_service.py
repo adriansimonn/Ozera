@@ -995,6 +995,24 @@ def calculate_geometry_sae_cost(
     return min_gpu_request_charge(model_id, {tier: max(busy, INFERENCE_BUSY_SECONDS[tier])})
 
 
+def calculate_attribution_cost(model_id: str, busy_seconds: float) -> float:
+    """
+    Cost of an Attribution run (a sweep, exact patching, or an ablation), for the GPU time it
+    is estimated to take: core.attribution.budget's estimate_sweep_seconds,
+    estimate_verify_seconds or estimate_ablate_seconds.
+
+    Charged like calculate_probe_cost: a lone request to the model's inference worker (cold
+    start, the run, and the warm window after it), at least min_gpu_request_charge.
+
+    Args:
+        model_id: Model run (picks the GPU tier)
+        busy_seconds: The run's estimated GPU seconds (from estimated sizes before the run,
+            from its real token counts after)
+    """
+    tier = get_gpu_tier(model_id)
+    return min_gpu_request_charge(model_id, {tier: max(busy_seconds, INFERENCE_BUSY_SECONDS[tier])})
+
+
 # Atlas jobs run on a GPU container of their own (services/modal_feature_stats.py), billed from
 # its cold start (boot and image; loading the model and SAE is in the job's estimate) to its
 # scaledown, for the CPU and memory it reserves
@@ -1322,126 +1340,6 @@ def calculate_steering_cost(
     tier = get_gpu_tier(model_id)
     minimum = min_gpu_request_charge(model_id, {tier: num_generations * INFERENCE_BUSY_SECONDS[tier]})
     return max((input_cost + output_cost) * STEERING_MULTIPLIER, minimum)
-
-
-# Analysis pricing (attention pattern analysis)
-# Analysis operations process cached activations and are computationally lighter than generation
-# Base cost per analysis operation based on model complexity
-BASE_ANALYSIS_COST = 0.002  # $0.002 base cost per operation
-
-# Analysis type multipliers (some operations are more compute-intensive)
-ANALYSIS_TYPE_MULTIPLIERS = {
-    "classify": 0.8,     # Head classification - moderate compute
-    "compare": 1.0,      # Comparing two activation sets - more compute
-    "mine": 1.5,         # Pattern mining - most compute-intensive
-    "importance": 0.3,   # Simple importance scoring - lightweight
-}
-
-# Minimum charge per analysis operation
-MIN_ANALYSIS_CHARGE = 0.005  # $0.005 minimum
-
-
-def calculate_analysis_cost(
-    analysis_type: str,
-    num_layers: int,
-    num_heads: int,
-    num_tokens: int,
-    model_id: str = None,
-) -> float:
-    """
-    Calculate the cost for an analysis operation.
-
-    Args:
-        analysis_type: Type of analysis ('classify', 'compare', 'mine', 'importance')
-        num_layers: Number of layers in the model
-        num_heads: Number of attention heads per layer
-        num_tokens: Number of tokens in the activation
-        model_id: Model identifier for size-based pricing
-
-    Returns:
-        Cost in USD (minimum $0.01 per operation)
-    """
-    # Get analysis type multiplier
-    type_multiplier = ANALYSIS_TYPE_MULTIPLIERS.get(analysis_type, 1.0)
-
-    # Get model size multiplier (analysis runs on the backend CPU, so no GPU rate adjustment)
-    model_multiplier = get_model_multiplier(model_id) if model_id else DEFAULT_MODEL_MULTIPLIER
-
-    # Scale cost by model complexity (layers * heads) and token count
-    complexity_factor = (num_layers * num_heads) / 36  # Normalize to 6x6 model
-    token_factor = num_tokens / 100  # Normalize to 100 tokens
-
-    cost = BASE_ANALYSIS_COST * type_multiplier * model_multiplier * max(complexity_factor, 0.5) * max(token_factor, 0.5)
-
-    return max(cost, MIN_ANALYSIS_CHARGE)
-
-
-def charge_analysis(
-    db: Session,
-    user_id: int,
-    analysis_type: str,
-    num_layers: int,
-    num_heads: int,
-    num_tokens: int,
-    model_name: str,
-    description: Optional[str] = None,
-) -> Transaction:
-    """
-    Charge credits for an analysis operation.
-
-    Args:
-        db: Database session
-        user_id: User ID
-        analysis_type: Type of analysis ('classify', 'compare', 'mine', 'importance')
-        num_layers: Number of layers in the model
-        num_heads: Number of attention heads per layer
-        num_tokens: Number of tokens analyzed
-        model_name: Name of the model
-        description: Optional description
-
-    Returns:
-        Created transaction record
-    """
-    cost = calculate_analysis_cost(
-        analysis_type=analysis_type,
-        num_layers=num_layers,
-        num_heads=num_heads,
-        num_tokens=num_tokens,
-        model_id=model_name,
-    )
-    return _deduct(
-        db, user_id, cost, TransactionType.ANALYSIS_CHARGE,
-        description or f"Analysis ({analysis_type}, {model_name}): {num_tokens} tokens, {num_layers}L x {num_heads}H",
-    )
-
-
-def estimate_analysis_cost(
-    analysis_type: str,
-    num_layers: int,
-    num_heads: int,
-    num_tokens: int,
-    model_id: str = None,
-) -> float:
-    """
-    Estimate the cost for an analysis operation before running.
-
-    Args:
-        analysis_type: Type of analysis
-        num_layers: Number of layers
-        num_heads: Number of heads per layer
-        num_tokens: Number of tokens
-        model_id: Model identifier
-
-    Returns:
-        Estimated cost in USD
-    """
-    return calculate_analysis_cost(
-        analysis_type=analysis_type,
-        num_layers=num_layers,
-        num_heads=num_heads,
-        num_tokens=num_tokens,
-        model_id=model_id,
-    )
 
 
 def charge_patching(

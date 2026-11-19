@@ -11,7 +11,6 @@ when there's one), which the browser opens there. A run never spends the assista
 credits: its service charges it, free messages or not.
 """
 
-import asyncio
 import logging
 from typing import Awaitable, Callable, Optional
 
@@ -19,7 +18,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from core.assistant.loop import RunQuote, ToolOutcome
-from core.assistant.pages import PAGES, check_labels, check_patches, check_rows
+from core.assistant.pages import PAGES, check_labels, check_pairs, check_patches, check_rows
 from core.assistant.tools import ATLAS_CORPORA, ATLAS_TOKENS, GEOMETRY_READS, METHODS, POOLINGS, STRUCTURES
 from db import SessionLocal
 from models.database import FeatureHypothesis, User, UserExternalSAE
@@ -37,7 +36,6 @@ CARD_CHARS = 240
 SUMMARY_TEXT_CHARS = 1500
 # Items a summary lists at most
 STRONGEST_FEATURES = 15
-HEADS_PER_TYPE = 5
 
 
 def _bad(detail: str):
@@ -98,12 +96,6 @@ def _check_model(db: Session, user: User, model_id: str) -> str:
         _bad("Give a model (list_models gives the IDs)")
     resolve_model(db, user.id, model_id)
     return model_id
-
-
-async def _specs(db: Session, user: User, model_id: str):
-    from api.probes import _model_specs
-
-    return await _model_specs(db, user.id, model_id)
 
 
 def _links_model(model_id: Optional[str]) -> str:
@@ -867,7 +859,7 @@ async def run_run_geometry(db: Session, user: User, ctx: ToolContext, args: dict
     return ToolOutcome(_geometry_summary(run), chip=f"Geometry · {run['concept']['name']}", result={"page": "geometry", "data": {"run": run}})
 
 
-# Activation Patching
+# Attribution's continuation view (generating with patches applied)
 
 async def _patching_request(db: Session, user: User, args: dict):
     from api.patching import _check_patches
@@ -912,7 +904,7 @@ async def quote_run_patching(db: Session, user: User, ctx: ToolContext, args: di
         details.append(["Source", _cut(body.source_prompt)])
     details += [["Target", _cut(body.target_prompt)], ["Patches", "; ".join(_patch_text(p) for p in body.patches[:6]) + (" …" if len(body.patches) > 6 else "")],
                 ["Tokens", f"{body.max_tokens}, temperature {body.temperature:g}"]]
-    return RunQuote("Activation patching", details, estimate, note="Charged on the tokens it generates", chip=f"Patching · {_model_name(body.model)}")
+    return RunQuote("Patched continuation", details, estimate, note="Charged on the tokens it generates", chip=f"Patching · {_model_name(body.model)}")
 
 
 async def run_run_patching(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
@@ -926,96 +918,10 @@ async def run_run_patching(db: Session, user: User, ctx: ToolContext, args: dict
         "first_divergence_position": effect.get("first_divergence_position"), "token_changes": effect.get("token_changes"),
         "baseline_length": effect.get("baseline_length"), "patched_length": effect.get("patched_length"),
         "changed_tokens": (effect.get("changed_tokens") or [])[:10],
-        "note": "Outputs are generated continuations of the target prompt. Opened on the Activation Patching page",
+        "note": "Outputs are generated continuations of the target prompt. Opened in the Attribution page's continuation view",
     }
     return ToolOutcome(out, chip=f"Patched · {_model_name(body.model)}", result={
-        "page": "patching", "data": {"request": body.model_dump(mode="json"), "result": result},
-    })
-
-
-# Attention Analysis
-
-async def _heads_target(db: Session, user: User, args: dict):
-    """(model, prompt or None, the captured activations to reuse or None, specs)."""
-    from core.patching import get_patching_engine
-
-    activation_id = (args.get("activation_id") or "").strip()
-    model = (args.get("model") or "").strip()
-    if activation_id:
-        captured = get_patching_engine().get_captured_activations(activation_id, user.id)
-        if captured is None:
-            raise HTTPException(status_code=404, detail="No capture with that ID (captures are kept in memory for a while)")
-        if model and captured.model_id != model:
-            _bad(f"That capture is from {captured.model_id}")
-        return captured.model_id, None, captured, None
-    model = _check_model(db, user, model)
-    prompt = _text(args, "prompt", "prompt", limit=4000)
-    return model, prompt, None, await _specs(db, user, model)
-
-
-def _prompt_tokens(model: str, prompt: str) -> int:
-    from core.open_source import OPEN_SOURCE_MODELS
-
-    if model in OPEN_SOURCE_MODELS:
-        return max(1, len(prompt) // 4)
-    from core.tokenizer import get_tokenizer
-
-    return max(1, len(get_tokenizer().encode(prompt)))
-
-
-async def quote_classify_heads(db: Session, user: User, ctx: ToolContext, args: dict) -> RunQuote:
-    from api.analysis import _num_heads
-    from services.credit_service import estimate_analysis_cost, min_gpu_request_charge
-
-    model, prompt, captured, specs = await _heads_target(db, user, args)
-    if captured is not None:
-        cost = estimate_analysis_cost(analysis_type="classify", num_layers=captured.num_layers, num_heads=_num_heads(captured),
-                                      num_tokens=len(captured.tokens), model_id=model)
-        return RunQuote("Classify attention heads", [["Model", _model_name(model)], ["Capture", _cut(captured.prompt)]],
-                        cost, note="Charged on the CPU time it takes", chip=f"Classify heads · {_model_name(model)}")
-    capture = min_gpu_request_charge(model)
-    cost = estimate_analysis_cost(analysis_type="classify", num_layers=specs.layers or 1, num_heads=specs.heads or 1,
-                                  num_tokens=_prompt_tokens(model, prompt), model_id=model)
-    return RunQuote(
-        "Capture and classify attention heads",
-        [["Model", _model_name(model)], ["Prompt", _cut(prompt)], ["Charges", f"capture {_money(capture)} + classification {_money(cost)}"]],
-        capture + cost, note="Two charges: the capture (one GPU request) and the classification", chip=f"Classify heads · {_model_name(model)}",
-    )
-
-
-def _heads_summary(result: dict) -> dict:
-    by_type: dict[str, list] = {}
-    for c in result.get("classifications") or []:
-        by_type.setdefault(c["primary_type"], []).append(c)
-    top = {
-        kind: [{"layer": c["layer"], "head": c["head"], "confidence": _round(c.get("confidence")), "score": _round((c.get("scores") or {}).get(kind))}
-               for c in sorted(items, key=lambda c: -(c.get("confidence") or 0))[:HEADS_PER_TYPE]]
-        for kind, items in by_type.items() if kind not in ("mixed", "distributed")
-    }
-    return {
-        "model": result.get("model_id"), "activation_id": result.get("activation_id"), "prompt": _cut(result.get("prompt"), 300),
-        "tokens": len(result.get("tokens") or []), "layers": result.get("num_layers"), "heads_per_layer": result.get("num_heads"),
-        "counts": {k: v for k, v in (result.get("summary") or {}).items() if v},
-        "top_heads": top,
-        "note": "Types come from thresholds on attention-pattern scores over this one prompt; a repeated sequence in the prompt is what shows induction heads. Opened on the Attention Analysis page",
-    }
-
-
-async def run_classify_heads(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
-    from api.analysis import ClassifyHeadsRequest, classify_heads
-    from api.patching import capture_activations
-    from api.schemas.patching import CaptureActivationsRequest
-
-    model, prompt, captured, _ = await _heads_target(db, user, args)
-    if captured is None:
-        capture = await capture_activations(request=CaptureActivationsRequest(prompt=prompt, model=model), current_user=user, db=db)
-        activation_id = capture.activation_id
-    else:
-        activation_id = captured.id
-    response = await asyncio.to_thread(classify_heads, request=ClassifyHeadsRequest(activation_id=activation_id), current_user=user, db=db)
-    result = response.model_dump(mode="json")
-    return ToolOutcome(_heads_summary(result), chip=f"Heads classified · {_model_name(model)}", result={
-        "page": "analysis", "data": {"model": model, "activation_id": activation_id, "result": result},
+        "page": "attribution", "data": {"request": body.model_dump(mode="json"), "result": result},
     })
 
 
@@ -1619,142 +1525,284 @@ async def run_geometry_sae(db: Session, user: User, ctx: ToolContext, args: dict
     })
 
 
-# Attention Analysis: comparing two prompts, and mining one
+# Attribution
 
-async def _capture_side(db: Session, user: User, model: str, prompt_key: str, id_key: str, args: dict):
-    """(model, prompt or None, capture or None) for one side: a capture reused by ID, or a prompt to capture."""
-    return await _heads_target(db, user, {"model": model, "prompt": args.get(prompt_key, ""), "activation_id": args.get(id_key, "")})
+def _pair_spec(args: dict):
+    """A sweep's pairs: a built-in task (args["task"], args["pairs"] of them) or the user's rows, checked as the page checks them."""
+    from api.schemas.attribution import PairSpec
+    from core.attribution.budget import MAX_PAIRS
+    from core.attribution.tasks import TASKS
 
-
-def _capture_size(model: str, prompt: Optional[str], captured, specs) -> tuple[int, int, int]:
-    """(layers, heads, tokens) of a side, captured or to capture."""
-    from api.analysis import _num_heads
-
-    if captured is not None:
-        return captured.num_layers, _num_heads(captured), len(captured.tokens)
-    return specs.layers or 1, specs.heads or 1, _prompt_tokens(model, prompt)
-
-
-async def _compare_sides(db: Session, user: User, args: dict):
-    model = (args.get("model") or "").strip()
-    sides = [await _capture_side(db, user, model, f"prompt_{i}", f"activation_id_{i}", args) for i in (1, 2)]
-    models = {m for m, _, _, _ in sides}
-    if len(models) > 1:
-        _bad(f"Both sides must be on one model (these are on {', '.join(sorted(models))})")
-    return sides
-
-
-async def quote_compare_attention(db: Session, user: User, ctx: ToolContext, args: dict) -> RunQuote:
-    from services.credit_service import estimate_analysis_cost, min_gpu_request_charge
-
-    sides = await _compare_sides(db, user, args)
-    model = sides[0][0]
-    sizes = [_capture_size(m, p, c, s) for m, p, c, s in sides]
-    captures = sum(min_gpu_request_charge(model) for _, p, c, _ in sides if c is None)
-    cost = estimate_analysis_cost(analysis_type="compare", num_layers=sizes[0][0], num_heads=sizes[0][1],
-                                  num_tokens=sizes[0][2] + sizes[1][2], model_id=model)
-    details = [["Model", _model_name(model)]]
-    for i, (_, prompt, captured, _) in enumerate(sides, 1):
-        details.append([f"Prompt {i}", _cut(captured.prompt if captured else prompt, 160) + (" (captured)" if captured else "")])
-    if captures:
-        details.append(["Charges", f"captures {_money(captures)} + comparison {_money(cost)}"])
-    return RunQuote("Compare attention", details, captures + cost,
-                    note="Captures are one GPU request each; the comparison is charged on its CPU time", chip=f"Compare attention · {_model_name(model)}")
+    task = (args.get("task") or "").strip()
+    rows = args.get("rows") or []
+    if task and rows:
+        _bad("Give a built-in task or rows, not both")
+    if task:
+        if task not in TASKS:
+            raise HTTPException(status_code=404, detail="Unknown built-in task (the guide lists them)")
+        return PairSpec(task=task, n=_int(args, "pairs", 1, MAX_PAIRS, "pairs"), seed=_int(args, "seed", 0, 2**31 - 1, "seed"))
+    if not rows:
+        _bad("Give a built-in task ID, or rows of your own")
+    checked, problem = check_pairs(rows)
+    if problem:
+        _bad(problem)
+    return PairSpec(rows=checked, name="Your pairs")
 
 
-async def run_compare_attention(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
-    from api.analysis import CompareAttentionRequest, compare_attention
-    from api.patching import capture_activations
-    from api.schemas.patching import CaptureActivationsRequest
+def _attribution_request(db: Session, user: User, args: dict):
+    from api.schemas.attribution import SweepRequest
+    from core.assistant.tools import ATTRIBUTION_METRICS
 
-    sides = await _compare_sides(db, user, args)
-    model = sides[0][0]
-    ids = []
-    for _, prompt, captured, _ in sides:
-        if captured is None:
-            capture = await capture_activations(request=CaptureActivationsRequest(prompt=prompt, model=model), current_user=user, db=db)
-            ids.append(capture.activation_id)
-        else:
-            ids.append(captured.id)
-    response = await asyncio.to_thread(
-        compare_attention, request=CompareAttentionRequest(activation_id_1=ids[0], activation_id_2=ids[1]), current_user=user, db=db,
-    )
-    result = response.model_dump(mode="json")
-    out = {
-        "model": model, "activation_ids": ids, "prompts": [_cut(result["prompt1"], 200), _cut(result["prompt2"], 200)],
-        "layer_similarity": [{"layer": l["layer"], "mean": _round(l["mean_similarity"]), "min": _round(l["min_similarity"])}
-                             for l in result["layer_similarities"]],
-        "most_different_heads": [{"layer": h["layer"], "head": h["head"], "similarity": _round(h["similarity"])}
-                                 for h in result["head_differences"][:10]],
-        "common_patterns": result["common_patterns"][:6], "divergent_patterns": result["divergent_patterns"][:6],
-        "note": "Similarity of the two prompts' attention patterns (1 is identical). One pair of prompts is one example. Opened on the Attention Analysis page",
+    metric = args.get("metric") or "auto"
+    if metric not in ATTRIBUTION_METRICS:
+        _bad(f"metric is one of: {', '.join(ATTRIBUTION_METRICS)}")
+    return SweepRequest(model=_check_model(db, user, args.get("model", "")), pairs=_pair_spec(args), metric=None if metric == "auto" else metric)
+
+
+def _pairs_name(pairs) -> str:
+    from core.attribution.tasks import TASKS
+
+    return TASKS[pairs.task]["name"] if pairs.task else (pairs.name or "Your pairs")
+
+
+async def _attribution_estimate(db: Session, user: User, kind: str, model: str, pairs, **sized) -> dict:
+    from api.attribution import estimate_for
+    from api.schemas.attribution import EstimateRequest
+
+    estimate = await estimate_for(db, user, EstimateRequest(kind=kind, model=model, pairs=pairs, **sized))
+    if not estimate["within_limit"]:
+        _bad("This run would take longer than the model's time limit: use fewer pairs or cells")
+    return estimate
+
+
+async def quote_run_attribution(db: Session, user: User, ctx: ToolContext, args: dict) -> RunQuote:
+    body = _attribution_request(db, user, args)
+    estimate = await _attribution_estimate(db, user, "sweep", body.model, body.pairs)
+    name = _pairs_name(body.pairs)
+    count = f"{estimate['num_pairs']} pairs" if estimate["checked"] else f"{body.pairs.n if body.pairs.task else len(body.pairs.rows)} pairs"
+    details = [["Model", _model_name(body.model)], ["Pairs", f"{name} ({count})"],
+               ["Metric", {"logit_diff": "logit difference", "kl": "KL from the clean run", None: "logit difference, or KL without answers"}[body.metric]]]
+    if estimate["dropped"]:
+        details.append(["Dropped", f"{len(estimate['dropped'])} pair(s) this model can't use"])
+    return RunQuote("Attribution sweep", details, estimate["estimated_cost"],
+                    note="Charged by its size when it ends (token counts are estimated until then)", chip=f"Attribution · {name}")
+
+
+def _values(tensor):
+    """A response's tensor as a float32 array."""
+    from core.tensor_codec import to_float32
+
+    return to_float32(tensor)
+
+
+def _attribution_summary(run: dict) -> dict:
+    import numpy as np
+
+    heads, heads_se = _values(run["heads"]), _values(run["heads_se"])
+    direct = _values(run["dla"]) if run.get("dla") else None
+    order = np.dstack(np.unravel_index(np.argsort(-np.abs(heads), axis=None), heads.shape))[0][:10]
+    layers = _values(run["layers"])
+    whole = sorted(
+        [{"kind": kind, "layer": layer, "estimate": _round(float(layers[k][layer]))} for k, kind in enumerate(("attn", "mlp")) for layer in range(layers.shape[1])],
+        key=lambda c: -abs(c["estimate"]),
+    )[:6]
+    # Positions: the largest group of pairs whose tokens line up
+    positions = []
+    classes = run.get("classes") or []
+    if classes:
+        largest = max(classes, key=lambda c: len(c["pairs"]))
+        grid = _values(run["position_classes"][largest["id"]])
+        flat = np.dstack(np.unravel_index(np.argsort(-np.abs(grid), axis=None), grid.shape))[0][:8]
+        positions = [
+            {"kind": ("resid", "attn", "mlp")[k], "layer": int(layer), "position": int(p),
+             "token": largest["labels"][p] if largest["labels"][p] is not None else "(varies)", "estimate": _round(float(grid[k, layer, p]))}
+            for k, layer, p in flat
+        ]
+    dropped = run.get("dropped") or []
+    return {
+        "run_id": run.get("run_id"), "model": run.get("model"), "pairs": run.get("num_pairs"), "task": run.get("task_name"),
+        "dropped": {"pairs": len(dropped), "first_reason": dropped[0]["reason"]} if dropped else None,
+        "metric": run.get("metric"), "clean": _round(run.get("clean_mean")), "corrupted": _round(run.get("corrupted_mean")),
+        "gap": _round(run.get("gap")), "scale": "corrupted run 0, clean run 1" if run.get("normalized") else "the metric's own units (the model doesn't separate the prompts)",
+        "pairs_solved": _round(run.get("solved"), 2),
+        "top_heads": [
+            {"layer": int(layer), "head": int(head), "estimate": _round(float(heads[layer, head])), "se": _round(float(heads_se[layer, head])),
+             **({"direct_logits": _round(float(direct[layer, head]))} if direct is not None else {})}
+            for layer, head in order
+        ],
+        "top_layers": whole,
+        "top_positions": {"pairs": len(largest["pairs"]), "group": largest["group"], "cells": positions} if classes else None,
+        "note": "Estimates are first-order (gradient × the clean-minus-corrupted activation): none counts until verify_attribution measures it. "
+                "resid is the residual stream entering a layer; direct_logits is a head's direct effect on the clean logit difference. "
+                "verify_attribution and ablate_components take its run_id. Opened on the Attribution page",
     }
-    return ToolOutcome(out, chip=f"Compared attention · {_model_name(model)}", result={
-        "page": "analysis", "data": {"model": model, "activation_ids": ids, "result": result},
+
+
+async def run_run_attribution(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
+    from api.attribution import run_sweep_for
+    from api.schemas.attribution import SweepResponse
+
+    body = _attribution_request(db, user, args)
+    run = SweepResponse.model_validate(await run_sweep_for(db, user, body)).model_dump(mode="json")
+    return ToolOutcome(_attribution_summary(run), chip=f"Attribution · {run['task_name']}", result={
+        "page": "attribution", "data": {"run": run, "pairs": body.pairs.model_dump(mode="json")},
     })
 
 
-async def quote_mine_patterns(db: Session, user: User, ctx: ToolContext, args: dict) -> RunQuote:
-    from services.credit_service import estimate_analysis_cost, min_gpu_request_charge
+def _kept_attribution(user: User, run_id: str):
+    """(a kept sweep, its pairs) by run_id."""
+    from api.schemas.attribution import PairSpec
+    from services import lab_runs
 
-    model, prompt, captured, specs = await _heads_target(db, user, args)
-    layers, heads, tokens = _capture_size(model, prompt, captured, specs)
-    cost = estimate_analysis_cost(analysis_type="mine", num_layers=layers, num_heads=heads, num_tokens=tokens, model_id=model)
-    if captured is not None:
-        return RunQuote("Mine attention patterns", [["Model", _model_name(model)], ["Capture", _cut(captured.prompt)]],
-                        cost, note="Charged on the CPU time it takes", chip=f"Mine patterns · {_model_name(model)}")
-    capture = min_gpu_request_charge(model)
+    kept = lab_runs.get(user.id, "attribution", run_id)
+    if kept is None:
+        raise HTTPException(status_code=404, detail="No kept Attribution sweep with that run_id: sweeps are kept on the server for a few "
+                                                    "hours (run_attribution runs one again)")
+    run, extra = kept
+    return run, PairSpec(**extra["pairs"])
+
+
+MAX_ASSISTANT_CELLS = 64
+
+
+def _verify_request(user: User, args: dict):
+    from api.schemas.attribution import Cell, VerifyRequest
+
+    run, pairs = _kept_attribution(user, (args.get("run_id") or "").strip())
+    what = args.get("cells")
+    if what not in ("top", "heads"):
+        _bad("cells is top or heads")
+    heads, layers = _values(run["heads"]), _values(run["layers"])
+    cells = [Cell(kind="head", layer=layer, head=head, estimate=float(heads[layer, head]))
+             for layer in range(heads.shape[0]) for head in range(heads.shape[1])]
+    if what == "top":
+        count = _int(args, "count", 1, MAX_ASSISTANT_CELLS, "count")
+        cells += [Cell(kind=kind, layer=layer, estimate=float(layers[k][layer]))
+                  for k, kind in enumerate(("attn", "mlp")) for layer in range(layers.shape[1])]
+        cells = sorted(cells, key=lambda c: -abs(c.estimate))[:count]
+    return run, what, VerifyRequest(model=run["model"], pairs=pairs, metric=run["metric"], cells=cells, pairs_key=run["pairs_key"])
+
+
+async def quote_verify_attribution(db: Session, user: User, ctx: ToolContext, args: dict) -> RunQuote:
+    run, what, body = _verify_request(user, args)
+    estimate = await _attribution_estimate(db, user, "verify", body.model, body.pairs, cells=body.cells)
+    cells = f"every head ({len(body.cells)})" if what == "heads" else f"the sweep's top {len(body.cells)}"
     return RunQuote(
-        "Capture and mine attention patterns",
-        [["Model", _model_name(model)], ["Prompt", _cut(prompt)], ["Charges", f"capture {_money(capture)} + mining {_money(cost)}"]],
-        capture + cost, note="Two charges: the capture (one GPU request) and the mining", chip=f"Mine patterns · {_model_name(model)}",
+        "Exact patching",
+        [["Model", _model_name(body.model)], ["Sweep", f"{run['task_name']} ({run['num_pairs']} pairs)"], ["Cells", cells]],
+        estimate["estimated_cost"], note="Charged by its size when it ends", chip=f"Verify · {run['task_name']}",
     )
 
 
-async def run_mine_patterns(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
-    from api.analysis import MinePatternRequest, mine_patterns
-    from api.patching import capture_activations
-    from api.schemas.patching import CaptureActivationsRequest
+def _cell_name(cell: dict) -> str:
+    if cell["kind"] == "head":
+        return f"L{cell['layer']}H{cell['head']}"
+    where = "" if cell.get("position") is None else f" @{cell['position']}"
+    return f"L{cell['layer']} {cell['kind']}{where}"
 
-    model, prompt, captured, _ = await _heads_target(db, user, args)
-    if captured is None:
-        capture = await capture_activations(request=CaptureActivationsRequest(prompt=prompt, model=model), current_user=user, db=db)
-        activation_id = capture.activation_id
-    else:
-        activation_id = captured.id
-    response = await asyncio.to_thread(mine_patterns, request=MinePatternRequest(activation_id=activation_id), current_user=user, db=db)
-    result = response.model_dump(mode="json")
+
+async def run_verify_attribution(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
+    from api.attribution import verify_for
+    from api.schemas.attribution import VerifyResponse
+
+    run, what, body = _verify_request(user, args)
+    result = VerifyResponse.model_validate(await verify_for(db, user, body)).model_dump(mode="json")
+    cells = sorted(result["cells"], key=lambda c: -abs(c["effect"]))
     out = {
-        "model": model, "activation_id": activation_id,
-        "counts": {k: v for k, v in (result.get("classification_summary") or {}).items() if v},
-        "top_heads": [{"layer": t[0], "head": t[1], "importance": _round(t[2])} for t in (result.get("top_heads") or [])[:10]],
-        "cross_layer_patterns": [{"type": p["pattern_type"], "description": _cut(p["description"], 200), "confidence": _round(p["confidence"]),
-                                  "heads": p["involved_heads"][:8]} for p in (result.get("cross_layer_patterns") or [])[:8]],
-        "circuit_candidates": [{"type": c["type"], "description": _cut(c["description"], 200), "confidence": _round(c["confidence"])}
-                               for c in (result.get("circuit_candidates") or [])[:8]],
-        "note": "Heuristics over one prompt's attention patterns: candidates to test (e.g. with run_patching), not findings. Opened on the Attention Analysis page",
+        "run_id": run.get("run_id"), "cells_patched": len(cells), "pairs": result["num_pairs"],
+        "rank_correlation": _round(result["rank_correlation"]),
+        "largest_exact": [
+            {"cell": _cell_name(c), "exact": _round(c["effect"]), "se": _round(c["se"]), "estimate": _round(c["estimate"])} for c in cells[:20]
+        ],
+        "scale": "corrupted run 0, clean run 1" if result["normalized"] else "the metric's own units",
+        "note": "exact: the metric with that one activation patched from the clean run into the corrupted run, mean over pairs. "
+                "rank_correlation is Spearman's between estimates and exact effects over these cells; cells chosen for their large "
+                "estimates say nothing of the ones the estimate missed. Opened in the Attribution page's verify view",
     }
-    return ToolOutcome(out, chip=f"Mined patterns · {_model_name(model)}", result={
-        "page": "analysis", "data": {"model": model, "activation_id": activation_id, "result": result},
+    return ToolOutcome(out, chip=f"Verified · {len(cells)} cells", result={
+        "page": "attribution", "data": {"run_id": run.get("run_id"), "what": what, "response": result},
     })
 
+
+def _ablate_components_request(user: User, args: dict):
+    from api.schemas.attribution import AblateRequest, Component
+    from core.assistant.tools import ABLATION_METHODS, COMPONENT_KINDS
+    from core.attribution.budget import MAX_ABLATE_COMPONENTS
+
+    run, pairs = _kept_attribution(user, (args.get("run_id") or "").strip())
+    given = args.get("components")
+    if not isinstance(given, list) or not given or len(given) > MAX_ABLATE_COMPONENTS:
+        _bad(f"components is a list of 1 to {MAX_ABLATE_COMPONENTS} components")
+    components = []
+    for c in given:
+        if not isinstance(c, dict) or c.get("kind") not in COMPONENT_KINDS:
+            _bad(f"A component's kind is one of: {', '.join(COMPONENT_KINDS)}")
+        layer = _int(c, "layer", 0, run["num_layers"] - 1, "layer")
+        head = _int(c, "head", 0, run["num_heads"] - 1, "head") if c["kind"] == "head" else None
+        components.append(Component(kind=c["kind"], layer=layer, head=head))
+    methods = [m for m in ABLATION_METHODS if m in (args.get("methods") or ABLATION_METHODS)]
+    if not methods:
+        _bad(f"methods are among: {', '.join(ABLATION_METHODS)}")
+    return run, AblateRequest(model=run["model"], pairs=pairs, metric=run["metric"], components=components, methods=methods,
+                              pairs_key=run["pairs_key"])
+
+
+def _component_name(c) -> str:
+    c = c if isinstance(c, dict) else c.model_dump()
+    return f"L{c['layer']}H{c['head']}" if c["kind"] == "head" else f"L{c['layer']} {c['kind']}"
+
+
+async def quote_ablate_components(db: Session, user: User, ctx: ToolContext, args: dict) -> RunQuote:
+    run, body = _ablate_components_request(user, args)
+    estimate = await _attribution_estimate(db, user, "ablate", body.model, body.pairs, methods=body.methods)
+    names = ", ".join(_component_name(c) for c in body.components[:8]) + (" …" if len(body.components) > 8 else "")
+    return RunQuote(
+        "Ablate components",
+        [["Model", _model_name(body.model)], ["Sweep", f"{run['task_name']} ({run['num_pairs']} pairs)"],
+         ["Components", names], ["Ablations", ", ".join(body.methods)], ["Against", "random sets of as many components"]],
+        estimate["estimated_cost"], note="Charged by its size when it ends", chip=f"Ablate · {len(body.components)} components",
+    )
+
+
+async def run_ablate_components(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
+    from api.attribution import ablate_for
+    from api.schemas.attribution import AblateResponse
+
+    run, body = _ablate_components_request(user, args)
+    result = AblateResponse.model_validate(await ablate_for(db, user, body)).model_dump(mode="json")
+    methods = {}
+    for name, r in result["methods"].items():
+        random = r["random"]
+        methods[name] = {
+            "metric": _round(r["value"]), "se": _round(r["se"]),
+            "random_sets": {"mean": _round(sum(random) / len(random)), "min": _round(min(random)), "max": _round(max(random))} if random else None,
+        }
+    out = {
+        "run_id": run.get("run_id"), "components": [_component_name(c) for c in result["components"]], "pairs": result["num_pairs"],
+        "methods": methods, "mean_over": result["mean_over"],
+        "scale": "clean run 1, corrupted run 0" if result["normalized"] else "the metric's change from the corrupted run, in its own units",
+        "note": "metric: the task's metric on the clean prompts with the components ablated together. The components matter for the task "
+                "when it falls below what ablating random sets of as many gives (random_sets). Opened in the Attribution page's ablate view",
+    }
+    return ToolOutcome(out, chip=f"Ablated · {len(result['components'])} components", result={
+        "page": "attribution", "data": {"run_id": run.get("run_id"), "response": result},
+    })
 
 Quote = Callable[[Session, User, ToolContext, dict], Awaitable[RunQuote]]
 Run = Callable[[Session, User, ToolContext, dict], Awaitable[ToolOutcome]]
 
 RUNS: dict[str, tuple[Quote, Run]] = {
+    "ablate_components": (quote_ablate_components, run_ablate_components),
     "ablate_probe": (quote_ablate_probe, run_ablate_probe),
     "analyze_sae": (quote_analyze_sae, run_analyze_sae),
     "build_atlas": (quote_build_atlas, run_build_atlas),
-    "classify_heads": (quote_classify_heads, run_classify_heads),
-    "compare_attention": (quote_compare_attention, run_compare_attention),
     "compare_probe_sae": (quote_compare_probe_sae, run_compare_probe_sae),
     "explain_feature": (quote_explain_feature, run_explain_feature),
     "generalize_probes": (quote_generalize_probes, run_generalize_probes),
     "generate": (quote_generate, run_generate),
     "generation_test": (quote_generation_test, run_generation_test),
     "geometry_sae": (quote_geometry_sae, run_geometry_sae),
-    "mine_patterns": (quote_mine_patterns, run_mine_patterns),
+    "run_attribution": (quote_run_attribution, run_run_attribution),
     "run_geometry": (quote_run_geometry, run_run_geometry),
     "run_patching": (quote_run_patching, run_run_patching),
     "save_probe": (quote_save_probe, run_save_probe),
@@ -1764,6 +1812,7 @@ RUNS: dict[str, tuple[Quote, Run]] = {
     "steer_probe": (quote_steer_probe, run_steer_probe),
     "test_hypothesis": (quote_test_hypothesis, run_test_hypothesis),
     "train_probe": (quote_train_probe, run_train_probe),
+    "verify_attribution": (quote_verify_attribution, run_verify_attribution),
 }
 
 

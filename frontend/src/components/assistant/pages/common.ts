@@ -12,8 +12,7 @@ export type Fields = Record<string, FieldValue>
 export const PAGE_ROUTES: Record<string, { route: string; title: string }> = {
   generate: { route: '/generate', title: 'Generate' },
   training: { route: '/training', title: 'Custom Models' },
-  patching: { route: '/patching', title: 'Activation Patching' },
-  analysis: { route: '/analysis', title: 'Attention Analysis' },
+  attribution: { route: '/attribution', title: 'Attribution' },
   sae: { route: '/sae', title: 'SAE Analysis' },
   probes: { route: '/probes', title: 'Probe Lab' },
   geometry: { route: '/geometry', title: 'Geometry Lab' },

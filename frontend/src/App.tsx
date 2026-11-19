@@ -3,8 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import UnifiedPage from './pages/UnifiedPage'
 import TrainingPage from './pages/TrainingPage'
-import PatchingPlayground from './pages/PatchingPlayground'
-import AnalysisPage from './pages/AnalysisPage'
+import AttributionPage from './pages/AttributionPage'
 import SAEPage from './pages/SAEPage'
 import ProbesPage from './pages/ProbesPage'
 import GeometryPage from './pages/GeometryPage'
@@ -71,8 +70,10 @@ function AppShell() {
               <Route path="/" element={confirming ? null : <HomePage />} />
               <Route path="/generate" element={<UnifiedPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/training" element={<TrainingPage />} />
-              <Route path="/patching" element={<PatchingPlayground onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
-              <Route path="/analysis" element={<AnalysisPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
+              <Route path="/attribution" element={<AttributionPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
+              {/* Activation Patching and Attention Analysis became Attribution */}
+              <Route path="/patching" element={<Navigate to="/attribution" replace />} />
+              <Route path="/analysis" element={<Navigate to="/attribution" replace />} />
               <Route path="/sae" element={<SAEPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/probes" element={<ProbesPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/geometry" element={<GeometryPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />

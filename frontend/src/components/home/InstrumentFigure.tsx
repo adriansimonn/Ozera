@@ -1,6 +1,6 @@
 /**
  * The tools section's figure: a grid of glyph tiles that redraws itself as a small diagram of
- * whichever instrument is active (a forward pass, a patch, an attention pattern, …). Choosing
+ * whichever instrument is active (a forward pass, a patch, a sparse code, …). Choosing
  * an instrument sweeps across the grid tile by tile and plays its diagram from the beginning.
  */
 
@@ -76,21 +76,6 @@ const patching: Figure = (c, r, time) => {
   return 0
 }
 
-/** An attention pattern: causal, with a previous-token diagonal and an induction stripe. */
-const attention: Figure = (c, r, time) => {
-  const query = r - 2
-  const key = c - 2
-  if (query < 0 || query > 19 || key < 0 || key > query) return 0
-  const offset = [6, 9, 5, 8][Math.floor(time / 3.6) % 4]
-  if (key === query - offset) return ACCENT
-  const reading = Math.floor(time * 5) % 26 === query ? 0.16 : 0
-  if (key === query - 1) return 0.72 + reading
-  if (key === query) return 0.4 + reading
-  if (key === 0) return 0.52 + reading
-  if (Math.abs(key - (query - offset)) === 1) return 0.5
-  return 0.12 + 0.2 * hash2(key, query) + reading
-}
-
 /** A sparse autoencoder: a dense band of activations above, a few features firing below. */
 const sparse: Figure = (c, r, time) => {
   if (c < 2 || c > 21) return 0
@@ -149,7 +134,7 @@ const training: Figure = (c, r, time) => {
   return 0.4 - 0.24 * ((r - top) / (21 - top + 1))
 }
 
-const FIGURES: Figure[] = [forwardPass, patching, attention, sparse, probe, circle, training]
+const FIGURES: Figure[] = [forwardPass, patching, sparse, probe, circle, training]
 
 interface Props {
   /** Index of the figure to draw */

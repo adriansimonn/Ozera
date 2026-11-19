@@ -53,7 +53,13 @@ class ProbeTarget:
     def encode(self, text: str, chat_template: bool, read_span: str) -> EncodedText:
         raise NotImplementedError
 
-    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> None:
+    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor, attentions: bool = False) -> None:
+        """
+        Run the decoder layers over a batch (hooks read what they need from them).
+
+        Args:
+            attentions: Have the attention modules also return their attention weights
+        """
         raise NotImplementedError
 
     def token_text(self, token_id: int) -> str:
@@ -65,6 +71,47 @@ class ProbeTarget:
 
     def attention_branch(self, layer: int) -> torch.nn.Module:
         """The module whose output a decoder layer adds to the residual stream as its attention branch."""
+        raise NotImplementedError
+
+    def mlp_branch(self, layer: int) -> torch.nn.Module:
+        """The module whose output a decoder layer adds to the residual stream as its MLP branch."""
+        raise NotImplementedError
+
+    def attention_module(self, layer: int) -> torch.nn.Module:
+        """A layer's attention module, whose output is (hidden states, attention weights or None)."""
+        raise NotImplementedError
+
+    def head_projection(self, layer: int) -> torch.nn.Module:
+        """A layer's attention output projection: its input holds the heads' outputs side by side."""
+        raise NotImplementedError
+
+    @property
+    def num_heads(self) -> int:
+        """Attention heads per layer."""
+        raise NotImplementedError
+
+    @property
+    def mlp_dim(self) -> int:
+        """Neurons per MLP layer."""
+        raise NotImplementedError
+
+    def prefix_ids(self) -> list[int]:
+        """The tokens the tokenizer puts before any text (a BOS token, for the models that have one)."""
+        return []
+
+    def vocab(self) -> tuple[int, set[int]]:
+        """(the vocabulary's size, the IDs in it that are special tokens)."""
+        raise NotImplementedError
+
+    def lens_model(self):
+        """The model as core.lens reads it (its final norm, unembedding and layers), for direct logit attribution."""
+        raise NotImplementedError
+
+    def freeze(self) -> None:
+        """
+        Stop the model's parameters from taking gradients, for good. The workers never train:
+        a pass run with gradients then only tracks the activations it's asked about.
+        """
         raise NotImplementedError
 
     def logits(self, hidden: torch.Tensor) -> torch.Tensor:
@@ -111,9 +158,9 @@ class OzeraTarget(ProbeTarget):
         ids = self.tokenizer.encode(text)
         return EncodedText(ids, 0, len(ids))
 
-    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> None:
+    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor, attentions: bool = False) -> None:
         # Attention is causal and padding is on the right, so padding never reaches real tokens
-        self.model(input_ids)
+        self.model(input_ids, return_attention=attentions)
 
     def token_text(self, token_id: int) -> str:
         return self.tokenizer.decode([token_id])
@@ -123,6 +170,35 @@ class OzeraTarget(ProbeTarget):
 
     def attention_branch(self, layer: int) -> torch.nn.Module:
         return self.model.blocks[layer].attention
+
+    def mlp_branch(self, layer: int) -> torch.nn.Module:
+        return self.model.blocks[layer].feed_forward
+
+    def attention_module(self, layer: int) -> torch.nn.Module:
+        return self.model.blocks[layer].attention
+
+    def head_projection(self, layer: int) -> torch.nn.Module:
+        return self.model.blocks[layer].attention.Wo
+
+    @property
+    def num_heads(self) -> int:
+        return self.model.config.num_heads
+
+    @property
+    def mlp_dim(self) -> int:
+        return self.model.config.d_ff
+
+    def vocab(self) -> tuple[int, set[int]]:
+        # A custom model's embeddings can cover less than the shared tokenizer's vocabulary
+        return min(self.tokenizer.vocab_size, self.model.config.vocab_size), {self.tokenizer.eos_token_id}
+
+    def lens_model(self):
+        from core.lens import LensModel
+
+        return LensModel.for_ozera(self.model, self.tokenizer)
+
+    def freeze(self) -> None:
+        self.model.requires_grad_(False)
 
     def logits(self, hidden: torch.Tensor) -> torch.Tensor:
         return self.model.lm_head(self.model.ln_f(hidden))
@@ -193,9 +269,11 @@ class OpenSourceTarget(ProbeTarget):
             end = len(ids)
         return EncodedText(ids, start, end)
 
-    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> None:
+    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor, attentions: bool = False) -> None:
         # The decoder stack alone: the reader stops the pass after the last layer it reads
-        self.decoder(input_ids=input_ids, attention_mask=attention_mask, use_cache=False)
+        # (Under eager attention, which the loaders use, the attention modules return their weights anyway)
+        extra = {"output_attentions": True} if attentions else {}
+        self.decoder(input_ids=input_ids, attention_mask=attention_mask, use_cache=False, **extra)
 
     def token_text(self, token_id: int) -> str:
         return self.tokenizer.decode([token_id])
@@ -207,6 +285,39 @@ class OpenSourceTarget(ProbeTarget):
         from core.patching.engine import attention_branch_end
 
         return attention_branch_end(self.layers[layer])
+
+    def mlp_branch(self, layer: int) -> torch.nn.Module:
+        # Gemma normalizes the MLP's output before adding it to the stream, as it does attention's
+        module = self.layers[layer]
+        return module.post_feedforward_layernorm if hasattr(module, "post_feedforward_layernorm") else module.mlp
+
+    def attention_module(self, layer: int) -> torch.nn.Module:
+        return self.layers[layer].self_attn
+
+    def head_projection(self, layer: int) -> torch.nn.Module:
+        return self.layers[layer].self_attn.o_proj
+
+    @property
+    def num_heads(self) -> int:
+        return self.loader.config.num_heads
+
+    @property
+    def mlp_dim(self) -> int:
+        return self.loader.config.intermediate_dim
+
+    def prefix_ids(self) -> list[int]:
+        return list(self.tokenizer("")["input_ids"])
+
+    def vocab(self) -> tuple[int, set[int]]:
+        return len(self.tokenizer), set(self.tokenizer.all_special_ids)
+
+    def lens_model(self):
+        from core.lens import LensModel
+
+        return LensModel.for_open_source(self.loader)
+
+    def freeze(self) -> None:
+        self.loader.model.requires_grad_(False)
 
     def logits(self, hidden: torch.Tensor) -> torch.Tensor:
         model = self.loader.model

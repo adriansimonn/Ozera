@@ -2,7 +2,7 @@
  * The app's pages, in nav order: the NavBar's links and the choices for the default landing page.
  */
 
-import { Cpu, Layers, Microscope, Search, Shapes, Sparkles, Zap, type LucideIcon } from 'lucide-react'
+import { Cpu, Layers, Microscope, Shapes, Sparkles, Zap, type LucideIcon } from 'lucide-react'
 import type { UserSettings } from '../stores/settingsStore'
 
 export interface AppPage {
@@ -14,8 +14,7 @@ export interface AppPage {
 export const APP_PAGES: AppPage[] = [
   { path: '/generate', label: 'Generate', icon: Sparkles },
   { path: '/training', label: 'Custom Models', icon: Cpu },
-  { path: '/patching', label: 'Activation Patching', icon: Zap },
-  { path: '/analysis', label: 'Attention Analysis', icon: Search },
+  { path: '/attribution', label: 'Attribution', icon: Zap },
   { path: '/sae', label: 'SAE Analysis', icon: Layers },
   { path: '/probes', label: 'Probe Lab', icon: Microscope },
   { path: '/geometry', label: 'Geometry Lab', icon: Shapes },

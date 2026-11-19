@@ -568,7 +568,7 @@ class LogitAttributionExporter(FigureExporter):
 
 
 class PatchingResultExporter(FigureExporter):
-    """Export patching experiment results."""
+    """Export Attribution results: effect heatmaps, estimates against exact effects, and ablation bars."""
 
     def __init__(
         self,
@@ -592,9 +592,12 @@ class PatchingResultExporter(FigureExporter):
         title: str = "Patching Effects",
         colormap: str = "RdBu_r",
         center_zero: bool = True,
+        xlabel: str = "Position",
+        ylabel: str = "Layer",
+        colorbar_label: str = "Effect",
     ) -> Figure:
         """
-        Create heatmap of patching effects by layer and position.
+        Create heatmap of effects by layer and position (or head).
 
         Args:
             effects: 2D array [num_layers, num_positions]
@@ -603,33 +606,25 @@ class PatchingResultExporter(FigureExporter):
             title: Figure title
             colormap: Matplotlib colormap
             center_zero: Whether to center colormap at zero
+            xlabel, ylabel, colorbar_label: Axis and colorbar titles
 
         Returns:
             Matplotlib figure
         """
+        # Before the axes exist: their tick labels take the style current when they're made
+        self._apply_style(None, None)
         fig, ax = plt.subplots(figsize=(self.width, self.height))
-        self._apply_style(fig, ax)
 
-        if isinstance(effects, list):
-            effects = np.array(effects)
+        effects = np.asarray(effects, dtype=float)
+        rows, cols = effects.shape
 
         # Determine color normalization
         if center_zero:
-            vmax = max(abs(effects.min()), abs(effects.max()))
-            vmin = -vmax
-            norm = mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
+            vmax = float(np.nanmax(np.abs(effects))) or 1.0
+            norm = mcolors.TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax)
+            im = ax.imshow(effects, cmap=colormap, aspect='auto', norm=norm, interpolation='nearest')
         else:
-            vmin, vmax = effects.min(), effects.max()
-            norm = None
-
-        im = ax.imshow(
-            effects,
-            cmap=colormap,
-            aspect='auto',
-            norm=norm,
-            vmin=vmin if not center_zero else None,
-            vmax=vmax if not center_zero else None,
-        )
+            im = ax.imshow(effects, cmap=colormap, aspect='auto', interpolation='nearest')
 
         # Colorbar
         cbar = fig.colorbar(
@@ -638,23 +633,70 @@ class PatchingResultExporter(FigureExporter):
             pad=0.02,
         )
         cbar.ax.tick_params(labelsize=self.preset.tick_size)
-        cbar.set_label('Effect Size', fontsize=self.preset.label_size)
+        cbar.set_label(colorbar_label, fontsize=self.preset.label_size)
 
-        # Labels
+        # Labels, thinned so they stay readable
         if layer_labels:
-            ax.set_yticks(range(len(layer_labels)))
-            ax.set_yticklabels(layer_labels)
-        else:
-            ax.set_ylabel('Layer', fontsize=self.preset.label_size)
-
+            step = max(1, rows // 24)
+            ticks = list(range(0, rows, step))
+            ax.set_yticks(ticks)
+            ax.set_yticklabels([layer_labels[i] for i in ticks], fontsize=self.preset.tick_size)
         if position_labels:
-            display_labels = [l[:8] for l in position_labels]
-            ax.set_xticks(range(len(display_labels)))
-            ax.set_xticklabels(display_labels, rotation=45, ha='right')
-        else:
-            ax.set_xlabel('Position', fontsize=self.preset.label_size)
-
+            step = max(1, cols // 32)
+            ticks = list(range(0, cols, step))
+            ax.set_xticks(ticks)
+            ax.set_xticklabels([figure_text(position_labels[i], 10) for i in ticks], rotation=45, ha='right',
+                               fontsize=self.preset.tick_size)
+        ax.set_xlabel(xlabel, fontsize=self.preset.label_size)
+        ax.set_ylabel(ylabel, fontsize=self.preset.label_size)
         ax.set_title(title, fontsize=self.preset.title_size, pad=10)
+
+        fig.tight_layout()
+        return fig
+
+    def create_estimate_scatter(
+        self,
+        estimates: list[float],
+        exact: list[float],
+        errors: Optional[list[float]] = None,
+        title: str = "Attribution vs. activation patching",
+        xlabel: str = "Attribution estimate",
+        ylabel: str = "Exact patching effect",
+        note: Optional[str] = None,
+    ) -> Figure:
+        """
+        Create a scatter of estimated effects against exact ones, with the line where they agree.
+
+        Args:
+            estimates, exact: One value per cell
+            errors: Each exact effect's standard error (drawn as a bar)
+            note: A line under the title (the rank correlation, say)
+
+        Returns:
+            Matplotlib figure
+        """
+        self._apply_style(None, None)
+        fig, ax = plt.subplots(figsize=(self.width, self.height))
+
+        x, y = np.asarray(estimates, dtype=float), np.asarray(exact, dtype=float)
+        low, high = float(min(x.min(), y.min(), 0.0)), float(max(x.max(), y.max(), 0.0))
+        pad = 0.06 * ((high - low) or 1.0)
+        ax.plot([low - pad, high + pad], [low - pad, high + pad], color='#898781', linestyle='--',
+                linewidth=self.preset.linewidth, zorder=1)
+        ax.axhline(0, color='#c9c8c4', linewidth=self.preset.linewidth * 0.75, zorder=0)
+        ax.axvline(0, color='#c9c8c4', linewidth=self.preset.linewidth * 0.75, zorder=0)
+        if errors is not None:
+            ax.errorbar(x, y, yerr=np.asarray(errors, dtype=float), fmt='none', ecolor='#2a78d6', alpha=0.45,
+                        linewidth=self.preset.linewidth, zorder=2)
+        ax.scatter(x, y, s=18, color='#2a78d6', edgecolors='white', linewidths=0.4, zorder=3)
+
+        ax.set_xlim(low - pad, high + pad)
+        ax.set_ylim(low - pad, high + pad)
+        ax.set_xlabel(xlabel, fontsize=self.preset.label_size)
+        ax.set_ylabel(ylabel, fontsize=self.preset.label_size)
+        ax.set_title(title if not note else f"{title}\n{note}", fontsize=self.preset.title_size, pad=10)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
 
         fig.tight_layout()
         return fig
@@ -667,9 +709,12 @@ class PatchingResultExporter(FigureExporter):
         title: str = "Patching Comparison",
         ylabel: str = "Value",
         colors: Optional[list[str]] = None,
+        errors: Optional[list[Optional[float]]] = None,
+        marks: Optional[list[list[float]]] = None,
+        baseline_label: str = "Baseline",
     ) -> Figure:
         """
-        Create bar chart comparing patching results.
+        Create bar chart comparing results.
 
         Args:
             values: Values to compare
@@ -678,25 +723,37 @@ class PatchingResultExporter(FigureExporter):
             title: Figure title
             ylabel: Y-axis label
             colors: Optional custom colors for bars
+            errors: Each bar's standard error (None for none)
+            marks: Per bar, values drawn as ticks over it (each random set's, say)
+            baseline_label: The baseline's legend label
 
         Returns:
             Matplotlib figure
         """
+        self._apply_style(None, None)
         fig, ax = plt.subplots(figsize=(self.width, self.height))
-        self._apply_style(fig, ax)
 
-        x = range(len(values))
-        bar_colors = colors or ['#22d3ee'] * len(values)
+        x = list(range(len(values)))
+        bar_colors = colors or ['#2a78d6'] * len(values)
 
-        bars = ax.bar(x, values, color=bar_colors, alpha=0.8, edgecolor='white')
+        ax.bar(x, values, color=bar_colors, alpha=0.9, edgecolor='white')
+        if errors is not None:
+            shown = [(i, values[i], e) for i, e in enumerate(errors) if e]
+            if shown:
+                ax.errorbar([i for i, _, _ in shown], [v for _, v, _ in shown], yerr=[e for _, _, e in shown],
+                            fmt='none', ecolor='#111111', capsize=3, linewidth=self.preset.linewidth)
+        for i, row in enumerate(marks or []):
+            if row:
+                ax.scatter([i] * len(row), row, marker='_', s=260, color='#111111', linewidths=self.preset.linewidth, zorder=3)
 
+        ax.axhline(0, color='#111111', linewidth=self.preset.linewidth * 0.75)
         if baseline is not None:
-            ax.axhline(y=baseline, color='#ef4444', linestyle='--',
-                       linewidth=self.preset.linewidth * 2, label='Baseline')
-            ax.legend(fontsize=self.preset.tick_size)
+            ax.axhline(y=baseline, color='#898781', linestyle='--',
+                       linewidth=self.preset.linewidth, label=baseline_label)
+            ax.legend(fontsize=self.preset.tick_size, frameon=False)
 
         ax.set_xticks(x)
-        ax.set_xticklabels(labels, rotation=45, ha='right')
+        ax.set_xticklabels(labels, rotation=30 if len(labels) > 4 else 0, ha='right' if len(labels) > 4 else 'center')
         ax.set_ylabel(ylabel, fontsize=self.preset.label_size)
         ax.set_title(title, fontsize=self.preset.title_size, pad=10)
 

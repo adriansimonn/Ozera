@@ -25,13 +25,15 @@ const PHRASES: Record<string, { says: [string, string, string]; prefix: RegExp }
   set_inputs: { says: ['Fill in', 'Filling in', 'Filled in'], prefix: /^Filled / },
   analyze_sae: { says: ['Analyze the text with', 'Analyzing the text with', 'Analyzed the text with'], prefix: /^Analy[sz]ed? · / },
   build_atlas: { says: ['Start an atlas build for', 'Starting an atlas build for', 'Started an atlas build for'], prefix: /^Atlas job( started)? · / },
-  classify_heads: { says: ['Classify the attention heads of', 'Classifying the attention heads of', 'Classified the attention heads of'], prefix: /^(Classify heads|Heads classified) · / },
   compare_probe_sae: { says: ['Compare the probe with', 'Comparing the probe with', 'Compared the probe with'], prefix: /^Probe (\S+ )?vs / },
   explain_feature: { says: ['Explain feature', 'Explaining feature', 'Explained feature'], prefix: /^Explain(ed)? / },
   generate: { says: ['Generate text with', 'Generating text with', 'Generated text with'], prefix: /^Generated? · / },
   generation_test: { says: ['Run a generation test on feature', 'Running a generation test on feature', 'Ran a generation test on feature'], prefix: /^Generation test (· )?/ },
   run_geometry: { says: ['Test the geometry of', 'Testing the geometry of', 'Tested the geometry of'], prefix: /^Geometry · / },
-  run_patching: { says: ['Run activation patching on', 'Running activation patching on', 'Ran activation patching on'], prefix: /^Patch(ing|ed) · / },
+  run_attribution: { says: ['Run an attribution sweep on', 'Running an attribution sweep on', 'Ran an attribution sweep on'], prefix: /^Attribution · / },
+  verify_attribution: { says: ['Patch the sweep’s cells exactly:', 'Patching the sweep’s cells exactly:', 'Patched the sweep’s cells exactly:'], prefix: /^Verif(y|ied) · / },
+  ablate_components: { says: ['Ablate', 'Ablating', 'Ablated'], prefix: /^Ablated? · / },
+  run_patching: { says: ['Generate with patches on', 'Generating with patches on', 'Generated with patches on'], prefix: /^Patch(ing|ed) · / },
   start_autointerp_job: { says: ['Start an autointerp job for', 'Starting an autointerp job for', 'Started an autointerp job for'], prefix: /^(Autointerp job|Job started) · / },
   test_hypothesis: { says: ['Test a hypothesis on feature', 'Testing a hypothesis on feature', 'Tested a hypothesis on feature'], prefix: /^Hypothesis (scored · )?/ },
   train_probe: { says: ['Train probes on', 'Training probes on', 'Trained probes on'], prefix: /^Probes( trained)? · / },
@@ -43,19 +45,17 @@ const PHRASES: Record<string, { says: [string, string, string]; prefix: RegExp }
   compare_geometry: { says: ['Compare geometry runs', 'Comparing geometry runs', 'Compared geometry runs'], prefix: /^Geometry · / },
   steer_geometry: { says: ['Steer the concept from', 'Steering the concept from', 'Steered the concept from'], prefix: /^Steer(ed)? · / },
   geometry_sae: { says: ['Read the concept through', 'Reading the concept through', 'Read the concept through'], prefix: /^Geometry SAE · / },
-  compare_attention: { says: ['Compare attention on', 'Comparing attention on', 'Compared attention on'], prefix: /^Compared? attention · / },
-  mine_patterns: { says: ['Mine attention patterns on', 'Mining attention patterns on', 'Mined attention patterns on'], prefix: /^Mined? patterns · / },
 }
 
 // What an estimate was for (its chip names the action)
 const ACTIONS: Record<string, string> = {
   generate: 'a generation', analyze_sae: 'an SAE analysis', explain_feature: 'a feature explanation',
   test_hypothesis: 'a hypothesis test', generation_test: 'a generation test', start_autointerp_job: 'an autointerp job',
-  build_atlas: 'an atlas', train_probe: 'probe training', run_geometry: 'a geometry run', run_patching: 'a patching run',
-  classify_heads: 'head classification', compare_probe_sae: 'a probe and SAE comparison', save_probe: 'saving a probe',
+  build_atlas: 'an atlas', train_probe: 'probe training', run_geometry: 'a geometry run', run_patching: 'a patched continuation',
+  run_attribution: 'an attribution sweep', verify_attribution: 'exact patching', ablate_components: 'a component ablation',
+  compare_probe_sae: 'a probe and SAE comparison', save_probe: 'saving a probe',
   score_probe: 'probe scoring', steer_probe: 'probe steering', ablate_probe: 'a probe ablation',
   generalize_probes: 'a generalization matrix', steer_geometry: 'concept steering', geometry_sae: 'a concept SAE read',
-  compare_attention: 'an attention comparison', mine_patterns: 'pattern mining',
 }
 
 /** A tool call in words, as [what it does, what on]: "to do" until it runs, then "doing", then "done". */

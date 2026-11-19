@@ -40,13 +40,12 @@ const SUGGESTIONS: Record<string, string[]> = {
   probes: ['Which layer probes best, against the control task?', 'What is selectivity?', 'List my saved probes'],
   geometry: ['Does this concept form a circle at this layer?', 'What does the shuffled baseline mean?', 'Set up months on Gemma 3 270M'],
   generate: ['Explain the top predictions in this generation', 'What does temperature change?', 'Set up a prompt on SmolLM2 135M'],
-  patching: ['What does this result show?', 'Zero-ablate each layer’s MLP on this prompt', 'Patching or mean ablation?'],
-  analysis: ['Find induction heads in Ozera nano', 'What does a previous-token head do?', 'Explain these head types'],
+  attribution: ['Which heads does this sweep point to?', 'Find induction heads in SmolLM2 135M', 'Attribution or exact patching?'],
   other: ['What can I do on this page?', 'What does an atlas cost?', 'Which models can I use?'],
 }
 
 const PAGE_OF_ROUTE: Record<string, string> = {
-  '/generate': 'generate', '/sae': 'sae', '/probes': 'probes', '/geometry': 'geometry', '/patching': 'patching', '/analysis': 'analysis',
+  '/generate': 'generate', '/sae': 'sae', '/probes': 'probes', '/geometry': 'geometry', '/attribution': 'attribution',
 }
 
 const STATUS_TEXT: Partial<Record<ChatTurn['status'], string>> = {

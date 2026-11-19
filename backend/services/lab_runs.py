@@ -1,9 +1,10 @@
 """
-Recent Probe Lab sweeps and Geometry Lab runs, kept in this process's memory per user for a
-while, under the run_id their response carries. Only the browser keeps a run otherwise, so this
-is what lets the assistant save a sweep's probe, compare two geometry runs, or steer and read
-an SAE along a run's concept. Like the patching engine's captures, a restart (or another
-process) forgets them: the tools then ask for the run again.
+Recent Probe Lab sweeps, Geometry Lab runs and Attribution sweeps, kept in this process's
+memory per user for a while, under the run_id their response carries. Only the browser keeps a
+run otherwise, so this is what lets the assistant save a sweep's probe, compare two geometry
+runs, steer and read an SAE along a run's concept, or verify and ablate what an attribution
+sweep found. Like the patching engine's captures, a restart (or another process) forgets them:
+the tools then ask for the run again.
 """
 
 import secrets
@@ -18,7 +19,7 @@ TTL_SECONDS = 3 * 3600
 # Every user's runs together
 MAX_RUNS = 400
 
-KINDS = ("sweep", "geometry")
+KINDS = ("sweep", "geometry", "attribution")
 
 _lock = threading.Lock()
 # (user ID, kind, run ID) -> (time kept, run, extra)

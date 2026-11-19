@@ -1873,6 +1873,134 @@ class _InferenceWorker:
             "hidden_dim": target.hidden_dim,
         }
 
+    def _attribution_result(self, result: dict) -> dict:
+        """An attribution run's result for transport: tensors encoded, attention patterns as raw bytes."""
+        attention = result.pop("attention", None)
+        out = self._serialize_value(result)
+        if attention is not None:
+            out["attention"] = {
+                "pairs": attention["pairs"],
+                "patterns": [{"shape": list(p.shape), "data": p.numpy().tobytes()} for p in attention["patterns"]],
+            }
+        return out
+
+    @modal.method()
+    def attribution_sweep(
+        self,
+        model_id: str,
+        pairs: dict,
+        metric: Optional[str] = None,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        Attribution patching over a set of prompt pairs: a gradient-based estimate of what
+        patching each component from the clean run into the corrupted run would do to the
+        metric (see core.attribution.sweep).
+
+        Two forward passes and one backward pass per pair. The model's parameters are frozen
+        (for good: the workers never train) and gradients are only taken with respect to
+        activations; only effects, attention patterns of the first pairs and token texts
+        come back.
+
+        Args:
+            pairs: {"rows": [{"clean", "corrupted", "correct", "incorrect", "group"}]} or
+                {"induction": {"n", "seed"}} (see core.attribution.pairs.prepare)
+            metric: "logit_diff" or "kl"; None picks logit difference when every pair has answers
+
+        Returns:
+            core.attribution.sweep's result with tensors encoded for transport, plus "hidden_dim"
+
+        Raises:
+            AttributionInputError: the pairs can't be used on this model, or the run is too
+                large for this worker
+        """
+        from core import attribution
+
+        target = self._probe_target(model_id, owner_id, version)
+        with self._probe_lock:
+            with target.lock():
+                result = attribution.sweep(target, self.gpu_tier, model_id, pairs, metric)
+        result["hidden_dim"] = target.hidden_dim
+        return self._attribution_result(result)
+
+    @modal.method()
+    def attribution_verify(
+        self,
+        model_id: str,
+        pairs: dict,
+        cells: list[dict],
+        metric: Optional[str] = None,
+        pairs_key: Optional[str] = None,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        Exact activation patching: the corrupted prompt run with one activation at a time
+        replaced by the clean run's, over the pairs each cell applies to (see
+        core.attribution.patching). Forward passes only.
+
+        Args:
+            pairs, metric: As attribution_sweep's
+            cells: [{"kind", "layer", "head", "position", "pair", "cls"}] to patch
+            pairs_key: The sweep's, to check these are the same pairs
+
+        Returns:
+            core.attribution.verify's result, plus "num_layers" and "num_heads"
+
+        Raises:
+            AttributionInputError: the pairs or cells can't be used, or the run is too large
+        """
+        from core import attribution
+
+        target = self._probe_target(model_id, owner_id, version)
+        with self._probe_lock:
+            with target.lock():
+                result = attribution.verify(target, self.gpu_tier, model_id, pairs, cells, metric, expected_key=pairs_key)
+        result.update(num_layers=len(target.layers), num_heads=target.num_heads)
+        return result
+
+    @modal.method()
+    def attribution_ablate(
+        self,
+        model_id: str,
+        pairs: dict,
+        components: list[dict],
+        methods: list[str],
+        metric: Optional[str] = None,
+        seed: int = 0,
+        pairs_key: Optional[str] = None,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        Ablate chosen components on the clean prompts (zero, mean over the pair set, or
+        resampled from the corrupted prompt), next to random sets of as many components (see
+        core.attribution.ablation). Forward passes only.
+
+        Args:
+            pairs, metric, pairs_key: As attribution_verify's
+            components: [{"kind": "head" | "attn" | "mlp", "layer", "head"}], ablated together
+            methods: Among "zero", "mean", "resample"
+            seed: Seed of the random sets
+
+        Returns:
+            core.attribution.ablate's result, plus "num_layers" and "num_heads"
+
+        Raises:
+            AttributionInputError: the pairs or components can't be used, or the run is too large
+        """
+        from core import attribution
+
+        target = self._probe_target(model_id, owner_id, version)
+        with self._probe_lock:
+            with target.lock():
+                result = attribution.ablate(
+                    target, self.gpu_tier, model_id, pairs, components, methods, metric, seed=seed, expected_key=pairs_key,
+                )
+        result.update(num_layers=len(target.layers), num_heads=target.num_heads)
+        return result
+
 
 @app.cls(
     image=inference_image,

@@ -187,6 +187,26 @@ def create_direction_ablation_hook(
     return hook
 
 
+def create_masked_replacement_hook(source: torch.Tensor, mask: torch.Tensor) -> Callable:
+    """
+    Create a forward hook that replaces a module's output where a mask says so, row by row.
+
+    Unlike create_replacement_hook, every row of the batch can be patched at its own positions
+    and dimensions, so one forward pass can run many different patches (and with a source of
+    zeros or of means, ablations). For whole sequences only (no KV cache).
+
+    Args:
+        source: [batch, seq, width] the values to write
+        mask: Broadcastable to [batch, seq, width], True where source replaces the output
+    """
+    def hook(module, args, output):
+        tensor, rest = _split_output(output)
+        patched = torch.where(mask.to(tensor.device), source.to(tensor.device, tensor.dtype), tensor)
+        return _join_output(patched, rest)
+
+    return hook
+
+
 def _in_chunk(
     source: Optional[torch.Tensor],
     positions: Optional[list[int]],

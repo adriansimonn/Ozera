@@ -32,15 +32,20 @@ import type {
   ModelLayerInfo,
 } from '../types/patching'
 import type {
-  ClassifyHeadsRequest,
-  ClassifyHeadsResponse,
-  CompareAttentionRequest,
-  CompareAttentionResponse,
-  MinePatternRequest,
-  MinePatternResponse,
-  HeadImportanceRequest,
-  HeadImportanceResponse,
-} from '../types/analysis'
+  AblateResponse,
+  AttributionEstimate,
+  AttributionModelInfo,
+  AttributionRun,
+  AttributionTask,
+  AblationMethod,
+  Cell,
+  Component,
+  DataFigureRequest,
+  MetricName,
+  PairSpec,
+  ParsedPairs,
+  VerifyResponse,
+} from '../types/attribution'
 import type {
   AblateProbeRequest,
   AblateProbeResponse,
@@ -174,6 +179,20 @@ function reshapeFlat(flat: Float32Array, shape: number[]): any {
     result.push(reshapeFlat(flat.subarray(i * innerSize, (i + 1) * innerSize), innerShape))
   }
   return result
+}
+
+/**
+ * An attribution sweep as the page keeps it: its tensors as plain nested arrays. Also used for
+ * a sweep an assistant run sends.
+ */
+export function decodeAttributionRun(raw: unknown): AttributionRun {
+  const decoded = decodeTensorData(raw) as Record<string, unknown>
+  const values = (tensor: unknown) =>
+    tensor && typeof tensor === 'object' && 'values' in tensor ? (tensor as { values: unknown }).values : tensor
+  const out: Record<string, unknown> = { ...decoded }
+  for (const key of ['heads', 'heads_se', 'heads_pairs', 'layers', 'layers_se', 'dla']) out[key] = values(decoded[key]) ?? null
+  for (const key of ['position_pairs', 'position_classes']) out[key] = ((decoded[key] as unknown[] | undefined) ?? []).map(values)
+  return out as unknown as AttributionRun
 }
 
 /**
@@ -455,9 +474,6 @@ const GPU_TIMEOUT_MS = 1_215_000
 const SAE_QUICK_TIMEOUT_MS = 45_000
 const SAE_LIST_SOURCES_TIMEOUT_MS = 75_000
 const SAE_TIMEOUT_MS = 615_000
-// Attention analysis runs on the backend's CPU with no limit; it grows with prompt length and
-// model size (about 3s for 150 tokens on a 36-layer, 32-head model)
-const ANALYSIS_TIMEOUT_MS = 300_000
 // Uploads include sending the file (up to 500MB for models, ~670MB of base64 for SAEs)
 const UPLOAD_TIMEOUT_MS = 900_000
 // Starting training reads the dataset's metadata from storage and spawns the job on Modal
@@ -1643,109 +1659,114 @@ class OzeraAPIClient {
     return response.json()
   }
 
-  // ============= Attention Pattern Analysis =============
+  // ============= Attribution =============
 
   /**
-   * Classify attention heads for a captured activation.
-   * Identifies head types: induction, previous token, positional, copying.
-   * Requires authentication and charges credits.
+   * The built-in attribution tasks, each with a few example pairs.
    */
-  async classifyHeads(request: ClassifyHeadsRequest): Promise<ClassifyHeadsResponse> {
-    const response = await fetchWithTimeout(`${this.baseUrl}/analysis/attention/classify-heads`, {
+  async listAttributionTasks(): Promise<AttributionTask[]> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/attribution/tasks`)
+    if (!response.ok) throw await responseError(response, 'Failed to load tasks')
+    return response.json()
+  }
+
+  /**
+   * Models attribution runs on, with their layers and heads.
+   */
+  async getAttributionModels(): Promise<AttributionModelInfo[]> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/attribution/models`, {
+      headers: getAuthHeaders(),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to load models')
+    return response.json()
+  }
+
+  /**
+   * Read an uploaded CSV/TSV/JSONL file into prompt pairs (nothing is stored).
+   */
+  async parseAttributionPairs(file: File): Promise<ParsedPairs> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await fetchWithTimeout(`${this.baseUrl}/attribution/tasks/parse`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+      headers: getAuthHeaders(),
+      body: formData,
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to read the file')
+    return response.json()
+  }
+
+  /**
+   * Estimate an attribution run's cost: a sweep, exact patching of cells, or an ablation.
+   */
+  async estimateAttribution(request: {
+    kind: 'sweep' | 'verify' | 'ablate'
+    model: string
+    pairs: PairSpec
+    cells?: Cell[]
+    methods?: AblationMethod[]
+  }): Promise<AttributionEstimate> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/attribution/estimate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify(request),
-    }, ANALYSIS_TIMEOUT_MS)
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to estimate the run')
+    return response.json()
+  }
 
-    if (!response.ok) {
-      const error = await response.json()
-      if (response.status === 402 || error.detail === 'INSUFFICIENT_CREDITS') {
-        throw new Error('INSUFFICIENT_CREDITS')
-      }
-      throw new Error(error.detail || `Failed to classify heads: ${response.statusText}`)
-    }
+  /**
+   * Attribution patching over a pair set (one GPU call; charged).
+   */
+  async runAttribution(request: { model: string; pairs: PairSpec; metric?: MetricName | null }): Promise<AttributionRun> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/attribution/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'The sweep failed')
+    notifyCreditsChanged()
+    return decodeAttributionRun(await response.json())
+  }
 
+  /**
+   * Exact activation patching of cells (one GPU call; charged).
+   */
+  async verifyAttribution(request: {
+    model: string
+    pairs: PairSpec
+    metric?: MetricName | null
+    cells: Cell[]
+    pairs_key?: string
+  }): Promise<VerifyResponse> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/attribution/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Patching failed')
     notifyCreditsChanged()
     return response.json()
   }
 
   /**
-   * Compare attention patterns between two captured activations.
-   * Requires authentication and charges credits.
+   * Ablate components against random sets of as many (one GPU call; charged).
    */
-  async compareAttention(request: CompareAttentionRequest): Promise<CompareAttentionResponse> {
-    const response = await fetchWithTimeout(`${this.baseUrl}/analysis/attention/compare`, {
+  async ablateComponents(request: {
+    model: string
+    pairs: PairSpec
+    metric?: MetricName | null
+    components: Component[]
+    methods: AblationMethod[]
+    seed?: number
+    pairs_key?: string
+  }): Promise<AblateResponse> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/attribution/ablate`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify(request),
-    }, ANALYSIS_TIMEOUT_MS)
-
-    if (!response.ok) {
-      const error = await response.json()
-      if (response.status === 402 || error.detail === 'INSUFFICIENT_CREDITS') {
-        throw new Error('INSUFFICIENT_CREDITS')
-      }
-      throw new Error(error.detail || `Failed to compare attention: ${response.statusText}`)
-    }
-
-    notifyCreditsChanged()
-    return response.json()
-  }
-
-  /**
-   * Run comprehensive pattern mining on captured activations.
-   * Requires authentication and charges credits.
-   */
-  async minePatterns(request: MinePatternRequest): Promise<MinePatternResponse> {
-    const response = await fetchWithTimeout(`${this.baseUrl}/analysis/attention/mine-patterns`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(request),
-    }, ANALYSIS_TIMEOUT_MS)
-
-    if (!response.ok) {
-      const error = await response.json()
-      if (response.status === 402 || error.detail === 'INSUFFICIENT_CREDITS') {
-        throw new Error('INSUFFICIENT_CREDITS')
-      }
-      throw new Error(error.detail || `Failed to mine patterns: ${response.statusText}`)
-    }
-
-    notifyCreditsChanged()
-    return response.json()
-  }
-
-  /**
-   * Get importance scores for attention heads.
-   * Requires authentication and charges credits.
-   */
-  async getHeadImportance(request: HeadImportanceRequest): Promise<HeadImportanceResponse> {
-    const response = await fetchWithTimeout(`${this.baseUrl}/analysis/attention/head-importance`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(request),
-    }, ANALYSIS_TIMEOUT_MS)
-
-    if (!response.ok) {
-      const error = await response.json()
-      if (response.status === 402 || error.detail === 'INSUFFICIENT_CREDITS') {
-        throw new Error('INSUFFICIENT_CREDITS')
-      }
-      throw new Error(error.detail || `Failed to get head importance: ${response.statusText}`)
-    }
-
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'The ablation failed')
     notifyCreditsChanged()
     return response.json()
   }
@@ -1850,6 +1871,20 @@ class OzeraAPIClient {
       throw new Error(error.detail || `Failed to export logit attribution: ${response.statusText}`)
     }
 
+    return response.blob()
+  }
+
+  /**
+   * Export a chart's data as a publication-ready figure (the Attribution page's charts).
+   * Returns the file as a Blob for download.
+   */
+  async exportDataFigure(request: DataFigureRequest): Promise<Blob> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/export/figure`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to export the figure')
     return response.blob()
   }
 

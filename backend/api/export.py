@@ -1,8 +1,8 @@
 """
 Export API endpoints for paper-ready figure generation.
 
-Provides endpoints for exporting attention heatmaps, the logit lens and logit attribution
-in publication-quality formats (PNG, PDF, SVG).
+Provides endpoints for exporting attention heatmaps, the logit lens, logit attribution and
+the Attribution page's charts in publication-quality formats (PNG, PDF, SVG).
 """
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -18,6 +18,7 @@ from core.export import (
     AttentionHeatmapExporter,
     LogitAttributionExporter,
     LogitLensExporter,
+    PatchingResultExporter,
     PUBLICATION_PRESETS,
 )
 from core.patching import get_patching_engine
@@ -90,6 +91,44 @@ class LogitAttributionRequest(BaseModel):
     position: int = Field(..., ge=0, description="Position whose next-token logit is attributed")
     config: ExportConfig = Field(default_factory=ExportConfig)
     title: Optional[str] = Field(default=None, description="Custom title")
+
+
+# A chart's data, sent by the page that shows it (the Attribution page keeps its results in
+# the browser, so there's nothing stored here to draw from)
+MAX_FIGURE_ROWS = 400
+MAX_FIGURE_COLUMNS = 400
+MAX_FIGURE_POINTS = 6000
+MAX_FIGURE_BARS = 24
+
+
+class FigureBar(BaseModel):
+    label: str = Field(..., max_length=80)
+    value: float
+    error: Optional[float] = None
+    marks: list[float] = Field(default_factory=list, max_length=32, description="Values drawn as ticks over the bar")
+
+
+class DataFigureRequest(BaseModel):
+    """A heatmap, a scatter of estimates against exact effects, or a bar chart, from the data given."""
+    kind: Literal["heatmap", "scatter", "bars"]
+    config: ExportConfig = Field(default_factory=ExportConfig)
+    title: str = Field(default="", max_length=200)
+    x_label: str = Field(default="", max_length=80)
+    y_label: str = Field(default="", max_length=80)
+    value_label: str = Field(default="Effect", max_length=80, description="heatmap: the colorbar's title")
+    # heatmap
+    values: Optional[list[list[float]]] = Field(default=None, max_length=MAX_FIGURE_ROWS)
+    row_labels: Optional[list[str]] = Field(default=None, max_length=MAX_FIGURE_ROWS)
+    column_labels: Optional[list[str]] = Field(default=None, max_length=MAX_FIGURE_COLUMNS)
+    # scatter
+    x: Optional[list[float]] = Field(default=None, max_length=MAX_FIGURE_POINTS)
+    y: Optional[list[float]] = Field(default=None, max_length=MAX_FIGURE_POINTS)
+    errors: Optional[list[float]] = Field(default=None, max_length=MAX_FIGURE_POINTS)
+    note: Optional[str] = Field(default=None, max_length=120)
+    # bars
+    bars: Optional[list[FigureBar]] = Field(default=None, max_length=MAX_FIGURE_BARS)
+    baseline: Optional[float] = None
+    baseline_label: str = Field(default="Baseline", max_length=80)
 
 
 class BatchExportRequest(BaseModel):
@@ -443,6 +482,77 @@ async def export_logit_attribution(
         content=image_bytes,
         media_type=MEDIA_TYPES[request.config.format],
         headers={"Content-Disposition": f"attachment; filename=logit_attribution_{position}.{request.config.format}"},
+    )
+
+
+@router.post("/figure")
+async def export_data_figure(
+    request: DataFigureRequest,
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """
+    Export a chart of the Attribution page as a publication-ready figure, from the data the
+    page sends: a layer × position or layer × head heatmap of effects, a scatter of
+    attribution estimates against exact patching effects, or bars of ablated metrics.
+
+    Returns:
+        Image file in requested format
+    """
+    exporter = PatchingResultExporter(
+        preset=request.config.preset,
+        width=request.config.width,
+        height=request.config.height,
+        dpi=request.config.dpi,
+    )
+    if request.kind == "heatmap":
+        values = request.values or []
+        if not values or not values[0] or any(len(row) != len(values[0]) for row in values) or len(values[0]) > MAX_FIGURE_COLUMNS:
+            raise HTTPException(status_code=400, detail="A heatmap needs rows of equal length")
+        for labels, count in ((request.row_labels, len(values)), (request.column_labels, len(values[0]))):
+            if labels is not None and len(labels) != count:
+                raise HTTPException(status_code=400, detail="A heatmap's labels don't match its size")
+        fig = exporter.create_effect_heatmap(
+            effects=np.asarray(values, dtype=float),
+            layer_labels=request.row_labels,
+            position_labels=request.column_labels,
+            title=request.title or "Effects",
+            xlabel=request.x_label or "Position",
+            ylabel=request.y_label or "Layer",
+            colorbar_label=request.value_label,
+        )
+    elif request.kind == "scatter":
+        if not request.x or not request.y or len(request.x) != len(request.y) or (
+            request.errors is not None and len(request.errors) != len(request.x)
+        ):
+            raise HTTPException(status_code=400, detail="A scatter needs as many x values as y values")
+        fig = exporter.create_estimate_scatter(
+            estimates=request.x,
+            exact=request.y,
+            errors=request.errors,
+            title=request.title or "Attribution vs. activation patching",
+            xlabel=request.x_label or "Attribution estimate",
+            ylabel=request.y_label or "Exact patching effect",
+            note=request.note,
+        )
+    else:
+        if not request.bars:
+            raise HTTPException(status_code=400, detail="A bar chart needs bars")
+        fig = exporter.create_comparison_bar(
+            values=[bar.value for bar in request.bars],
+            labels=[bar.label for bar in request.bars],
+            errors=[bar.error for bar in request.bars],
+            marks=[bar.marks for bar in request.bars],
+            baseline=request.baseline,
+            baseline_label=request.baseline_label,
+            title=request.title or "Ablation",
+            ylabel=request.y_label or "Metric",
+        )
+    image_bytes = exporter.export(fig, format=request.config.format, transparent=request.config.transparent)
+
+    return Response(
+        content=image_bytes,
+        media_type=MEDIA_TYPES[request.config.format],
+        headers={"Content-Disposition": f"attachment; filename=attribution_{request.kind}.{request.config.format}"},
     )
 
 

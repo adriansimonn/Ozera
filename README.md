@@ -13,8 +13,7 @@ Ozera lets you run interpretability experiments on a language model from the bro
 ### Instruments
 
 - **Generate:** Stream a completion with temperature, top-k and top-p controls, then open it up: the top predictions at each position, attention heatmaps, a logit lens over every layer, and logit attribution by layer and head. A saved probe can score each token as it is generated.
-- **Activation Patching:** Copy activations from one prompt into another at any layer, head or position, or ablate them (zero, mean, noise), and compare what the model generates with and without the intervention.
-- **Attention Analysis:** Classify every attention head (induction, previous-token, positional, copying and more), compare attention across two prompts, and mine patterns across layers.
+- **Attribution:** Find which heads and layers a behaviour runs through. Over a set of prompt pairs (a clean prompt and a minimally changed one that flips the answer), attribution patching estimates every component's effect in one pass, exact activation patching verifies the cells that matter, and ablations (zero, mean, resample) are compared with random components. Built-in tasks (indirect object, induction, agreement, capitals) or your own pairs. You can also generate with patches applied and compare the two texts.
 - **SAE Analysis:** See which features fire on each token of a text, browse an SAE's features with corpus statistics and top contexts, check reconstruction quality, and compare two SAEs or layers. Load SAEs from HuggingFace or Gemma Scope, or upload your own.
 - **Probe Lab:** Fit linear probes at every layer of the residual stream, with shuffled-label controls. Then score text token by token, test generalization across datasets and between base and instruct models, steer with the probe's direction, ablate it, or compare it with SAE features.
 - **Geometry Lab:** Find the shape a concept (days, months, numbers, or your own) takes in the residual stream, test it against circle, line and cluster hypotheses, steer the model along it, and see how an SAE breaks it up. The atlas reads a corpus through an SAE and groups its features into communities.
@@ -67,8 +66,8 @@ ozera/
 │   │   ├── training/     # Training loop, optimizer, data pipeline
 │   │   ├── tokenizer/    # BPE tokenizer
 │   │   ├── open_source/  # SmolLM, Gemma, Qwen loaders with activation hooks
-│   │   ├── patching/     # Activation patching engine
-│   │   ├── analysis/     # Head classification, pattern mining
+│   │   ├── patching/     # Patched generation engine and intervention hooks
+│   │   ├── attribution/  # Attribution patching, exact patching, ablation over prompt pairs
 │   │   ├── sae/          # Sparse autoencoders: training, analysis, external loaders
 │   │   ├── probes/       # Linear probes: sweeps, steering, ablation, transfer
 │   │   ├── geometry/     # Concept shapes, manifold steering, feature atlas
@@ -85,7 +84,7 @@ ozera/
 ├── frontend/
     └── src/
         ├── pages/        # Home, Generate, Custom Models, Patching, Analysis, SAE, Probe Lab, Geometry Lab, Settings, Auth
-        ├── components/   # Per feature: visualization, patching, analysis, sae, autointerp, probes, geometry, assistant, training, payments
+        ├── components/   # Per feature: visualization, attribution, patching, sae, autointerp, probes, geometry, assistant, training, payments
         ├── hooks/        # Data and state hooks per feature
         ├── stores/       # Auth, settings, and assistant state (Zustand)
         └── api/          # API client

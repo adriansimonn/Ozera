@@ -1,6 +1,6 @@
 /**
  * The homepage, at "/" for everyone: a signed-in visitor gets their account in the nav.
- * Four sections: the hero, the seven instruments, what the app offers around them, and the models.
+ * Four sections: the hero, the six instruments, what the app offers around them, and the models.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
@@ -26,14 +26,9 @@ const TOOLS = [
     blurb: 'Stream a completion, then open it up: predictions, attention, logit lens, logit attribution.',
   },
   {
-    name: 'Activation Patching',
-    path: '/patching',
-    blurb: 'Patch in activations from another prompt, or ablate them, at any layer, head or position, and compare what the model predicts.',
-  },
-  {
-    name: 'Attention Analysis',
-    path: '/analysis',
-    blurb: 'Every head classified (induction, copying, positional) and compared across prompts.',
+    name: 'Attribution',
+    path: '/attribution',
+    blurb: 'Find the heads and layers a behaviour runs through: attribution patching over prompt pairs, checked by exact patching and ablation.',
   },
   {
     name: 'SAE Analysis',
@@ -241,7 +236,7 @@ export default function HomePage() {
 
       <section className="ozh-tools" ref={toolsRef}>
         <div className="ozh-head" data-reveal>
-          <h2 className="ozh-title">Seven instruments.</h2>
+          <h2 className="ozh-title">Six instruments.</h2>
         </div>
 
         <div className="ozh-tools__body">

@@ -13,11 +13,13 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+from core.attribution.budget import MAX_PAIRS, AttributionInputError
+from core.attribution.tasks import TASKS, normalize_rows
 from core.geometry.concepts import builtin_concepts
 from core.probes.datasets import builtin_datasets
 
 
-# Activation Patching's patch points and interventions (api/schemas/patching.py's PatchSpec)
+# The continuation view's patch points and interventions (api/schemas/patching.py's PatchSpec)
 PATCH_TYPES = ("attention", "mlp", "residual", "attn_output", "ff_output", "post_attn", "post_ff")
 INTERVENTIONS = ("patch", "zero_ablate", "mean_ablate", "noise_ablate")
 # Patches a page or a run may set at most
@@ -30,7 +32,8 @@ class Control:
     label: str
     # text, number, select, toggle, sae (an SAE key, see sae_key), patches (a JSON array of
     # patches, see check_patches), rows (a JSON array of labeled examples, see check_rows),
-    # labels (two names, comma-separated), or action (highlight only)
+    # pairs (a JSON array of prompt pairs, see check_pairs), labels (two names,
+    # comma-separated), or action (highlight only)
     kind: str
     note: str = ""
     options: tuple[str, ...] = ()
@@ -81,22 +84,29 @@ PAGES: dict[str, Page] = {
         Control("generate_button", "Generate", "action", "reads Generate + Visualize in visualize mode"),
     )),
     "training": Page("training", "/training", "Custom Models", False),
-    "patching": Page("patching", "/patching", "Activation Patching", True, (
+    "attribution": Page("attribution", "/attribution", "Attribution", True, (
+        Control("view", "View", "select", options=("sweep", "verify", "heads", "ablate", "continuation")),
         Control("model", "Model", "text", "a model ID from list_models"),
-        Control("source_prompt", "Source prompt", "text", "activations are copied from it (patch interventions)"),
-        Control("target_prompt", "Target prompt", "text", "generation runs on it"),
-        Control("patches", "Patches", "patches", "a JSON array of {layer, patch_type, intervention_type, positions, heads, blend_factor}; replaces the page's patches"),
-        Control("max_tokens", "Max tokens", "number", minimum=1, maximum=100, integer=True),
-        Control("temperature", "Temperature", "number", minimum=0, maximum=2),
-        Control("run_button", "Run Experiment", "action"),
-    )),
-    "analysis": Page("analysis", "/analysis", "Attention Analysis", True, (
-        Control("mode", "Mode", "select", options=("classify", "compare", "mine")),
-        Control("model", "Model", "text", "a model ID from list_models"),
-        Control("prompt", "Capture prompt", "text"),
-        Control("activation", "Captured activations", "text", "a capture's ID from the page state; selects it"),
-        Control("capture_button", "Capture", "action"),
-        Control("run_button", "Run analysis", "action", "reads Classify Heads, Compare Patterns or Mine Patterns, by mode"),
+        Control("task", "Task", "select", "a built-in task", tuple(TASKS)),
+        Control("pairs", "Pairs", "number", "how many pairs of the built-in task", minimum=1, maximum=MAX_PAIRS, integer=True),
+        Control("rows", "Your pairs", "pairs", "your own pairs instead of a built-in task: a JSON array of {clean, corrupted, correct, incorrect}"),
+        Control("seed", "Seed", "number", "which pairs of the built-in task", minimum=0, integer=True),
+        Control("metric", "Metric", "select", "logit difference (pairs with answers) or KL from the clean run", ("logit_diff", "kl")),
+        Control("run_button", "Run sweep", "action"),
+        Control("sites", "Show", "select", "sweep view: the activation its layer × position map shows", ("resid", "attn", "mlp")),
+        Control("scope", "Positions of", "text", "sweep view: mean (the largest group of pairs whose tokens line up) or a pair's number, from 1"),
+        Control("verify_cells", "Cells", "select", "verify view: the sweep's top heads and layers, the top cells of its position map, every head, or one pair's residual stream", ("top", "positions", "heads", "resid")),
+        Control("verify_count", "Top", "select", "verify view: how many of the top cells", ("10", "20", "40")),
+        Control("verify_button", "Verify", "action"),
+        Control("head", "Head", "text", "heads view: layer.head, e.g. 9.6"),
+        Control("components", "Components", "text", "ablate view: comma-separated, a head as layer.head, a layer's attention as a<layer>, its MLP as m<layer> (e.g. 9.6, 9.9, m10)"),
+        Control("ablate_button", "Run ablation", "action"),
+        Control("source_prompt", "Source prompt", "text", "continuation view: activations are copied from it (patch interventions)"),
+        Control("target_prompt", "Target prompt", "text", "continuation view: generation runs on it"),
+        Control("patches", "Patches", "patches", "continuation view: a JSON array of {layer, patch_type, intervention_type, positions, heads, blend_factor}; replaces the view's patches"),
+        Control("max_tokens", "Max tokens", "number", "continuation view", minimum=1, maximum=100, integer=True),
+        Control("temperature", "Temperature", "number", "continuation view", minimum=0, maximum=2),
+        Control("patch_button", "Run Experiment", "action", "continuation view"),
     )),
     "sae": Page("sae", "/sae", "SAE Analysis", True, (
         Control("mode", "View", "select", options=("analyze", "browse", "dashboard", "compare", "autointerp", "load")),
@@ -310,6 +320,24 @@ def check_rows(value) -> tuple[Optional[list], Optional[str]]:
     return rows, None
 
 
+def check_pairs(value) -> tuple[Optional[list], Optional[str]]:
+    """Prompt pairs (a list, or JSON text of one) as the Attribution page takes them: (pairs, None), or (None, why not)."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return None, "rows is a JSON array of {clean, corrupted, correct, incorrect}"
+    if not isinstance(value, list) or not value or not all(isinstance(row, dict) for row in value):
+        return None, "rows is a non-empty array of {clean, corrupted, correct, incorrect}"
+    if len(value) > MAX_PAIRS:
+        return None, f"At most {MAX_PAIRS} pairs"
+    try:
+        # "" is no answer, as the tools' schemas write an optional text
+        return normalize_rows([{key: (v if v != "" else None) for key, v in row.items()} for row in value]), None
+    except AttributionInputError as e:
+        return None, str(e)
+
+
 def check_labels(value) -> tuple[Optional[list], Optional[str]]:
     """Two label names (a list, or text with a comma between them): (names, None), or (None, why not)."""
     names = value if isinstance(value, list) else str(value).split(",")
@@ -332,6 +360,8 @@ def check_value(control: Control, value: str) -> tuple[Optional[object], Optiona
         return check_patches(text)
     if control.kind == "rows":
         return check_rows(text)
+    if control.kind == "pairs":
+        return check_pairs(text)
     if control.kind == "labels":
         return check_labels(text)
     if control.kind == "toggle":

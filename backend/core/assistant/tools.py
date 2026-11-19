@@ -37,18 +37,17 @@ MAX_STRICT_TOOLS = 8
 
 # Runs estimate prices: every run tool (a test checks it's RUN_TOOLS)
 ESTIMATE_ACTIONS = (
+    "ablate_components",
     "ablate_probe",
     "analyze_sae",
     "build_atlas",
-    "classify_heads",
-    "compare_attention",
     "compare_probe_sae",
     "explain_feature",
     "generalize_probes",
     "generate",
     "generation_test",
     "geometry_sae",
-    "mine_patterns",
+    "run_attribution",
     "run_geometry",
     "run_patching",
     "save_probe",
@@ -58,6 +57,7 @@ ESTIMATE_ACTIONS = (
     "steer_probe",
     "test_hypothesis",
     "train_probe",
+    "verify_attribution",
 )
 
 
@@ -157,6 +157,12 @@ FEATURE = _integer("The feature's index")
 PROBE_ID = _integer("A saved probe's ID (list_probes gives them; save_probe saves one from a sweep)")
 BRIDGED = tuple(p for p in PAGE_IDS if PAGES[p].bridged)
 
+# core.attribution.tasks.TASKS and core.attribution.budget.ABLATION_METHODS (a test checks they match)
+ATTRIBUTION_TASKS = ("ioi", "induction", "agreement", "capitals")
+ATTRIBUTION_METRICS = ("auto", "logit_diff", "kl")
+ABLATION_METHODS = ("zero", "mean", "resample")
+COMPONENT_KINDS = ("head", "attn", "mlp")
+ATTRIBUTION_RUN = _string("An Attribution sweep's run_id (run_attribution's result, or the Attribution page's state)")
 GEOMETRY_READS = ("value_last", "value_mean", "template_last")
 STRUCTURES = ("cyclic", "ordinal", "categorical")
 ATLAS_TOKENS = (1_000_000, 2_000_000, 5_000_000)
@@ -361,6 +367,32 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
     ),
     # Run tools (charged; each stops the turn for the user's approval)
     Tool(
+        "ablate_components", RUN,
+        "Attribution ablate view: ablate heads and whole attention or MLP layers together on a sweep's clean "
+        "prompts (zeroed, set to their mean over the pair set, or resampled from each pair's corrupted prompt), "
+        "next to random sets of as many components. The metric is on the sweep's scale: 1 is the clean run, 0 "
+        "the corrupted one. Opens in the Attribution page's ablate view." + RUN_NOTE,
+        {
+            "run_id": ATTRIBUTION_RUN,
+            "components": {
+                "type": "array",
+                "description": "1 to 64 components, ablated together",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "kind": _enum(COMPONENT_KINDS, "head, or a layer's whole attention (attn) or MLP (mlp) output"),
+                        "layer": _integer("Layer index (0-based)"),
+                        "head": _integer("The head, for a head; -1 otherwise"),
+                    },
+                    "required": ["kind", "layer", "head"],
+                    "additionalProperties": False,
+                },
+            },
+            "methods": {"type": "array", "items": _enum(ABLATION_METHODS), "description": "Ways to ablate; [] for all three"},
+        },
+        lambda a: f"Ablate · {len(a.get('components') or [])} components",
+    ),
+    Tool(
         "ablate_probe", RUN,
         "Probe Lab ablate view: project a saved probe's direction out of the residual stream everywhere (and "
         "control directions removing as much), then measure how far next-token predictions move (KL) and "
@@ -391,28 +423,6 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
          "corpus": _enum(ATLAS_CORPORA, "openwebtext (the default, web text), wikitext (Wikipedia) or tinystories (simple stories)"),
          "tokens": _integer("Corpus tokens to read: 1000000, 2000000 or 5000000")},
         lambda a: f"Atlas job · {_sae_chip(a)}",
-    ),
-    Tool(
-        "classify_heads", RUN,
-        "Attention Analysis: capture a prompt's activations on a model, then classify every attention "
-        "head (induction, previous-token, positional, copying), as the Attention Analysis page does. "
-        "activation_id reuses one of the page's captures instead (give \"\" to capture the prompt; the "
-        "page state lists them). The full result opens on that page." + RUN_NOTE,
-        {"model": MODEL, "prompt": _string("The prompt to capture, or \"\" with an activation_id"),
-         "activation_id": _string("A capture's ID from the Attention Analysis page, or \"\"")},
-        lambda a: f"Classify heads · {a.get('model', '')}",
-    ),
-    Tool(
-        "compare_attention", RUN,
-        "Attention Analysis compare mode: how two prompts' attention patterns differ on one model, layer by "
-        "layer and head by head. Each side captures its prompt, or reuses a capture by activation ID (give "
-        "\"\" for the other). The full result opens on that page." + RUN_NOTE,
-        {"model": MODEL,
-         "prompt_1": _string("The first prompt, or \"\" with activation_id_1"),
-         "activation_id_1": _string("A capture's ID, or \"\""),
-         "prompt_2": _string("The second prompt, or \"\" with activation_id_2"),
-         "activation_id_2": _string("A capture's ID, or \"\"")},
-        lambda a: f"Compare attention · {a.get('model', '')}",
     ),
     Tool(
         "compare_probe_sae", RUN,
@@ -498,13 +508,37 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
         lambda a: f"Geometry SAE · {_sae_chip(a)}",
     ),
     Tool(
-        "mine_patterns", RUN,
-        "Attention Analysis mine mode: head importance, cross-layer patterns and circuit candidates over a "
-        "prompt's attention, captured (or a capture reused by activation ID). The full result opens on that "
-        "page." + RUN_NOTE,
-        {"model": MODEL, "prompt": _string("The prompt to capture, or \"\" with an activation_id"),
-         "activation_id": _string("A capture's ID, or \"\"")},
-        lambda a: f"Mine patterns · {a.get('model', '')}",
+        "run_attribution", RUN,
+        "Attribution sweep: attribution patching over prompt pairs (a clean prompt and a corrupted one that "
+        "changes the answer), built-in or your own. From two forward passes and one backward pass per pair it "
+        "estimates what patching each component from the clean run into the corrupted run would do to the "
+        "metric: every head, and each layer's residual stream, attention and MLP output by position. The "
+        "estimates are first-order: verify_attribution measures cells exactly. Its result has a run_id for "
+        "verify_attribution and ablate_components. The full result opens on the Attribution page." + RUN_NOTE,
+        {
+            "model": MODEL,
+            "task": _enum(("",) + ATTRIBUTION_TASKS, "A built-in task (see the guide), or \"\" with rows"),
+            "pairs": _integer("Pairs of the built-in task, 1 to 200 (40 is usual); 0 with rows"),
+            "rows": {
+                "type": "array",
+                "description": "Your own pairs instead of a built-in task ([] for one): at most 200. A pair's prompts must "
+                               "have the same number of tokens, so change as few words as you can",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "clean": _string("The prompt the model should answer with correct"),
+                        "corrupted": _string("The same prompt changed so the answer becomes incorrect"),
+                        "correct": _string("The clean prompt's next word (e.g. \" Mary\"), or \"\" to measure KL instead"),
+                        "incorrect": _string("The corrupted prompt's next word, or \"\""),
+                    },
+                    "required": ["clean", "corrupted", "correct", "incorrect"],
+                    "additionalProperties": False,
+                },
+            },
+            "seed": _integer("Which pairs of the built-in task (0 by default)"),
+            "metric": _enum(ATTRIBUTION_METRICS, "auto: logit difference when every pair has answers, else KL from the clean run"),
+        },
+        lambda a: f"Attribution · {a.get('task') or 'your pairs'} · {a.get('model', '')}",
     ),
     Tool(
         "run_geometry", RUN,
@@ -523,11 +557,12 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
     ),
     Tool(
         "run_patching", RUN,
-        "Activation Patching: generate from the target prompt with and without the patches, and compare "
-        "the outputs. A patch intervention copies the source prompt's activations at that layer and patch "
-        "point; the ablations (zero_ablate, mean_ablate, noise_ablate) need no source prompt (give \"\"). "
-        "Empty positions or heads mean all; blend_factor 1 replaces fully. The full result opens on the "
-        "Activation Patching page." + RUN_NOTE,
+        "Attribution continuation view: generate from the target prompt with and without the patches, and "
+        "compare the two continuations. A patch intervention copies the source prompt's activations at that "
+        "layer and patch point; the ablations (zero_ablate, mean_ablate, noise_ablate) need no source prompt "
+        "(give \"\"). Empty positions or heads mean all; blend_factor 1 replaces fully. One prompt and no "
+        "metric: for which components matter, run_attribution. The full result opens in the Attribution "
+        "page's continuation view." + RUN_NOTE,
         {
             "model": MODEL,
             "source_prompt": _string("The prompt activations are copied from, or \"\" for ablations only"),
@@ -639,6 +674,19 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
             "seed": _integer("The split's seed (0 by default)"),
         },
         lambda a: f"Probes · {a.get('dataset') or a.get('dataset_name') or 'your rows'} · {a.get('model', '')}",
+    ),
+    Tool(
+        "verify_attribution", RUN,
+        "Attribution verify view: exact activation patching of an Attribution sweep's cells (the corrupted "
+        "prompt run with one activation replaced by the clean run's), next to the sweep's estimates, with their "
+        "rank correlation. top checks the sweep's largest heads and whole attention and MLP layers; heads "
+        "checks every head. Opens in the Attribution page's verify view." + RUN_NOTE,
+        {
+            "run_id": ATTRIBUTION_RUN,
+            "cells": _enum(("top", "heads"), "The sweep's top cells, or every head"),
+            "count": _integer("With top: how many cells, 1 to 64 (20 is usual); 0 with heads"),
+        },
+        lambda a: f"Verify · {a.get('cells', '')}",
     ),
 ), key=lambda t: t.name))
 
