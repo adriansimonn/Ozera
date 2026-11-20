@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import UnifiedPage from './pages/UnifiedPage'
 import TrainingPage from './pages/TrainingPage'
 import AttributionPage from './pages/AttributionPage'
+import CircuitsPage from './pages/CircuitsPage'
 import SAEPage from './pages/SAEPage'
 import ProbesPage from './pages/ProbesPage'
 import GeometryPage from './pages/GeometryPage'
@@ -74,6 +75,7 @@ function AppShell() {
               {/* Activation Patching and Attention Analysis became Attribution */}
               <Route path="/patching" element={<Navigate to="/attribution" replace />} />
               <Route path="/analysis" element={<Navigate to="/attribution" replace />} />
+              <Route path="/circuits" element={<CircuitsPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/sae" element={<SAEPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/probes" element={<ProbesPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/geometry" element={<GeometryPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />

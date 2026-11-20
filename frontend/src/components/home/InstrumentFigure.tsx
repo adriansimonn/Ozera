@@ -1,6 +1,6 @@
 /**
  * The tools section's figure: a grid of glyph tiles that redraws itself as a small diagram of
- * whichever instrument is active (a forward pass, a patch, a sparse code, …). Choosing
+ * whichever instrument is active (a forward pass, a patch, a traced circuit, a sparse code, …). Choosing
  * an instrument sweeps across the grid tile by tile and plays its diagram from the beginning.
  */
 
@@ -76,6 +76,35 @@ const patching: Figure = (c, r, time) => {
   return 0
 }
 
+/**
+ * Circuit tracing: from the target at the top, a path is traced back through a few features
+ * at each depth to the tokens at the bottom.
+ */
+const circuit: Figure = (c, r, time) => {
+  if (c < 2 || c > 21 || r < 2 || r > 21) return 0
+  const period = 7
+  const run = Math.floor(time / period)
+  const k = time - run * period
+  // The target, five depths of features, the tokens
+  const rows = [2, 6, 9, 12, 15, 18, 21]
+  // The traced path's column on each of those rows (nodes sit on odd columns)
+  const column = (i: number) => (i === 0 ? 11 : 3 + 2 * Math.floor(hash2(run * 7 + i, 5) * 9))
+  const tracing = k < 3.6
+  const reach = 2 + Math.min(1, k / 3.6) * 19
+  for (let i = 0; i < rows.length - 1; i++) {
+    const top = rows[i]
+    const bottom = rows[i + 1]
+    if (r < top || r > bottom || r > reach) continue
+    const at = Math.round(column(i) + ((column(i + 1) - column(i)) * (r - top)) / (bottom - top))
+    if (c !== at) continue
+    if (tracing && reach - r < 1) return ACCENT
+    return r === top || r === bottom ? ACCENT : 0.8
+  }
+  if (r === 2) return c === 11 ? 0.95 : 0
+  if (r === 21) return c % 2 === 1 ? 0.55 : 0
+  return rows.includes(r) && c % 2 === 1 && hash2(c * 13 + 1, r * 7 + 2) < 0.55 ? 0.3 : 0
+}
+
 /** A sparse autoencoder: a dense band of activations above, a few features firing below. */
 const sparse: Figure = (c, r, time) => {
   if (c < 2 || c > 21) return 0
@@ -134,7 +163,7 @@ const training: Figure = (c, r, time) => {
   return 0.4 - 0.24 * ((r - top) / (21 - top + 1))
 }
 
-const FIGURES: Figure[] = [forwardPass, patching, sparse, probe, circle, training]
+const FIGURES: Figure[] = [forwardPass, patching, circuit, sparse, probe, circle, training]
 
 interface Props {
   /** Index of the figure to draw */

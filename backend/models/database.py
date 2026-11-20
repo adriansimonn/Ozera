@@ -69,6 +69,9 @@ class User(Base):
     atlas_jobs = relationship(
         "AtlasJob", back_populates="user", cascade="all, delete-orphan"
     )
+    circuit_jobs = relationship(
+        "CircuitJob", back_populates="user", cascade="all, delete-orphan"
+    )
     autointerp_jobs = relationship(
         "AutointerpJob", back_populates="user", cascade="all, delete-orphan"
     )
@@ -130,6 +133,8 @@ class TransactionType(PyEnum):
     GEOMETRY_REFUND = "geometry_refund"
     AUTOINTERP_CHARGE = "autointerp_charge"
     AUTOINTERP_REFUND = "autointerp_refund"
+    CIRCUIT_CHARGE = "circuit_charge"
+    CIRCUIT_REFUND = "circuit_refund"
     # The assistant's Claude calls: each call's hold (negative) and what it didn't use (positive)
     ASSISTANT = "assistant"
 
@@ -397,6 +402,44 @@ class AtlasJob(Base):
 
     def __repr__(self):
         return f"<AtlasJob(job_id={self.job_id}, user_id={self.user_id}, status={self.status})>"
+
+
+class CircuitJob(Base):
+    """
+    A Circuit Tracing job: an attribution graph of one prompt and one target token, built from
+    a model's transcoders on the circuits worker (services/modal_circuits.py), charged when
+    submitted.
+
+    The graph is stored on the SAE volume (core.circuits.store), not here, and is its user's
+    alone; this row keeps what the lists show (the target, the scores, the graph's size). A job
+    that fails is refunded all but the GPU time it used.
+    """
+
+    __tablename__ = "circuit_jobs"
+
+    job_id = Column(String(50), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    model_id = Column(String(255), nullable=False)
+    transcoders = Column(String(100), nullable=False)  # A transcoder set's ID (core.circuits.registry)
+    prompt = Column(Text, nullable=False)
+    target = Column(String(200), nullable=True)  # The target as asked for (None: the top prediction)
+    status = Column(String(20), nullable=False, default="queued")  # queued, running, completed, failed
+    cost_usd = Column(Numeric(precision=10, scale=4), nullable=False)
+    refunded_usd = Column(Numeric(precision=10, scale=4), nullable=True)
+    estimated_seconds = Column(Float, nullable=False)
+    modal_call_id = Column(String(100), nullable=True)
+    # A completed job's graph in brief (core.circuits.graph.summary)
+    summary = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    user = relationship("User", back_populates="circuit_jobs")
+
+    def __repr__(self):
+        return f"<CircuitJob(job_id={self.job_id}, user_id={self.user_id}, status={self.status})>"
 
 
 class FeatureExplanation(Base):

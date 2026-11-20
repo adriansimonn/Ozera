@@ -6,7 +6,7 @@ A workbench for interpretability research on language models
 
 ## Overview
 
-Ozera lets you run interpretability experiments on a language model from the browser, with no code to write. You can inspect activations and attention layer by layer, patch and ablate them, read sparse autoencoder (SAE) features, train linear probes, and map the shape a concept takes inside the model. It works on Ozera's own from-scratch models, on popular open-source models, and on models you train or upload. Runs go to serverless GPUs and are paid for with prepaid credits.
+Ozera lets you run interpretability experiments on a language model from the browser, with no code to write. You can inspect activations and attention layer by layer, patch and ablate them, trace circuits through transcoder features, read sparse autoencoder (SAE) features, train linear probes, and map the shape a concept takes inside the model. It works on Ozera's own from-scratch models, on popular open-source models, and on models you train or upload. Runs go to serverless GPUs and are paid for with prepaid credits.
 
 ## Features
 
@@ -14,6 +14,7 @@ Ozera lets you run interpretability experiments on a language model from the bro
 
 - **Generate:** Stream a completion with temperature, top-k and top-p controls, then open it up: the top predictions at each position, attention heatmaps, a logit lens over every layer, and logit attribution by layer and head. A saved probe can score each token as it is generated.
 - **Attribution:** Find which heads and layers a behaviour runs through. Over a set of prompt pairs (a clean prompt and a minimally changed one that flips the answer), attribution patching estimates every component's effect in one pass, exact activation patching verifies the cells that matter, and ablations (zero, mean, resample) are compared with random components. Built-in tasks (indirect object, induction, agreement, capitals) or your own pairs. You can also generate with patches applied and compare the two texts.
+- **Circuit Tracing:** See how a model gets to its next word as an attribution graph: the direct effects between the prompt's tokens, the transcoder features active on it, and the target token, with error nodes for what the transcoders miss and scores for how much of the answer the features explain. Then test the graph: ablate or scale its nodes in the model and read the target again, against matched control features. Runs on the models with public transcoders (Gemma 3 270M and 1B, through Gemma Scope 2), with the [circuit-tracer](https://github.com/decoderesearch/circuit-tracer) library.
 - **SAE Analysis:** See which features fire on each token of a text, browse an SAE's features with corpus statistics and top contexts, check reconstruction quality, and compare two SAEs or layers. Load SAEs from HuggingFace or Gemma Scope, or upload your own.
 - **Probe Lab:** Fit linear probes at every layer of the residual stream, with shuffled-label controls. Then score text token by token, test generalization across datasets and between base and instruct models, steer with the probe's direction, ablate it, or compare it with SAE features.
 - **Geometry Lab:** Find the shape a concept (days, months, numbers, or your own) takes in the residual stream, test it against circle, line and cluster hypotheses, steer the model along it, and see how an SAE breaks it up. The atlas reads a corpus through an SAE and groups its features into communities.
@@ -68,6 +69,7 @@ ozera/
 │   │   ├── open_source/  # SmolLM, Gemma, Qwen loaders with activation hooks
 │   │   ├── patching/     # Patched generation engine and intervention hooks
 │   │   ├── attribution/  # Attribution patching, exact patching, ablation over prompt pairs
+│   │   ├── circuits/     # Attribution graphs on transcoders (circuit-tracer) and interventions on them
 │   │   ├── sae/          # Sparse autoencoders: training, analysis, external loaders
 │   │   ├── probes/       # Linear probes: sweeps, steering, ablation, transfer
 │   │   ├── geometry/     # Concept shapes, manifold steering, feature atlas
@@ -83,8 +85,8 @@ ozera/
 │   └── tests/
 ├── frontend/
     └── src/
-        ├── pages/        # Home, Generate, Custom Models, Patching, Analysis, SAE, Probe Lab, Geometry Lab, Settings, Auth
-        ├── components/   # Per feature: visualization, attribution, patching, sae, autointerp, probes, geometry, assistant, training, payments
+        ├── pages/        # Home, Generate, Custom Models, Attribution, Circuit Tracing, SAE, Probe Lab, Geometry Lab, Settings, Auth
+        ├── components/   # Per feature: visualization, attribution, circuits, patching, sae, autointerp, probes, geometry, assistant, training, payments
         ├── hooks/        # Data and state hooks per feature
         ├── stores/       # Auth, settings, and assistant state (Zustand)
         └── api/          # API client
@@ -96,6 +98,6 @@ ozera/
 - **Backend**: Railway (Dockerized FastAPI)
 - **Database**: Supabase (PostgreSQL + auth)
 - **GPU Compute**: Modal (serverless L4 and A10G workers for inference; T4, A10G or A100 for training)
-- **Storage**: Modal Volumes (model weights, SAEs, feature atlases, datasets)
+- **Storage**: Modal Volumes (model weights, SAEs, transcoders, feature atlases, circuit graphs, datasets)
 - **LLM**: Anthropic API (the assistant and autointerp)
 - **Payments**: Stripe

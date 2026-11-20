@@ -49,7 +49,7 @@ In long chats Ozera clears the oldest tool results from what you see; their call
 
 # Runs
 
-- Run tools (generate, analyze_sae, explain_feature, test_hypothesis, generation_test, start_autointerp_job, build_atlas, train_probe, save_probe, score_probe, steer_probe, ablate_probe, generalize_probes, compare_probe_sae, run_geometry, steer_geometry, geometry_sae, run_attribution, verify_attribution, ablate_components, run_patching) spend the user's credits (save_probe is free but adds to the user's saved probes). In manual mode calling one stops your reply on the card, which shows what will run and its price; it runs only if the user allows it. In auto mode it runs at once (the user still sees its price and charge).
+- Run tools (generate, analyze_sae, explain_feature, test_hypothesis, generation_test, start_autointerp_job, build_atlas, train_probe, save_probe, score_probe, steer_probe, ablate_probe, generalize_probes, compare_probe_sae, run_geometry, steer_geometry, geometry_sae, run_attribution, verify_attribution, ablate_components, run_patching, trace_circuit, intervene_circuit) spend the user's credits (save_probe is free but adds to the user's saved probes). In manual mode calling one stops your reply on the card, which shows what will run and its price; it runs only if the user allows it. In auto mode it runs at once (the user still sees its price and charge).
 - A chat can have a hard budget the user set for everything it costs, your replies and runs: the <ozera_note> says what's left. A run that doesn't fit in it isn't run (its result says so), and the turn stops when the budget is used up. Say so plainly; the user can raise it in the panel's settings. Auto mode and the budget don't widen what you may run.
 - Call a run tool only when the user asked for that run, agreed to it, or asked for a task whose steps need it (such as a recipe in the guide). Never run something to answer a question a read tool can answer for free (a stored explanation, an atlas, a stored generation). Run what was asked, once: no extra runs, and don't repeat a run that already returned or that the user skipped unless they ask again.
 - Read what a run needs first (list_models, list_saes, get_feature), so the card is right the first time. Before the call, write at most one short sentence on what it will do; the card shows the price.
@@ -132,10 +132,13 @@ def _price(value: float) -> str:
 def _prices() -> dict[str, str]:
     """Prices the guide quotes, from credit_service (the same functions the pages use)."""
     from core.autointerp.budget import DEFAULT_EXPLAINER, DEFAULT_SCORER
+    from core.circuits.budget import estimate_trace_seconds
+    from core.circuits.registry import TRANSCODERS
     from services.credit_service import (
         MIN_AUTOINTERP_CHARGE,
         MIN_HYPOTHESIS_CHARGE,
         MIN_SAE_CHARGE,
+        calculate_circuit_cost,
         estimate_autointerp_cost,
         estimate_hypothesis_cost,
         min_gpu_request_charge,
@@ -151,8 +154,17 @@ def _prices() -> dict[str, str]:
         "SAE_MINIMUM": _price(MIN_SAE_CHARGE),
         "EXPLAIN_PRICE": _price(max(estimate_autointerp_cost(DEFAULT_EXPLAINER, DEFAULT_SCORER), MIN_AUTOINTERP_CHARGE)),
         "HYPOTHESIS_PRICE": _price(max(estimate_hypothesis_cost(DEFAULT_SCORER), MIN_HYPOTHESIS_CHARGE)),
+        # A short prompt's graph on the first model with transcoders
+        "CIRCUIT_PRICE": _price(calculate_circuit_cost(_first := next(iter(TRANSCODERS)), estimate_trace_seconds(_first, TRANSCODERS[_first][0], 12))),
         "ASSISTANT_PRICES": ", ".join(f"about {_price(turn_estimate(m))} a message on {MODELS[m].name}" for m in MODELS),
     }
+
+
+def _circuit_models_text() -> str:
+    """The models Circuit Tracing reads, each with its transcoder sets' IDs (the default first)."""
+    from core.circuits.registry import TRANSCODERS
+
+    return "; ".join(f"{model_id} ({', '.join(t.id for t in sets)})" for model_id, sets in TRANSCODERS.items())
 
 
 def render_guide() -> str:
@@ -163,6 +175,7 @@ def render_guide() -> str:
         "DATASETS": _datasets_text(),
         "CONCEPTS": _concepts_text(),
         "TASKS": _tasks_text(),
+        "CIRCUIT_MODELS": _circuit_models_text(),
         "CONTROLS": _controls_text(),
     }
     for key, value in values.items():

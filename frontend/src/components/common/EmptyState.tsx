@@ -14,6 +14,8 @@ const GLYPHS = {
   patching: ['#.#.1.#.#', '....2....', '....3....', '#.#.4.#.#'],
   // A causal attention pattern: every token looks back
   attention: ['#......', '##.....', '###....', '####...', '#####..', '######1'],
+  // A graph: the target at the top, features under it, tokens at the bottom
+  circuits: ['......1', '....2.#', '..3..#.', '.#..#..', '#.#.#.#'],
   // A narrow input, a wide and mostly dark code, a narrow output
   sae: ['..###..', '.......', '1...2.3', '.......', '..###..'],
   // Two classes and the line a probe draws between them

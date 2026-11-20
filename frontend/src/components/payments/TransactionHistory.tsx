@@ -53,6 +53,10 @@ function getTransactionIcon(type: Transaction['transaction_type']) {
       return <Sparkles size={16} className="text-warn" />;
     case 'autointerp_refund':
       return <RefreshCcw size={16} className="text-fg" />;
+    case 'circuit_charge':
+      return <Zap size={16} className="text-fg" />;
+    case 'circuit_refund':
+      return <RefreshCcw size={16} className="text-fg" />;
     case 'assistant':
       return <Bot size={16} className="text-sky-400" />;
     default:
@@ -90,6 +94,10 @@ function getTransactionLabel(type: Transaction['transaction_type']) {
       return 'Autointerp';
     case 'autointerp_refund':
       return 'Autointerp Refund';
+    case 'circuit_charge':
+      return 'Circuit Tracing';
+    case 'circuit_refund':
+      return 'Circuit Tracing Refund';
     case 'assistant':
       return 'Assistant';
     default:

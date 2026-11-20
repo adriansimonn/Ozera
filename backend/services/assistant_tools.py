@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from core.assistant.loop import ToolOutcome
 from core.assistant.pages import PAGES, check_value, sae_key, sae_ref
 from db import SessionLocal
-from models.database import AtlasJob, AutointerpJob, Probe, User
+from models.database import AtlasJob, AutointerpJob, CircuitJob, Probe, User
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,9 @@ ACTIVATION_POSITIONS = 64
 TOP_PREDICTIONS = 5
 # The largest direct logit contributions listed per position
 DIRECT_PARTS = 3
+# A circuit graph in brief: its most influential feature nodes, and each one's largest inputs
+CIRCUIT_FEATURES = 15
+CIRCUIT_INPUTS = 3
 
 
 @dataclass
@@ -103,6 +106,8 @@ def _explanation_brief(e: Optional[dict]) -> Optional[dict]:
 async def list_models(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
     from api.probes import list_models as probe_models
 
+    from core.circuits.registry import TRANSCODERS
+
     models = await probe_models(current_user=user, db=db)
     return ToolOutcome({
         "models": [
@@ -110,6 +115,8 @@ async def list_models(db: Session, user: User, ctx: ToolContext, args: dict) -> 
                 "id": m["model_id"], "name": m["display_name"], "type": m["model_type"], "layers": m["num_layers"],
                 "width": m["hidden_dim"], "parameters": m["parameters"], "instruct": m["is_instruct"],
                 "gpu_tier": m["gpu_tier"], "sibling": m["sibling"],
+                # Circuit Tracing reads only models with transcoders
+                **({"transcoders": [t.id for t in TRANSCODERS[m["model_id"]]]} if m["model_id"] in TRANSCODERS else {}),
             }
             for m in models
         ],
@@ -377,6 +384,8 @@ async def list_jobs(db: Session, user: User, ctx: ToolContext, args: dict) -> To
         db.query(AutointerpJob).filter(AutointerpJob.user_id == user.id).order_by(AutointerpJob.created_at.desc()).limit(JOBS_LISTED).all()
     )
 
+    circuits = db.query(CircuitJob).filter(CircuitJob.user_id == user.id).order_by(CircuitJob.created_at.desc()).limit(JOBS_LISTED).all()
+
     def when(value) -> Optional[str]:
         return value.isoformat() if value else None
 
@@ -398,8 +407,81 @@ async def list_jobs(db: Session, user: User, ctx: ToolContext, args: dict) -> To
              "created": when(j.created_at), "finished": when(j.finished_at)}
             for j in autointerp_jobs
         ],
+        "circuits": [
+            {"graph_id": j.job_id, "model": j.model_id, "prompt": _short(j.prompt), "status": j.status, "error": j.error_message,
+             "created": when(j.created_at), "finished": when(j.finished_at)}
+            for j in circuits
+        ],
         "note": "Statuses as last recorded (pages and background checks update them)",
     })
+
+
+def circuit_brief(graph: dict) -> dict:
+    """A stored circuit graph for Claude: its scores and its most influential feature nodes."""
+    nodes = graph["nodes"]
+    edges = graph["edges"]
+    features = sorted(
+        ((i, n) for i, n in enumerate(nodes) if n["kind"] == "feature"), key=lambda item: -item[1]["influence"],
+    )[:CIRCUIT_FEATURES]
+
+    def name(node: dict) -> str:
+        if node["kind"] == "token":
+            return f"token {node.get('token')!r}"
+        return "the target" if node["kind"] == "logit" else node["id"]
+
+    inputs: dict[int, list] = {i: [] for i, _ in features}
+    for source, target, weight in zip(edges["source"], edges["target"], edges["weight"]):
+        if target in inputs and len(inputs[target]) < CIRCUIT_INPUTS:
+            inputs[target].append({"from": name(nodes[source]), "weight": _round(weight)})
+    scores = graph["scores"]
+    return {
+        "graph_id": graph.get("job_id"), "model": graph["model"], "transcoders": graph["transcoders"]["id"],
+        "prompt": graph["prompt"], "tokens": graph["tokens"],
+        "target": {"token": graph["target"]["token"], "prob": _round(graph["target"]["prob"]), "rank": graph["target"]["rank"] + 1,
+                   "logit_above_mean": _round(graph["target"]["logit"])},
+        "top_predictions": [{"token": p["token"], "prob": _round(p["prob"])} for p in graph["predictions"][:TOP_PREDICTIONS]],
+        "replacement_score": _round(scores["replacement"]), "completeness_score": _round(scores["completeness"]),
+        "error_share": _round(1 - scores["replacement"]),
+        "target_inputs": {kind: _round(share) for kind, share in scores["target_inputs"]["absolute"].items()},
+        "feature_nodes": sum(1 for n in nodes if n["kind"] == "feature"), "error_nodes": sum(1 for n in nodes if n["kind"] == "error"),
+        "edges": len(edges["source"]),
+        "active_features": graph["counts"]["active_features"], "traced_features": graph["counts"]["traced_features"],
+        "top_features": [
+            {"node": n["id"], "layer": n["layer"], "at": graph["tokens"][n["position"]], "activation": _round(n["activation"], 2),
+             "influence": _round(n["influence"]), "support": _round(n.get("support")), "promotes": (n.get("promotes") or [])[:5],
+             "inputs": inputs[i]}
+            for i, n in features
+        ],
+        "note": "influence: the share of the target's attribution that flows through a node. support: the same with signs kept "
+                "(positive: on balance it pushes the target up; negative: it holds it down). replacement_score: of the attribution "
+                "reaching the target from tokens and error nodes, the share that starts at tokens (error_share is the rest). "
+                "Edges are direct effects with attention patterns frozen: a graph is a hypothesis until intervene_circuit tests it",
+    }
+
+
+async def get_circuit(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
+    from api.circuits import graph_for, job_for, list_jobs_for
+
+    graph_id = (args.get("graph_id") or "").strip()
+    if not graph_id:
+        listed = (await list_jobs_for(db, user, JOBS_LISTED))["jobs"]
+        return ToolOutcome({
+            "graphs": [
+                {"graph_id": j["job_id"], "status": j["status"], "model": j["model"], "prompt": _short(j["prompt"]),
+                 "target": (j["summary"] or {}).get("target", {}).get("token"),
+                 "replacement_score": _round((j["summary"] or {}).get("replacement")), "error": j["error"]}
+                for j in listed
+            ],
+        }, chip="Your graphs")
+    job = await job_for(db, user, graph_id)
+    if job["status"] != "completed":
+        out = {"graph_id": graph_id, "status": job["status"], "error": job["error"]}
+        if job["progress"]:
+            out["stage"] = job["progress"]["stage"]
+        if job["status"] in ("queued", "running"):
+            out["note"] = "Still being built; read it again shortly"
+        return ToolOutcome(out, chip=f"Graph · {job['status']}")
+    return ToolOutcome(circuit_brief(await graph_for(db, user, graph_id)), chip=f"Graph · {_short(job['prompt'])}")
 
 
 async def get_activation(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
@@ -669,6 +751,7 @@ EXECUTORS: dict[str, Callable[[Session, User, ToolContext, dict], Awaitable[Tool
     "get_activation": get_activation,
     "get_atlas": get_atlas,
     "get_balance": get_balance,
+    "get_circuit": get_circuit,
     "get_community": get_community,
     "get_feature": get_feature,
     "get_probe": get_probe,

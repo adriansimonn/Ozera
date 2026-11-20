@@ -13,6 +13,7 @@ export const PAGE_ROUTES: Record<string, { route: string; title: string }> = {
   generate: { route: '/generate', title: 'Generate' },
   training: { route: '/training', title: 'Custom Models' },
   attribution: { route: '/attribution', title: 'Attribution' },
+  circuits: { route: '/circuits', title: 'Circuit Tracing' },
   sae: { route: '/sae', title: 'SAE Analysis' },
   probes: { route: '/probes', title: 'Probe Lab' },
   geometry: { route: '/geometry', title: 'Geometry Lab' },

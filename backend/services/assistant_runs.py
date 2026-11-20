@@ -1788,6 +1788,141 @@ async def run_ablate_components(db: Session, user: User, ctx: ToolContext, args:
         "page": "attribution", "data": {"run_id": run.get("run_id"), "response": result},
     })
 
+# Circuit Tracing
+
+# How long trace_circuit waits for its graph before handing back the job to read later
+CIRCUIT_WAIT_SECONDS = 240
+CIRCUIT_POLL_SECONDS = 3
+
+
+def _trace_request(args: dict):
+    from api.schemas.circuits import TraceRequest
+    from core.circuits.budget import MAX_PROMPT_CHARS, MAX_TARGET_CHARS
+
+    model = (args.get("model") or "").strip()
+    if not model:
+        _bad("Give a model that has transcoders (list_models marks them)")
+    prompt = _text(args, "prompt", "prompt", limit=MAX_PROMPT_CHARS)
+    target = _text(args, "target", "target", required=False, limit=MAX_TARGET_CHARS)
+    return TraceRequest(model=model, transcoders=(args.get("transcoders") or "").strip() or None, prompt=prompt, target=target or None)
+
+
+async def quote_trace_circuit(db: Session, user: User, ctx: ToolContext, args: dict) -> RunQuote:
+    from api.circuits import estimate_trace_for
+    from core.circuits.registry import transcoder_set
+
+    body = _trace_request(args)
+    estimate = await estimate_trace_for(user, body)
+    if not estimate["within_limit"]:
+        _bad("This prompt is too long to trace")
+    return RunQuote(
+        "Trace a circuit",
+        [["Model", _model_name(body.model)], ["Transcoders", transcoder_set(body.model, body.transcoders).name],
+         ["Prompt", _cut(body.prompt)], ["Target", body.target or "the model's top prediction"],
+         ["Time", f"about {max(1, round(estimate['estimated_seconds'] / 60))} min"]],
+        estimate["estimated_cost"],
+        note="Charged its estimate when it starts; a failed job is refunded all but the GPU time it used",
+        chip=f"Circuit · {_model_name(body.model)}",
+    )
+
+
+async def run_trace_circuit(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
+    import asyncio
+
+    from api.circuits import graph_for, job_for, submit_job_for
+    from api.schemas.circuits import CircuitJobInfo
+    from services.assistant_tools import circuit_brief
+
+    body = _trace_request(args)
+    job = await submit_job_for(db, user, body)
+    waited = 0
+    while job["status"] in ("queued", "running") and waited < CIRCUIT_WAIT_SECONDS:
+        await asyncio.sleep(CIRCUIT_POLL_SECONDS)
+        waited += CIRCUIT_POLL_SECONDS
+        job = await job_for(db, user, job["job_id"])
+    info = CircuitJobInfo.model_validate(job).model_dump(mode="json")
+    result = {"page": "circuits", "data": {"job": info}}
+    if job["status"] == "completed":
+        out = {**circuit_brief(await graph_for(db, user, job["job_id"])), "status": "completed", "opened": "on the Circuit Tracing page"}
+        return ToolOutcome(out, chip=f"Circuit · {_cut(body.prompt, 40)}", result=result)
+    if job["status"] == "failed":
+        return ToolOutcome({"graph_id": job["job_id"], "status": "failed", "error": job["error"], "refunded_usd": job["refunded"]},
+                           error=True, chip="Circuit · failed", result=result)
+    return ToolOutcome({
+        "graph_id": job["job_id"], "status": job["status"],
+        "note": "Still being built; get_circuit reads it once it's done, and the Circuit Tracing page opens it",
+    }, chip=f"Circuit job started · {_model_name(body.model)}", result=result)
+
+
+async def _intervene_request(db: Session, user: User, args: dict):
+    from api.circuits import graph_for
+    from api.schemas.circuits import InterveneRequest
+    from core.circuits.budget import MAX_INTERVENE_NODES, MAX_SCALE, MIN_SCALE
+
+    graph_id = (args.get("graph_id") or "").strip()
+    if not graph_id:
+        _bad("Give a graph_id (trace_circuit's result, or get_circuit with \"\" lists the user's graphs)")
+    graph = await graph_for(db, user, graph_id)
+    nodes = args.get("nodes") if isinstance(args.get("nodes"), list) else []
+    top = args.get("top") or 0
+    if nodes and top:
+        _bad("Give either nodes or top, not both")
+    if top:
+        count = _int(args, "top", 1, MAX_INTERVENE_NODES, "top")
+        ranked = sorted((n for n in graph["nodes"] if n["kind"] == "feature"), key=lambda n: -n.get("support", n["influence"]))
+        nodes = [n["id"] for n in ranked[:count]]
+    if not nodes or len(nodes) > MAX_INTERVENE_NODES or not all(isinstance(n, str) for n in nodes):
+        _bad(f"Give 1 to {MAX_INTERVENE_NODES} feature node IDs, or top")
+    scale = _float(args, "scale", MIN_SCALE, MAX_SCALE, "scale")
+    return graph, InterveneRequest(job_id=graph_id, nodes=[n.strip() for n in nodes], scale=scale)
+
+
+def _scale_words(scale: float) -> str:
+    return "ablated (× 0)" if scale == 0 else f"× {scale:g}"
+
+
+async def quote_intervene_circuit(db: Session, user: User, ctx: ToolContext, args: dict) -> RunQuote:
+    from api.circuits import estimate_intervention_for
+    from core.circuits.budget import CONTROL_SETS
+
+    graph, body = await _intervene_request(db, user, args)
+    estimate = await estimate_intervention_for(db, user, body)
+    names = ", ".join(body.nodes[:6]) + (" …" if len(body.nodes) > 6 else "")
+    return RunQuote(
+        "Intervene on a circuit",
+        [["Model", _model_name(graph["model"])], ["Graph", f"{_cut(graph['prompt'], 80)} → {graph['target']['token']!r}"],
+         ["Nodes", f"{len(body.nodes)}: {names}"], ["Change", _scale_words(body.scale)],
+         ["Against", f"{CONTROL_SETS} control sets of as many features, of each kind"]],
+        estimate["estimated_cost"], note="Charged when it ends", chip=f"Intervene · {len(body.nodes)} nodes",
+    )
+
+
+async def run_intervene_circuit(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
+    from api.circuits import intervene_for
+    from api.schemas.circuits import InterveneResponse
+
+    graph, body = await _intervene_request(db, user, args)
+    result = InterveneResponse.model_validate(await intervene_for(db, user, body)).model_dump(mode="json")
+    chosen, base = result["chosen"], result["base"]
+    controls = {kind: [_round(c["change"]) for c in sets] for kind, sets in result["controls"].items()}
+    larger = {kind: bool(values) and all(abs(chosen["change"]) > abs(v) for v in values) for kind, values in controls.items()}
+    out = {
+        "graph_id": body.job_id, "nodes": [n["id"] for n in result["nodes"]], "change": _scale_words(body.scale),
+        "target": result["target"]["token"],
+        "target_logit": {"before": _round(base["logit"]), "after": _round(chosen["logit"]), "change": _round(chosen["change"])},
+        "target_prob": {"before": _round(base["prob"]), "after": _round(chosen["prob"])},
+        "target_rank_after": chosen["rank"] + 1,
+        "control_changes": controls,
+        "larger_than_every_control": larger,
+        "top_prediction_after": result["predictions"]["chosen"][0]["token"] if result["predictions"]["chosen"] else None,
+        "note": "Logits are above the mean logit. control_changes: the target logit's change when as many other active features are "
+                "changed the same way: activation (nearest in activation, anywhere in the prompt) and site (at the nodes' own "
+                "layers and positions; the stricter control). The nodes matter for the target only where their change is larger "
+                "than every control's. Opened in the Circuit Tracing page's intervene view",
+    }
+    return ToolOutcome(out, chip=f"Intervened · {len(result['nodes'])} nodes", result={"page": "circuits", "data": {"response": result}})
+
+
 Quote = Callable[[Session, User, ToolContext, dict], Awaitable[RunQuote]]
 Run = Callable[[Session, User, ToolContext, dict], Awaitable[ToolOutcome]]
 
@@ -1802,6 +1937,7 @@ RUNS: dict[str, tuple[Quote, Run]] = {
     "generate": (quote_generate, run_generate),
     "generation_test": (quote_generation_test, run_generation_test),
     "geometry_sae": (quote_geometry_sae, run_geometry_sae),
+    "intervene_circuit": (quote_intervene_circuit, run_intervene_circuit),
     "run_attribution": (quote_run_attribution, run_run_attribution),
     "run_geometry": (quote_run_geometry, run_run_geometry),
     "run_patching": (quote_run_patching, run_run_patching),
@@ -1811,6 +1947,7 @@ RUNS: dict[str, tuple[Quote, Run]] = {
     "steer_geometry": (quote_steer_geometry, run_steer_geometry),
     "steer_probe": (quote_steer_probe, run_steer_probe),
     "test_hypothesis": (quote_test_hypothesis, run_test_hypothesis),
+    "trace_circuit": (quote_trace_circuit, run_trace_circuit),
     "train_probe": (quote_train_probe, run_train_probe),
     "verify_attribution": (quote_verify_attribution, run_verify_attribution),
 }

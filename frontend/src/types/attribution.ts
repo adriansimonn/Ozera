@@ -200,7 +200,7 @@ export interface AblateResponse {
 
 /** A chart's data, for a figure drawn by the backend (POST /export/figure). */
 export interface DataFigureRequest {
-  kind: 'heatmap' | 'scatter' | 'bars'
+  kind: 'heatmap' | 'scatter' | 'bars' | 'graph'
   config?: import('./export').ExportConfig
   title?: string
   x_label?: string
@@ -216,4 +216,12 @@ export interface DataFigureRequest {
   bars?: { label: string; value: number; error?: number | null; marks?: number[] }[]
   baseline?: number
   baseline_label?: string
+  /** graph: an attribution graph's nodes by layer and position, and its edges as [source, target, weight, share] */
+  graph?: {
+    tokens: string[]
+    num_layers: number
+    target: string
+    nodes: { kind: string; layer: number | null; position: number; influence: number; support?: number; pinned?: boolean }[]
+    edges: number[][]
+  }
 }

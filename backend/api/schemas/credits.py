@@ -24,6 +24,8 @@ class TransactionTypeEnum(str, Enum):
     GEOMETRY_REFUND = "geometry_refund"
     AUTOINTERP_CHARGE = "autointerp_charge"
     AUTOINTERP_REFUND = "autointerp_refund"
+    CIRCUIT_CHARGE = "circuit_charge"
+    CIRCUIT_REFUND = "circuit_refund"
     ASSISTANT = "assistant"
 
 

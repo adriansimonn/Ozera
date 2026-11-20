@@ -108,9 +108,33 @@ class FigureBar(BaseModel):
     marks: list[float] = Field(default_factory=list, max_length=32, description="Values drawn as ticks over the bar")
 
 
+MAX_GRAPH_FIGURE_NODES = 1000
+MAX_GRAPH_FIGURE_EDGES = 600
+MAX_GRAPH_FIGURE_TOKENS = 128
+
+
+class FigureGraphNode(BaseModel):
+    kind: Literal["feature", "error", "token", "logit"]
+    layer: Optional[int] = Field(default=None, ge=0, le=200)
+    position: int = Field(..., ge=0, lt=MAX_GRAPH_FIGURE_TOKENS)
+    influence: float = 0.0
+    support: float = 0.0
+    pinned: bool = False
+
+
+class FigureGraph(BaseModel):
+    """An attribution graph as the Circuit Tracing page shows it."""
+    tokens: list[str] = Field(..., min_length=1, max_length=MAX_GRAPH_FIGURE_TOKENS)
+    num_layers: int = Field(..., ge=1, le=200)
+    target: str = Field(default="", max_length=80)
+    nodes: list[FigureGraphNode] = Field(..., min_length=1, max_length=MAX_GRAPH_FIGURE_NODES)
+    edges: list[list[float]] = Field(default_factory=list, max_length=MAX_GRAPH_FIGURE_EDGES,
+                                     description="[source index, target index, direct effect, share] per edge, into nodes")
+
+
 class DataFigureRequest(BaseModel):
-    """A heatmap, a scatter of estimates against exact effects, or a bar chart, from the data given."""
-    kind: Literal["heatmap", "scatter", "bars"]
+    """A heatmap, a scatter of estimates against exact effects, a bar chart, or an attribution graph, from the data given."""
+    kind: Literal["heatmap", "scatter", "bars", "graph"]
     config: ExportConfig = Field(default_factory=ExportConfig)
     title: str = Field(default="", max_length=200)
     x_label: str = Field(default="", max_length=80)
@@ -129,6 +153,8 @@ class DataFigureRequest(BaseModel):
     bars: Optional[list[FigureBar]] = Field(default=None, max_length=MAX_FIGURE_BARS)
     baseline: Optional[float] = None
     baseline_label: str = Field(default="Baseline", max_length=80)
+    # graph
+    graph: Optional[FigureGraph] = None
 
 
 class BatchExportRequest(BaseModel):
@@ -491,9 +517,10 @@ async def export_data_figure(
     current_user: User = Depends(get_current_user),
 ) -> Response:
     """
-    Export a chart of the Attribution page as a publication-ready figure, from the data the
-    page sends: a layer × position or layer × head heatmap of effects, a scatter of
-    attribution estimates against exact patching effects, or bars of ablated metrics.
+    Export a chart of the Attribution or Circuit Tracing page as a publication-ready figure,
+    from the data the page sends: a layer × position or layer × head heatmap of effects, a
+    scatter of attribution estimates against exact patching effects, bars (ablated metrics, an
+    intervention's change next to its controls), or an attribution graph.
 
     Returns:
         Image file in requested format
@@ -534,6 +561,24 @@ async def export_data_figure(
             ylabel=request.y_label or "Exact patching effect",
             note=request.note,
         )
+    elif request.kind == "graph":
+        graph = request.graph
+        if graph is None:
+            raise HTTPException(status_code=400, detail="A graph figure needs a graph")
+        count = len(graph.nodes)
+        for node in graph.nodes:
+            if node.position >= len(graph.tokens) or (node.kind in ("feature", "error") and (node.layer is None or node.layer >= graph.num_layers)):
+                raise HTTPException(status_code=400, detail="A graph's nodes don't fit its tokens and layers")
+        if any(len(edge) != 4 or not (0 <= edge[0] < count and 0 <= edge[1] < count) for edge in graph.edges):
+            raise HTTPException(status_code=400, detail="A graph's edges are [source, target, weight, share] between its nodes")
+        fig = exporter.create_circuit_graph(
+            tokens=graph.tokens,
+            num_layers=graph.num_layers,
+            target=graph.target,
+            nodes=[node.model_dump() for node in graph.nodes],
+            edges=graph.edges,
+            title=request.title or "Attribution graph",
+        )
     else:
         if not request.bars:
             raise HTTPException(status_code=400, detail="A bar chart needs bars")
@@ -552,7 +597,7 @@ async def export_data_figure(
     return Response(
         content=image_bytes,
         media_type=MEDIA_TYPES[request.config.format],
-        headers={"Content-Disposition": f"attachment; filename=attribution_{request.kind}.{request.config.format}"},
+        headers={"Content-Disposition": f"attachment; filename=figure_{request.kind}.{request.config.format}"},
     )
 
 

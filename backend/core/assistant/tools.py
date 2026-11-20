@@ -47,6 +47,7 @@ ESTIMATE_ACTIONS = (
     "generate",
     "generation_test",
     "geometry_sae",
+    "intervene_circuit",
     "run_attribution",
     "run_geometry",
     "run_patching",
@@ -56,6 +57,7 @@ ESTIMATE_ACTIONS = (
     "steer_geometry",
     "steer_probe",
     "test_hypothesis",
+    "trace_circuit",
     "train_probe",
     "verify_attribution",
 )
@@ -162,6 +164,7 @@ ATTRIBUTION_TASKS = ("ioi", "induction", "agreement", "capitals")
 ATTRIBUTION_METRICS = ("auto", "logit_diff", "kl")
 ABLATION_METHODS = ("zero", "mean", "resample")
 COMPONENT_KINDS = ("head", "attn", "mlp")
+CIRCUIT_GRAPH = _string("A Circuit Tracing graph's graph_id (trace_circuit's result, or the Circuit Tracing page's state)")
 ATTRIBUTION_RUN = _string("An Attribution sweep's run_id (run_attribution's result, or the Attribution page's state)")
 GEOMETRY_READS = ("value_last", "value_mean", "template_last")
 STRUCTURES = ("cyclic", "ordinal", "categorical")
@@ -253,6 +256,16 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
         "The user's available credit balance, and the free assistant messages left today.",
         {},
         lambda a: "Balance",
+    ),
+    Tool(
+        "get_circuit", READ,
+        "A Circuit Tracing graph of the user's: its prompt and target, how much of the target's attribution "
+        "flows through features rather than error nodes (the replacement and completeness scores), and its "
+        "most influential feature nodes with their IDs, where they sit, whether they support the target or hold "
+        "it down, the tokens their decoders promote and their strongest inputs. With graph_id \"\", the user's graphs instead. A graph still being built "
+        "reports its stage.",
+        {"graph_id": _string("A graph's graph_id, or \"\" to list the user's graphs")},
+        lambda a: f"Graph · {a.get('graph_id') or 'your graphs'}",
     ),
     Tool(
         "get_community", READ,
@@ -508,6 +521,24 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
         lambda a: f"Geometry SAE · {_sae_chip(a)}",
     ),
     Tool(
+        "intervene_circuit", RUN,
+        "Circuit Tracing intervene view: the test of a graph. Its feature nodes' activations are multiplied by a "
+        "factor in the real model (0 ablates them; nothing is frozen) and the target is read again, next to "
+        "control sets of as many other active features: matched in activation anywhere in the prompt, and at the "
+        "nodes' own layers and positions. Give nodes, or top for the nodes that support the target most. Opens in the "
+        "Circuit Tracing page's intervene view." + RUN_NOTE,
+        {
+            "graph_id": CIRCUIT_GRAPH,
+            "nodes": {
+                "type": "array", "items": {"type": "string"},
+                "description": "Feature node IDs from get_circuit (f:<layer>:<position>:<feature>), at most 64; [] with top",
+            },
+            "top": _integer("Instead of nodes: the n feature nodes that support the target most, 1 to 64 (10 is usual); 0 with nodes"),
+            "scale": _number("What the activations are multiplied by: 0 ablates, 2 doubles, -1 flips the sign (-4 to 8, not 1)"),
+        },
+        lambda a: f"Intervene · {len(a.get('nodes') or []) or a.get('top', '')} nodes",
+    ),
+    Tool(
         "run_attribution", RUN,
         "Attribution sweep: attribution patching over prompt pairs (a clean prompt and a corrupted one that "
         "changes the answer), built-in or your own. From two forward passes and one backward pass per pair it "
@@ -659,6 +690,22 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
         "again comes back free. Write it as a short explanation of what the feature fires on." + RUN_NOTE,
         {"model": MODEL, "sae": SAE, "feature": FEATURE, "hypothesis": _string("The hypothesis, under 200 characters")},
         lambda a: f"Hypothesis {a.get('feature', '')} · {_sae_chip(a)}",
+    ),
+    Tool(
+        "trace_circuit", RUN,
+        "Circuit Tracing: build the attribution graph of one target token at a prompt's last position, through "
+        "the model's transcoders (only models that have them: see the guide). The graph has a node per prompt "
+        "token, per feature active on the prompt, per layer and position for what the transcoders missed "
+        "(error nodes), and one for the target, with the direct effect of each on each; it's pruned to what "
+        "carries the target's attribution. Takes a minute or two (a job: the result has the graph once it's "
+        "built, or its graph_id to read with get_circuit). Opens on the Circuit Tracing page." + RUN_NOTE,
+        {
+            "model": MODEL,
+            "transcoders": _string("One of the model's transcoder sets, by ID, or \"\" for its default"),
+            "prompt": _string("A short prompt (at most 600 characters), ending where the target comes next"),
+            "target": _string("The next word to trace, e.g. \" Paris\" (its first token is traced), or \"\" for the model's top prediction"),
+        },
+        lambda a: f"Circuit · {a.get('model', '')}",
     ),
     Tool(
         "train_probe", RUN,

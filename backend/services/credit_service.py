@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from core.autointerp import budget as autointerp_budget
 from core.autointerp.client import Usage
+from core.circuits.budget import MAX_JOB_SECONDS as MAX_CIRCUIT_SECONDS
 from core.geometry.budget import MAX_ATLAS_SECONDS
 from core.geometry.budget import estimate_run_seconds as estimate_geometry_run_seconds
 from core.geometry.budget import estimate_sae_seconds as estimate_geometry_sae_seconds
@@ -34,6 +35,8 @@ from services.modal_feature_stats import (
     AUTOINTERP_SCALEDOWN_SECONDS,
     AUTOINTERP_TIMEOUT_SECONDS,
 )
+from services.modal_circuits import CIRCUIT_CPU, CIRCUIT_MEMORY_MB, CIRCUIT_TIMEOUT_SECONDS
+from services.modal_circuits import SCALEDOWN_WINDOW_SECONDS as CIRCUIT_SCALEDOWN_SECONDS
 from services.modal_inference import SCALEDOWN_WINDOW_SECONDS as INFERENCE_SCALEDOWN_SECONDS
 
 
@@ -1034,6 +1037,35 @@ def calculate_atlas_cost(model_id: str, seconds: float) -> float:
         idle_seconds=ATLAS_SCALEDOWN_SECONDS,
         cpu_cores=ATLAS_CPU,
         memory_gib=ATLAS_MEMORY_MB / 1024,
+    )
+
+
+# Circuit Tracing runs on a worker of its own (services/modal_circuits.py), billed from its cold
+# start (boot and the image's imports; loading the model and its transcoders is in each run's
+# estimate) through the warm window it idles for afterwards, for the CPU and memory it reserves.
+# The cold start is an estimate, not yet measured on a deployed worker.
+CIRCUIT_COLD_START_SECONDS = 60
+
+if MAX_CIRCUIT_SECONDS >= CIRCUIT_TIMEOUT_SECONDS:
+    raise RuntimeError("Circuit jobs may be estimated to run past their worker's timeout")
+
+
+def calculate_circuit_cost(model_id: str, busy_seconds: float) -> float:
+    """
+    Cost of a Circuit Tracing run (a graph or an intervention) estimated, or measured, to keep
+    its worker busy for `busy_seconds` (core.circuits.budget): a lone request to the circuits
+    worker of the model's GPU tier (cold start, the run, and the warm window after it), plus markup.
+    """
+    tier = get_gpu_tier(model_id)
+    if tier not in CIRCUIT_SCALEDOWN_SECONDS:
+        raise ValueError(f"There is no circuits worker on the {tier} tier")
+    return lone_request_charge(
+        gpu_type=tier,
+        cold_start_seconds=CIRCUIT_COLD_START_SECONDS,
+        busy_seconds=busy_seconds,
+        idle_seconds=CIRCUIT_SCALEDOWN_SECONDS[tier],
+        cpu_cores=CIRCUIT_CPU,
+        memory_gib=CIRCUIT_MEMORY_MB / 1024,
     )
 
 

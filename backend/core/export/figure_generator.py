@@ -7,6 +7,8 @@ Supports multiple output formats (PNG, PDF, SVG) with publication-specific prese
 from dataclasses import dataclass
 from typing import Optional, Literal
 from io import BytesIO
+import math
+
 import numpy as np
 
 import matplotlib
@@ -568,7 +570,7 @@ class LogitAttributionExporter(FigureExporter):
 
 
 class PatchingResultExporter(FigureExporter):
-    """Export Attribution results: effect heatmaps, estimates against exact effects, and ablation bars."""
+    """Export the labs' charts from their data: effect heatmaps, estimates against exact effects, bars, and attribution graphs."""
 
     def __init__(
         self,
@@ -651,6 +653,107 @@ class PatchingResultExporter(FigureExporter):
         ax.set_ylabel(ylabel, fontsize=self.preset.label_size)
         ax.set_title(title, fontsize=self.preset.title_size, pad=10)
 
+        fig.tight_layout()
+        return fig
+
+    def create_circuit_graph(
+        self,
+        tokens: list[str],
+        num_layers: int,
+        target: str,
+        nodes: list[dict],
+        edges: list[list[float]],
+        title: str = "Attribution graph",
+    ) -> Figure:
+        """
+        Draw an attribution graph: token positions across, layers up (the embeddings at the
+        bottom, the target at the top).
+
+        Args:
+            tokens: The prompt's tokens, by position
+            num_layers: The model's layers
+            target: The target token
+            nodes: {"kind": "feature" | "error" | "token" | "logit", "layer", "position",
+                "influence", "support", "pinned"} per node
+            edges: [source index, target index, direct effect, share of the target's
+                attribution] per edge, into nodes
+
+        Returns:
+            Matplotlib figure
+        """
+        self._apply_style(None, None)
+        positions = max(len(tokens), 1)
+        fig, ax = plt.subplots(figsize=(max(self.width, 0.55 * positions + 1.5), max(self.height, 0.2 * num_layers + 1.6)))
+        raise_color, lower_color = "#d62728", "#1f77b4"
+
+        # Where each node sits: a cell's nodes side by side, the most influential first
+        cells: dict[tuple[int, int], list[int]] = {}
+        for index, node in enumerate(nodes):
+            if node["kind"] in ("feature", "error"):
+                cells.setdefault((int(node["layer"]), int(node["position"])), []).append(index)
+        per_line = 6
+        lines = max((math.ceil(len(members) / per_line) for members in cells.values()), default=1)
+        xy: dict[int, tuple[float, float]] = {}
+        for (layer, position), members in cells.items():
+            members.sort(key=lambda i: -nodes[i].get("influence", 0.0))
+            for k, index in enumerate(members):
+                column, line = k % per_line, k // per_line
+                count = min(per_line, len(members) - line * per_line)
+                xy[index] = (position + (column - (count - 1) / 2) * 0.13, layer + 1 + (line - (lines - 1) / 2) * (0.8 / max(lines, 1)) * -1)
+        for index, node in enumerate(nodes):
+            if node["kind"] == "token":
+                xy[index] = (int(node["position"]), 0.0)
+            elif node["kind"] == "logit":
+                xy[index] = (positions - 1, num_layers + 1.0)
+
+        top_share = max((edge[3] for edge in edges), default=1.0) or 1.0
+        for source, target_index, weight, share in edges:
+            start, end = xy.get(int(source)), xy.get(int(target_index))
+            if start is None or end is None:
+                continue
+            strength = math.sqrt(max(share, 0.0) / top_share)
+            ax.plot([start[0], end[0]], [start[1], end[1]], color=raise_color if weight >= 0 else lower_color,
+                    linewidth=0.3 + 1.6 * strength, alpha=0.15 + 0.6 * strength, zorder=1, solid_capstyle="round")
+
+        top_influence = max((n.get("influence", 0.0) for n in nodes if n["kind"] in ("feature", "error")), default=1.0) or 1.0
+        for index, node in enumerate(nodes):
+            if index not in xy or node["kind"] not in ("feature", "error"):
+                continue
+            x, y = xy[index]
+            strength = math.sqrt(max(node.get("influence", 0.0), 0.0) / top_influence)
+            if node["kind"] == "feature":
+                color = raise_color if node.get("support", 0.0) >= 0 else lower_color
+                ax.scatter([x], [y], marker="s", s=26, color=color, alpha=0.25 + 0.75 * strength, linewidths=0, zorder=3)
+            else:
+                ax.scatter([x], [y], marker="s", s=26, facecolors="white", edgecolors="#777777", linewidths=0.6, linestyle="--", zorder=2)
+            if node.get("pinned"):
+                ax.scatter([x], [y], marker="s", s=70, facecolors="none", edgecolors="black", linewidths=0.9, zorder=4)
+
+        ax.text(positions - 1, num_layers + 1.0, figure_text(target, 12), ha="center", va="center", fontsize=self.preset.tick_size,
+                color="white", bbox=dict(boxstyle="square,pad=0.3", facecolor="black", edgecolor="black"), zorder=5)
+        ax.set_xticks(range(positions))
+        ax.set_xticklabels([figure_text(t, 10) for t in tokens], rotation=45, ha="right", fontsize=self.preset.tick_size)
+        step = max(1, num_layers // 12)
+        ticks = [0] + list(range(1, num_layers + 1, step)) + [num_layers + 1]
+        ax.set_yticks(ticks)
+        ax.set_yticklabels(["Emb"] + [f"L{t - 1}" for t in ticks[1:-1]] + ["Out"], fontsize=self.preset.tick_size)
+        ax.set_xlim(-0.6, positions - 0.4)
+        ax.set_ylim(-0.6, num_layers + 1.7)
+        for spine in ("top", "right"):
+            ax.spines[spine].set_visible(False)
+        ax.grid(axis="y", color="#e6e6e6", linewidth=0.4, zorder=0)
+        ax.set_axisbelow(True)
+        ax.set_xlabel("Token", fontsize=self.preset.label_size)
+        ax.set_ylabel("Layer", fontsize=self.preset.label_size)
+        ax.set_title(title, fontsize=self.preset.title_size, pad=10)
+        handles = [
+            plt.Line2D([], [], marker="s", linestyle="none", color=raise_color, markersize=5, label="Feature, supports the target"),
+            plt.Line2D([], [], marker="s", linestyle="none", color=lower_color, markersize=5, label="Feature, opposes it"),
+            plt.Line2D([], [], marker="s", linestyle="none", markerfacecolor="white", markeredgecolor="#777777", markersize=5, label="Error"),
+            plt.Line2D([], [], color=raise_color, linewidth=1.2, label="Edge raises its target"),
+            plt.Line2D([], [], color=lower_color, linewidth=1.2, label="Edge lowers it"),
+        ]
+        ax.legend(handles=handles, loc="upper left", bbox_to_anchor=(1.01, 1.0), frameon=False, fontsize=self.preset.tick_size)
         fig.tight_layout()
         return fig
 

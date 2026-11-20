@@ -53,6 +53,7 @@ from api.webhooks import router as webhooks_router
 from api.open_source import router as open_source_router
 from api.patching import router as patching_router
 from api.attribution import router as attribution_router
+from api.circuits import router as circuits_router
 from api.export import router as export_router
 from api.sae import router as sae_router
 from api.probes import monitor_probe, router as probes_router
@@ -137,6 +138,7 @@ app.include_router(webhooks_router)
 app.include_router(open_source_router)
 app.include_router(patching_router)
 app.include_router(attribution_router)
+app.include_router(circuits_router)
 app.include_router(export_router)
 app.include_router(sae_router)
 app.include_router(probes_router)

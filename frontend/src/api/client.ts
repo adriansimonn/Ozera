@@ -47,6 +47,16 @@ import type {
   VerifyResponse,
 } from '../types/attribution'
 import type {
+  CircuitGraph,
+  CircuitJob,
+  CircuitModelInfo,
+  InterveneEstimate,
+  InterveneRequest,
+  InterveneResponse,
+  TraceEstimate,
+  TraceRequest,
+} from '../types/circuits'
+import type {
   AblateProbeRequest,
   AblateProbeResponse,
   GeneralizeRequest,
@@ -482,6 +492,10 @@ const TRAINING_START_TIMEOUT_MS = 120_000
 const GEOMETRY_COMPARE_TIMEOUT_MS = 60_000
 // Atlases are read from the SAE volume through Modal's API (summaries run to a few MB)
 const ATLAS_READ_TIMEOUT_MS = 60_000
+// An intervention runs on the circuits worker, which may take up to 600s to start and 600s to
+// run (CIRCUIT_TIMEOUT_SECONDS in backend/services/modal_circuits.py); the backend waits for it
+// without a limit of its own
+const CIRCUIT_TIMEOUT_MS = 1_215_000
 // Explaining a feature runs Claude on the backend for at most EXPLAIN_DEADLINE_SECONDS (240s);
 // a request waiting on another request's run of the same feature waits that plus
 // CLAIM_GRACE_SECONDS (30s), both in backend/core/autointerp/budget.py
@@ -1767,6 +1781,91 @@ class OzeraAPIClient {
       body: JSON.stringify(request),
     }, GPU_TIMEOUT_MS)
     if (!response.ok) throw await responseError(response, 'The ablation failed')
+    notifyCreditsChanged()
+    return response.json()
+  }
+
+  // ============= Circuit Tracing =============
+
+  /**
+   * The models that can be traced, each with its transcoder sets.
+   */
+  async getCircuitModels(): Promise<CircuitModelInfo[]> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/circuits/models`)
+    if (!response.ok) throw await responseError(response, 'Failed to load models')
+    return response.json()
+  }
+
+  async estimateCircuit(request: TraceRequest): Promise<TraceEstimate> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/circuits/estimate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to estimate the graph')
+    return response.json()
+  }
+
+  /**
+   * Start a graph job (charged its estimate now; a failed job is refunded all but the GPU time it used).
+   */
+  async submitCircuitJob(request: TraceRequest): Promise<CircuitJob> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/circuits/jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, TRAINING_START_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Failed to start the graph')
+    notifyCreditsChanged()
+    return response.json()
+  }
+
+  /** The user's graphs, newest first. */
+  async listCircuitJobs(): Promise<CircuitJob[]> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/circuits/jobs`, { headers: getAuthHeaders() }, ATLAS_READ_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Failed to load your graphs')
+    return (await response.json()).jobs
+  }
+
+  async getCircuitJob(jobId: string): Promise<CircuitJob> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/circuits/jobs/${encodeURIComponent(jobId)}`, {
+      headers: getAuthHeaders(),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to load the graph job')
+    return response.json()
+  }
+
+  /** A completed job's graph (read from the SAE volume through the backend). */
+  async getCircuitGraph(jobId: string): Promise<CircuitGraph> {
+    const response = await fetchWithTimeout(
+      `${this.baseUrl}/circuits/jobs/${encodeURIComponent(jobId)}/graph`,
+      { headers: getAuthHeaders() },
+      ATLAS_READ_TIMEOUT_MS,
+    )
+    if (!response.ok) throw await responseError(response, 'Failed to load the graph')
+    return response.json()
+  }
+
+  async estimateIntervention(request: InterveneRequest): Promise<InterveneEstimate> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/circuits/intervene/estimate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to estimate the intervention')
+    return response.json()
+  }
+
+  /**
+   * Scale a graph's feature nodes and read the target again, next to control sets (one GPU call; charged).
+   */
+  async runIntervention(request: InterveneRequest): Promise<InterveneResponse> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/circuits/intervene`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, CIRCUIT_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'The intervention failed')
     notifyCreditsChanged()
     return response.json()
   }
