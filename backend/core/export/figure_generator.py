@@ -866,6 +866,63 @@ class PatchingResultExporter(FigureExporter):
         fig.tight_layout()
         return fig
 
+    def create_line_chart(
+        self,
+        series: list[dict],
+        x_labels: Optional[list[str]] = None,
+        title: str = "By layer",
+        xlabel: str = "Layer",
+        ylabel: str = "Value",
+    ) -> Figure:
+        """
+        Create a chart of lines over the same points (layers, usually).
+
+        Args:
+            series: [{"label", "values" (None leaves a gap), "style"}]: a "solid" line takes the
+                next color, a "faint" one the last solid line's (thinner: a part of it, such as
+                one half of the data), a "dashed" one is a gray reference
+            x_labels: Labels of the points along x (their indices unless given)
+
+        Returns:
+            Matplotlib figure
+        """
+        self._apply_style(None, None)
+        fig, ax = plt.subplots(figsize=(self.width, self.height))
+
+        colors = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948']
+        count = len(series[0]["values"])
+        x = np.arange(count)
+        solid = -1
+        for line in series:
+            values = np.array([np.nan if v is None else v for v in line["values"]], dtype=float)
+            style = line.get("style", "solid")
+            if style == "dashed":
+                ax.plot(x, values, color='#898781', linestyle='--', linewidth=self.preset.linewidth, label=line["label"], zorder=1)
+                continue
+            if style == "solid":
+                solid += 1
+            color = colors[max(solid, 0) % len(colors)]
+            if style == "faint":
+                ax.plot(x, values, color=color, alpha=0.5, linewidth=self.preset.linewidth * 0.9, label=line["label"], zorder=2)
+            else:
+                ax.plot(x, values, color=color, linewidth=self.preset.linewidth * 2, label=line["label"], zorder=3)
+
+        step = max(1, count // 16)
+        ticks = list(range(0, count, step))
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([figure_text(x_labels[i], 10) if x_labels else str(i) for i in ticks], fontsize=self.preset.tick_size)
+        ax.set_xlabel(xlabel, fontsize=self.preset.label_size)
+        ax.set_ylabel(ylabel, fontsize=self.preset.label_size)
+        ax.set_title(title, fontsize=self.preset.title_size, pad=10)
+        ax.grid(axis='y', color='#e3e2de', linewidth=self.preset.linewidth * 0.6)
+        ax.set_axisbelow(True)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.legend(fontsize=self.preset.tick_size, frameon=False)
+
+        fig.tight_layout()
+        return fig
+
     def create_layer_effect_line(
         self,
         effects_by_layer: list[float],

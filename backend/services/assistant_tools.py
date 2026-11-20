@@ -708,6 +708,13 @@ async def set_inputs(db: Session, user: User, ctx: ToolContext, args: dict) -> T
         if problem is None and control.id == "model":
             problem = _check_model(db, user, str(value).strip())
             value = str(value).strip()
+        if problem is None and page.id == "diff" and control.id == "model":
+            from api.diff import pair_of
+
+            try:
+                await pair_of(db, user, value)
+            except HTTPException as e:
+                problem = str(e.detail)
         if problem is None and page.id == "probes" and control.id == "probe":
             value = str(value).strip().lower()
             if value != "sweep":

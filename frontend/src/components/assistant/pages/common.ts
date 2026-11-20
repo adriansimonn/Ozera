@@ -17,6 +17,7 @@ export const PAGE_ROUTES: Record<string, { route: string; title: string }> = {
   sae: { route: '/sae', title: 'SAE Analysis' },
   probes: { route: '/probes', title: 'Probe Lab' },
   geometry: { route: '/geometry', title: 'Geometry Lab' },
+  diff: { route: '/diff', title: 'Model Diff' },
   settings: { route: '/settings', title: 'Settings' },
 }
 

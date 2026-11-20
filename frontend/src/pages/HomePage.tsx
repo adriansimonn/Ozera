@@ -51,9 +51,9 @@ const TOOLS = [
     blurb: 'Find the shape a concept takes (a circle, a line, clusters) and steer the model along it.',
   },
   {
-    name: 'Custom Models',
-    path: '/training',
-    blurb: 'Train Ozera’s from-scratch transformer on your own text, with the cost estimated up front.',
+    name: 'Model Diff',
+    path: '/diff',
+    blurb: 'Compare a model with its instruct sibling, or with the one you trained: where their layers part, along which directions, and what patching one into the other does.',
   },
 ]
 

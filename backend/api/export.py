@@ -108,6 +108,16 @@ class FigureBar(BaseModel):
     marks: list[float] = Field(default_factory=list, max_length=32, description="Values drawn as ticks over the bar")
 
 
+MAX_FIGURE_SERIES = 12
+
+
+class FigureSeries(BaseModel):
+    """A line: solid (the next color), faint (the last solid line's color, thinner: a part of it) or dashed (a gray reference)."""
+    label: str = Field(..., max_length=80)
+    values: list[Optional[float]] = Field(..., min_length=1, max_length=MAX_FIGURE_COLUMNS, description="None leaves a gap")
+    style: Literal["solid", "faint", "dashed"] = "solid"
+
+
 MAX_GRAPH_FIGURE_NODES = 1000
 MAX_GRAPH_FIGURE_EDGES = 600
 MAX_GRAPH_FIGURE_TOKENS = 128
@@ -133,8 +143,8 @@ class FigureGraph(BaseModel):
 
 
 class DataFigureRequest(BaseModel):
-    """A heatmap, a scatter of estimates against exact effects, a bar chart, or an attribution graph, from the data given."""
-    kind: Literal["heatmap", "scatter", "bars", "graph"]
+    """A heatmap, a scatter of estimates against exact effects, a bar chart, lines over layers, or an attribution graph, from the data given."""
+    kind: Literal["heatmap", "scatter", "bars", "graph", "lines"]
     config: ExportConfig = Field(default_factory=ExportConfig)
     title: str = Field(default="", max_length=200)
     x_label: str = Field(default="", max_length=80)
@@ -155,6 +165,8 @@ class DataFigureRequest(BaseModel):
     baseline_label: str = Field(default="Baseline", max_length=80)
     # graph
     graph: Optional[FigureGraph] = None
+    # lines (column_labels name the points along x)
+    series: Optional[list[FigureSeries]] = Field(default=None, max_length=MAX_FIGURE_SERIES)
 
 
 class BatchExportRequest(BaseModel):
@@ -517,10 +529,11 @@ async def export_data_figure(
     current_user: User = Depends(get_current_user),
 ) -> Response:
     """
-    Export a chart of the Attribution or Circuit Tracing page as a publication-ready figure,
-    from the data the page sends: a layer × position or layer × head heatmap of effects, a
-    scatter of attribution estimates against exact patching effects, bars (ablated metrics, an
-    intervention's change next to its controls), or an attribution graph.
+    Export a chart of the Attribution, Circuit Tracing or Model Diff page as a
+    publication-ready figure, from the data the page sends: a layer × position or layer × head
+    heatmap of effects, a scatter of attribution estimates against exact patching effects, bars
+    (ablated metrics, an intervention's change next to its controls), lines over layers (a
+    layer profile and its halves), or an attribution graph.
 
     Returns:
         Image file in requested format
@@ -560,6 +573,19 @@ async def export_data_figure(
             xlabel=request.x_label or "Attribution estimate",
             ylabel=request.y_label or "Exact patching effect",
             note=request.note,
+        )
+    elif request.kind == "lines":
+        series = request.series or []
+        if not series or any(len(line.values) != len(series[0].values) for line in series):
+            raise HTTPException(status_code=400, detail="A line chart needs series of equal length")
+        if request.column_labels is not None and len(request.column_labels) != len(series[0].values):
+            raise HTTPException(status_code=400, detail="A line chart's labels don't match its points")
+        fig = exporter.create_line_chart(
+            series=[line.model_dump() for line in series],
+            x_labels=request.column_labels,
+            title=request.title or "By layer",
+            xlabel=request.x_label or "Layer",
+            ylabel=request.y_label or "Value",
         )
     elif request.kind == "graph":
         graph = request.graph

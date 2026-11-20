@@ -8,6 +8,7 @@ import CircuitsPage from './pages/CircuitsPage'
 import SAEPage from './pages/SAEPage'
 import ProbesPage from './pages/ProbesPage'
 import GeometryPage from './pages/GeometryPage'
+import DiffPage from './pages/DiffPage'
 import SettingsPage from './pages/SettingsPage'
 import AuthPage from './pages/AuthPage'
 import HomePage from './pages/HomePage'
@@ -79,6 +80,7 @@ function AppShell() {
               <Route path="/sae" element={<SAEPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/probes" element={<ProbesPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/geometry" element={<GeometryPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
+              <Route path="/diff" element={<DiffPage onShowPurchaseCredits={() => setShowPurchaseCredits(true)} />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/auth" element={<AuthPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />

@@ -26,6 +26,9 @@ concepts and rows. After changing a strict tool, check with scripts/assistant_pi
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
+from core.diff.budget import DONORS, MAX_TEXTS, MIN_TEXTS, PATCH_KINDS
+from core.diff.texts import builtin_samples
+
 from .pages import INTERVENTIONS, PAGE_IDS, PAGES, PATCH_TYPES
 
 READ = "read"
@@ -42,6 +45,9 @@ ESTIMATE_ACTIONS = (
     "analyze_sae",
     "build_atlas",
     "compare_probe_sae",
+    "diff_directions",
+    "diff_layers",
+    "diff_patch",
     "explain_feature",
     "generalize_probes",
     "generate",
@@ -166,6 +172,22 @@ ABLATION_METHODS = ("zero", "mean", "resample")
 COMPONENT_KINDS = ("head", "attn", "mlp")
 CIRCUIT_GRAPH = _string("A Circuit Tracing graph's graph_id (trace_circuit's result, or the Circuit Tracing page's state)")
 ATTRIBUTION_RUN = _string("An Attribution sweep's run_id (run_attribution's result, or the Attribution page's state)")
+# A Model Diff run's pair and texts
+DIFF_PAIR = _string(
+    "Either model of the pair to compare: an open-weight model's ID (compared with its base or instruct sibling), or a "
+    "custom model's name (compared with the Ozera model of its shape). list_models gives the IDs"
+)
+DIFF_SAMPLE = _enum(("",) + tuple(builtin_samples()), "A built-in text sample (see the guide), or \"\" with texts")
+DIFF_COUNT = _integer(f"Texts of the built-in sample, {MIN_TEXTS} to its size (48 is usual); 0 with texts")
+DIFF_TEXTS = {
+    "type": "array", "items": {"type": "string"},
+    "description": f"Your own texts instead of a built-in sample ([] for one): {MIN_TEXTS} to {MAX_TEXTS}, each under 2000 characters",
+}
+DIFF_SEED = _integer("Which texts of the built-in sample (0 by default)")
+DIFF_TEMPLATE = _boolean(
+    "Read each text as a user message in the instruct model's chat template, the same templated tokens for both models "
+    "(pairs with an instruct model only); false for plain text"
+)
 GEOMETRY_READS = ("value_last", "value_mean", "template_last")
 STRUCTURES = ("cyclic", "ordinal", "categorical")
 ATLAS_TOKENS = (1_000_000, 2_000_000, 5_000_000)
@@ -446,6 +468,49 @@ TOOLS: tuple[Tool, ...] = tuple(sorted((
         "Probe Lab's SAE view." + RUN_NOTE,
         {"probe_id": PROBE_ID, "sae": SAE},
         lambda a: f"Probe {a.get('probe_id', '')} vs {_sae_chip(a)}",
+    ),
+    Tool(
+        "diff_directions", RUN,
+        "Model Diff directions view: the principal components of the difference between a pair's activations at one "
+        "residual stream position, fit on half of the texts, each with its share of the difference and the tokens at "
+        "its ends. On the other half the base model is run with each of the largest components added, token by token, "
+        "and its next-token predictions are compared with the other model's: closed is the share of the KL between "
+        "them that the edit removes, next to random directions carrying as much and to the whole difference added. "
+        "Opens in the Model Diff page's directions view." + RUN_NOTE,
+        {
+            "model": DIFF_PAIR, "sample": DIFF_SAMPLE, "count": DIFF_COUNT, "texts": DIFF_TEXTS, "seed": DIFF_SEED,
+            "chat_template": DIFF_TEMPLATE,
+            "layer": _integer("The residual stream position: 0 the embeddings, i layer i-1's output"),
+        },
+        lambda a: f"Diff directions · position {a.get('layer', '')} · {a.get('model', '')}",
+    ),
+    Tool(
+        "diff_layers", RUN,
+        "Model Diff layers view: compare two models of the same shape on the same tokens (a base model and its instruct "
+        "sibling, or an Ozera model and the user's custom model of its shape). One pass of each over a set of texts "
+        "gives, at every residual stream position, the relative distance between their activations, linear CKA (with "
+        "its chance level) and Procrustes R², each also on the two halves of the texts; and the KL between their "
+        "next-token predictions, with the tokens they disagree on most. Opens on the Model Diff page." + RUN_NOTE,
+        {
+            "model": DIFF_PAIR, "sample": DIFF_SAMPLE, "count": DIFF_COUNT, "texts": DIFF_TEXTS, "seed": DIFF_SEED,
+            "chat_template": DIFF_TEMPLATE,
+        },
+        lambda a: f"Diff layers · {a.get('model', '')}",
+    ),
+    Tool(
+        "diff_patch", RUN,
+        "Model Diff patch view: on one prompt, patch one model's activations into the other at every layer, one "
+        "position at a time and all positions at once, and read how far the patched model's next-token prediction at "
+        "the last position is from the donor's (KL, next to the unpatched KL). What's patched is the residual stream "
+        "entering a layer, or a layer's attention or MLP output. Opens in the Model Diff page's patch view." + RUN_NOTE,
+        {
+            "model": DIFF_PAIR,
+            "prompt": _string("The prompt both models read (at most 600 characters and 64 tokens)"),
+            "donor": _enum(DONORS, "The model whose activations are patched in: other (the instruct or custom model, into the base model) or base"),
+            "kind": _enum(PATCH_KINDS, "What's patched: the residual stream entering each layer, or each layer's attention or MLP output"),
+            "chat_template": DIFF_TEMPLATE,
+        },
+        lambda a: f"Diff patch · {a.get('model', '')}",
     ),
     Tool(
         "explain_feature", RUN,

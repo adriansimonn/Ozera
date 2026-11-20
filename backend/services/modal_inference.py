@@ -2001,6 +2001,152 @@ class _InferenceWorker:
         result.update(num_layers=len(target.layers), num_heads=target.num_heads)
         return result
 
+    @staticmethod
+    def _gpu_room(needed_bytes: float, what: str) -> None:
+        """
+        Raise DiffInputError if the GPU can't hold what a Model Diff run is about to put on it.
+
+        A container keeps every model it has served, and a diff needs two at once: running
+        out of memory would fail every request the container is serving, not just this one.
+        """
+        import torch
+
+        from core.diff.budget import DiffInputError
+
+        if not torch.cuda.is_available():
+            return
+        free, _ = torch.cuda.mem_get_info()
+        # What torch holds but isn't using can be reused
+        free += torch.cuda.memory_reserved() - torch.cuda.memory_allocated()
+        if free < needed_bytes:
+            raise DiffInputError(f"This worker's GPU has no room for {what} right now; try again in a few minutes")
+
+    def _diff_targets(self, base_id: str, other_id: str, owner_id: Optional[int], version: Optional[str]):
+        """
+        The two models of a Model Diff run, wrapped for core.probes: the shared base model,
+        and the other one (its instruct sibling, or the caller's custom model).
+        """
+        from core.open_source import OPEN_SOURCE_MODELS
+
+        base = self._probe_target(base_id, None, None)
+        if self._is_open_source_model(other_id) and other_id not in self._os_loaders:
+            # Half-precision weights, and some room to run them
+            self._gpu_room(OPEN_SOURCE_MODELS[other_id].parameters * 2 * 1.15, "the second model")
+        return base, self._probe_target(other_id, owner_id, version)
+
+    @modal.method()
+    def diff_layers(
+        self,
+        base_id: str,
+        other_id: str,
+        texts: list[str],
+        chat_template: bool = False,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        Compare two models of the same shape on the same tokens: per residual stream position
+        the relative distance between their activations, linear CKA and Procrustes R², and per
+        token the KL between their next-token predictions (see core.diff.profile).
+
+        One pass of each model over the texts. Activations are reduced to sums on the GPU as
+        each layer produces them; only the measures, the tokens and their distances come back.
+
+        Args:
+            base_id: A shared model (an open-weight base model, or Ozera nano or mini)
+            other_id: The model it's compared with: its instruct sibling, or a custom model
+                (owner_id and version name the caller's)
+            texts: The texts both models read
+            chat_template: Read each text as a user message in the instruct model's chat template
+
+        Returns:
+            core.diff.profile' result with tensors encoded for transport
+
+        Raises:
+            DiffInputError: the models or texts can't be compared, or the run is too large
+        """
+        from core import diff
+        from core.diff.budget import similarity_bytes, similarity_halves
+
+        base, other = self._diff_targets(base_id, other_id, owner_id, version)
+        layers, width = len(base.layers), base.hidden_dim
+        with self._probe_lock:
+            self._gpu_room(similarity_bytes(layers, width, similarity_halves(layers, width)) * 1.25, "this comparison")
+            with base.lock(), other.lock():
+                result = diff.layers(base, other, self.gpu_tier, (base_id, other_id), texts, chat_template)
+        return self._serialize_value(result)
+
+    @modal.method()
+    def diff_directions(
+        self,
+        base_id: str,
+        other_id: str,
+        texts: list[str],
+        layer: int,
+        chat_template: bool = False,
+        seed: int = 0,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        The directions two models differ along at one residual stream position, and what
+        adding each to the base model does to its predictions, next to random directions
+        carrying as much (see core.diff.components). Forward passes only.
+
+        Args:
+            base_id, other_id, texts, chat_template: As diff_layers'
+            layer: Residual stream position (0: the embeddings, i: layer i-1's output)
+            seed: Seed of the random directions
+
+        Returns:
+            core.diff.components' result
+
+        Raises:
+            DiffInputError: the models or texts can't be compared, or the run is too large
+        """
+        from core import diff
+
+        base, other = self._diff_targets(base_id, other_id, owner_id, version)
+        with self._probe_lock:
+            with base.lock(), other.lock():
+                return diff.directions(base, other, self.gpu_tier, (base_id, other_id), texts, layer, chat_template, seed)
+
+    @modal.method()
+    def diff_patch(
+        self,
+        base_id: str,
+        other_id: str,
+        prompt: str,
+        donor: str = "other",
+        kind: str = "resid",
+        chat_template: bool = False,
+        owner_id: Optional[int] = None,
+        version: Optional[str] = None,
+    ) -> dict:
+        """
+        Patch one model's activations into the other on one prompt, at every layer and
+        position, and read the KL from the donor's next-token prediction (see
+        core.diff.patching). Forward passes only.
+
+        Args:
+            base_id, other_id, chat_template: As diff_layers'
+            prompt: The prompt both models read
+            donor: "other" (its activations go into the base model) or "base"
+            kind: "resid", "attn" or "mlp": what's patched
+
+        Returns:
+            core.diff.patching's result
+
+        Raises:
+            DiffInputError: the models or prompt can't be used, or the run is too large
+        """
+        from core import diff
+
+        base, other = self._diff_targets(base_id, other_id, owner_id, version)
+        with self._probe_lock:
+            with base.lock(), other.lock():
+                return diff.patch(base, other, self.gpu_tier, (base_id, other_id), prompt, donor, kind, chat_template)
+
 
 @app.cls(
     image=inference_image,

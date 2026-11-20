@@ -47,6 +47,17 @@ import type {
   VerifyResponse,
 } from '../types/attribution'
 import type {
+  DiffEstimate,
+  DiffPair,
+  DiffSample,
+  DirectionsRun,
+  Donor,
+  LayersRun,
+  PatchKind,
+  PatchRun,
+  TextSpec,
+} from '../types/diff'
+import type {
   CircuitGraph,
   CircuitJob,
   CircuitModelInfo,
@@ -203,6 +214,17 @@ export function decodeAttributionRun(raw: unknown): AttributionRun {
   for (const key of ['heads', 'heads_se', 'heads_pairs', 'layers', 'layers_se', 'dla']) out[key] = values(decoded[key]) ?? null
   for (const key of ['position_pairs', 'position_classes']) out[key] = ((decoded[key] as unknown[] | undefined) ?? []).map(values)
   return out as unknown as AttributionRun
+}
+
+/**
+ * A Model Diff layers run as the page keeps it: its token distances as nested arrays. Also used
+ * for a run an assistant run sends.
+ */
+export function decodeLayersRun(raw: unknown): LayersRun {
+  const decoded = decodeTensorData(raw) as Record<string, unknown>
+  const tensor = decoded.token_distance
+  const values = tensor && typeof tensor === 'object' && 'values' in tensor ? (tensor as { values: unknown }).values : tensor
+  return { ...decoded, token_distance: values ?? [] } as unknown as LayersRun
 }
 
 /**
@@ -1785,6 +1807,102 @@ class OzeraAPIClient {
     return response.json()
   }
 
+  // ============= Model Diff =============
+
+  /**
+   * The pairs of models that can be compared (the user's custom models first).
+   */
+  async getDiffPairs(): Promise<DiffPair[]> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/diff/pairs`, { headers: getAuthHeaders() })
+    if (!response.ok) throw await responseError(response, 'Failed to load the model pairs')
+    return response.json()
+  }
+
+  /**
+   * The built-in text samples, each with a few of its texts.
+   */
+  async listDiffSamples(): Promise<DiffSample[]> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/diff/samples`)
+    if (!response.ok) throw await responseError(response, 'Failed to load the text samples')
+    return response.json()
+  }
+
+  /**
+   * Estimate a Model Diff run's cost: the layers, the directions at one, or a patch.
+   */
+  async estimateDiff(request: {
+    kind: 'layers' | 'directions' | 'patch'
+    base: string
+    other: string
+    chat_template?: boolean
+    texts?: TextSpec
+    prompt?: string
+  }): Promise<DiffEstimate> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/diff/estimate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw await responseError(response, 'Failed to estimate the run')
+    return response.json()
+  }
+
+  /**
+   * Compare two models at every layer and token (one GPU call; charged).
+   */
+  async runDiffLayers(request: { base: string; other: string; texts: TextSpec; chat_template?: boolean }): Promise<LayersRun> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/diff/layers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'The comparison failed')
+    notifyCreditsChanged()
+    return decodeLayersRun(await response.json())
+  }
+
+  /**
+   * The directions two models differ along at one layer, and what adding them does (one GPU call; charged).
+   */
+  async runDiffDirections(request: {
+    base: string
+    other: string
+    texts: TextSpec
+    layer: number
+    chat_template?: boolean
+    seed?: number
+  }): Promise<DirectionsRun> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/diff/directions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Finding directions failed')
+    notifyCreditsChanged()
+    return response.json()
+  }
+
+  /**
+   * Patch one model's activations into the other on one prompt (one GPU call; charged).
+   */
+  async runDiffPatch(request: {
+    base: string
+    other: string
+    prompt: string
+    donor: Donor
+    kind: PatchKind
+    chat_template?: boolean
+  }): Promise<PatchRun> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/diff/patch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(request),
+    }, GPU_TIMEOUT_MS)
+    if (!response.ok) throw await responseError(response, 'Patching failed')
+    notifyCreditsChanged()
+    return response.json()
+  }
+
   // ============= Circuit Tracing =============
 
   /**
@@ -1974,7 +2092,7 @@ class OzeraAPIClient {
   }
 
   /**
-   * Export a chart's data as a publication-ready figure (the Attribution page's charts).
+   * Export a chart's data as a publication-ready figure (the Attribution, Circuit Tracing and Model Diff pages' charts).
    * Returns the file as a Blob for download.
    */
   async exportDataFigure(request: DataFigureRequest): Promise<Blob> {

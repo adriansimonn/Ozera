@@ -2,23 +2,27 @@
  * The app's pages, in nav order: the NavBar's links and the choices for the default landing page.
  */
 
-import { Cpu, Layers, Microscope, Network, Shapes, Sparkles, Zap, type LucideIcon } from 'lucide-react'
+import { Cpu, GitCompare, Layers, Microscope, Network, Shapes, Sparkles, Zap, type LucideIcon } from 'lucide-react'
 import type { UserSettings } from '../stores/settingsStore'
 
 export interface AppPage {
   path: string
   label: string
   icon: LucideIcon
+  /** Not an instrument: listed after them in the nav, set apart */
+  utility?: boolean
 }
 
+// The seven instruments, then the utility pages
 export const APP_PAGES: AppPage[] = [
   { path: '/generate', label: 'Generate', icon: Sparkles },
-  { path: '/training', label: 'Custom Models', icon: Cpu },
   { path: '/attribution', label: 'Attribution', icon: Zap },
   { path: '/circuits', label: 'Circuit Tracing', icon: Network },
   { path: '/sae', label: 'SAE Analysis', icon: Layers },
   { path: '/probes', label: 'Probe Lab', icon: Microscope },
   { path: '/geometry', label: 'Geometry Lab', icon: Shapes },
+  { path: '/diff', label: 'Model Diff', icon: GitCompare },
+  { path: '/training', label: 'Custom Models', icon: Cpu, utility: true },
 ]
 
 const isPage = (path: unknown): path is string => APP_PAGES.some((p) => p.path === path)

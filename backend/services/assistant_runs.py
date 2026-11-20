@@ -1923,6 +1923,265 @@ async def run_intervene_circuit(db: Session, user: User, ctx: ToolContext, args:
     return ToolOutcome(out, chip=f"Intervened · {len(result['nodes'])} nodes", result={"page": "circuits", "data": {"response": result}})
 
 
+
+# Model Diff
+
+async def _diff_pair(db: Session, user: User, args: dict) -> tuple[str, str]:
+    """(the pair's base model, the other one) for the model a run names."""
+    from api.diff import pair_of
+
+    return await pair_of(db, user, args.get("model", ""))
+
+
+def _diff_texts(args: dict):
+    """A run's texts: a built-in sample (args["sample"], args["count"] of them) or the user's own, checked as the page checks them."""
+    from api.schemas.diff import TextSpec
+    from core.diff.budget import MAX_TEXTS, MIN_TEXTS
+    from core.diff.texts import builtin_samples
+
+    sample = (args.get("sample") or "").strip()
+    texts = args.get("texts") or []
+    if sample and texts:
+        _bad("Give a built-in sample or texts, not both")
+    if sample:
+        if sample not in builtin_samples():
+            raise HTTPException(status_code=404, detail="Unknown built-in sample (the guide lists them)")
+        size = len(builtin_samples()[sample]["texts"])
+        return TextSpec(sample=sample, n=_int(args, "count", MIN_TEXTS, size, "count"), seed=_int(args, "seed", 0, 2**31 - 1, "seed"))
+    if not isinstance(texts, list) or not texts or not all(isinstance(text, str) for text in texts):
+        _bad("Give a built-in sample ID, or texts of your own")
+    if not MIN_TEXTS <= len(texts) <= MAX_TEXTS:
+        _bad(f"Give {MIN_TEXTS} to {MAX_TEXTS} texts")
+    return TextSpec(texts=texts, name="Your texts")
+
+
+def _texts_name(texts) -> str:
+    from core.diff.texts import builtin_samples
+
+    return builtin_samples()[texts.sample]["name"] if texts.sample else (texts.name or "Your texts")
+
+
+def _pair_name(base: str, other: str) -> str:
+    from api.diff import display_name
+
+    return f"{display_name(base)} vs {display_name(other)}"
+
+
+async def _diff_estimate(db: Session, user: User, kind: str, base: str, other: str, chat_template: bool, **sized) -> dict:
+    from api.diff import estimate_for
+    from api.schemas.diff import EstimateRequest
+
+    estimate = await estimate_for(db, user, EstimateRequest(kind=kind, base=base, other=other, chat_template=chat_template, **sized))
+    if not estimate["within_limit"]:
+        _bad("This run would take longer than the pair's time limit: use fewer or shorter texts")
+    return estimate
+
+
+def _read_as(chat_template: bool) -> str:
+    return "user messages in the chat template" if chat_template else "plain text"
+
+
+async def _diff_layers_request(db: Session, user: User, args: dict):
+    from api.schemas.diff import LayersRequest
+
+    base, other = await _diff_pair(db, user, args)
+    return LayersRequest(base=base, other=other, texts=_diff_texts(args), chat_template=bool(args.get("chat_template")))
+
+
+async def quote_diff_layers(db: Session, user: User, ctx: ToolContext, args: dict) -> RunQuote:
+    body = await _diff_layers_request(db, user, args)
+    estimate = await _diff_estimate(db, user, "layers", body.base, body.other, body.chat_template, texts=body.texts)
+    return RunQuote(
+        "Compare two models' layers",
+        [["Pair", _pair_name(body.base, body.other)], ["Texts", f"{_texts_name(body.texts)} ({estimate['num_texts']})"],
+         ["Read as", _read_as(body.chat_template)]],
+        estimate["estimated_cost"], note="Charged by its size when it ends (token counts are estimated until then)",
+        chip=f"Diff layers · {_model_name(body.other)}",
+    )
+
+
+def _halves_gap(halves: dict, key: str) -> Optional[float]:
+    """The largest difference between a measure's profiles on the two halves of the texts."""
+    pair = halves.get(key)
+    if not pair:
+        return None
+    gaps = [abs(a - b) for a, b in zip(*pair) if a is not None and b is not None]
+    return _round(max(gaps)) if gaps else None
+
+
+def _diff_layers_summary(run: dict) -> dict:
+    distance = [v if v is not None else 0.0 for v in run["distance"]]
+    peak = max(range(len(distance)), key=lambda p: distance[p])
+    tokens = sorted(
+        ((kl, text, i) for text in run["texts"] for i, kl in enumerate(text["kl"])), key=lambda item: -item[0],
+    )[:8]
+    dropped = run.get("dropped") or []
+    return {
+        "pair": {"base": run["base"], "other": run["other"]},
+        "texts": run["texts_name"], "num_texts": run["num_texts"], "tokens_compared": run["num_tokens"],
+        "read_as": _read_as(run["chat_template"]),
+        "dropped_texts": {"count": len(dropped), "first_reason": dropped[0]["reason"]} if dropped else None,
+        "positions": f"0 to {run['num_layers']} (0 the embeddings, i layer i-1's output), one value each below",
+        "distance": [_round(v) for v in run["distance"]],
+        "cka": [_round(v) for v in run["cka"]],
+        "cka_chance": [_round(v) for v in run["cka_chance"]],
+        "procrustes": [_round(v) for v in run["procrustes"]],
+        "largest_distance": {"position": peak, "distance": _round(distance[peak])},
+        "halves_differ_by_at_most": {key: _halves_gap(run["halves"], key) for key in ("distance", "cka", "procrustes")},
+        "next_token": {"mean_kl": _round(run["kl"], 4), "kl_on_each_half": [_round(v, 4) for v in run["half_kl"]],
+                       "top_prediction_agrees": _round(run["top1_agreement"])},
+        "most_divergent_tokens": [
+            {"after": _cut("".join(text["tokens"][max(0, i - 12):i + 1]), 90), "kl": _round(kl),
+             "base_predicts": text["base_top"][i], "other_predicts": text["other_top"][i]}
+            for kl, text, i in tokens
+        ],
+        "note": "distance: the two models' activations of the same token, apart by this much of the activations' spread (0 identical, "
+                "~1.4 unrelated). cka and procrustes are 1 when one model's activations are a rotation and scaling of the other's; "
+                "quote cka next to cka_chance (randomly paired tokens). A profile counts where the two halves of the texts agree "
+                "(halves_differ_by_at_most; null: not kept for a model this wide). KL is KL(other ‖ base), nats per token. Opened "
+                "on the Model Diff page; diff_directions decomposes one position",
+    }
+
+
+async def run_diff_layers(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
+    from api.diff import run_layers_for
+    from api.schemas.diff import LayersResponse
+
+    body = await _diff_layers_request(db, user, args)
+    run = LayersResponse.model_validate(await run_layers_for(db, user, body)).model_dump(mode="json")
+    return ToolOutcome(_diff_layers_summary(run), chip=f"Diff layers · {_short(run['other_name'])}", result={
+        "page": "diff", "data": {"run": run, "texts": body.texts.model_dump(mode="json")},
+    })
+
+
+async def _diff_directions_request(db: Session, user: User, args: dict):
+    from api.schemas.diff import DirectionsRequest
+
+    base, other = await _diff_pair(db, user, args)
+    layer = _int(args, "layer", 0, None, "layer")
+    return DirectionsRequest(base=base, other=other, texts=_diff_texts(args), layer=layer, chat_template=bool(args.get("chat_template")))
+
+
+async def quote_diff_directions(db: Session, user: User, ctx: ToolContext, args: dict) -> RunQuote:
+    from api.diff import resolve_pair
+    from core.diff.budget import CONTROL_DIRECTIONS, TESTED_COMPONENTS
+
+    body = await _diff_directions_request(db, user, args)
+    pair = await resolve_pair(db, user, body.base, body.other)
+    if body.layer > pair.specs.layers:
+        _bad(f"layer is a residual stream position, 0 to {pair.specs.layers}")
+    estimate = await _diff_estimate(db, user, "directions", body.base, body.other, body.chat_template, texts=body.texts)
+    return RunQuote(
+        "Find the directions two models differ along",
+        [["Pair", _pair_name(body.base, body.other)], ["At", _layer_text(body.layer)],
+         ["Texts", f"{_texts_name(body.texts)} ({estimate['num_texts']}), {_read_as(body.chat_template)}"],
+         ["Tested", f"the {TESTED_COMPONENTS} largest components, each against {CONTROL_DIRECTIONS} random directions"]],
+        estimate["estimated_cost"], note="Charged by its size when it ends", chip=f"Diff directions · {_layer_text(body.layer)}",
+    )
+
+
+def _context_text(context: dict) -> str:
+    before = "".join(context["before"])[-60:]
+    return f"{before}[{context['token']}]{''.join(context['after'])}"
+
+
+async def run_diff_directions(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
+    from api.diff import run_directions_for
+    from api.schemas.diff import DirectionsResponse
+
+    body = await _diff_directions_request(db, user, args)
+    run = DirectionsResponse.model_validate(await run_directions_for(db, user, body)).model_dump(mode="json")
+    test = run["test"]
+    tested = {t["index"]: t for t in test["components"]}
+    components = []
+    for c in run["components"]:
+        entry = {"component": c["index"], "share": _round(c["share"]), "cosine_with_mean_difference": _round(c["mean_cosine"]),
+                 "highest_tokens": [_context_text(x) for x in c["high"][:4]], "lowest_tokens": [_context_text(x) for x in c["low"][:3]]}
+        if c["index"] in tested:
+            t = tested[c["index"]]
+            controls = [x["closed"] for x in t["controls"] if x["closed"] is not None]
+            entry["closed"] = _round(t["closed"])
+            entry["controls_closed"] = [_round(v) for v in controls]
+            entry["beats_every_control"] = t["closed"] is not None and bool(controls) and all(t["closed"] > v for v in controls)
+        components.append(entry)
+    out = {
+        "pair": {"base": run["base"], "other": run["other"]}, "position": run["layer"], "at": _layer_text(run["layer"]),
+        "texts": run["texts_name"], "fit_tokens": run["fit_tokens"], "held_out_tokens": run["test_tokens"],
+        "relative_difference": _round(run["relative_difference"]), "mean_share": _round(run["mean_share"]),
+        "components": components,
+        "held_out_kl": {"base_unchanged": _round(test["kl_base"], 4), "whole_difference_added": _round(test["kl_full"], 4),
+                        "full_closed": _round(test["full_closed"]),
+                        f"top_{test['joint']['count']}_together_closed": _round(test["joint"]["closed"])},
+        "top_prediction_agrees": {"base_unchanged": _round(test["agreement_base"]), "whole_difference_added": _round(test["agreement_full"])},
+        "note": "share: a component's share of the mean squared difference between the models at this position (fit on half the texts). "
+                "The token in brackets is where the difference lies furthest along it. closed: the share of the held-out KL(other ‖ base) "
+                "removed by adding the component to the base model, each token getting its own difference along it; controls_closed is "
+                "the same amounts along random directions, and full_closed the ceiling (the whole difference added). A component matters "
+                "only where it beats every control. Opened in the Model Diff page's directions view",
+    }
+    return ToolOutcome(out, chip=f"Diff directions · {_layer_text(run['layer'])}", result={
+        "page": "diff", "data": {"response": run, "texts": body.texts.model_dump(mode="json")},
+    })
+
+
+async def _diff_patch_request(db: Session, user: User, args: dict):
+    from api.schemas.diff import PatchRequest
+    from core.diff.budget import DONORS, MAX_PROMPT_CHARS, PATCH_KINDS
+
+    base, other = await _diff_pair(db, user, args)
+    donor, kind = args.get("donor") or "other", args.get("kind") or "resid"
+    if donor not in DONORS:
+        _bad(f"donor is one of: {', '.join(DONORS)}")
+    if kind not in PATCH_KINDS:
+        _bad(f"kind is one of: {', '.join(PATCH_KINDS)}")
+    prompt = _text(args, "prompt", "prompt", limit=MAX_PROMPT_CHARS)
+    return PatchRequest(base=base, other=other, prompt=prompt, donor=donor, kind=kind, chat_template=bool(args.get("chat_template")))
+
+
+_PATCH_KIND_NAMES = {"resid": "the residual stream entering each layer", "attn": "each layer's attention output", "mlp": "each layer's MLP output"}
+
+
+async def quote_diff_patch(db: Session, user: User, ctx: ToolContext, args: dict) -> RunQuote:
+    body = await _diff_patch_request(db, user, args)
+    estimate = await _diff_estimate(db, user, "patch", body.base, body.other, body.chat_template, prompt=body.prompt)
+    donor, recipient = (body.other, body.base) if body.donor == "other" else (body.base, body.other)
+    return RunQuote(
+        "Patch one model into the other",
+        [["From", _model_name(donor)], ["Into", _model_name(recipient)], ["Patched", _PATCH_KIND_NAMES[body.kind]],
+         ["Prompt", _cut(body.prompt)]],
+        estimate["estimated_cost"], note="Charged by its size when it ends", chip=f"Diff patch · {_model_name(body.other)}",
+    )
+
+
+async def run_diff_patch(db: Session, user: User, ctx: ToolContext, args: dict) -> ToolOutcome:
+    from api.diff import run_patch_for
+    from api.schemas.diff import PatchResponse
+
+    body = await _diff_patch_request(db, user, args)
+    run = PatchResponse.model_validate(await run_patch_for(db, user, body)).model_dump(mode="json")
+    base_kl = run["kl_base"]
+    cells = sorted(
+        ((value, layer, position) for layer, row in enumerate(run["grid"]) for position, value in enumerate(row)),
+        key=lambda cell: cell[0],
+    )[:10]
+    out = {
+        "pair": {"base": run["base"], "other": run["other"]}, "donor": run["donor"], "patched": _PATCH_KIND_NAMES[run["kind"]],
+        "prompt_tokens": len(run["tokens"]), "kl_unpatched": _round(base_kl, 4),
+        "donor_predicts": run["predictions"]["donor"][:3], "recipient_predicts": run["predictions"]["recipient"][:3],
+        "lowest_kl_cells": [
+            {"layer": layer, "position": position, "token": run["tokens"][position], "kl": _round(value, 4),
+             "closed": _round(1 - value / base_kl) if base_kl > 1e-6 else None}
+            for value, layer, position in cells
+        ],
+        "all_positions_by_layer": [_round(v, 4) for v in run["all_positions"]],
+        "note": "Values are KL(donor ‖ patched recipient) at the prompt's last position, in nats; kl_unpatched is the recipient "
+                "left alone. closed is the share of it a patch removes. all_positions_by_layer patches a whole layer: for the "
+                "residual stream that runs the donor up to the layer and the recipient after it. With kl_unpatched near 0 the "
+                "models already agree on this prompt and the cells mean little. Opened in the Model Diff page's patch view",
+    }
+    return ToolOutcome(out, chip=f"Diff patch · {_short(run['other_name'])}", result={"page": "diff", "data": {"response": run}})
+
+
 Quote = Callable[[Session, User, ToolContext, dict], Awaitable[RunQuote]]
 Run = Callable[[Session, User, ToolContext, dict], Awaitable[ToolOutcome]]
 
@@ -1932,6 +2191,9 @@ RUNS: dict[str, tuple[Quote, Run]] = {
     "analyze_sae": (quote_analyze_sae, run_analyze_sae),
     "build_atlas": (quote_build_atlas, run_build_atlas),
     "compare_probe_sae": (quote_compare_probe_sae, run_compare_probe_sae),
+    "diff_directions": (quote_diff_directions, run_diff_directions),
+    "diff_layers": (quote_diff_layers, run_diff_layers),
+    "diff_patch": (quote_diff_patch, run_diff_patch),
     "explain_feature": (quote_explain_feature, run_explain_feature),
     "generalize_probes": (quote_generalize_probes, run_generalize_probes),
     "generate": (quote_generate, run_generate),

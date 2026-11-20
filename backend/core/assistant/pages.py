@@ -15,6 +15,8 @@ from typing import Optional
 
 from core.attribution.budget import MAX_PAIRS, AttributionInputError
 from core.attribution.tasks import TASKS, normalize_rows
+from core.diff.budget import COMPONENTS, MAX_TEXTS, MIN_TEXTS
+from core.diff.texts import builtin_samples
 from core.geometry.concepts import builtin_concepts
 from core.probes.datasets import builtin_datasets
 
@@ -192,6 +194,28 @@ PAGES: dict[str, Page] = {
         Control("atlas_corpus", "Corpus", "select", "atlas view", ("openwebtext", "wikitext", "tinystories")),
         Control("atlas_tokens", "Tokens", "select", "atlas view", ("1000000", "2000000", "5000000")),
         Control("atlas_button", "Compute atlas", "action", "reads Recompute once the atlas exists"),
+    )),
+    "diff": Page("diff", "/diff", "Model Diff", True, (
+        Control("view", "View", "select", options=("layers", "directions", "patch")),
+        Control(
+            "model", "Pair", "text",
+            "either model of a pair: an open-weight model's ID (compared with its base or instruct sibling), or a custom "
+            "model's name (compared with the Ozera model of its shape)",
+        ),
+        Control("sample", "Sample", "select", "a built-in text sample", tuple(builtin_samples())),
+        Control("count", "Texts", "number", "how many texts of the built-in sample", minimum=MIN_TEXTS, maximum=MAX_TEXTS, integer=True),
+        Control("seed", "Seed", "number", "which texts of the built-in sample", minimum=0, integer=True),
+        Control("texts", "Your texts", "text", f"your own texts instead of a built-in sample: one per line, at least {MIN_TEXTS}"),
+        Control("chat_template", "Chat template", "toggle", "pairs with an instruct model only: both models read each text as a user message in its chat template"),
+        Control("run_button", "Compare layers", "action"),
+        Control("metric", "Measure", "select", "layers view: what the layer profile shows", ("distance", "cka", "procrustes", "cosine")),
+        Control("layer", "Layer", "number", "the residual stream position shown and decomposed (0 is the embeddings)", minimum=0, integer=True),
+        Control("directions_button", "Find directions", "action", "directions view"),
+        Control("component", "Component", "number", "directions view: the component whose tokens are shown, from 1", minimum=1, maximum=COMPONENTS, integer=True),
+        Control("prompt", "Prompt", "text", "patch view: the prompt both models read"),
+        Control("donor", "Donor", "select", "patch view: the model whose activations are patched into the other one", ("other", "base")),
+        Control("sites", "Patch", "select", "patch view: the activation patched", ("resid", "attn", "mlp")),
+        Control("patch_button", "Run patching", "action", "patch view"),
     )),
     "settings": Page("settings", "/settings", "Settings", False),
 }

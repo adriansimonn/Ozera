@@ -6,7 +6,7 @@ A workbench for interpretability research on language models
 
 ## Overview
 
-Ozera lets you run interpretability experiments on a language model from the browser, with no code to write. You can inspect activations and attention layer by layer, patch and ablate them, trace circuits through transcoder features, read sparse autoencoder (SAE) features, train linear probes, and map the shape a concept takes inside the model. It works on Ozera's own from-scratch models, on popular open-source models, and on models you train or upload. Runs go to serverless GPUs and are paid for with prepaid credits.
+Ozera lets you run interpretability experiments on a language model from the browser, with no code to write. You can inspect activations and attention layer by layer, patch and ablate them, trace circuits through transcoder features, read sparse autoencoder (SAE) features, train linear probes, map the shape a concept takes inside the model, and compare a model with its fine-tuned sibling. It works on Ozera's own from-scratch models, on popular open-source models, and on models you train or upload. Runs go to serverless GPUs and are paid for with prepaid credits.
 
 ## Features
 
@@ -18,10 +18,11 @@ Ozera lets you run interpretability experiments on a language model from the bro
 - **SAE Analysis:** See which features fire on each token of a text, browse an SAE's features with corpus statistics and top contexts, check reconstruction quality, and compare two SAEs or layers. Load SAEs from HuggingFace or Gemma Scope, or upload your own.
 - **Probe Lab:** Fit linear probes at every layer of the residual stream, with shuffled-label controls. Then score text token by token, test generalization across datasets and between base and instruct models, steer with the probe's direction, ablate it, or compare it with SAE features.
 - **Geometry Lab:** Find the shape a concept (days, months, numbers, or your own) takes in the residual stream, test it against circle, line and cluster hypotheses, steer the model along it, and see how an SAE breaks it up. The atlas reads a corpus through an SAE and groups its features into communities.
-- **Custom Models:** Train the Ozera architecture on your own text with the cost estimated up front, or upload model weights. Custom models work in every instrument.
+- **Model Diff:** See where two models of the same shape differ on the same tokens: a base model and its instruct sibling, or an Ozera model and the one you trained from it. Layer by layer, the distance between their activations, linear CKA and Procrustes, each checked on two halves of the texts, and token by token the KL between their predictions. Then the directions the difference lies along at a layer, tested by adding each to the base model against random directions, and one model's activations patched into the other on a prompt.
 
 ### Around them
 
+- **Custom models:** Train the Ozera architecture on your own text with the cost estimated up front, or upload model weights. Custom models work in every instrument, and Model Diff compares one with the model it started from.
 - **Assistant:** A side panel on every page, powered by Claude. Ask in plain language and it sets up and runs experiments for you, then explains the results. It asks for approval before each step by default, and a chat can have a spending limit.
 - **Autointerp:** Claude writes an explanation for an SAE feature from its activating contexts, and a second model scores that explanation on held-out contexts against baselines. Run it on one feature or a whole SAE, or test your own hypotheses.
 - **Figure export:** Publication-ready figures (PNG, PDF, SVG) with presets for NeurIPS, ICLR, ICML and Nature, one at a time or as a batch ZIP.
@@ -70,6 +71,7 @@ ozera/
 │   │   ├── patching/     # Patched generation engine and intervention hooks
 │   │   ├── attribution/  # Attribution patching, exact patching, ablation over prompt pairs
 │   │   ├── circuits/     # Attribution graphs on transcoders (circuit-tracer) and interventions on them
+│   │   ├── diff/         # Model Diff: two models compared by layer, by direction, and by patching
 │   │   ├── sae/          # Sparse autoencoders: training, analysis, external loaders
 │   │   ├── probes/       # Linear probes: sweeps, steering, ablation, transfer
 │   │   ├── geometry/     # Concept shapes, manifold steering, feature atlas
@@ -85,8 +87,8 @@ ozera/
 │   └── tests/
 ├── frontend/
     └── src/
-        ├── pages/        # Home, Generate, Custom Models, Attribution, Circuit Tracing, SAE, Probe Lab, Geometry Lab, Settings, Auth
-        ├── components/   # Per feature: visualization, attribution, circuits, patching, sae, autointerp, probes, geometry, assistant, training, payments
+        ├── pages/        # Home, Generate, Attribution, Circuit Tracing, SAE, Probe Lab, Geometry Lab, Model Diff, Custom Models, Settings, Auth
+        ├── components/   # Per feature: visualization, attribution, circuits, diff, patching, sae, autointerp, probes, geometry, assistant, training, payments
         ├── hooks/        # Data and state hooks per feature
         ├── stores/       # Auth, settings, and assistant state (Zustand)
         └── api/          # API client

@@ -242,6 +242,15 @@ export default function DefaultTrainingPage() {
                         </button>
                         {model.type === 'trained' && (
                           <button
+                            onClick={() => navigate(`/diff?model=${encodeURIComponent(model.name)}`)}
+                            title="Compare it with the Ozera model it was trained from"
+                            className="oz-btn oz-btn--ghost oz-btn--small"
+                          >
+                            Diff
+                          </button>
+                        )}
+                        {model.type === 'trained' && (
+                          <button
                             onClick={() => handleDownloadModel(model.model_id)}
                             disabled={downloadingModelId === model.model_id}
                             title="Download model"

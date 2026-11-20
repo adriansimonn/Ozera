@@ -200,7 +200,7 @@ export interface AblateResponse {
 
 /** A chart's data, for a figure drawn by the backend (POST /export/figure). */
 export interface DataFigureRequest {
-  kind: 'heatmap' | 'scatter' | 'bars' | 'graph'
+  kind: 'heatmap' | 'scatter' | 'bars' | 'graph' | 'lines'
   config?: import('./export').ExportConfig
   title?: string
   x_label?: string
@@ -216,6 +216,8 @@ export interface DataFigureRequest {
   bars?: { label: string; value: number; error?: number | null; marks?: number[] }[]
   baseline?: number
   baseline_label?: string
+  /** lines: each line over the points column_labels name; a faint line is a part of the last solid one, a dashed one a reference */
+  series?: { label: string; values: (number | null)[]; style?: 'solid' | 'faint' | 'dashed' }[]
   /** graph: an attribution graph's nodes by layer and position, and its edges as [source, target, weight, share] */
   graph?: {
     tokens: string[]

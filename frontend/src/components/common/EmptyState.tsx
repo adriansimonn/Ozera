@@ -24,6 +24,8 @@ const GLYPHS = {
   geometry: ['..###..', '.#...#.', '#.....#', '#..1..#', '#.....#', '.#...#.', '..###..'],
   // A loss coming down
   training: ['#......', '#......', '.#.....', '..#....', '...##..', '.....12'],
+  // Two models' layers, alike at the bottom and parting on the way up
+  diff: ['#.....1', '#....2.', '.#..3..', '.#.#...', '..##...', '..##...'],
   // A feature map: communities of cells
   atlas: ['##...#.', '##..###', '.....#.', '.1.....', '111..##', '.1...##'],
   // Bars of a chart

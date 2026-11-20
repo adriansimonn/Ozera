@@ -1016,6 +1016,24 @@ def calculate_attribution_cost(model_id: str, busy_seconds: float) -> float:
     return min_gpu_request_charge(model_id, {tier: max(busy_seconds, INFERENCE_BUSY_SECONDS[tier])})
 
 
+def calculate_diff_cost(model_id: str, busy_seconds: float) -> float:
+    """
+    Cost of a Model Diff run (layers, directions or patch), for the GPU time it is estimated
+    to take: core.diff.budget's estimate_layers_seconds, estimate_directions_seconds or
+    estimate_patch_seconds, which count both models' passes and the second model's load.
+
+    Charged like calculate_probe_cost: a lone request to the inference worker of the pair's
+    tier (cold start, the run, and the warm window after it), at least min_gpu_request_charge.
+
+    Args:
+        model_id: The pair's base model (both models are on its GPU tier)
+        busy_seconds: The run's estimated GPU seconds (from estimated sizes before the run,
+            from its real token counts after)
+    """
+    tier = get_gpu_tier(model_id)
+    return min_gpu_request_charge(model_id, {tier: max(busy_seconds, INFERENCE_BUSY_SECONDS[tier])})
+
+
 # Atlas jobs run on a GPU container of their own (services/modal_feature_stats.py), billed from
 # its cold start (boot and image; loading the model and SAE is in the job's estimate) to its
 # scaledown, for the CPU and memory it reserves

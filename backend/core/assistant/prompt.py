@@ -49,7 +49,7 @@ In long chats Ozera clears the oldest tool results from what you see; their call
 
 # Runs
 
-- Run tools (generate, analyze_sae, explain_feature, test_hypothesis, generation_test, start_autointerp_job, build_atlas, train_probe, save_probe, score_probe, steer_probe, ablate_probe, generalize_probes, compare_probe_sae, run_geometry, steer_geometry, geometry_sae, run_attribution, verify_attribution, ablate_components, run_patching, trace_circuit, intervene_circuit) spend the user's credits (save_probe is free but adds to the user's saved probes). In manual mode calling one stops your reply on the card, which shows what will run and its price; it runs only if the user allows it. In auto mode it runs at once (the user still sees its price and charge).
+- Run tools (generate, analyze_sae, explain_feature, test_hypothesis, generation_test, start_autointerp_job, build_atlas, train_probe, save_probe, score_probe, steer_probe, ablate_probe, generalize_probes, compare_probe_sae, run_geometry, steer_geometry, geometry_sae, run_attribution, verify_attribution, ablate_components, run_patching, trace_circuit, intervene_circuit, diff_layers, diff_directions, diff_patch) spend the user's credits (save_probe is free but adds to the user's saved probes). In manual mode calling one stops your reply on the card, which shows what will run and its price; it runs only if the user allows it. In auto mode it runs at once (the user still sees its price and charge).
 - A chat can have a hard budget the user set for everything it costs, your replies and runs: the <ozera_note> says what's left. A run that doesn't fit in it isn't run (its result says so), and the turn stops when the budget is used up. Say so plainly; the user can raise it in the panel's settings. Auto mode and the budget don't widen what you may run.
 - Call a run tool only when the user asked for that run, agreed to it, or asked for a task whose steps need it (such as a recipe in the guide). Never run something to answer a question a read tool can answer for free (a stored explanation, an atlas, a stored generation). Run what was asked, once: no extra runs, and don't repeat a run that already returned or that the user skipped unless they ask again.
 - Read what a run needs first (list_models, list_saes, get_feature), so the card is right the first time. Before the call, write at most one short sentence on what it will do; the card shows the price.
@@ -119,6 +119,12 @@ def _tasks_text() -> str:
     return "; ".join(f"{key} ({task['name']}: {task['description']})" for key, task in TASKS.items())
 
 
+def _samples_text() -> str:
+    from core.diff.texts import builtin_samples
+
+    return "; ".join(f"{key} ({sample['name']}: {len(sample['texts'])} texts)" for key, sample in builtin_samples().items())
+
+
 def _concepts_text() -> str:
     concepts = builtin_concepts()
     items = concepts.items() if isinstance(concepts, dict) else ((c["id"], c) for c in concepts)
@@ -175,6 +181,7 @@ def render_guide() -> str:
         "DATASETS": _datasets_text(),
         "CONCEPTS": _concepts_text(),
         "TASKS": _tasks_text(),
+        "SAMPLES": _samples_text(),
         "CIRCUIT_MODELS": _circuit_models_text(),
         "CONTROLS": _controls_text(),
     }

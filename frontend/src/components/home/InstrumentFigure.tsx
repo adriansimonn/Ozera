@@ -148,22 +148,29 @@ const circle: Figure = (c, r, time) => {
   return Math.hypot(x, y) < 4.6 && hash2(c + 3, r + 8) < 0.16 ? 0.1 : 0
 }
 
-/** Training: a loss curve filling in, step by step. */
-const training: Figure = (c, r, time) => {
-  const step = c - 2
-  if (step < 0 || step > 19 || r < 2 || r > 21) return 0
-  const period = 9.5
+/**
+ * A model diff: two models read the same tokens, and a comparison climbs their layers, lighting
+ * the tiles where the second has come to differ from the first (more of them the higher it gets).
+ */
+const modelDiff: Figure = (c, r, time) => {
+  if (r < 2 || r > 21) return 0
+  const first = c >= 2 && c <= 10
+  if (!first && !(c >= 13 && c <= 21)) return 0
+  const x = first ? c - 2 : c - 13 // the same tile in each model
+  const period = 8.5
   const run = Math.floor(time / period)
-  const current = Math.floor(Math.min(1, (time - run * period) / 6.4) * 20)
-  if (step > current) return 0
-  const loss = 3 + 15.5 * Math.exp(-step / 4.3) + 1.6 * (hash2(step, run + 60) - 0.5)
-  const top = 21 - Math.max(1, Math.round(loss)) + 1
-  if (r < top) return 0
-  if (r === top) return step === current && current < 20 ? ACCENT : 0.95
-  return 0.4 - 0.24 * ((r - top) / (21 - top + 1))
+  const k = time - run * period
+  const layer = 21 - r // 0 at the bottom
+  const reached = (k / 4.8) * 20
+  const tone = 0.3 + 0.5 * noise2(x * 0.55 + 3, r * 0.45)
+  const comparing = Math.abs(layer - reached) < 0.6
+  if (first) return comparing ? 0.95 : tone
+  const differs = hash2(x * 7 + run * 13, r * 5 + 1) < 0.04 + (layer / 19) * 0.55
+  if (!differs) return comparing ? 0.95 : tone
+  return layer <= reached ? ACCENT : tone
 }
 
-const FIGURES: Figure[] = [forwardPass, patching, circuit, sparse, probe, circle, training]
+const FIGURES: Figure[] = [forwardPass, patching, circuit, sparse, probe, circle, modelDiff]
 
 interface Props {
   /** Index of the figure to draw */

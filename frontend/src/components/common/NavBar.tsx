@@ -3,6 +3,7 @@
  * (.oz-nav), after the homepage's nav.
  */
 
+import { Fragment } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { UserMenu } from './UserMenu'
 import { AssistantButton } from '../assistant/AssistantPanel'
@@ -22,17 +23,16 @@ export function NavBar() {
       </Link>
 
       <div className="oz-nav__links">
-        {APP_PAGES.map(({ path, label }) => {
+        {APP_PAGES.map(({ path, label, utility }, i) => {
           const active = location.pathname === path
           return (
-            <Link
-              key={path}
-              to={path}
-              className={`oz-nav__link${active ? ' is-active' : ''}`}
-              aria-current={active ? 'page' : undefined}
-            >
-              {label}
-            </Link>
+            <Fragment key={path}>
+              {/* The instruments, then the utility pages */}
+              {utility && !APP_PAGES[i - 1]?.utility && <span className="oz-nav__sep" aria-hidden="true" />}
+              <Link to={path} className={`oz-nav__link${active ? ' is-active' : ''}`} aria-current={active ? 'page' : undefined}>
+                {label}
+              </Link>
+            </Fragment>
           )
         })}
       </div>

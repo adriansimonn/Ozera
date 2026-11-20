@@ -156,6 +156,15 @@ html.oz-app-active[data-oz-bg='light'] {
   color: var(--oz-fg);
 }
 
+/* Between the instruments and the utility pages */
+.oz-nav__sep {
+  flex: none;
+  align-self: center;
+  width: 1px;
+  height: 1.1rem;
+  background: var(--oz-rule-strong);
+}
+
 .oz-nav__link.is-active {
   color: var(--oz-fg);
 }
